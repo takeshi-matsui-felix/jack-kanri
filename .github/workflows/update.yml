@@ -1,0 +1,73 @@
+name: Update JACK Kanri
+
+on:
+  schedule:
+    - cron: '0 20 * * *'  # 毎日5時 JST (UTC 20:00)
+  workflow_dispatch:        # 手動実行も可能
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+
+      - name: Fetch latest data from GAS and update index.html
+        env:
+          GAS_URL: ${{ secrets.GAS_URL }}
+        run: |
+          python3 << 'PYEOF'
+          import urllib.request
+          import json
+          import re
+          import os
+
+          gas_url = os.environ['GAS_URL']
+          
+          # Fetch property data
+          print("データ取得中...")
+          
+          # Use callback for JSONP
+          import urllib.parse
+          url = gas_url + '?callback=cb'
+          
+          try:
+              req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
+              with urllib.request.urlopen(req, timeout=30) as r:
+                  raw = r.read().decode('utf-8')
+              # Strip JSONP wrapper: cb({...})
+              data_str = re.sub(r'^[^(]+\(', '', raw).rstrip(');')
+              data = json.loads(data_str)
+              print(f"取得完了: 全物件={len(data.get('all',{}).get('全物件進捗',[]))}件")
+          except Exception as e:
+              print(f"エラー: {e}")
+              exit(1)
+
+          # Read current index.html
+          with open('index.html', 'r', encoding='utf-8') as f:
+              html = f.read()
+
+          # Replace DATA section
+          new_data_script = '<script>\nvar DATA=' + json.dumps(data.get('all', {}), ensure_ascii=False) + ';\n</script>'
+          
+          # Find and replace the DATA script block
+          pattern = r'<script>\s*var DATA=\{.*?\};\s*</script>'
+          new_html = re.sub(pattern, new_data_script, html, flags=re.DOTALL)
+          
+          if new_html == html:
+              print("警告: DATAの置換に失敗しました")
+          else:
+              print("HTML更新完了")
+
+          with open('index.html', 'w', encoding='utf-8') as f:
+              f.write(new_html)
+          print("ファイル保存完了")
+          PYEOF
+
+      - name: Commit and push
+        run: |
+          git config user.name "GitHub Actions"
+          git config user.email "actions@github.com"
+          git add index.html
+          git diff --staged --quiet || git commit -m "データ更新: $(date +'%Y/%m/%d %H:%M')"
+          git push
