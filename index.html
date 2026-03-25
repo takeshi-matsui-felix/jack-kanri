@@ -276,28 +276,23 @@ input,textarea,select{font-family:var(--font)}
 .master-step-row{display:flex;align-items:center;gap:4px;padding:5px 8px;border-bottom:1px solid var(--g100);background:white;min-height:44px;flex-wrap:wrap}
 .master-step-row:hover{background:var(--g50)}
 #masterColorPicker{display:none;flex-wrap:wrap;gap:6px;padding:12px;background:white;border:1px solid #e2e8f0;border-radius:12px;box-shadow:0 8px 32px rgba(0,0,0,.2);position:fixed;z-index:9999;width:200px}
-@media print {
-  * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
-  .slide-panel:not(.open), #menuOverlay, #sideMenu, .sync-banner, .area-tabs,
-  .status-bar, .stats-strip, .panel-action-bar, .th-icon-btn, .print-btn,
-  #updatePopup, .tooltip, .toast, #loading, .editor-toolbar, #addBarFormPanel,
-  #detail-gantt-expand-btn, #detail-gantt-print-btn, #edDelConfirmOverlay { display: none !important; }
-  .slide-panel.open { display:flex !important; position:static !important; transform:none !important; height:auto !important; overflow:visible !important; }
-  .top-header .th-right { display:none !important; }
-  .top-header { background:#1a56db !important; }
-  html, body { height:auto !important; overflow:visible !important; background:white !important; }
-  #app { height:auto !important; overflow:visible !important; max-width:100% !important; display:block !important; box-shadow:none !important; }
-  .table-wrap { overflow:visible !important; height:auto !important; display:block !important; }
-  .table-header { position:static !important; display:flex !important; }
-  .table-body { overflow:visible !important; height:auto !important; display:flex !important; }
-  .freeze-body, .scroll-body { overflow:visible !important; }
-  #ganttCanvas { position:relative !important; }
-  .fr-row { page-break-inside:avoid; }
-  .g-row { background:white !important; }
-  .g-row.even { background:#f8fafc !important; }
-  .panel-scroll { overflow:visible !important; height:auto !important; padding-bottom:0 !important; }
-  @page { size:A3 landscape; margin:6mm; }
-}
+@media print{*{-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important}
+.slide-panel:not(.open),#menuOverlay,#sideMenu,.sync-banner,.area-tabs,.status-bar,.stats-strip,.panel-action-bar,.th-icon-btn,.print-btn,#updatePopup,.tooltip,.toast,#loading,.editor-toolbar,#addBarFormPanel,#detail-gantt-expand-btn,#detail-gantt-print-btn,#edDelConfirmOverlay{display:none!important}
+.slide-panel.open{display:flex!important;position:static!important;transform:none!important;height:auto!important;overflow:visible!important}
+.top-header .th-right{display:none!important}
+.top-header{background:#1a56db!important}
+html,body{height:auto!important;overflow:visible!important;background:white!important}
+#app{height:auto!important;overflow:visible!important;max-width:100%!important;display:block!important;box-shadow:none!important}
+.table-wrap{overflow:visible!important;height:auto!important;display:block!important}
+.table-header{position:static!important;display:flex!important}
+.table-body{overflow:visible!important;height:auto!important;display:flex!important}
+.freeze-body,.scroll-body{overflow:visible!important}
+#ganttCanvas{position:relative!important}
+.fr-row{page-break-inside:avoid}
+.g-row{background:white!important}
+.g-row.even{background:#f8fafc!important}
+.panel-scroll{overflow:visible!important;height:auto!important;padding-bottom:0!important}
+@page{size:A3 landscape;margin:6mm}}
 
 </style>
 </head>
@@ -326,14 +321,14 @@ input,textarea,select{font-family:var(--font)}
     <button class="btn-primary" style="width:100%;margin-top:4px" onclick="addNewBar()">バーを追加</button>
   </div></div>
   <div style="flex:1;overflow:auto;background:#1e293b;-webkit-overflow-scrolling:touch"><div style="position:sticky;top:0;z-index:10" id="editorDateHeader"></div><div style="padding:10px 0;min-height:100px"><div id="editorCanvas"></div></div></div>
-  <div style="padding:6px 12px;background:var(--g50);border-top:1px solid var(--g200);font-size:10px;color:var(--g400);flex-shrink:0">💡 ドラッグで移動 ｜ 右端で延縮 ｜ バー右上の×で削除</div>
+  <div style="padding:6px 12px;background:var(--g50);border-top:1px solid var(--g200);font-size:10px;color:var(--g400);flex-shrink:0">💡 ドラッグで移動 ｜ 右端で延縮 ｜ バー右上×で削除</div>
 </div>
 <div class="slide-panel" id="masterPanel"><div class="panel-header"><button class="panel-back" onclick="closePanel('masterPanel')">← 戻る</button><div style="flex:1"><div class="panel-title">📋 マスター工程</div></div></div><div class="panel-scroll" id="masterPanelContent"></div></div>
 <div class="slide-panel" id="masterEditorPanel">
-  <div class="panel-header"><button class="panel-back" onclick="closePanel('masterEditorPanel')">← 戻る</button><div style="flex:1"><div class="panel-title" id="masterEditorTitle">マスター工程編集</div><div class="panel-sub">色をクリックで変更 ｜ 行をドラッグで並び替え</div></div><button class="ed-btn ed-btn-save" style="padding:5px 12px;font-size:11px" onclick="saveMasterEditorChanges()">💾 保存</button></div>
+  <div class="panel-header"><button class="panel-back" onclick="closePanel('masterEditorPanel')">← 戻る</button><div style="flex:1"><div class="panel-title" id="masterEditorTitle">マスター工程編集</div><div class="panel-sub">色をクリックで変更 ｜ 日数・名前を直接入力</div></div><button class="ed-btn ed-btn-save" style="padding:5px 12px;font-size:11px" onclick="saveMasterEditorChanges()">💾 保存</button></div>
   <div style="background:#1e293b;flex-shrink:0;display:flex;max-height:260px"><div style="width:80px;flex-shrink:0;background:#1e293b;border-right:1px solid rgba(255,255,255,.15)"><div style="height:28px;background:#1e293b;border-bottom:1px solid rgba(255,255,255,.1)"></div><div id="masterStepLabels"></div></div><div style="flex:1;overflow:auto;-webkit-overflow-scrolling:touch"><div style="position:sticky;top:0;z-index:10"><div id="masterGanttHeader"></div></div><div style="padding:4px 0"><div id="masterGanttCanvas"></div></div></div></div>
   <div id="masterColorPicker"></div>
-  <div style="flex:1;overflow-y:auto;background:var(--g50)"><div style="padding:6px 12px 2px;font-size:10px;font-weight:800;color:var(--g500);display:flex;align-items:center;justify-content:space-between"><span>工程リスト（色・名前・日数を直接編集）</span><button class="ed-btn ed-btn-add" style="font-size:10px;padding:4px 8px" onclick="addMasterStepEnd()">＋ 末尾追加</button></div><div id="masterStepList"></div><div style="padding:8px 12px"><button style="width:100%;padding:8px;font-size:11px;font-weight:700;color:var(--primary);background:var(--primary-l);border-radius:7px" onclick="addMasterStepEnd()">＋ 末尾に工程を追加</button></div></div>
+  <div style="flex:1;overflow-y:auto;background:var(--g50)"><div style="padding:6px 12px 2px;font-size:10px;font-weight:800;color:var(--g500);display:flex;align-items:center;justify-content:space-between"><span>工程リスト（色をクリック・日数・名前を直接編集）</span><button class="ed-btn ed-btn-add" style="font-size:10px;padding:4px 8px" onclick="addMasterStepEnd()">＋ 末尾追加</button></div><div id="masterStepList"></div><div style="padding:8px 12px"><button style="width:100%;padding:8px;font-size:11px;font-weight:700;color:var(--primary);background:var(--primary-l);border-radius:7px" onclick="addMasterStepEnd()">＋ 末尾に工程を追加</button></div></div>
 </div>
 <div class="slide-panel" id="settingsPanel"><div class="panel-header"><button class="panel-back" onclick="closePanel('settingsPanel')">← 戻る</button><div style="flex:1"><div class="panel-title">⚙️ 設定</div></div></div><div class="panel-scroll" id="settingsContent"></div></div>
 <div class="menu-overlay" id="menuOverlay" onclick="closeMenu()"></div>
@@ -2449,57 +2444,72 @@ function deleteMaster(idx){
 function assignMasterToProps(mi){
   var m=myMasters[mi];
   var all=getAllProps();
-  var allActive=all.filter(function(p){return propMaster[custKey(p)]===m.name;});
-  var panel=document.getElementById('masterPanelContent');
-  panel.innerHTML='';
+  window._assignMi=mi;
 
-  var hdr=document.createElement('div');
-  hdr.style.cssText='padding:8px 12px;border-bottom:1px solid var(--g100)';
-  hdr.innerHTML='<button class="panel-back" onclick="renderMasterPanel()" style="margin-bottom:6px">← 戻る</button>'
-    +'<div style="font-size:12px;font-weight:800;color:var(--g700)">📋 「'+m.name+'」を物件に紐付け</div>'
-    +'<div style="font-size:10px;color:var(--g400);margin-top:2px">現在'+allActive.length+'件に適用中</div>';
-  panel.appendChild(hdr);
-
-  var mySection=document.createElement('div');
-  mySection.innerHTML='<div style="padding:6px 12px 2px;font-size:10px;font-weight:800;color:var(--g500);background:var(--g50);border-bottom:1px solid var(--g100)">⭐ マイ物件（'+myFavProps.length+'件）</div>';
-  myFavProps.forEach(function(fav){
-    var p=all.find(function(x){return x.fix_no===fav.fix_no&&x.name===fav.name;});
-    if(!p)return;
-    var ck=custKey(p),active=propMaster[ck]===m.name;
-    var otherMaster=propMaster[ck]&&propMaster[ck]!==m.name?propMaster[ck]:'';
-    var row=document.createElement('div');
-    row.style.cssText='padding:10px 14px;border-bottom:1px solid var(--g50);display:flex;align-items:center;gap:10px;cursor:pointer;background:'+(active?'#eff6ff':'white');
-    var radio=document.createElement('div');
-    radio.style.cssText='width:22px;height:22px;border-radius:50%;border:2px solid '+(active?'var(--primary)':'var(--g300)')+';background:'+(active?'var(--primary)':'white')+';display:flex;align-items:center;justify-content:center;font-size:12px;color:white;flex-shrink:0;font-weight:800';
-    radio.textContent=active?'✓':'';
-    var info=document.createElement('div');
-    info.style.cssText='flex:1;min-width:0';
-    info.innerHTML='<div style="font-size:12px;font-weight:700;color:var(--g800);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+p.name+'</div>'
-      +'<div style="font-size:10px;color:var(--g400);margin-top:1px">'+p.area+'　FiX No.'+p.fix_no+(otherMaster?'　<span style="color:var(--warn);font-weight:700">⚠ 別マスター: '+otherMaster+'</span>':'')+'</div>';
-    row.appendChild(radio);row.appendChild(info);
-    if(active){var tag=document.createElement('span');tag.textContent='適用中';tag.style.cssText='font-size:9px;background:var(--primary-l);color:var(--primary);padding:2px 7px;border-radius:4px;font-weight:700';row.appendChild(tag);}
-    (function(pf,mn,mii){row.addEventListener('click',function(){togglePropMaster(pf.fix_no,encodeURIComponent(pf.name),encodeURIComponent(mn));setTimeout(function(){assignMasterToProps(mii);},150);});})(fav,m.name,mi);
-    mySection.appendChild(row);
-  });
-  if(!myFavProps.length){var e=document.createElement('div');e.style.cssText='padding:16px;text-align:center;color:var(--g400);font-size:11px';e.textContent='マイ物件が未登録です';mySection.appendChild(e);}
-  panel.appendChild(mySection);
-
-  var nonMy=allActive.filter(function(p){return !myFavProps.some(function(f){return f.fix_no===p.fix_no&&f.name===p.name;});});
-  if(nonMy.length){
-    var sec=document.createElement('div');
-    sec.innerHTML='<div style="padding:6px 12px 2px;font-size:10px;font-weight:800;color:var(--success);background:#f0fdf4;border-bottom:1px solid #bbf7d0;border-top:2px solid #bbf7d0">✅ 適用中（マイ物件外 '+nonMy.length+'件）</div>';
-    nonMy.forEach(function(p){
-      var row=document.createElement('div');
-      row.style.cssText='padding:8px 14px;border-bottom:1px solid #dcfce7;display:flex;align-items:center;gap:8px;background:#f0fdf4';
-      row.innerHTML='<span style="font-size:11px;font-weight:600;color:var(--g700);flex:1">'+p.name+'</span><span style="font-size:10px;color:var(--g400)">'+p.area+'</span>';
-      var unBtn=document.createElement('button');
-      unBtn.textContent='解除';unBtn.style.cssText='font-size:10px;background:#fee2e2;color:var(--danger);padding:2px 8px;border-radius:4px;font-weight:700;border:none;cursor:pointer';
-      (function(pp,mn,mii){unBtn.addEventListener('click',function(){togglePropMaster(pp.fix_no,encodeURIComponent(pp.name),encodeURIComponent(mn));setTimeout(function(){assignMasterToProps(mii);},150);});})(p,m.name,mi);
-      row.appendChild(unBtn);sec.appendChild(row);
+  function buildAssignUI(filterText){
+    var filtered=all.filter(function(p){
+      if(!filterText)return true;
+      var q=filterText.toLowerCase();
+      return (p.name||'').toLowerCase().indexOf(q)>=0
+        ||(p.area||'').indexOf(q)>=0
+        ||(p.fix_no||'').indexOf(q)>=0;
     });
-    panel.appendChild(sec);
+    var areas={};
+    filtered.forEach(function(p){var a=p.area||'その他';if(!areas[a])areas[a]=[];areas[a].push(p);});
+    var html='';
+    Object.keys(areas).sort().forEach(function(area){
+      html+='<div style="padding:3px 12px;font-size:10px;font-weight:800;color:var(--g400);background:var(--g50);border-bottom:1px solid var(--g100)">'+area+'</div>';
+      areas[area].forEach(function(p){
+        var ck=custKey(p),active=propMaster[ck]===m.name;
+        var enc=encodeURIComponent(p.name)+','+encodeURIComponent(m.name);
+        html+='<div class="assign-item" data-fix="'+p.fix_no+'" data-enc="'+enc+'" style="padding:9px 14px;border-bottom:1px solid var(--g50);display:flex;align-items:center;gap:10px;cursor:pointer;background:'+(active?'#eff6ff':'white')+'">'
+          +'<div style="width:22px;height:22px;border-radius:50%;border:2px solid '+(active?'var(--primary)':'var(--g200)')+';background:'+(active?'var(--primary)':'white')+';display:flex;align-items:center;justify-content:center;font-size:12px;color:white;flex-shrink:0">'+(active?'✓':'')+'</div>'
+          +'<div style="flex:1;min-width:0">'
+            +'<div style="font-size:12px;font-weight:'+(active?'700':'500')+';color:'+(active?'var(--primary)':'var(--g800)')+';white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+p.name+'</div>'
+            +'<div style="font-size:10px;color:var(--g400)">FiX '+p.fix_no+(isFav(p)?' · ⭐':'')+(p.delivery_date?' · '+p.delivery_date:'')+'</div>'
+          +'</div>'
+          +(active?'<span style="font-size:9px;background:#dbeafe;color:var(--primary);padding:2px 7px;border-radius:10px;font-weight:700">適用中</span>':'')
+          +'</div>';
+      });
+    });
+    return html||'<div style="padding:20px;text-align:center;color:var(--g400);font-size:12px">該当物件なし</div>';
   }
+
+  var activeCount=all.filter(function(p){return propMaster[custKey(p)]===m.name;}).length;
+  window._assignBuildFn=buildAssignUI;
+
+  var panel=document.getElementById('masterPanelContent');
+  panel.innerHTML=
+    '<div style="padding:8px 12px 4px"><button class="panel-back" onclick="renderMasterPanel()">← 戻る</button></div>'
+    +'<div style="padding:6px 14px 10px;background:var(--primary-l);border-bottom:1px solid var(--g200)">'
+      +'<div style="font-size:13px;font-weight:800;color:var(--primary)">📋 「'+m.name+'」を物件に適用</div>'
+      +'<div style="font-size:10px;color:var(--g600);margin-top:2px">現在 '+activeCount+' 件に適用中 · クリックで切り替え</div>'
+    +'</div>'
+    +'<div style="padding:8px 12px;border-bottom:1px solid var(--g200)">'
+      +'<input type="text" id="assignSearchBox" placeholder="物件名・エリア・FiX No.で検索..." oninput="refreshAssignList()"'
+        +' style="width:100%;padding:7px 10px;border:1.5px solid var(--g200);border-radius:8px;font-size:12px">'
+    +'</div>'
+    +'<div id="assignListArea">'+buildAssignUI('')+'</div>';
+
+  // Event delegation for assign items
+  panel.addEventListener('click',function(e){
+    var item=e.target.closest('.assign-item');
+    if(!item)return;
+    var fixNo=item.getAttribute('data-fix');
+    var parts=item.getAttribute('data-enc').split(',');
+    var encName=parts[0], encMaster=parts[1];
+    togglePropMaster(fixNo,encName,encMaster);
+    refreshAssignList();
+  });
 }
+
+function refreshAssignList(){
+  var q=document.getElementById('assignSearchBox');
+  var area=document.getElementById('assignListArea');
+  if(q&&area&&window._assignBuildFn)area.innerHTML=window._assignBuildFn(q.value.trim());
+}
+window.refreshAssignList=refreshAssignList;
+
 
 function togglePropMaster(fixNo,encName,encMaster){
   var name=decodeURIComponent(encName),master=decodeURIComponent(encMaster);
