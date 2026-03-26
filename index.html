@@ -3,6 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="theme-color" content="#1a56db">
 <title>JACK 現場管理</title>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;600;700;800;900&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
 <style>
@@ -342,7 +343,7 @@ var DATA={"dates":["","2026-03-01","2026-03-02","2026-03-03","2026-03-04","2026-
 <script>
 'use strict';
 // ===== CONFIG =====
-var TODAY = '2026-03-15';
+var TODAY = (function(){var d=new Date();return d.getFullYear()+'-'+('0'+(d.getMonth()+1)).slice(-2)+'-'+('0'+d.getDate()).slice(-2);})();
 var COL_W = 18;        // reduced column width
 var SYNC_HOUR = 22;
 var SYNC_URL = 'https://script.google.com/a/macros/mizken.jp/s/AKfycbw6aIG24NPG-QRlVaEghJLwSrZ_DnMiicQvutfAp7ws6OmH8OOvkzmqx5Jebkazc0aY-A/exec';
@@ -750,6 +751,131 @@ function fetchWeather(p, containerId){
     html+='<div style="font-size:8px;color:var(--g300);padding:0 8px 4px;text-align:right">'+coords.name+' / Open-Meteo</div>';
     if(el)el.innerHTML=html;
   }).catch(function(){if(el)el.innerHTML='<div style="font-size:10px;color:var(--g300);padding:6px 10px">天気情報を取得できませんでした</div>';});
+}
+
+// ===== WEATHER =====
+var AREA_COORDS = {
+  '愛知': {lat:35.18,lon:136.91}, '三重': {lat:34.73,lon:136.51},
+  '岐阜': {lat:35.39,lon:136.72}, '静岡': {lat:34.97,lon:138.38},
+  '埼玉': {lat:35.86,lon:139.65}, '東京': {lat:35.69,lon:139.69},
+  '神奈川': {lat:35.45,lon:139.64}, '千葉': {lat:35.61,lon:140.12},
+  '茨城': {lat:36.34,lon:140.45}, '栃木': {lat:36.57,lon:139.88},
+  '群馬': {lat:36.39,lon:139.06}, '大阪': {lat:34.69,lon:135.50},
+  '兵庫': {lat:34.69,lon:135.19}, '京都': {lat:35.02,lon:135.76},
+  '福岡': {lat:33.61,lon:130.42}, '北海道': {lat:43.06,lon:141.35},
+  '宮城': {lat:38.27,lon:140.87}, '広島': {lat:34.40,lon:132.46}
+};
+
+var weatherCache = {};
+
+function getWeatherForProp(p, callback) {
+  var area = p.area || '';
+  var coords = AREA_COORDS[area];
+  if (!coords) { callback(null); return; }
+  var cacheKey = area + '_' + TODAY;
+  if (weatherCache[cacheKey]) { callback(weatherCache[cacheKey]); return; }
+
+  // Open-Meteo API - 無料・認証不要
+  var url = 'https://api.open-meteo.com/v1/forecast?latitude=' + coords.lat
+    + '&longitude=' + coords.lon
+    + '&daily=precipitation_sum,weathercode,temperature_2m_max,temperature_2m_min'
+    + '&timezone=Asia%2FTokyo&forecast_days=7';
+
+  var script = document.createElement('script');
+  var cbName = 'weatherCb_' + Date.now();
+  // Open-Meteo doesn't support JSONP, use fetch instead
+  fetch(url)
+    .then(function(r){return r.json();})
+    .then(function(d){
+      var result = buildWeatherResult(d);
+      weatherCache[cacheKey] = result;
+      callback(result);
+    })
+    .catch(function(){ callback(null); });
+}
+
+function buildWeatherResult(d) {
+  if (!d || !d.daily) return null;
+  var dates = d.daily.time || [];
+  var codes = d.daily.weathercode || [];
+  var precip = d.daily.precipitation_sum || [];
+  var tmax = d.daily.temperature_2m_max || [];
+  var tmin = d.daily.temperature_2m_min || [];
+
+  var wmo = {
+    0:'晴れ',1:'おおむね晴れ',2:'一部曇り',3:'曇り',
+    45:'霧',48:'霧氷',
+    51:'小雨',53:'雨',55:'大雨',
+    61:'小雨',63:'雨',65:'大雨',
+    71:'小雪',73:'雪',75:'大雪',
+    77:'霰',80:'にわか雨',81:'雨',82:'豪雨',
+    85:'にわか雪',86:'大雪',
+    95:'雷雨',96:'雷雨＋雹',99:'激しい雷雨'
+  };
+  var icons = {
+    0:'☀️',1:'🌤️',2:'⛅',3:'☁️',
+    45:'🌫️',48:'🌫️',
+    51:'🌦️',53:'🌧️',55:'🌧️',
+    61:'🌦️',63:'🌧️',65:'🌧️',
+    71:'🌨️',73:'❄️',75:'❄️',
+    77:'🌨️',80:'🌦️',81:'🌧️',82:'⛈️',
+    95:'⛈️',96:'⛈️',99:'⛈️'
+  };
+
+  return dates.map(function(dt, i) {
+    var code = codes[i] || 0;
+    return {
+      date: dt,
+      desc: wmo[code] || '不明',
+      icon: icons[code] || '🌡️',
+      precip: precip[i] || 0,
+      tmax: tmax[i],
+      tmin: tmin[i],
+      isRain: code >= 51,
+      isSnow: code >= 71 && code <= 77
+    };
+  });
+}
+
+function buildWeatherSection(p) {
+  var area = p.area || '';
+  if (!AREA_COORDS[area]) return '';
+  return '<div class="dp-sec" id="weatherSec_'+p.fix_no+'">'
+    + '<div class="dp-sec-head">🌤️ 今後7日間の天気（'+area+'）'
+    + '<span style="font-size:9px;color:var(--g400);font-weight:400;margin-left:4px">Open-Meteo</span></div>'
+    + '<div id="weatherContent_'+p.fix_no+'" style="padding:8px 12px;font-size:11px;color:var(--g400)">取得中...</div>'
+    + '</div>';
+}
+
+function loadWeatherForDetail(p) {
+  var el = document.getElementById('weatherContent_' + p.fix_no);
+  if (!el) return;
+  getWeatherForProp(p, function(days) {
+    if (!days || !days.length) {
+      el.innerHTML = '<span style="color:var(--g300)">天気データを取得できませんでした</span>';
+      return;
+    }
+    var hasRain = days.some(function(d){ return d.isRain || d.isSnow; });
+    var html = (hasRain
+      ? '<div style="background:#fef3c7;color:#92400e;padding:5px 8px;border-radius:6px;font-size:10px;font-weight:700;margin-bottom:6px">⚠️ 今後7日以内に雨・雪の予報あり。工程に注意してください。</div>'
+      : '<div style="background:#d1fae5;color:#065f46;padding:5px 8px;border-radius:6px;font-size:10px;font-weight:700;margin-bottom:6px">✅ 今後7日間は概ね良好な天気の予報です</div>')
+    + '<div style="display:flex;gap:4px;overflow-x:auto;padding-bottom:4px">'
+    + days.map(function(d){
+        var dt = new Date(d.date);
+        var dow = ['日','月','火','水','木','金','土'][dt.getDay()];
+        var mm = dt.getMonth()+1, dd = dt.getDate();
+        var isToday = d.date === TODAY;
+        return '<div style="min-width:52px;text-align:center;padding:6px 4px;border-radius:8px;background:'+(isToday?'var(--primary-l)':'var(--g50)')+';border:1px solid '+(isToday?'var(--primary)':'var(--g200)')+'">'
+          + '<div style="font-size:9px;font-weight:700;color:'+(isToday?'var(--primary)':'var(--g500)')+'">'+(isToday?'今日':mm+'/'+dd+' ('+dow+')')+'</div>'
+          + '<div style="font-size:18px;margin:2px 0">'+d.icon+'</div>'
+          + '<div style="font-size:9px;color:var(--g600)">'+d.desc+'</div>'
+          + '<div style="font-size:9px;color:var(--g500);margin-top:1px">'+Math.round(d.tmax)+'°/'+Math.round(d.tmin)+'°</div>'
+          + (d.precip > 0 ? '<div style="font-size:8px;color:#3b82f6">'+d.precip.toFixed(1)+'mm</div>' : '')
+          + '</div>';
+      }).join('')
+    + '</div>';
+    el.innerHTML = html;
+  });
 }
 
 // ===== TOAST =====
@@ -1547,9 +1673,36 @@ function openDetail(p){
     (isFav(p)
       ?'<button class="btn-danger" onclick="removeFavAction()">⭐ マイ物件から削除</button>'
       :'<button class="btn-primary" onclick="addFavAction()">⭐ マイ物件に追加</button>')
-    +'<button class="btn-secondary" onclick="printPropInfo()" style="font-size:11px;padding:8px 10px">🖨️ この物件を印刷</button>';
+    +'<button class="btn-secondary" onclick="printPropInfo()" style="font-size:11px;padding:8px 10px">🖨️ 印刷</button>'
+    +'<button class="btn-secondary" onclick="showQR()" style="font-size:11px;padding:8px 10px">📱 QR</button>';
   openPanel('detailPanel');
+  // Load weather async
+  setTimeout(function(){ loadWeatherForDetail(p); }, 100);
 }
+function showQR(){
+  if(!currentProp)return;
+  var p=currentProp;
+  // Build a URL with property info encoded
+  var baseUrl=window.location.href.split('?')[0];
+  var qrData=baseUrl+'?fix='+encodeURIComponent(p.fix_no)+'&name='+encodeURIComponent(p.name);
+  // Use QR server API (free, no auth)
+  var qrUrl='https://api.qrserver.com/v1/create-qr-code/?size=200x200&data='+encodeURIComponent(qrData);
+  var overlay=document.createElement('div');
+  overlay.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:9999;display:flex;align-items:center;justify-content:center;';
+  overlay.innerHTML='<div style="background:white;border-radius:16px;padding:24px;text-align:center;max-width:280px;width:90%">'
+    +'<div style="font-size:14px;font-weight:800;color:#1e293b;margin-bottom:4px">📱 '+p.name+'</div>'
+    +'<div style="font-size:10px;color:#64748b;margin-bottom:12px">このQRコードを読み取ると物件詳細を開けます</div>'
+    +'<img src="'+qrUrl+'" style="width:200px;height:200px;border:1px solid #e2e8f0;border-radius:8px">'
+    +'<div style="font-size:9px;color:#94a3b8;margin-top:8px">FiX No.'+p.fix_no+' / '+p.area+'</div>'
+    +'<button id="qrCloseBtn" style="margin-top:14px;width:100%;padding:10px;background:#1a56db;color:white;border-radius:8px;font-size:13px;font-weight:700">閉じる</button>'
+    +'</div>';
+  document.body.appendChild(overlay);
+  overlay.onclick=function(e){if(e.target===overlay)overlay.remove();};
+  var closeBtn=overlay.querySelector('#qrCloseBtn');
+  if(closeBtn)closeBtn.onclick=function(){overlay.remove();};
+}
+window.showQR=showQR;
+
 function addFavAction(){if(currentProp){addFav(currentProp);renderBody();showToast('⭐ マイ物件に追加しました','success');openDetail(currentProp);}}
 
 function removeFavAction(){if(currentProp){removeFav(currentProp);renderBody();showToast('マイ物件から削除しました','');openDetail(currentProp);}}
@@ -2657,6 +2810,10 @@ window.doSync=doSync;
 window.closeUpdatePopup=closeUpdatePopup;
 window.printPage=printPage;
 window.toggleMode=toggleMode;
+
+// ===== PWA / OFFLINE =====
+window.addEventListener('online', function(){showToast('🌐 オンラインに戻りました','success');});
+window.addEventListener('offline', function(){showToast('📵 オフライン中 - キャッシュデータで動作しています','warn');});
 
 window.onload=function(){
   // Build area tabs
