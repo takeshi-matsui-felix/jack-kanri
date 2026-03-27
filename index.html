@@ -6,6 +6,8 @@
 <meta name="theme-color" content="#1a56db">
 <title>JACK 現場管理</title>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;600;700;800;900&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<!-- Supabase JS -->
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
 <style>
 :root {
   --primary:#1a56db;--primary-d:#1044b5;--primary-l:#dbeafe;
@@ -273,6 +275,7 @@ input,textarea,select{font-family:var(--font)}
   #ganttCanvas { position: relative !important; }
 }
 
+
 #edDelConfirmOverlay{display:none}
 .master-step-row{display:flex;align-items:center;gap:4px;padding:5px 8px;border-bottom:1px solid var(--g100);background:white;min-height:44px;flex-wrap:wrap}
 .master-step-row:hover{background:var(--g50)}
@@ -298,6 +301,116 @@ html,body{height:auto!important;overflow:visible!important;background:white!impo
 </style>
 </head>
 <body>
+
+<!-- AUTH OVERLAY -->
+<div id="authOverlay" style="display:none;position:fixed;inset:0;background:#0f172a;z-index:99999;overflow-y:auto">
+  <div style="min-height:100vh;display:flex;align-items:center;justify-content:center;padding:20px">
+    <div style="background:white;border-radius:20px;width:100%;max-width:400px;overflow:hidden;box-shadow:0 25px 60px rgba(0,0,0,.4)">
+      <!-- Header -->
+      <div style="background:linear-gradient(135deg,#1a56db,#3b82f6);padding:28px 24px 20px;text-align:center">
+        <div style="font-size:32px;font-weight:900;color:white;letter-spacing:-1px">JACK</div>
+        <div style="color:rgba(255,255,255,.8);font-size:13px;margin-top:4px">新築AP 現場管理システム</div>
+      </div>
+      <!-- Tabs -->
+      <div style="display:flex;border-bottom:2px solid #e2e8f0" id="authTabs">
+        <button onclick="showAuthTab('login')" id="tabLogin" style="flex:1;padding:12px;font-size:13px;font-weight:700;color:#1a56db;border-bottom:2px solid #1a56db;margin-bottom:-2px">ログイン</button>
+        <button onclick="showAuthTab('register')" id="tabRegister" style="flex:1;padding:12px;font-size:13px;font-weight:600;color:#64748b">新規登録</button>
+      </div>
+      <!-- Login form -->
+      <div id="formLogin" style="padding:24px">
+        <div style="margin-bottom:14px">
+          <label style="font-size:11px;font-weight:700;color:#475569;display:block;margin-bottom:5px">メールアドレス</label>
+          <input type="email" id="loginEmail" placeholder="email@example.com"
+            style="width:100%;padding:10px 12px;border:1.5px solid #e2e8f0;border-radius:9px;font-size:14px;outline:none;box-sizing:border-box">
+        </div>
+        <div style="margin-bottom:20px">
+          <label style="font-size:11px;font-weight:700;color:#475569;display:block;margin-bottom:5px">パスワード</label>
+          <input type="password" id="loginPassword" placeholder="パスワード"
+            style="width:100%;padding:10px 12px;border:1.5px solid #e2e8f0;border-radius:9px;font-size:14px;outline:none;box-sizing:border-box">
+        </div>
+        <div id="loginError" style="display:none;background:#fee2e2;color:#dc2626;padding:9px 12px;border-radius:8px;font-size:12px;margin-bottom:12px"></div>
+        <button onclick="doLogin()" id="loginBtn"
+          style="width:100%;padding:13px;background:#1a56db;color:white;border-radius:10px;font-size:14px;font-weight:700">
+          ログイン
+        </button>
+        <div style="text-align:center;margin-top:14px;font-size:11px;color:#94a3b8">
+          アカウントをお持ちでない方は「新規登録」から
+        </div>
+      </div>
+      <!-- Register form -->
+      <div id="formRegister" style="display:none;padding:24px">
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px">
+          <div>
+            <label style="font-size:11px;font-weight:700;color:#475569;display:block;margin-bottom:5px">氏名 *</label>
+            <input type="text" id="regName" placeholder="松井 武史"
+              style="width:100%;padding:9px 11px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:13px;box-sizing:border-box">
+          </div>
+          <div>
+            <label style="font-size:11px;font-weight:700;color:#475569;display:block;margin-bottom:5px">会社名 *</label>
+            <input type="text" id="regCompany" placeholder="フィリックス株式会社"
+              style="width:100%;padding:9px 11px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:13px;box-sizing:border-box">
+          </div>
+        </div>
+        <div style="margin-bottom:10px">
+          <label style="font-size:11px;font-weight:700;color:#475569;display:block;margin-bottom:5px">携帯電話番号 *</label>
+          <input type="tel" id="regPhone" placeholder="090-0000-0000"
+            style="width:100%;padding:9px 11px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:13px;box-sizing:border-box">
+        </div>
+        <div style="margin-bottom:10px">
+          <label style="font-size:11px;font-weight:700;color:#475569;display:block;margin-bottom:5px">メールアドレス *</label>
+          <input type="email" id="regEmail" placeholder="email@example.com"
+            style="width:100%;padding:9px 11px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:13px;box-sizing:border-box">
+        </div>
+        <div style="margin-bottom:10px">
+          <label style="font-size:11px;font-weight:700;color:#475569;display:block;margin-bottom:5px">パスワード *（8文字以上）</label>
+          <input type="password" id="regPassword" placeholder="パスワード"
+            style="width:100%;padding:9px 11px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:13px;box-sizing:border-box">
+        </div>
+        <div style="margin-bottom:16px">
+          <label style="font-size:11px;font-weight:700;color:#475569;display:block;margin-bottom:5px">役割 *</label>
+          <select id="regRole"
+            style="width:100%;padding:9px 11px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:13px;box-sizing:border-box">
+            <option value="worker">現場担当者</option>
+            <option value="admin">管理者（要承認）</option>
+          </select>
+        </div>
+        <div id="regError" style="display:none;background:#fee2e2;color:#dc2626;padding:9px 12px;border-radius:8px;font-size:12px;margin-bottom:12px"></div>
+        <button onclick="doRegister()" id="registerBtn"
+          style="width:100%;padding:13px;background:#1a56db;color:white;border-radius:10px;font-size:14px;font-weight:700">
+          登録申請
+        </button>
+        <div style="background:#fefce8;border:1px solid #fde68a;border-radius:8px;padding:10px 12px;margin-top:12px;font-size:11px;color:#92400e">
+          ⚠️ 登録後、管理者（松井）の承認後にご利用いただけます
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- PENDING APPROVAL OVERLAY -->
+<div id="pendingOverlay" style="display:none;position:fixed;inset:0;background:#0f172a;z-index:99999;display:flex;align-items:center;justify-content:center">
+  <div style="background:white;border-radius:20px;padding:36px;max-width:340px;width:90%;text-align:center">
+    <div style="font-size:48px;margin-bottom:12px">⏳</div>
+    <div style="font-size:18px;font-weight:800;color:#1e293b;margin-bottom:8px">承認待ちです</div>
+    <div style="font-size:13px;color:#64748b;line-height:1.6;margin-bottom:20px">
+      登録申請を受け付けました。<br>管理者（松井）の承認後にご利用いただけます。
+    </div>
+    <button onclick="sbSignOut()" style="width:100%;padding:12px;background:#e2e8f0;color:#475569;border-radius:10px;font-size:13px;font-weight:700">
+      ログアウト
+    </button>
+  </div>
+</div>
+
+
+<!-- ADMIN CONTROL PANEL -->
+<div class="slide-panel" id="adminCPPanel">
+  <div class="panel-header">
+    <button class="panel-back" onclick="closePanel('adminCPPanel')">← 戻る</button>
+    <div style="flex:1"><div class="panel-title">🏢 管理者コントロールパネル</div></div>
+  </div>
+  <div class="panel-scroll" id="adminCPContent"></div>
+</div>
+
 <div id="loading"><div class="ld-logo">JACK</div><div class="ld-sub">現場管理システム</div><div class="ld-dots"><span></span><span></span><span></span></div></div>
 <div id="app" class="mobile-mode">
   <div class="top-header"><div class="th-left"><div><div class="th-logo">JACK</div><div class="th-sub">新築AP 現場管理</div></div></div><div class="th-right"><button class="th-icon-btn" id="modeToggleBtn" onclick="toggleMode()">🖥️</button><div class="th-today" id="todayBadge"></div><button class="print-btn" onclick="printPage()">🖨️</button><button class="th-icon-btn" onclick="openMenu()">☰</button></div></div>
@@ -333,7 +446,7 @@ html,body{height:auto!important;overflow:visible!important;background:white!impo
 </div>
 <div class="slide-panel" id="settingsPanel"><div class="panel-header"><button class="panel-back" onclick="closePanel('settingsPanel')">← 戻る</button><div style="flex:1"><div class="panel-title">⚙️ 設定</div></div></div><div class="panel-scroll" id="settingsContent"></div></div>
 <div class="menu-overlay" id="menuOverlay" onclick="closeMenu()"></div>
-<div class="side-menu" id="sideMenu"><div class="menu-head"><div class="menu-user">🏗️ 現場担当者</div><div class="menu-role">JACK 現場管理アプリ</div></div><div class="menu-body"><div class="menu-section">マイ物件</div><div class="menu-item" onclick="openMyPage()"><span class="mi-icon">⭐</span>マイ物件を見る</div><div class="menu-item" onclick="openSelectProp()"><span class="mi-icon">✅</span>担当物件を選択</div><div class="menu-item" onclick="closeMenu();openGanttEditorMenu()"><span class="mi-icon">✏️</span>工程表を編集</div><div class="menu-item" onclick="closeMenu();openMasterPanel()"><span class="mi-icon">📋</span>マスター工程</div><div class="menu-divider"></div><div class="menu-section">表示</div><div class="menu-item" onclick="closeMenu();setMode(false)"><span class="mi-icon">📱</span>スマホ表示</div><div class="menu-item" onclick="closeMenu();setMode(true)"><span class="mi-icon">🖥️</span>PC横長表示</div><div class="menu-divider"></div><div class="menu-section">その他</div><div class="menu-item" onclick="closeMenu();doSync()"><span class="mi-icon">🔄</span>今すぐ同期</div><div class="menu-item" onclick="openSettings()"><span class="mi-icon">⚙️</span>設定</div><div class="menu-item" onclick="closeMenu();printPage()"><span class="mi-icon">🖨️</span>印刷</div></div></div>
+<div class="side-menu" id="sideMenu"><div class="menu-head"><div class="menu-user" id="menuUserName">🏗️ 現場担当者</div><div class="menu-role">JACK 現場管理アプリ</div></div><div class="menu-body"><div class="menu-section">マイ物件</div><div class="menu-item" onclick="openMyPage()"><span class="mi-icon">⭐</span>マイ物件を見る</div><div class="menu-item" onclick="openSelectProp()"><span class="mi-icon">✅</span>担当物件を選択</div><div class="menu-item" onclick="closeMenu();openGanttEditorMenu()"><span class="mi-icon">✏️</span>工程表を編集</div><div class="menu-item" onclick="closeMenu();openMasterPanel()"><span class="mi-icon">📋</span>マスター工程</div><div class="menu-divider"></div><div class="menu-section">表示</div><div class="menu-item" onclick="closeMenu();setMode(false)"><span class="mi-icon">📱</span>スマホ表示</div><div class="menu-item" onclick="closeMenu();setMode(true)"><span class="mi-icon">🖥️</span>PC横長表示</div><div class="menu-divider"></div><div class="menu-section">その他</div><div class="menu-item" onclick="closeMenu();doSync()"><span class="mi-icon">🔄</span>今すぐ同期</div><div class="menu-item" onclick="openSettings()"><span class="mi-icon">⚙️</span>設定</div><div class="menu-item" onclick="closeMenu();printPage()"><span class="mi-icon">🖨️</span>印刷</div></div></div>
 <div class="popup-overlay" id="updatePopup" style="display:none"><div class="popup-box"><div class="popup-head">🔔 データ更新情報</div><div class="popup-body" id="updateContent"></div><div class="popup-footer"><button class="popup-close" onclick="closeUpdatePopup()">閉じる</button></div></div></div>
 <div class="tooltip" id="tooltip"></div><div class="toast" id="toast"></div>
 
@@ -2852,6 +2965,408 @@ window.addEventListener('resize',function(){var s=window.innerWidth>1100;if(s!==
 </script>
 <script>
 
+// ============================================================
+// SUPABASE CONFIG & AUTH
+// ============================================================
+var SUPABASE_URL = 'https://pwgufjhagswrvomvqidd.supabase.co';
+var SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InB3Z3VmamhhZ3N3cnZvbXZxaWRkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQ1NTM0ODIsImV4cCI6MjA5MDEyOTQ4Mn0.jCwAu85M7HxC128Xs_IbaIBQth-KmrF5QGLWc-maMyE';
+var _sb = null;
+var currentUser = null;
+var currentProfile = null;
+var DB_PROPS = null;
+
+function getSB() {
+  if (!_sb && window.supabase) {
+    _sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+  }
+  return _sb;
+}
+
+function showAuthScreen() {
+  document.getElementById('authOverlay').style.display = 'block';
+  document.getElementById('pendingOverlay').style.display = 'none';
+}
+
+function hideAuthScreen() {
+  document.getElementById('authOverlay').style.display = 'none';
+  document.getElementById('pendingOverlay').style.display = 'none';
+}
+
+function showPendingScreen() {
+  document.getElementById('authOverlay').style.display = 'none';
+  document.getElementById('pendingOverlay').style.display = 'flex';
+}
+
+function showAuthTab(tab) {
+  document.getElementById('formLogin').style.display    = tab==='login'    ? '' : 'none';
+  document.getElementById('formRegister').style.display = tab==='register' ? '' : 'none';
+  document.getElementById('tabLogin').style.cssText    = tab==='login'
+    ? 'flex:1;padding:12px;font-size:13px;font-weight:700;color:#1a56db;border-bottom:2px solid #1a56db;margin-bottom:-2px'
+    : 'flex:1;padding:12px;font-size:13px;font-weight:600;color:#64748b';
+  document.getElementById('tabRegister').style.cssText = tab==='register'
+    ? 'flex:1;padding:12px;font-size:13px;font-weight:700;color:#1a56db;border-bottom:2px solid #1a56db;margin-bottom:-2px'
+    : 'flex:1;padding:12px;font-size:13px;font-weight:600;color:#64748b';
+}
+window.showAuthTab = showAuthTab;
+
+async function doLogin() {
+  var email = document.getElementById('loginEmail').value.trim();
+  var pw    = document.getElementById('loginPassword').value;
+  var errEl = document.getElementById('loginError');
+  var btn   = document.getElementById('loginBtn');
+  if (!email || !pw) { errEl.textContent='メールとパスワードを入力してください'; errEl.style.display=''; return; }
+  btn.textContent = 'ログイン中...'; btn.disabled = true;
+  errEl.style.display = 'none';
+  var sb = getSB();
+  if (!sb) { errEl.textContent='接続エラー'; errEl.style.display=''; btn.textContent='ログイン'; btn.disabled=false; return; }
+  var {data, error} = await sb.auth.signInWithPassword({email, password: pw});
+  if (error) {
+    errEl.textContent = error.message === 'Invalid login credentials' ? 'メールまたはパスワードが違います' : error.message;
+    errEl.style.display = '';
+    btn.textContent = 'ログイン'; btn.disabled = false;
+    return;
+  }
+  currentUser = data.user;
+  await onAuthSuccess();
+  btn.textContent = 'ログイン'; btn.disabled = false;
+}
+window.doLogin = doLogin;
+
+async function doRegister() {
+  var name    = document.getElementById('regName').value.trim();
+  var company = document.getElementById('regCompany').value.trim();
+  var phone   = document.getElementById('regPhone').value.trim();
+  var email   = document.getElementById('regEmail').value.trim();
+  var pw      = document.getElementById('regPassword').value;
+  var role    = document.getElementById('regRole').value;
+  var errEl   = document.getElementById('regError');
+  var btn     = document.getElementById('registerBtn');
+  if (!name || !company || !phone || !email || !pw) {
+    errEl.textContent = '全ての項目を入力してください'; errEl.style.display = ''; return;
+  }
+  if (pw.length < 8) { errEl.textContent = 'パスワードは8文字以上にしてください'; errEl.style.display = ''; return; }
+  btn.textContent = '登録中...'; btn.disabled = true;
+  errEl.style.display = 'none';
+  var sb = getSB();
+  var {data, error} = await sb.auth.signUp({
+    email, password: pw,
+    options: {data: {name, company, phone, role} }
+  });
+  if (error) {
+    errEl.textContent = error.message; errEl.style.display = '';
+    btn.textContent = '登録申請'; btn.disabled = false;
+    return;
+  }
+  currentUser = data.user;
+  showPendingScreen();
+  btn.textContent = '登録申請'; btn.disabled = false;
+}
+window.doRegister = doRegister;
+
+async function onAuthSuccess() {
+  var sb = getSB();
+  var {data: profile} = await sb.from('profiles').select('*').eq('id', currentUser.id).single();
+  currentProfile = profile;
+  if (!profile || !profile.approved) {
+    showPendingScreen();
+    return;
+  }
+  hideAuthScreen();
+  // Patch getAllProps to use DB data
+  patchGetAllPropsForDB();
+  // Load properties from DB
+  await loadDBProperties();
+  // Update header
+  updateUserBadge();
+  // Add admin menu item if admin
+  if (profile.role === 'admin') addAdminMenuItem();
+}
+
+function patchGetAllPropsForDB() {
+  window._origGetAllProps = window.getAllProps;
+  window.getAllProps = function() {
+    if (DB_PROPS && DB_PROPS.length > 0) return DB_PROPS;
+    return window._origGetAllProps ? window._origGetAllProps() : [];
+  };
+}
+
+async function loadDBProperties() {
+  var sb = getSB();
+  var {data, error} = await sb.from('properties').select('*').order('fix_no');
+  if (!error && data && data.length > 0) {
+    DB_PROPS = data;
+    if (typeof renderAll === 'function') renderAll();
+    showToast('DBから ' + data.length + ' 件取得', 'success');
+  }
+}
+
+function updateUserBadge() {
+  var badge = document.getElementById('todayBadge');
+  if (badge && currentProfile) {
+    badge.innerHTML = '<span style="font-size:9px;background:rgba(255,255,255,.2);padding:2px 7px;border-radius:10px;font-weight:700">'
+      + (currentProfile.role === 'admin' ? '👑 ' : '') + currentProfile.name + '</span>';
+  }
+  // Add logout to menu
+  var menuBody = document.querySelector('.menu-body');
+  if (menuBody && !document.getElementById('logoutMenuItem')) {
+    var div = document.createElement('div');
+    div.id = 'logoutMenuItem';
+    div.className = 'menu-item';
+    div.innerHTML = '<span class="mi-icon">🚪</span>ログアウト';
+    div.onclick = function() { closeMenu(); sbSignOut(); };
+    menuBody.appendChild(div);
+  }
+}
+
+function addAdminMenuItem() {
+  var menuBody = document.querySelector('.menu-body');
+  if (!menuBody || document.getElementById('adminCPMenuItem')) return;
+  var div = document.createElement('div');
+  div.id = 'adminCPMenuItem';
+  div.className = 'menu-item';
+  div.innerHTML = '<span class="mi-icon">🏢</span>管理者CP';
+  div.onclick = function() { closeMenu(); openAdminCP(); };
+  // Insert before logout
+  var logout = document.getElementById('logoutMenuItem');
+  menuBody.insertBefore(div, logout);
+}
+
+async function sbSignOut() {
+  var sb = getSB();
+  if (sb) await sb.auth.signOut();
+  currentUser = null; currentProfile = null; DB_PROPS = null;
+  // Restore original getAllProps
+  if (window._origGetAllProps) window.getAllProps = window._origGetAllProps;
+  showAuthScreen();
+}
+window.sbSignOut = sbSignOut;
+
+// ============================================================
+// ADMIN CONTROL PANEL
+// ============================================================
+function openAdminCP() {
+  renderAdminCP();
+  openPanel('adminCPPanel');
+}
+window.openAdminCP = openAdminCP;
+
+async function renderAdminCP() {
+  var el = document.getElementById('adminCPContent');
+  if (!el) return;
+  el.innerHTML = '<div style="padding:20px;text-align:center;color:var(--g400)">読み込み中...</div>';
+
+  var sb = getSB();
+  // Fetch users and properties
+  var [{data: users}, {data: props}] = await Promise.all([
+    sb.from('profiles').select('*').order('created_at', {ascending: false}),
+    sb.from('properties').select('*').order('fix_no')
+  ]);
+
+  var pendingUsers = (users || []).filter(function(u) { return !u.approved; });
+  var approvedUsers = (users || []).filter(function(u) { return u.approved; });
+  var propList = props || [];
+
+  el.innerHTML =
+    // Stats
+    '<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;padding:12px">'
+      + statCard('物件数', propList.length, '#1a56db')
+      + statCard('承認済ユーザー', approvedUsers.length, '#10b981')
+      + statCard('承認待ち', pendingUsers.length, pendingUsers.length > 0 ? '#ef4444' : '#64748b')
+    + '</div>'
+
+    // Pending approvals
+    + (pendingUsers.length > 0
+      ? '<div class="dp-sec"><div class="dp-sec-head" style="color:#ef4444">⚠️ 承認待ちユーザー（' + pendingUsers.length + '件）</div>'
+        + pendingUsers.map(function(u) { return renderUserRow(u, false); }).join('')
+        + '</div>'
+      : '')
+
+    // Approved users
+    + '<div class="dp-sec"><div class="dp-sec-head">👥 承認済みユーザー（' + approvedUsers.length + '件）</div>'
+      + approvedUsers.map(function(u) { return renderUserRow(u, true); }).join('')
+    + '</div>'
+
+    // Properties list
+    + '<div class="dp-sec"><div class="dp-sec-head" style="display:flex;justify-content:space-between;align-items:center">'
+        + '🏠 物件一覧（' + propList.length + '件）'
+        + '<button onclick="openAddPropertyForm()" style="font-size:10px;background:var(--primary);color:white;padding:3px 10px;border-radius:6px;font-weight:700">＋ 新規追加</button>'
+      + '</div>'
+      + propList.map(function(p) { return renderPropRow(p); }).join('')
+    + '</div>'
+
+    // Add/Edit form (hidden initially)
+    + '<div id="propEditForm" style="display:none;padding:16px;background:var(--g50);border-top:2px solid var(--primary)"></div>';
+}
+
+function statCard(label, val, color) {
+  return '<div style="background:white;border-radius:10px;padding:12px;text-align:center;border:1px solid var(--g200)">'
+    + '<div style="font-size:22px;font-weight:900;color:' + color + '">' + val + '</div>'
+    + '<div style="font-size:10px;color:var(--g500);margin-top:2px">' + label + '</div>'
+    + '</div>';
+}
+
+function renderUserRow(u, approved) {
+  return '<div style="padding:10px 12px;border-bottom:1px solid var(--g50);display:flex;align-items:center;gap:8px">'
+    + '<div style="flex:1;min-width:0">'
+      + '<div style="font-size:12px;font-weight:700;color:var(--g800)">' + (u.name||'名前未設定') + '</div>'
+      + '<div style="font-size:10px;color:var(--g400)">' + u.email + ' / ' + (u.company||'') + ' / ' + (u.phone||'') + '</div>'
+      + '<div style="font-size:9px;color:var(--g400);margin-top:1px">役割: ' + (u.role==='admin'?'👑管理者':'現場担当') + '</div>'
+    + '</div>'
+    + (approved
+      ? '<button class="user-revoke-btn" data-uid="' + u.id + '" style="font-size:9px;background:#fee2e2;color:var(--danger);padding:3px 8px;border-radius:5px">取消</button>'
+      : '<button class="user-approve-btn" data-uid="' + u.id + '" style="font-size:10px;background:var(--primary);color:white;padding:4px 10px;border-radius:6px;font-weight:700">✓ 承認</button>')
+    + '</div>';
+}
+
+function renderPropRow(p) {
+  return '<div style="padding:8px 12px;border-bottom:1px solid var(--g50);display:flex;align-items:center;gap:8px">'
+    + '<div style="flex:1;min-width:0">'
+      + '<div style="font-size:12px;font-weight:700;color:var(--g800);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'
+        + 'FiX ' + (p.fix_no||'') + ' ' + (p.name||'')
+      + '</div>'
+      + '<div style="font-size:10px;color:var(--g400)">' + (p.area||'') + ' / ' + (p.status||'') + ' / 引渡: ' + (p.delivery_date||'未定') + '</div>'
+    + '</div>'
+    + '<button class="prop-edit-btn" data-pid="' + p.id + '" style="font-size:9px;background:var(--primary-l);color:var(--primary);padding:3px 8px;border-radius:5px;font-weight:700">編集</button>'
+    + '<button class="prop-del-btn" data-pid="' + p.id + '" style="font-size:9px;background:#fee2e2;color:var(--danger);padding:3px 8px;border-radius:5px">削除</button>'
+    + '</div>';
+}
+
+async function doApproveUser(userId) {
+  var sb = getSB();
+  await sb.from('profiles').update({approved: true}).eq('id', userId);
+  showToast('✅ ユーザーを承認しました', 'success');
+  renderAdminCP();
+}
+window.doApproveUser = doApproveUser;
+
+async function doRevokeUser(userId) {
+  if (!confirm('承認を取り消しますか？')) return;
+  var sb = getSB();
+  await sb.from('profiles').update({approved: false}).eq('id', userId);
+  showToast('承認を取り消しました', '');
+  renderAdminCP();
+}
+window.doRevokeUser = doRevokeUser;
+
+function openAddPropertyForm() {
+  renderPropertyForm(null);
+}
+window.openAddPropertyForm = openAddPropertyForm;
+
+function openEditPropertyForm(id) {
+  var sb = getSB();
+  sb.from('properties').select('*').eq('id', id).single().then(function(res) {
+    renderPropertyForm(res.data);
+  });
+}
+window.openEditPropertyForm = openEditPropertyForm;
+
+function renderPropertyForm(p) {
+  var form = document.getElementById('propEditForm');
+  if (!form) return;
+  var isNew = !p || !p.id;
+  form.style.display = '';
+  form.innerHTML =
+    '<div style="font-size:13px;font-weight:800;color:var(--primary);margin-bottom:12px">'
+      + (isNew ? '＋ 新規物件追加' : '✏️ 物件編集: ' + (p.name||'')) + '</div>'
+    + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">'
+      + fldInput('fix_no','FiX No.',p ? p.fix_no : '')
+      + fldInput('seq_no','通し番号',p ? p.seq_no : '')
+      + fldInput('area','エリア',p ? p.area : '')
+      + fldInput('prop_name','物件名',p ? p.name : '',true)
+      + fldInput('status','ステータス',p ? p.status : '')
+      + fldInput('tantou','担当者',p ? p.tantou : '')
+      + fldInput('delivery_date','引渡日',p ? p.delivery_date : '')
+      + fldInput('hand_kumi','手組',p ? p.hand_kumi : '')
+      + fldInput('confirm_done','確認申請完了日',p ? p.confirm_done : '')
+      + fldInput('ground_survey','地盤調査日',p ? p.ground_survey : '')
+    + '</div>'
+    + '<div style="display:flex;gap:8px;margin-top:12px">'
+      + '<button onclick="doSaveProperty(' + (p ? p.id : 'null') + ')" style="flex:1;padding:10px;background:var(--primary);color:white;border-radius:8px;font-size:12px;font-weight:700">💾 保存</button>'
+      + '<button class="prop-cancel-btn" style="padding:10px 16px;background:var(--g100);color:var(--g600);border-radius:8px;font-size:12px">キャンセル</button>'
+    + '</div>';
+  form.scrollIntoView({behavior:'smooth'});
+}
+
+// Event delegation for admin CP buttons
+document.addEventListener('click', function(e) {
+  var approveBtn = e.target.closest('.user-approve-btn');
+  var revokeBtn  = e.target.closest('.user-revoke-btn');
+  var editBtn    = e.target.closest('.prop-edit-btn');
+  var delBtn     = e.target.closest('.prop-del-btn');
+  if (approveBtn) doApproveUser(approveBtn.getAttribute('data-uid'));
+  if (revokeBtn)  doRevokeUser(revokeBtn.getAttribute('data-uid'));
+  if (e.target.closest('.prop-cancel-btn')) { var f=document.getElementById('propEditForm'); if(f) f.style.display='none'; }
+  if (editBtn)    openEditPropertyForm(parseInt(editBtn.getAttribute('data-pid')));
+  if (delBtn)     doDeleteProperty(parseInt(delBtn.getAttribute('data-pid')));
+});
+
+function fldInput(id, label, val, required) {
+  return '<div>'
+    + '<label style="font-size:10px;font-weight:700;color:var(--g500);display:block;margin-bottom:3px">' + label + (required?' *':'') + '</label>'
+    + '<input type="text" id="pf_' + id + '" value="' + (val||'') + '" style="width:100%;padding:7px 9px;border:1.5px solid var(--g200);border-radius:7px;font-size:12px;box-sizing:border-box">'
+    + '</div>';
+}
+
+async function doSaveProperty(id) {
+  var prop = {
+    fix_no: document.getElementById('pf_fix_no').value.trim(),
+    seq_no: document.getElementById('pf_seq_no').value.trim(),
+    area: document.getElementById('pf_area').value.trim(),
+    name: document.getElementById('pf_prop_name').value.trim(),
+    status: document.getElementById('pf_status').value.trim(),
+    tantou: document.getElementById('pf_tantou').value.trim(),
+    delivery_date: document.getElementById('pf_delivery_date').value.trim(),
+    hand_kumi: document.getElementById('pf_hand_kumi').value.trim(),
+    confirm_done: document.getElementById('pf_confirm_done').value.trim(),
+    ground_survey: document.getElementById('pf_ground_survey').value.trim(),
+    updated_at: new Date().toISOString()
+  };
+  if (!prop.name) { showToast('物件名は必須です', 'error'); return; }
+  var sb = getSB();
+  var result = id
+    ? await sb.from('properties').update(prop).eq('id', id)
+    : await sb.from('properties').insert(prop);
+  if (result.error) { showToast('保存エラー: ' + result.error.message, 'error'); return; }
+  showToast('✅ 保存しました', 'success');
+  document.getElementById('propEditForm').style.display = 'none';
+  await loadDBProperties();
+  renderAdminCP();
+}
+window.doSaveProperty = doSaveProperty;
+
+async function doDeleteProperty(id) {
+  if (!confirm('この物件を削除しますか？\n※この操作は元に戻せません')) return;
+  var sb = getSB();
+  await sb.from('properties').delete().eq('id', id);
+  showToast('削除しました', '');
+  await loadDBProperties();
+  renderAdminCP();
+}
+window.doDeleteProperty = doDeleteProperty;
+
+// ============================================================
+// AUTH INIT on page load
+// ============================================================
+async function initAuth() {
+  var sb = getSB();
+  if (!sb) {
+    // Supabase lib not loaded yet - show auth screen
+    showAuthScreen();
+    return;
+  }
+  var {data: {session} } = await sb.auth.getSession();
+  if (session && session.user) {
+    currentUser = session.user;
+    await onAuthSuccess();
+  } else {
+    showAuthScreen();
+  }
+}
+
+</script>
+<script>
+
 document.addEventListener('DOMContentLoaded',function(){
   var cp=document.getElementById('colorPicker');
   if(cp&&cp.children.length===0){
@@ -2863,6 +3378,8 @@ document.addEventListener('DOMContentLoaded',function(){
       sw.onclick=function(){selectEdColor(c,sw);};cp.appendChild(sw);
     });
   }
+  // Init Supabase auth after lib loads
+  setTimeout(initAuth, 500);
 });
 
 </script>
