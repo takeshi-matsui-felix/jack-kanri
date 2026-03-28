@@ -1,0 +1,492 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>JACK 現場管理</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;600;700;800;900&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root {
+  --primary:#1a56db;--primary-d:#1044b5;--primary-l:#dbeafe;
+  --accent:#f59e0b;--success:#10b981;--danger:#ef4444;--warn:#f59e0b;
+  --g50:#f8fafc;--g100:#f1f5f9;--g200:#e2e8f0;--g300:#cbd5e1;
+  --g400:#94a3b8;--g500:#64748b;--g700:#334155;--g800:#1e293b;
+  --font:'Noto Sans JP',sans-serif;--mono:'DM Mono',monospace;
+  --col-w:18px; 
+  --row-h:40px;
+  --freeze-w:236px;
+}
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+html,body{height:100%;font-family:var(--font);background:#0f172a;overflow:hidden; display: flex; width: 100%;}
+button{font-family:var(--font);cursor:pointer;border:none;background:none}
+input,textarea,select{font-family:var(--font)}
+
+/* LOADING */
+#loading{position:fixed;inset:0;background:var(--primary);display:flex;flex-direction:column;align-items:center;justify-content:center;color:white;z-index:9999;transition:opacity .4s}
+.ld-logo{font-size:32px;font-weight:900;letter-spacing:-1px}.ld-sub{font-size:12px;opacity:.8;margin-top:4px}
+.ld-dots{display:flex;gap:6px;margin-top:20px}.ld-dots span{width:7px;height:7px;background:rgba(255,255,255,.5);border-radius:50%;animation:ldot 1s infinite}
+.ld-dots span:nth-child(2){animation-delay:.2s}.ld-dots span:nth-child(3){animation-delay:.4s}
+@keyframes ldot{0%,80%,100%{transform:scale(.7);opacity:.5}40%{transform:scale(1.1);opacity:1}}
+
+/* APP SHELL */
+#app{display:flex;flex-direction:column;height:100vh;background:var(--g50);overflow:hidden; width: 100%;}
+#app.mobile-mode{max-width:480px;margin:0 auto;box-shadow:0 0 40px rgba(0,0,0,.4)}
+#app.pc-mode{max-width:100vw}
+
+/* SIDEBAR */
+#jackSidebar {
+  width:200px; min-height:100vh; background:#1e293b;
+  display:flex; flex-direction:column; flex-shrink:0;
+  transition:width .2s; overflow:hidden; position:relative; z-index:50;
+}
+#jackSidebar.collapsed { width:48px; }
+#jackSidebar.collapsed .sb-label,
+#jackSidebar.collapsed .sb-section,
+#jackSidebar.collapsed .sb-logo-sub,
+#jackSidebar.collapsed .sb-sub { display:none; }
+#jackSidebar.collapsed .sb-item { justify-content:center; padding:10px 0; }
+#jackMainWrap { flex:1; display:flex; flex-direction:column; overflow:hidden; min-width:0; }
+
+.sb-head { padding:12px; border-bottom:1px solid rgba(255,255,255,.1); display:flex; align-items:center; justify-content:space-between; flex-shrink:0; }
+.sb-logo-title { font-size:18px; font-weight:900; color:white; }
+.sb-logo-sub { font-size:9px; color:rgba(255,255,255,.5); }
+.sb-toggle { width:24px; height:24px; background:rgba(255,255,255,.1); border-radius:5px; color:white; display:flex; align-items:center; justify-content:center; cursor:pointer; font-size:12px; flex-shrink:0; }
+.sb-body { flex:1; overflow-y:auto; overflow-x:hidden; padding:4px 0; }
+.sb-section { font-size:9px; font-weight:800; color:rgba(255,255,255,.3); padding:8px 12px 2px; letter-spacing:.5px; }
+.sb-item { display:flex; align-items:center; gap:8px; padding:8px 12px; cursor:pointer; color:rgba(255,255,255,.7); font-size:12px; font-weight:600; transition:background .1s; user-select:none; }
+.sb-item:hover { background:rgba(255,255,255,.08); color:white; }
+.sb-icon { font-size:14px; width:18px; text-align:center; flex-shrink:0; }
+.sb-label { flex:1; white-space:nowrap; }
+.sb-caret { font-size:10px; color:rgba(255,255,255,.3); transition:transform .15s; }
+.sb-caret.open { transform:rotate(180deg); }
+.sb-sub { background:rgba(0,0,0,.2); border-left:2px solid #3b82f6; margin-left:10px; display:none; }
+.sb-sub.open { display:block; }
+.sb-sub .sb-item { padding:6px 10px 6px 14px; font-size:11px; }
+.sb-foot { padding:8px 12px; border-top:1px solid rgba(255,255,255,.07); display:flex; align-items:center; gap:8px; flex-shrink:0; }
+.sb-avatar { width:26px; height:26px; border-radius:50%; background:#3b82f6; color:white; font-size:11px; font-weight:700; display:flex; align-items:center; justify-content:center; flex-shrink:0; }
+.sb-foot-name { font-size:11px; font-weight:700; color:white; flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.sb-foot-role { font-size:9px; color:rgba(255,255,255,.4); }
+
+/* TOP HEADER */
+.top-header{background:var(--primary);color:white;padding:9px 12px;display:flex;align-items:center;justify-content:space-between;flex-shrink:0;box-shadow:0 2px 8px rgba(0,0,0,.25)}
+.th-left{display:flex;align-items:center;gap:10px}
+.th-logo{font-size:18px;font-weight:900;letter-spacing:-1px}.th-sub{font-size:10px;opacity:.75;margin-top:1px}
+.th-right{display:flex;align-items:center;gap:5px}
+.th-today{background:rgba(255,255,255,.2);padding:2px 7px;border-radius:6px;font-size:10px;font-weight:700;font-family:var(--mono)}
+.th-icon-btn{color:white;font-size:14px;width:28px;height:28px;border-radius:50%;background:rgba(255,255,255,.15);display:flex;align-items:center;justify-content:center}
+.print-btn{background:rgba(255,255,255,.2);color:white;padding:3px 8px;border-radius:5px;font-size:10px;font-weight:700;display:flex;align-items:center;gap:3px}
+
+/* AREA TABS */
+.area-tabs{display:flex;overflow-x:auto;background:#1e293b;flex-shrink:0;border-bottom:1px solid rgba(255,255,255,.1)}
+.atab{padding:8px 11px;font-size:11px;font-weight:700;color:rgba(255,255,255,.45);white-space:nowrap;border-bottom:2px solid transparent;transition:all .15s;flex-shrink:0}
+.atab.active{color:white;border-bottom-color:var(--accent)}
+.atab.myfav{color:rgba(245,158,11,.7)}.atab.myfav.active{color:var(--accent);border-bottom-color:var(--accent)}
+
+/* TABLE */
+.table-wrap{flex:1;display:flex;flex-direction:column;overflow:hidden;min-height:0;border-top:2px solid var(--g300)}
+.table-header{display:flex;flex-shrink:0;height:36px;border-bottom:2px solid #475569;background:#1e293b}
+.freeze-header{min-width:var(--freeze-w);display:flex;flex-shrink:0;border-right:2px solid #475569;overflow:hidden}
+.hcell{display:flex;align-items:center;justify-content:center;font-size:8.5px;font-weight:800;color:rgba(255,255,255,.9);border-right:1px solid rgba(255,255,255,.12);padding:0 2px;text-align:center;flex-shrink:0;white-space:pre;line-height:1.3}
+.hcell-blue{background:var(--primary)}
+
+/* BODY */
+.table-body{flex:1;display:flex;overflow:hidden;min-height:0}
+.freeze-body{width:var(--freeze-w);min-width:var(--freeze-w);max-width:var(--freeze-w);flex-shrink:0;overflow:hidden;border-right:2px solid #475569}
+.scroll-body{flex:1;overflow:auto;-webkit-overflow-scrolling:touch}
+
+/* SLIDE PANELS */
+.slide-panel{position:fixed;top:0;left:0;right:0;bottom:0;background:var(--g50);transform:translateX(100%);transition:transform .27s cubic-bezier(.4,0,.2,1);z-index:200;display:flex;flex-direction:column;}
+.slide-panel.open{transform:translateX(0)}
+.panel-header{background:var(--primary);color:white;padding:10px 12px;display:flex;align-items:center;gap:10px;flex-shrink:0}
+.panel-back{width:30px;height:30px;border-radius:50%;background:rgba(255,255,255,.2);color:white;display:flex;align-items:center;justify-content:center;font-size:13px;flex-shrink:0;font-weight:700}
+.panel-scroll{flex:1;overflow-y:auto;padding-bottom:80px}
+
+/* MAP MODAL */
+#jackMapModal { display:none; position:fixed; inset:0; background:rgba(0,0,0,.6); z-index:9997; align-items:center; justify-content:center; }
+#jackMapModal.open { display:flex; }
+#jackMapBox { background:white; border-radius:14px; overflow:hidden; width:min(700px,95vw); height:min(580px,90vh); display:flex; flex-direction:column; }
+#jackMapHeader { background:#1e293b; padding:10px 14px; display:flex; align-items:center; justify-content:space-between; flex-shrink:0; }
+#jackMapBody { flex:1; display:flex; overflow:hidden; }
+#jackMapList { width:200px; overflow-y:auto; border-right:1px solid #e2e8f0; background:#f8fafc; flex-shrink:0; }
+#jackMapRight { flex:1; display:flex; flex-direction:column; }
+#jackMapFrame { flex:1; border:none; }
+
+/* AUTH */
+#authOverlay, #pendingOverlay { position:fixed; inset:0; background:#0f172a; z-index:99999; display:none; align-items:center; justify-content:center; overflow-y:auto; }
+
+/* TOAST */
+.toast{position:fixed;bottom:80px;left:50%;transform:translateX(-50%) translateY(20px);background:var(--g800);color:white;padding:10px 20px;border-radius:24px;font-size:13px;font-weight:700;z-index:9999;opacity:0;transition:all .3s;pointer-events:none;}
+.toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+
+/* UTILS */
+.sb { display:inline-block; padding:1px 5px; border-radius:4px; font-size:9px; font-weight:700; white-space:nowrap; }
+.s-契約済{background:#dcfce7;color:#16a34a}.s-販売中{background:#dbeafe;color:#1d4ed8}
+.s-買付{background:#fef3c7;color:#d97706}
+</style>
+</head>
+<body>
+
+<div id="authOverlay">
+  <div style="background:white;border-radius:18px;width:90%;max-width:380px;overflow:hidden;box-shadow:0 20px 50px rgba(0,0,0,.4)">
+    <div style="background:linear-gradient(135deg,#1a56db,#3b82f6);padding:24px;text-align:center;color:white">
+      <div style="font-size:28px;font-weight:900">JACK</div>
+      <div style="font-size:12px;opacity:0.8">現場管理システム</div>
+    </div>
+    <div style="padding:20px">
+      <input type="email" id="loginEmail" placeholder="メールアドレス" style="width:100%;padding:10px;margin-bottom:10px;border:1px solid #ddd;border-radius:8px">
+      <input type="password" id="loginPassword" placeholder="パスワード" style="width:100%;padding:10px;margin-bottom:15px;border:1px solid #ddd;border-radius:8px">
+      <div id="loginError" style="display:none;color:red;font-size:12px;margin-bottom:10px"></div>
+      <button onclick="doLogin()" id="loginBtn" style="width:100%;padding:12px;background:#1a56db;color:white;border-radius:9px;font-weight:700">ログイン</button>
+    </div>
+  </div>
+</div>
+
+<div id="pendingOverlay">
+  <div style="background:white;border-radius:18px;padding:32px;max-width:320px;text-align:center">
+    <div style="font-size:44px">⏳</div>
+    <div style="font-weight:800;margin:10px 0">承認待ち</div>
+    <div style="font-size:12px;color:#64748b;margin-bottom:20px">管理者の承認後にご利用いただけます。</div>
+    <button onclick="sbSignOut()" style="width:100%;padding:10px;background:#eee;border-radius:8px">ログアウト</button>
+  </div>
+</div>
+
+<div id="jackSidebar">
+  <div class="sb-head">
+    <div><div class="sb-logo-title">JACK</div><div class="sb-logo-sub">新築AP 現場管理</div></div>
+    <div class="sb-toggle" onclick="sbToggle()">☰</div>
+  </div>
+  <div class="sb-body">
+    <div class="sb-section">物件管理</div>
+    <div class="sb-item" onclick="openSelectProp()"><span class="sb-icon">⭐</span><span class="sb-label">担当物件を選択</span></div>
+    <div class="sb-item" onclick="openMyPage()"><span class="sb-icon">📋</span><span class="sb-label">マイ物件一覧</span></div>
+    <div class="sb-divider" style="height:1px;background:rgba(255,255,255,0.1);margin:8px 0"></div>
+    <div class="sb-section">マップ</div>
+    <div class="sb-item" onclick="openJackMap('東海')"><span class="sb-icon">📍</span><span class="sb-label">東海エリアマップ</span></div>
+    <div class="sb-item" onclick="openJackMap('関東')"><span class="sb-icon">📍</span><span class="sb-label">関東エリアマップ</span></div>
+    <div class="sb-divider"></div>
+    <div class="sb-item" onclick="doSync()"><span class="sb-icon">🔄</span><span class="sb-label">今すぐ同期</span></div>
+  </div>
+  <div class="sb-foot">
+    <div class="sb-avatar" id="sbAvatar">?</div>
+    <div style="flex:1;min-width:0"><div class="sb-foot-name" id="sbName">Guest</div><div class="sb-foot-role" id="sbRole">Worker</div></div>
+    <div onclick="sbSignOut()" style="cursor:pointer;opacity:0.5">🚪</div>
+  </div>
+</div>
+
+<div id="jackMainWrap">
+  <div id="loading"><div class="ld-logo">JACK</div><div class="ld-dots"><span></span><span></span><span></span></div></div>
+  
+  <div id="app" class="mobile-mode">
+    <div class="top-header">
+      <div class="th-left"><div class="th-logo">JACK</div></div>
+      <div class="th-right">
+        <div class="th-today" id="todayBadge"></div>
+        <button class="th-icon-btn" onclick="toggleMode()">🖥️</button>
+      </div>
+    </div>
+    
+    <div class="area-tabs" id="areaTabs"></div>
+    <div id="statusBar" style="padding:5px; background:white; border-bottom:1px solid #eee; display:flex; overflow-x:auto;"></div>
+    <div id="statsStrip" style="padding:5px; background:#1e293b; display:flex; overflow-x:auto;"></div>
+
+    <div class="table-wrap">
+      <div class="table-header">
+        <div id="freezeHeaderInner"></div>
+        <div id="scrollHeaderWrap"><div id="scrollHeaderInner"></div></div>
+      </div>
+      <div class="table-body">
+        <div class="freeze-body" id="freezeBody"></div>
+        <div class="scroll-body" id="scrollBody"><div id="ganttCanvas"></div></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="slide-panel" id="detailPanel">
+    <div class="panel-header"><button class="panel-back" onclick="closePanel('detailPanel')">←</button><div class="panel-title">物件詳細</div></div>
+    <div class="panel-scroll" id="dpContent"></div>
+    <div id="dpActionBar" style="padding:10px; background:white; border-top:1px solid #ddd; display:flex; gap:10px"></div>
+  </div>
+
+  <div class="slide-panel" id="selectPropPanel">
+    <div class="panel-header"><button class="panel-back" onclick="closePanel('selectPropPanel')">←</button><div class="panel-title">担当物件の選択</div></div>
+    <div class="panel-scroll" id="selectPropContent"></div>
+  </div>
+
+  <div class="slide-panel" id="myPagePanel">
+    <div class="panel-header"><button class="panel-back" onclick="closePanel('myPagePanel')">←</button><div class="panel-title">マイ物件</div></div>
+    <div class="panel-scroll" id="myPageContent"></div>
+  </div>
+</div>
+
+<div id="jackMapModal" onclick="if(event.target===this)closeJackMap()">
+  <div id="jackMapBox">
+    <div id="jackMapHeader">
+      <div style="color:white; font-weight:bold" id="jackMapTitle">全現場マップ</div>
+      <button onclick="closeJackMap()" style="color:white">✕</button>
+    </div>
+    <div id="jackMapBody">
+      <div id="jackMapList"></div>
+      <div id="jackMapRight">
+        <iframe id="jackMapFrame" src=""></iframe>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+// ===== DATA / CONFIG =====
+var DATA = {"dates":["","2026-03-01","2026-03-02","2026-03-03","2026-03-04","2026-03-05","2026-03-06","2026-03-07","2026-03-08","2026-03-09","2026-03-10","2026-03-11","2026-03-12","2026-03-13","2026-03-14","2026-03-15","2026-03-16","2026-03-17","2026-03-18","2026-03-19","2026-03-20","2026-03-21","2026-03-22","2026-03-23","2026-03-24","2026-03-25","2026-03-26","2026-03-27","2026-03-28","2026-03-29","2026-03-30","2026-03-31","2026-04-01","2026-04-02","2026-04-03","2026-04-04","2026-04-05","2026-04-06","2026-04-07","2026-04-08","2026-04-09","2026-04-10","2026-04-11","2026-04-12","2026-04-13","2026-04-14","2026-04-15","2026-04-16","2026-04-17","2026-04-18","2026-04-19","2026-04-20","2026-04-21","2026-04-22","2026-04-23","2026-04-24","2026-04-25","2026-04-26","2026-04-27","2026-04-28","2026-04-29","2026-04-30","2026-05-01","2026-05-02","2026-05-03","2026-05-04","2026-05-05","2026-05-06","2026-05-07","2026-05-08","2026-05-09","2026-05-10","2026-05-11","2026-05-12","2026-05-13","2026-05-14","2026-05-15","2026-05-16","2026-05-17","2026-05-18","2026-05-19","2026-05-20","2026-05-21","2026-05-22","2026-05-23","2026-05-24","2026-05-25","2026-05-26","2026-05-27","2026-05-28","2026-05-29","2026-05-30","2026-05-31","2026-06-01","2026-06-02","2026-06-03","2026-06-04","2026-06-05","2026-06-06","2026-06-07","2026-06-08","2026-06-09","2026-06-10","2026-06-11","2026-06-12","2026-06-13","2026-06-14","2026-06-15","2026-06-16","2026-06-17","2026-06-18","2026-06-19","2026-06-20","2026-06-21","2026-06-22","2026-06-23","2026-06-24","2026-06-25","2026-06-26","2026-06-27","2026-06-28","2026-06-29","2026-06-30","2026-07-01"], "all": {"全物件進捗":[]}};
+var TODAY = '2026-03-15';
+var COL_W = 18;
+var SUPABASE_URL = 'https://pwgufjhagswrvomvqidd.supabase.co';
+var SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InB3Z3VmamhhZ3N3cnZvbXZxaWRkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQ1NTM0ODIsImV4cCI6MjA5MDEyOTQ4Mn0.jCwAu85M7HxC128Xs_IbaIBQth-KmrF5QGLWc-maMyE';
+
+var FREEZE_COLS = [
+  { key:'fix_no', label:'FiX №', w:40 },
+  { key:'area', label:'エリア', w:40 },
+  { key:'name', label:'物件名', w:130 },
+  { key:'hand_kumi', label:'手組', w:26 }
+];
+var FREEZE_W = FREEZE_COLS.reduce((a,c)=>a+c.w, 0);
+
+var AREA_TABS = [
+  { id:'マイ物件', label:'⭐ マイ物件', cls:'myfav' },
+  { id:'all', label:'全物件', cls:'' },
+  { id:'東海', label:'東海', areas:['愛知','三重','岐阜','静岡'] },
+  { id:'関東', label:'関東', areas:['埼玉','東京','神奈川','千葉'] }
+];
+
+var currentUser = null;
+var currentProfile = null;
+var dbProps = [];
+var myFavProps = loadLS('jack_myfavs', []);
+var currentArea = 'all';
+var currentStatus = 'all';
+var isPcMode = window.innerWidth > 1000;
+
+// ===== UTILS =====
+function loadLS(k, d){ try{ var v=localStorage.getItem(k); return v?JSON.parse(v):d; }catch(e){return d;} }
+function saveLS(k, v){ try{ localStorage.setItem(k, JSON.stringify(v)); }catch(e){} }
+function showToast(msg, type){ 
+  var t = document.getElementById('toast');
+  t.textContent = msg; t.className = 'toast show';
+  if(type==='error') t.style.background = '#ef4444'; else t.style.background = '#1e293b';
+  setTimeout(()=>t.classList.remove('show'), 3000);
+}
+
+// ===== SUPABASE =====
+var _sb = null;
+function getSB(){ if(!_sb) _sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY); return _sb; }
+
+async function doLogin(){
+  var email = document.getElementById('loginEmail').value;
+  var pass = document.getElementById('loginPassword').value;
+  var btn = document.getElementById('loginBtn');
+  btn.disabled = true; btn.textContent = '認証中...';
+  
+  var {data, error} = await getSB().auth.signInWithPassword({email:email, password:pass});
+  if(error) {
+    document.getElementById('loginError').textContent = 'ログイン失敗: ' + error.message;
+    document.getElementById('loginError').style.display = 'block';
+    btn.disabled = false; btn.textContent = 'ログイン';
+    return;
+  }
+  await onAuthSuccess(data.user);
+}
+
+async function onAuthSuccess(user){
+  currentUser = user;
+  var {data, error} = await getSB().from('profiles').select('*').eq('id', user.id).single();
+  currentProfile = data;
+  if(!data || !data.approved) {
+    document.getElementById('pendingOverlay').style.display = 'flex';
+    document.getElementById('authOverlay').style.display = 'none';
+    return;
+  }
+  document.getElementById('authOverlay').style.display = 'none';
+  document.getElementById('pendingOverlay').style.display = 'none';
+  updateSidebar();
+  await loadData();
+}
+
+async function loadData(){
+  var {data} = await getSB().from('properties').select('*').order('fix_no');
+  dbProps = data || [];
+  renderAll();
+}
+
+function getAllProps() { return dbProps.length ? dbProps : (DATA.all['全物件進捗'] || []); }
+
+function updateSidebar(){
+  if(!currentProfile) return;
+  document.getElementById('sbName').textContent = currentProfile.name;
+  document.getElementById('sbRole').textContent = currentProfile.role === 'admin' ? '👑管理者' : '現場担当';
+  document.getElementById('sbAvatar').textContent = currentProfile.name[0];
+}
+
+function sbToggle() { document.getElementById('jackSidebar').classList.toggle('collapsed'); }
+
+function isFav(p){ return myFavProps.some(f => f.fix_no == p.fix_no && f.name == p.name); }
+
+// ===== RENDER =====
+function renderAll(){
+  renderHeader();
+  renderStats();
+  renderBody();
+}
+
+function renderHeader(){
+  var fh = document.getElementById('freezeHeaderInner');
+  fh.style.width = FREEZE_W + 'px';
+  fh.innerHTML = FREEZE_COLS.map(c => `<div class="hcell" style="width:${c.w}px">${c.label}</div>`).join('');
+  
+  var sh = document.getElementById('scrollHeaderInner');
+  var totalDays = DATA.dates.length - 1;
+  sh.style.width = (totalDays * COL_W) + 'px';
+  sh.innerHTML = DATA.dates.map((d, i) => {
+    if(!d) return '';
+    var day = d.split('-')[2];
+    return `<div style="position:absolute; left:${(i-1)*COL_W}px; width:${COL_W}px; font-size:9px; text-align:center">${day}</div>`;
+  }).join('');
+}
+
+function renderBody(){
+  var props = getFilteredProps();
+  var fb = document.getElementById('freezeBody');
+  var cv = document.getElementById('ganttCanvas');
+  fb.innerHTML = ''; cv.innerHTML = '';
+  
+  props.forEach((p, ri) => {
+    var row = document.createElement('div');
+    row.style.height = '40px'; row.style.display = 'flex'; row.style.borderBottom = '1px solid #eee';
+    row.innerHTML = FREEZE_COLS.map(c => `<div style="width:${c.w}px; padding:5px; font-size:11px; overflow:hidden;">${p[c.key]||''}</div>`).join('');
+    row.onclick = () => openDetail(p);
+    fb.appendChild(row);
+    
+    // Gantt dummy
+    var gRow = document.createElement('div');
+    gRow.style.height = '40px'; gRow.style.width = '2000px'; gRow.style.position='relative';
+    cv.appendChild(gRow);
+  });
+}
+
+function getFilteredProps(){
+  var all = getAllProps();
+  var filtered = all;
+  if(currentArea === 'マイ物件') filtered = all.filter(p => isFav(p));
+  else if(currentArea !== 'all') {
+    var tab = AREA_TABS.find(t => t.id === currentArea);
+    if(tab && tab.areas) filtered = all.filter(p => tab.areas.includes(p.area));
+  }
+  return filtered;
+}
+
+function renderStats(){ /* Stats Logic */ }
+
+function openDetail(p){
+  currentProp = p;
+  document.getElementById('dpContent').innerHTML = `
+    <div style="padding:15px; background:white;">
+      <h2>${p.name}</h2>
+      <p>FiX No: ${p.fix_no} / エリア: ${p.area}</p>
+      <hr style="margin:10px 0">
+      <div id="propMap" style="height:200px; background:#eee; margin-top:10px; border-radius:8px; display:flex; align-items:center; justify-content:center">
+         <iframe width="100%" height="100%" frameborder="0" style="border:0" 
+           src="https://www.google.com/maps?q=${encodeURIComponent(p.address || (p.area + p.name))}&output=embed"></iframe>
+      </div>
+    </div>
+  `;
+  document.getElementById('dpActionBar').innerHTML = isFav(p) 
+    ? `<button onclick="removeFavAction()" style="flex:1; padding:10px; background:#fee2e2; color:red; border-radius:8px">⭐ 削除</button>`
+    : `<button onclick="addFavAction()" style="flex:1; padding:10px; background:#1a56db; color:white; border-radius:8px">⭐ マイ物件に追加</button>`;
+  openPanel('detailPanel');
+}
+
+function openPanel(id){ document.getElementById(id).classList.add('open'); }
+function closePanel(id){ document.getElementById(id).classList.remove('open'); }
+
+function setArea(id, btn){
+  currentArea = id;
+  document.querySelectorAll('.atab').forEach(b => b.classList.remove('active'));
+  if(btn) btn.classList.add('active');
+  renderBody();
+}
+
+function toggleMode(){
+  isPcMode = !isPcMode;
+  document.getElementById('app').className = isPcMode ? 'pc-mode' : 'mobile-mode';
+  renderBody();
+}
+
+function openMyPage(){ renderMyPage(); openPanel('myPagePanel'); }
+function renderMyPage(){
+  var all = getAllProps();
+  var favs = all.filter(p => isFav(p));
+  document.getElementById('myPageContent').innerHTML = favs.map(p => `
+    <div style="padding:15px; background:white; margin:10px; border-radius:8px; border:1px solid #ddd">
+      <strong>${p.name}</strong><br><small>${p.area} / FiX ${p.fix_no}</small>
+    </div>
+  `).join('') || '<p style="text-align:center; padding:20px;">登録物件なし</p>';
+}
+
+function openSelectProp(){
+  var all = getAllProps();
+  document.getElementById('selectPropContent').innerHTML = all.map(p => `
+    <div onclick="toggleFavItem('${p.fix_no}','${p.name}')" style="padding:12px; border-bottom:1px solid #eee; display:flex; align-items:center; gap:10px">
+      <div style="width:20px; height:20px; border:2px solid #ddd; border-radius:50%; background:${isFav(p)?'#1a56db':'white'}"></div>
+      <div>${p.name} <small>${p.area}</small></div>
+    </div>
+  `).join('');
+  openPanel('selectPropPanel');
+}
+
+function toggleFavItem(fixNo, name){
+  var idx = myFavProps.findIndex(f => f.fix_no == fixNo && f.name == name);
+  if(idx >= 0) myFavProps.splice(idx, 1);
+  else myFavProps.push({fix_no:fixNo, name:name});
+  saveLS('jack_myfavs', myFavProps);
+  openSelectProp(); renderBody();
+}
+
+function openJackMap(area){
+  var title = area + ' エリアマップ';
+  document.getElementById('jackMapTitle').textContent = title;
+  var addr = area === '東海' ? '愛知県名古屋市' : '埼玉県さいたま市';
+  document.getElementById('jackMapFrame').src = `https://www.google.com/maps?q=${encodeURIComponent(addr)}&output=embed`;
+  document.getElementById('jackMapModal').classList.add('open');
+}
+function closeJackMap(){ document.getElementById('jackMapModal').classList.remove('open'); }
+
+function sbSignOut(){ getSB().auth.signOut(); location.reload(); }
+
+// ===== INIT =====
+window.onload = async function(){
+  var tabsEl = document.getElementById('areaTabs');
+  tabsEl.innerHTML = AREA_TABS.map(t => `<button class="atab ${t.cls||''}" onclick="setArea('${t.id}',this)">${t.label}</button>`).join('');
+  
+  var {data: {session}} = await getSB().auth.getSession();
+  if(session) await onAuthSuccess(session.user);
+  else document.getElementById('authOverlay').style.display = 'flex';
+  
+  setTimeout(() => {
+    document.getElementById('loading').style.opacity = '0';
+    setTimeout(()=>document.getElementById('loading').style.display='none', 400);
+  }, 800);
+};
+
+// Global Exposure
+window.sbToggle = sbToggle;
+window.doLogin = doLogin;
+window.setArea = setArea;
+window.toggleMode = toggleMode;
+window.openMyPage = openMyPage;
+window.openSelectProp = openSelectProp;
+window.removeFavAction = () => { if(currentProp){ toggleFavItem(currentProp.fix_no, currentProp.name); openDetail(currentProp); } };
+window.addFavAction = () => { if(currentProp){ toggleFavItem(currentProp.fix_no, currentProp.name); openDetail(currentProp); } };
+
+</script>
+</body>
+</html>
