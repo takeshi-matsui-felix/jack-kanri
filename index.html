@@ -3065,20 +3065,31 @@ window.doRegister = doRegister;
 
 async function onAuthSuccess() {
   var sb = getSB();
-  var {data: profile} = await sb.from('profiles').select('*').eq('id', currentUser.id).single();
+
+  // Wait a moment for DB trigger to create profile
+  await new Promise(function(r){setTimeout(r, 800);});
+
+  var {data: profile, error} = await sb.from('profiles').select('*').eq('id', currentUser.id).single();
+  console.log('Profile loaded:', profile, error);
   currentProfile = profile;
+
+  if (!profile) {
+    // Profile not created yet - try once more after delay
+    await new Promise(function(r){setTimeout(r, 1500);});
+    var {data: p2} = await sb.from('profiles').select('*').eq('id', currentUser.id).single();
+    currentProfile = p2;
+    profile = p2;
+  }
+
   if (!profile || !profile.approved) {
     showPendingScreen();
     return;
   }
+
   hideAuthScreen();
-  // Patch getAllProps to use DB data
   patchGetAllPropsForDB();
-  // Load properties from DB
   await loadDBProperties();
-  // Update header
   updateUserBadge();
-  // Add admin menu item if admin
   if (profile.role === 'admin') addAdminMenuItem();
 }
 
@@ -3351,11 +3362,26 @@ window.doDeleteProperty = doDeleteProperty;
 async function initAuth() {
   var sb = getSB();
   if (!sb) {
-    // Supabase lib not loaded yet - show auth screen
     showAuthScreen();
     return;
   }
-  var {data: {session} } = await sb.auth.getSession();
+
+  // Listen for auth state changes (handles email confirmation redirect)
+  sb.auth.onAuthStateChange(async function(event, session) {
+    console.log('Auth event:', event, session ? session.user.email : 'no session');
+    if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
+      if (session && session.user) {
+        currentUser = session.user;
+        await onAuthSuccess();
+      }
+    } else if (event === 'SIGNED_OUT') {
+      currentUser = null; currentProfile = null; DB_PROPS = null;
+      showAuthScreen();
+    }
+  });
+
+  // Check existing session
+  var {data: {session}} = await sb.auth.getSession();
   if (session && session.user) {
     currentUser = session.user;
     await onAuthSuccess();
