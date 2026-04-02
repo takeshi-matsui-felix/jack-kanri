@@ -467,7 +467,7 @@ body{display:flex;overflow:hidden;}
 <div class="slide-panel" id="settingsPanel"><div class="panel-header"><button class="panel-back" onclick="closePanel('settingsPanel')">← 戻る</button><div style="flex:1"><div class="panel-title">⚙️ 設定</div></div></div><div class="panel-scroll" id="settingsContent"></div></div>
 <div class="menu-overlay" id="menuOverlay" onclick="closeMenu()"></div>
 <div class="side-menu" id="sideMenu"><div class="menu-head"><div class="menu-user">🏗️ 現場担当者</div><div class="menu-role">JACK 現場管理アプリ</div></div><div class="menu-body"><div class="menu-section">マイ物件</div><div class="menu-item" onclick="openMyPage()"><span class="mi-icon">⭐</span>マイ物件を見る</div><div class="menu-item" onclick="openSelectProp()"><span class="mi-icon">✅</span>担当物件を選択</div><div class="menu-item" onclick="closeMenu();openGanttEditorMenu()"><span class="mi-icon">✏️</span>工程表を編集</div><div class="menu-item" onclick="closeMenu();openMasterPanel()"><span class="mi-icon">📋</span>マスター工程</div><div class="menu-divider"></div><div class="menu-section">表示</div><div class="menu-item" onclick="closeMenu();setMode(false)"><span class="mi-icon">📱</span>スマホ表示</div><div class="menu-item" onclick="closeMenu();setMode(true)"><span class="mi-icon">🖥️</span>PC横長表示</div><div class="menu-divider"></div><div class="menu-section">その他</div><div class="menu-item" onclick="closeMenu();doSync()"><span class="mi-icon">🔄</span>今すぐ同期</div><div class="menu-item" onclick="openSettings()"><span class="mi-icon">⚙️</span>設定</div><div class="menu-item" onclick="closeMenu();printPage()"><span class="mi-icon">🖨️</span>印刷</div></div></div>
-<div class="popup-overlay" id="updatePopup" style="display:none"><div class="popup-box"><div class="popup-head">🔔 データ更新情報</div><div class="popup-body" id="updateContent"></div><div class="popup-footer"><button class="popup-close" onclick="closeUpdatePopup()">閉じる</button></div></div></div>
+<div class="popup-overlay" id="updatePopup" style="display:none"><div class="popup-box"><div class="popup-head">🔔 前回ログイン以降の更新</div><div class="popup-body" id="updateContent"></div><div class="popup-footer"><button class="popup-close" onclick="closeUpdatePopup()">閉じる</button></div></div></div>
 <div class="tooltip" id="tooltip"></div><div class="toast" id="toast"></div>
 </div>
 <div id="jackMapModal" onclick="if(event.target.id==='jackMapModal')closeJackMap()" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:9998;align-items:center;justify-content:center">
@@ -2701,10 +2701,9 @@ function doSync(){
   jsonpFetch(SYNC_URL,'jackSync',
     function(j){
       var now=new Date();
-      syncData={lastSync:now.toISOString(),updates:j.updates||[]};saveLS('jack_sync',syncData);
+      syncData={lastSync:now.toISOString(),updates:[]};saveLS('jack_sync',syncData);
       var ts=(now.getMonth()+1)+'/'+now.getDate()+' '+now.getHours()+':'+('0'+now.getMinutes()).slice(-2);
       updateSyncBanner('最終同期: '+ts,false);
-      if(syncData.updates.length>0)showUpdatePopup(syncData.updates);
       showToast('✅ データを同期しました','success');
       // 業者データも取得
       jsonpFetch(SYNC_URL+'?type=vendors','jackVendor',
@@ -2719,11 +2718,65 @@ function doSync(){
   );
 }
 
-function showUpdatePopup(u){
-  document.getElementById('updateContent').innerHTML=u.map(function(x){
-    return '<div class="update-item"><span class="upd-icon">'+(x.type==='new'?'🆕':'✏️')+'</span>'
-      +'<div class="upd-text"><span class="'+(x.type==='new'?'upd-new':'upd-mod')+'">'+(x.type==='new'?'新規追加':'更新')+'</span> '+x.name+'（'+x.area+'）<br>'+x.msg+'</div></div>';
-  }).join('');
+// ===== DB変更検出・更新ポップアップ =====
+var PREV_PROPS_KEY='jack_prev_props_snapshot';
+
+function buildPropSnapshot(props){
+  // 比較に使うフィールドのみ保存（容量節約）
+  var snap={};
+  (props||[]).forEach(function(p){
+    snap[p.id]={
+      name:p.name, area:p.area, status:p.status,
+      delivery_date:p.delivery_date, dealer:p.dealer,
+      confirm_done:p.confirm_done, land_payment:p.land_payment
+    };
+  });
+  return snap;
+}
+
+function detectChanges(prevSnap, newProps){
+  var changes=[];
+  var newSnap=buildPropSnapshot(newProps);
+
+  // 新規物件
+  newProps.forEach(function(p){
+    if(!prevSnap[p.id]){
+      changes.push({type:'new', icon:'🆕', tag:'新規登録', tagCls:'upd-new',
+        name:p.name, area:p.area, msg:'新しく物件が登録されました'});
+    }
+  });
+
+  // 既存物件の変更
+  newProps.forEach(function(p){
+    var prev=prevSnap[p.id];
+    if(!prev)return;
+    var msgs=[];
+    if(prev.status!==p.status && p.status)
+      msgs.push('ステータス: '+( prev.status||'未設定')+' → '+p.status);
+    if(prev.delivery_date!==p.delivery_date && p.delivery_date)
+      msgs.push('引渡し日: '+(prev.delivery_date||'未設定')+' → '+p.delivery_date);
+    if(prev.confirm_done!==p.confirm_done && p.confirm_done)
+      msgs.push('確認申請完了: '+(prev.confirm_done||'未設定')+' → '+p.confirm_done);
+    if(prev.dealer!==p.dealer && p.dealer)
+      msgs.push('担当ディーラー: '+(prev.dealer||'未設定')+' → '+p.dealer);
+    if(msgs.length){
+      changes.push({type:'mod', icon:'✏️', tag:'更新', tagCls:'upd-mod',
+        name:p.name, area:p.area, msg:msgs.join('　/　')});
+    }
+  });
+
+  return changes;
+}
+
+function showUpdatePopup(changes){
+  if(!changes||!changes.length)return;
+  document.getElementById('updateContent').innerHTML=
+    '<div style="padding:6px 12px 2px;font-size:10px;color:var(--g400)">前回ログイン以降に '+changes.length+'件の変更があります</div>'
+    +changes.map(function(x){
+      return '<div class="update-item"><span class="upd-icon">'+x.icon+'</span>'
+        +'<div class="upd-text"><span class="'+x.tagCls+'">'+x.tag+'</span> '+x.name+'（'+x.area+'）<br>'
+        +'<span style="font-size:10px;color:var(--g500)">'+x.msg+'</span></div></div>';
+    }).join('');
   document.getElementById('updatePopup').style.display='flex';
 }
 function closeUpdatePopup(){document.getElementById('updatePopup').style.display='none';}
@@ -2828,7 +2881,6 @@ window.onload=function(){
     updateSyncBanner('未同期 — メニューから同期',false);
   }
   scheduleSync();
-  if(syncData.updates&&syncData.updates.length>0)setTimeout(function(){showUpdatePopup(syncData.updates);},1500);
   setTimeout(function(){var ld=document.getElementById('loading');ld.style.opacity='0';setTimeout(function(){ld.style.display='none';},400);},900);
 };
 window.addEventListener('resize',function(){var s=window.innerWidth>1100;if(s!==isPcMode)setMode(s);});
@@ -2929,6 +2981,18 @@ async function onAuthSuccess(){
     DB_PROPS=pr.data;
     if(typeof renderAll==='function')renderAll();
     showToast('DBから '+pr.data.length+'件取得','success');
+
+    // 前回スナップショットと比較して有意義な更新を通知
+    var snapKey=PREV_PROPS_KEY+'_'+currentUser.id;
+    var prevSnap=loadLS(snapKey,null);
+    if(prevSnap){
+      var changes=detectChanges(prevSnap,DB_PROPS);
+      if(changes.length>0){
+        setTimeout(function(){showUpdatePopup(changes);},1200);
+      }
+    }
+    // 今回のスナップショットを保存（次回比較用）
+    saveLS(snapKey,buildPropSnapshot(DB_PROPS));
   }
 }
 
