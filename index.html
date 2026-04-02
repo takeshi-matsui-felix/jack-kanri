@@ -340,6 +340,9 @@ body{display:flex;overflow:hidden;}
 .adm-mi:hover{background:rgba(255,255,255,.07);color:white;}
 #jackCalendarPanel .panel-scroll{padding:0;overflow:hidden;display:flex;flex-direction:column;}
 #menuOverlay,#sideMenu{display:none!important;}
+.ged-list-item{padding:8px 9px;cursor:pointer;border-bottom:1px solid rgba(255,255,255,.06);transition:background .12s}
+.ged-list-item:hover{background:rgba(255,255,255,.1)}
+.ged-list-item.active{background:var(--primary);border-left:3px solid var(--accent)}
 @media print{
   #jackSidebar,#menuOverlay,#sideMenu,.sync-banner,.status-bar,.stats-strip,.panel-action-bar,
   .th-icon-btn,.print-btn,#updatePopup,.tooltip,.toast,#loading,.editor-toolbar,#addBarFormPanel,
@@ -443,20 +446,60 @@ body{display:flex;overflow:hidden;}
 <div class="slide-panel" id="detailPanel"><div class="panel-header"><button class="panel-back" onclick="closePanel('detailPanel')">← 戻る</button><div style="flex:1"><div class="panel-title">物件詳細</div></div></div><div class="panel-scroll" id="dpContent"></div><div class="panel-action-bar" id="dpActionBar"></div></div>
 <div class="slide-panel" id="myPagePanel"><div class="panel-header"><button class="panel-back" onclick="closePanel('myPagePanel')">← 戻る</button><div style="flex:1"><div class="panel-title">⭐ マイ物件</div></div><button onclick="openSelectProp()" style="background:rgba(255,255,255,.2);color:white;border-radius:6px;padding:4px 9px;font-size:11px;font-weight:700">＋</button><button class="print-btn" onclick="printPage()">🖨️</button></div><div class="mypage-wrap" id="myPageContent"></div></div>
 <div class="slide-panel" id="selectPropPanel"><div class="panel-header"><button class="panel-back" onclick="closePanel('selectPropPanel')">← 戻る</button><div style="flex:1"><div class="panel-title">担当物件を選択</div></div><button onclick="closePanel('selectPropPanel')" style="background:rgba(255,255,255,.2);color:white;border-radius:6px;padding:4px 9px;font-size:11px;font-weight:700">完了</button></div><div class="panel-scroll" id="selectPropContent"></div></div>
-<div class="slide-panel" id="ganttEditorPanel"><div class="panel-header"><button class="panel-back" onclick="closePanel('ganttEditorPanel')">← 戻る</button><div style="flex:1"><div class="panel-title">✏️ 工程表編集</div></div></div><div class="panel-scroll" id="ganttEditorContent"></div></div>
-<div class="slide-panel" id="ganttEditorDetailPanel">
-  <div class="panel-header"><button class="panel-back" onclick="closePanel('ganttEditorDetailPanel')">← 戻る</button><div style="flex:1;min-width:0"><div class="panel-title" id="ganttEditorTitle" style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">工程表編集</div><div class="panel-sub">ドラッグで移動 ｜ 右端で延縮 ｜ バー右上×で削除</div></div><button class="print-btn" onclick="printPage()">🖨️</button></div>
-  <div class="editor-toolbar"><button class="ed-btn ed-btn-add" onclick="toggleAddBarForm()">＋ 工種追加</button><button class="ed-btn ed-btn-period" onclick="showPeriodShift()">📅 工期シフト</button><button class="ed-btn ed-btn-del" onclick="resetEditorChanges()">🔄 リセット</button><button class="ed-btn ed-btn-save" onclick="saveEditorChanges()">💾 保存</button></div>
-  <div id="addBarFormPanel" style="display:none"><div class="add-bar-form">
-    <div class="form-row"><label>工種名</label><input type="text" id="newBarName" placeholder="例: 外構工事"></div>
-    <div class="form-row"><label>日数</label><input type="number" id="newBarDays" value="7" min="1" max="180"></div>
-    <div class="form-row"><label>背景色</label><div class="color-picker" id="colorPicker"></div></div>
-    <div class="form-row"><label>文字色</label><select id="barTextColor" style="padding:5px 8px;border:1.5px solid var(--g200);border-radius:7px;font-size:12px;flex:1"><option value="auto">自動</option><option value="white">白</option><option value="black">黒</option><option value="#ef4444">赤</option><option value="#1a56db">青</option></select></div>
-    <button class="btn-primary" style="width:100%;margin-top:4px" onclick="addNewBar()">バーを追加</button>
-  </div></div>
-  <div style="flex:1;overflow:auto;background:#1e293b;-webkit-overflow-scrolling:touch"><div style="position:sticky;top:0;z-index:10" id="editorDateHeader"></div><div style="padding:10px 0;min-height:100px"><div id="editorCanvas"></div></div></div>
-  <div style="padding:6px 12px;background:var(--g50);border-top:1px solid var(--g200);font-size:10px;color:var(--g400);flex-shrink:0">💡 ドラッグで移動 ｜ 右端で延縮 ｜ バー右上の×で削除</div>
+<!-- 工程表編集: 左右2ペイン統合パネル -->
+<div class="slide-panel" id="ganttEditorPanel" style="flex-direction:column">
+  <!-- ヘッダー -->
+  <div class="panel-header" style="flex-shrink:0">
+    <button class="panel-back" onclick="closePanel('ganttEditorPanel')">← 戻る</button>
+    <div style="flex:1;min-width:0">
+      <div class="panel-title">✏️ 工程表編集</div>
+      <div class="panel-sub" id="ganttEditorSubTitle">物件を選択してください</div>
+    </div>
+    <button class="print-btn" onclick="printPage()">🖨️ 印刷</button>
+  </div>
+  <!-- ツールバー（物件選択後に表示） -->
+  <div id="ganttEditorToolbar" style="display:none;flex-shrink:0">
+    <div class="editor-toolbar">
+      <button class="ed-btn ed-btn-add" onclick="toggleAddBarForm()">＋ 工種追加</button>
+      <button class="ed-btn ed-btn-period" onclick="showPeriodShift()">📅 工期シフト</button>
+      <button class="ed-btn ed-btn-del" onclick="resetEditorChanges()">🔄 リセット</button>
+      <button class="ed-btn ed-btn-save" onclick="saveEditorChanges()">💾 保存</button>
+    </div>
+    <div id="addBarFormPanel" style="display:none"><div class="add-bar-form">
+      <div class="form-row"><label>工種名</label><input type="text" id="newBarName" placeholder="例: 外構工事"></div>
+      <div class="form-row"><label>日数</label><input type="number" id="newBarDays" value="7" min="1" max="180"></div>
+      <div class="form-row"><label>背景色</label><div class="color-picker" id="colorPicker"></div></div>
+      <div class="form-row"><label>文字色</label><select id="barTextColor" style="padding:5px 8px;border:1.5px solid var(--g200);border-radius:7px;font-size:12px;flex:1"><option value="auto">自動</option><option value="white">白</option><option value="black">黒</option><option value="#ef4444">赤</option><option value="#1a56db">青</option></select></div>
+      <button class="btn-primary" style="width:100%;margin-top:4px" onclick="addNewBar()">バーを追加</button>
+    </div></div>
+  </div>
+  <!-- 本体: 左リスト + 右ガント -->
+  <div style="flex:1;display:flex;overflow:hidden;min-height:0">
+    <!-- 左: 物件リスト -->
+    <div id="ganttEditorList" style="width:130px;min-width:130px;background:#1e293b;border-right:2px solid #475569;overflow-y:auto;flex-shrink:0">
+      <div style="padding:6px 8px 4px;font-size:9px;font-weight:800;color:rgba(255,255,255,.4);letter-spacing:.5px;text-transform:uppercase">物件リスト</div>
+      <div id="ganttEditorListItems"></div>
+    </div>
+    <!-- 右: ガントエリア -->
+    <div id="ganttEditorRight" style="flex:1;display:flex;flex-direction:column;overflow:hidden;background:#1e293b">
+      <!-- 空状態 -->
+      <div id="ganttEditorEmpty" style="flex:1;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:8px;color:rgba(255,255,255,.3)">
+        <div style="font-size:32px">📋</div>
+        <div style="font-size:12px;font-weight:700">左のリストから物件を選択</div>
+      </div>
+      <!-- ガント本体（物件選択後） -->
+      <div id="ganttEditorMain" style="display:none;flex:1;flex-direction:column;overflow:hidden">
+        <div style="position:sticky;top:0;z-index:10;flex-shrink:0" id="editorDateHeader"></div>
+        <div style="flex:1;overflow:auto;-webkit-overflow-scrolling:touch;padding:8px 0 20px" id="editorCanvasWrap">
+          <div id="editorCanvas"></div>
+        </div>
+        <div style="padding:5px 10px;background:#0f172a;border-top:1px solid rgba(255,255,255,.08);font-size:9px;color:rgba(255,255,255,.3);flex-shrink:0">💡 ドラッグで移動 ｜ 右端ハンドルで延縮 ｜ ×ボタンで削除</div>
+      </div>
+    </div>
+  </div>
 </div>
+<!-- ganttEditorDetailPanel は統合のため不要になるが互換性のため残す（display:none） -->
+<div id="ganttEditorDetailPanel" style="display:none"></div>
 <div class="slide-panel" id="masterPanel"><div class="panel-header"><button class="panel-back" onclick="closePanel('masterPanel')">← 戻る</button><div style="flex:1"><div class="panel-title">📋 マスター工程</div></div></div><div class="panel-scroll" id="masterPanelContent"></div></div>
 <div class="slide-panel" id="masterEditorPanel">
   <div class="panel-header"><button class="panel-back" onclick="closePanel('masterEditorPanel')">← 戻る</button><div style="flex:1"><div class="panel-title" id="masterEditorTitle">マスター工程編集</div><div class="panel-sub">色をクリックで変更 ｜ 行をドラッグで並び替え</div></div><button class="ed-btn ed-btn-save" style="padding:5px 12px;font-size:11px" onclick="saveMasterEditorChanges()">💾 保存</button></div>
@@ -1720,20 +1763,47 @@ function closeMenu(){document.getElementById('menuOverlay').classList.remove('op
 function openMyPage(){closeMenu();renderMyPage();openPanel('myPagePanel');}
 function openSelectProp(){
   var all=getAllProps();
-  document.getElementById('selectPropContent').innerHTML=all.map(function(p){
-    var ck=p.fix_no+'--'+p.seq_no,checked=isFav(p);
-    return '<div class="select-prop-item" id="spi-'+ck+'" onclick="toggleFavItem(\''+p.fix_no+'\',\''+p.seq_no+'\')">'
+  // エリア別に並べ替えて表示
+  var areaOrder=['愛知','三重','岐阜','静岡','埼玉','東京','神奈川','千葉','茨城','栃木','群馬'];
+  var sorted=all.slice().sort(function(a,b){
+    var ai=areaOrder.indexOf(a.area),bi=areaOrder.indexOf(b.area);
+    if(ai<0)ai=99;if(bi<0)bi=99;
+    if(ai!==bi)return ai-bi;
+    return (a.fix_no||'').localeCompare(b.fix_no||'');
+  });
+  var currentArea='';
+  document.getElementById('selectPropContent').innerHTML=sorted.map(function(p){
+    var ck=p.fix_no+'--'+encodeURIComponent(p.name);
+    var checked=isFav(p);
+    var areaHdr='';
+    if(p.area!==currentArea){
+      currentArea=p.area;
+      areaHdr='<div style="padding:5px 12px 2px;font-size:10px;font-weight:800;color:var(--g500);background:var(--g50);border-top:1px solid var(--g200);border-bottom:1px solid var(--g200)">'+currentArea+'</div>';
+    }
+    return areaHdr+'<div class="select-prop-item" id="spi-'+ck+'" onclick="toggleFavItem(\''+p.fix_no+'\',\''+encodeURIComponent(p.name)+'\')">'
       +'<div class="spi-check'+(checked?' checked':'')+'">'+( checked?'✓':'')+'</div>'
-      +'<div class="spi-name">'+p.name+'</div><div class="spi-area">'+p.area+'</div></div>';
+      +'<div style="flex:1;min-width:0"><div class="spi-name">'+p.name+'</div>'
+      +'<div style="font-size:9px;color:var(--g400);margin-top:1px">FiX '+p.fix_no+(p.delivery_date?' ／ '+p.delivery_date:'')+'</div></div>'
+      +'<div class="spi-area">'+p.area+'</div></div>';
   }).join('');
   closeMenu();openPanel('selectPropPanel');
 }
-function toggleFavItem(fixNo,seqNo){
-  var p=getAllProps().find(function(x){return x.fix_no===fixNo&&x.seq_no===seqNo;});
+
+function toggleFavItem(fixNo, encName){
+  // fix_no + name で一致（seq_noは使わない）
+  var name=decodeURIComponent(encName);
+  var p=getAllProps().find(function(x){return x.fix_no===fixNo&&x.name===name;});
   if(!p)return;
-  var ck=fixNo+'--'+seqNo,row=document.getElementById('spi-'+ck),check=row?row.querySelector('.spi-check'):null;
-  if(isFav(p)){removeFav(p);if(check){check.className='spi-check';check.textContent='';}}
-  else{addFav(p);if(check){check.className='spi-check checked';check.textContent='✓';}}
+  var ck=fixNo+'--'+encodeURIComponent(name);
+  var row=document.getElementById('spi-'+ck);
+  var check=row?row.querySelector('.spi-check'):null;
+  if(isFav(p)){
+    removeFav(p);
+    if(check){check.className='spi-check';check.textContent='';}
+  } else {
+    addFav(p);
+    if(check){check.className='spi-check checked';check.textContent='✓';}
+  }
   renderBody();
 }
 
@@ -1781,21 +1851,39 @@ var dragBar=null, dragStartX=0, dragStartCol=0;
 var resBar=null,  resStartX=0,  resStartDur=0;
 var SEL_COLOR='#3b82f6';
 
-function openGanttEditorMenu(){renderEditorSelector();openPanel('ganttEditorPanel');}
+function openGanttEditorMenu(){
+  renderEditorSideList();
+  openPanel('ganttEditorPanel');
+  document.getElementById('ganttEditorEmpty').style.display='flex';
+  document.getElementById('ganttEditorMain').style.display='none';
+  document.getElementById('ganttEditorToolbar').style.display='none';
+  document.getElementById('ganttEditorSubTitle').textContent='物件を選択してください';
+  edProp=null;
+}
+function renderEditorSelector(){ renderEditorSideList(); }
 
-function renderEditorSelector(){
+function renderEditorSideList(){
   var all=getAllProps();
-  document.getElementById('ganttEditorContent').innerHTML=
-    '<div style="padding:10px 12px;font-size:12px;font-weight:700;color:var(--g600)">編集する物件を選択</div>'
-    +myFavProps.map(function(fav){
-      var p=all.find(function(x){return x.fix_no===fav.fix_no&&x.name===fav.name;});
-      if(!p)return '';
-      var hasC=!!customGantt[custKey(p)];
-      return '<div style="padding:10px 14px;border-bottom:1px solid var(--g100);cursor:pointer;display:flex;align-items:center;gap:10px" onclick="openGanttEditor(\''+fav.fix_no+'\',\''+encodeURIComponent(fav.name)+'\')">'
-        +'<div style="flex:1"><div style="font-size:12px;font-weight:700">'+p.name+'</div>'
-        +'<div style="font-size:10px;color:var(--g400);margin-top:2px">'+p.area+'｜'+(p.delivery_date||'引渡日未定')+(hasC?' ｜<span style="color:var(--primary);font-weight:700">✏️カスタム済</span>':'')+'</div></div>'
-        +'<span style="font-size:18px;color:var(--g400)">›</span></div>';
-    }).join('');
+  var listEl=document.getElementById('ganttEditorListItems');
+  if(!listEl)return;
+  if(!myFavProps.length){
+    listEl.innerHTML='<div style="padding:12px 8px;font-size:10px;color:rgba(255,255,255,.3);text-align:center;line-height:1.6">マイ物件が<br>未登録です</div>';
+    return;
+  }
+  listEl.innerHTML=myFavProps.map(function(fav){
+    var p=all.find(function(x){return x.fix_no===fav.fix_no&&x.name===fav.name;});
+    if(!p)return '';
+    var hasC=!!customGantt[custKey(p)];
+    var shortName=p.name.replace(/^(Jack|Walter)\s*/i,'');
+    var isActive=edProp&&edProp.fix_no===p.fix_no&&edProp.name===p.name;
+    return '<div class="ged-list-item'+(isActive?' active':'')+'" onclick="openGanttEditor(\''+p.fix_no+'\',\''+encodeURIComponent(p.name)+'\')" id="ged-item-'+p.fix_no+'">'
+      +'<div style="font-size:10px;font-weight:700;color:'+(isActive?'white':'rgba(255,255,255,.8)')+';line-height:1.3;word-break:break-all">'+shortName+'</div>'
+      +'<div style="display:flex;align-items:center;gap:3px;margin-top:2px;flex-wrap:wrap">'
+      +'<span style="font-size:8px;color:rgba(255,255,255,.4)">'+p.area+'</span>'
+      +(hasC?'<span style="font-size:8px;background:#1a56db;color:white;padding:0 3px;border-radius:2px;font-weight:700">✏️</span>':'')
+      +'</div>'
+      +'</div>';
+  }).join('');
 }
 
 function buildEditorDates(segs) {
@@ -1820,13 +1908,8 @@ function openGanttEditor(fixNo,enc){
   if(!p)return;
   edProp=p;
   var ck=custKey(p);
-  // Load: custom > master_segs > computed
   var srcSegs = customGantt[ck] ? customGantt[ck] : getActiveSegs(p);
-  // If no segs, compute from confirm_done
-  if (!srcSegs || !srcSegs.length) {
-    srcSegs = computeMasterSegs(p.confirm_done);
-  }
-  // Deep copy, all cols in FULL_DATES space
+  if (!srcSegs || !srcSegs.length) srcSegs = computeMasterSegs(p.confirm_done);
   edSegs = srcSegs.map(function(s){
     var lbl = s.label||s.name||'';
     var col = typeof s.col==='number' ? s.col : 0;
@@ -1834,11 +1917,27 @@ function openGanttEditor(fixNo,enc){
     return {col:col, label:lbl, color:s.color||EC[lbl]||'#64748b',
             duration:dur, layer:s.layer||0, date:FULL_DATES[col]||s.date||s.start_date||''};
   });
-  // Build editor-specific date array
   edDates = buildEditorDates(edSegs);
-  document.getElementById('ganttEditorTitle').textContent=p.name.replace(/^(Jack|Walter) /,'');
+
+  // 2ペイン: 右エリアを表示切替
+  var shortName=p.name.replace(/^(Jack|Walter)\s*/i,'');
+  var subEl=document.getElementById('ganttEditorSubTitle');
+  if(subEl)subEl.textContent=shortName+'　'+p.area+(p.delivery_date?' ／ 引渡:'+p.delivery_date:'');
+  var emptyEl=document.getElementById('ganttEditorEmpty');
+  var mainEl=document.getElementById('ganttEditorMain');
+  var tbEl=document.getElementById('ganttEditorToolbar');
+  if(emptyEl)emptyEl.style.display='none';
+  if(mainEl){mainEl.style.display='flex';}
+  if(tbEl)tbEl.style.display='';
+
   renderEditorCanvas();
-  openPanel('ganttEditorDetailPanel');
+
+  // 左リストのアクティブ状態を更新
+  renderEditorSideList();
+
+  // パネルが開いていなければ開く
+  var panel=document.getElementById('ganttEditorPanel');
+  if(panel&&!panel.classList.contains('open'))openPanel('ganttEditorPanel');
 }
 
 function edColToX(col) {
@@ -2058,6 +2157,7 @@ function saveEditorChanges(){
   customGantt[ck]=edSegs.map(function(s){return{col:s.col,date:FULL_DATES[s.col]||s.date||'',label:s.label,color:s.color,duration:s.duration||1,layer:s.layer||0};});
   saveLS('jack_custom_gantt',customGantt);
   renderBody();renderMyPage();
+  renderEditorSideList(); // ✏️マーク更新
   showToast('✅ 工程表を保存しました','success');
 }
 function resetEditorChanges(){
@@ -2820,6 +2920,7 @@ window.openDetailFromFav=openDetailFromFav;
 window.removeFavCard=removeFavCard;
 window.openGanttEditor=openGanttEditor;
 window.openGanttEditorMenu=openGanttEditorMenu;
+window.renderEditorSideList=renderEditorSideList;
 window.saveEditorChanges=saveEditorChanges;
 window.resetEditorChanges=resetEditorChanges;
 window.toggleAddBarForm=toggleAddBarForm;
