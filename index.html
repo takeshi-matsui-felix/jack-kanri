@@ -1385,9 +1385,11 @@ function buildGanttTab(p){
     +'</div>'
     +'</div>';
 
+  var editBtn='<button onclick="openGanttEditorFromDetail(\''+p.fix_no+'\',\''+encodeURIComponent(p.name)+'\')" style="margin-left:auto;background:var(--primary);color:white;padding:3px 10px;border-radius:5px;font-size:10px;font-weight:700;display:flex;align-items:center;gap:3px">✏️ 編集</button>';
   return '<div class="dp-sec" id="detail-gantt-sec">'
     +'<div class="dp-sec-head">🏗️ 工程表（6ヶ月カレンダー）'
-    +'<span style="font-size:9px;color:var(--g400);font-weight:400;margin-left:4px">確認申請完了日起点・日曜休工</span></div>'
+    +'<span style="font-size:9px;color:var(--g400);font-weight:400;margin-left:4px">確認申請完了日起点・日曜休工</span>'
+    +editBtn+'</div>'
     +ganttHtml+'</div>';
 }
 
@@ -1739,6 +1741,7 @@ function openDetail(p){
     (isFav(p)
       ?'<button class="btn-danger" onclick="removeFavAction()">⭐ マイ物件から削除</button>'
       :'<button class="btn-primary" onclick="addFavAction()">⭐ マイ物件に追加</button>')
+    +'<button class="btn-secondary" onclick="openGanttEditorFromDetail(\''+p.fix_no+'\',\''+encodeURIComponent(p.name)+'\')" style="font-size:11px;padding:8px 10px">✏️ 工程表を編集</button>'
     +'<button class="btn-secondary" onclick="printPropInfo()" style="font-size:11px;padding:8px 10px">🖨️ この物件を印刷</button>';
   openPanel('detailPanel');
 }
@@ -1863,6 +1866,36 @@ function openGanttEditorMenu(){
 
 // 後方互換
 function renderEditorSelector(){ openGanttEditorMenu(); }
+
+// 物件詳細の工程表「✏️ 編集」ボタンから直接エディタを開く
+function openGanttEditorFromDetail(fixNo, enc) {
+  var name = decodeURIComponent(enc);
+  var p = getAllProps().find(function(x){ return x.fix_no === fixNo && x.name === name; });
+  if (!p) return;
+  openPanel('ganttEditorPanel');
+  var all = getAllProps();
+  var listEl = document.getElementById('gedListItems');
+  if (!listEl) return;
+  var listProps = myFavProps.map(function(fav){
+    return all.find(function(x){ return x.fix_no === fav.fix_no && x.name === fav.name; });
+  }).filter(Boolean);
+  var alreadyIn = listProps.some(function(lp){ return lp.fix_no === fixNo && lp.name === name; });
+  if (!alreadyIn) listProps.unshift(p);
+  if (!listProps.length) {
+    listEl.innerHTML = '<div style="padding:12px 6px;font-size:9px;color:rgba(255,255,255,.3);text-align:center">マイ物件<br>未登録</div>';
+  } else {
+    listEl.innerHTML = listProps.map(function(lp){
+      var sn = lp.name.replace(/^(Jack|Walter)\s*/i, '');
+      var hasC = !!customGantt[custKey(lp)];
+      return '<div class="ged-item" data-fix="'+lp.fix_no+'" data-enc="'+encodeURIComponent(lp.name)+'" onclick="openGanttEditor(\''+lp.fix_no+'\',\''+encodeURIComponent(lp.name)+'\')">'
+        +'<div class="ged-item-name">'+sn+(hasC?' ✏️':'')+'</div>'
+        +'<div class="ged-item-meta">'+lp.area+'</div>'
+        +'</div>';
+    }).join('');
+  }
+  openGanttEditor(fixNo, enc);
+}
+window.openGanttEditorFromDetail = openGanttEditorFromDetail;
 
 function buildEditorDates(segs) {
   // Build a date array covering from 1 month before first seg to 1 month after last seg
