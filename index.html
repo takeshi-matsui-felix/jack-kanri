@@ -340,12 +340,12 @@ body{display:flex;overflow:hidden;}
 .adm-mi:hover{background:rgba(255,255,255,.07);color:white;}
 #jackCalendarPanel .panel-scroll{padding:0;overflow:hidden;display:flex;flex-direction:column;}
 #menuOverlay,#sideMenu{display:none!important;}
-.ged-item{padding:8px 10px;cursor:pointer;border-bottom:1px solid rgba(255,255,255,.06);transition:background .12s}
+.ged-item{padding:7px 8px;cursor:pointer;border-bottom:1px solid rgba(255,255,255,.06);transition:background .1s}
 .ged-item:hover{background:rgba(255,255,255,.09)}
-.ged-item.active{background:var(--primary);border-left:3px solid var(--accent)}
+.ged-item.ged-active{background:var(--primary);border-left:3px solid var(--accent)}
 .ged-item-name{font-size:10px;font-weight:700;color:rgba(255,255,255,.85);line-height:1.3;word-break:break-all}
-.ged-item.active .ged-item-name{color:white}
-.ged-item-meta{font-size:8px;color:rgba(255,255,255,.38);margin-top:2px}
+.ged-item.ged-active .ged-item-name{color:#fff}
+.ged-item-meta{font-size:8px;color:rgba(255,255,255,.38);margin-top:1px}
 @media print{
   #jackSidebar,#menuOverlay,#sideMenu,.sync-banner,.status-bar,.stats-strip,.panel-action-bar,
   .th-icon-btn,.print-btn,#updatePopup,.tooltip,.toast,#loading,.editor-toolbar,#addBarFormPanel,
@@ -452,7 +452,10 @@ body{display:flex;overflow:hidden;}
 <div class="slide-panel" id="ganttEditorPanel" style="overflow:hidden">
   <div class="panel-header" style="flex-shrink:0">
     <button class="panel-back" onclick="closePanel('ganttEditorPanel')">← 戻る</button>
-    <div style="flex:1;min-width:0"><div class="panel-title">✏️ 工程表編集</div><div class="panel-sub" id="gedSubTitle" style="font-size:9px;opacity:.8">物件を選択してください</div></div>
+    <div style="flex:1;min-width:0">
+      <div class="panel-title">✏️ 工程表編集</div>
+      <div id="gedSubTitle" style="font-size:9px;opacity:.7">物件を選択してください</div>
+    </div>
     <button class="print-btn" onclick="printPage()">🖨️</button>
   </div>
   <div id="gedToolbar" style="display:none;flex-shrink:0">
@@ -472,19 +475,19 @@ body{display:flex;overflow:hidden;}
   </div>
   <div style="flex:1;display:flex;overflow:hidden;min-height:0">
     <div id="gedList" style="width:128px;min-width:128px;background:#1e293b;border-right:2px solid #475569;overflow-y:auto;flex-shrink:0">
-      <div style="padding:5px 8px 3px;font-size:9px;font-weight:800;color:rgba(255,255,255,.35);letter-spacing:.5px">物件リスト</div>
+      <div style="padding:5px 8px 3px;font-size:9px;font-weight:800;color:rgba(255,255,255,.35);letter-spacing:.5px;text-transform:uppercase">物件</div>
       <div id="gedListItems"></div>
     </div>
     <div style="flex:1;display:flex;flex-direction:column;overflow:hidden;background:#1e293b">
       <div id="gedEmpty" style="flex:1;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:8px;color:rgba(255,255,255,.25)">
-        <div style="font-size:28px">📋</div><div style="font-size:11px;font-weight:700">左から物件を選択</div>
+        <div style="font-size:28px">📋</div><div style="font-size:11px;font-weight:700">←物件を選択</div>
       </div>
       <div id="gedGantt" style="display:none;flex:1;flex-direction:column;overflow:hidden">
-        <div id="editorDateHeader" style="flex-shrink:0"></div>
-        <div id="editorCanvasWrap" style="flex:1;overflow:auto;-webkit-overflow-scrolling:touch">
+        <div id="editorDateHeader" style="flex-shrink:0;overflow:hidden"></div>
+        <div id="editorCanvasWrap" style="flex:1;overflow:auto;-webkit-overflow-scrolling:touch;position:relative">
           <div id="editorCanvas"></div>
         </div>
-        <div style="padding:4px 10px;background:#0f172a;border-top:1px solid rgba(255,255,255,.08);font-size:9px;color:rgba(255,255,255,.3);flex-shrink:0">💡 ドラッグで移動 ｜ 右端で延縮 ｜ ×で削除</div>
+        <div style="padding:3px 10px;background:#0f172a;border-top:1px solid rgba(255,255,255,.08);font-size:9px;color:rgba(255,255,255,.3);flex-shrink:0">ドラッグで移動 ｜ 右端で延縮 ｜ ×で削除</div>
       </div>
     </div>
   </div>
@@ -1753,18 +1756,33 @@ function closeMenu(){document.getElementById('menuOverlay').classList.remove('op
 function openMyPage(){closeMenu();renderMyPage();openPanel('myPagePanel');}
 function openSelectProp(){
   var all=getAllProps();
-  document.getElementById('selectPropContent').innerHTML=all.map(function(p){
-    var ck=p.fix_no+'--'+p.seq_no,checked=isFav(p);
-    return '<div class="select-prop-item" id="spi-'+ck+'" onclick="toggleFavItem(\''+p.fix_no+'\',\''+p.seq_no+'\')">'
-      +'<div class="spi-check'+(checked?' checked':'')+'">'+( checked?'✓':'')+'</div>'
-      +'<div class="spi-name">'+p.name+'</div><div class="spi-area">'+p.area+'</div></div>';
-  }).join('');
+  // エリア別グループ化
+  var groups={},order=[];
+  all.forEach(function(p){
+    if(!groups[p.area]){groups[p.area]=[];order.push(p.area);}
+    groups[p.area].push(p);
+  });
+  var html='';
+  order.forEach(function(area){
+    html+='<div style="padding:6px 12px 2px;font-size:10px;font-weight:800;color:var(--g500);background:var(--g50);border-bottom:1px solid var(--g100)">'+area+'</div>';
+    groups[area].forEach(function(p){
+      var eid='spi-'+p.fix_no+'-'+encodeURIComponent(p.name).replace(/[%]/g,'_');
+      var checked=isFav(p);
+      html+='<div class="select-prop-item" id="'+eid+'" onclick="toggleFavItem(\''+p.fix_no+'\',\''+encodeURIComponent(p.name)+'\',\''+eid+'\')">'
+        +'<div class="spi-check'+(checked?' checked':'')+'">'+( checked?'✓':'')+'</div>'
+        +'<div style="flex:1"><div class="spi-name">'+p.name+'</div>'
+        +'<div style="font-size:9px;color:var(--g400)">FiX:'+p.fix_no+(p.delivery_date?' / 引渡:'+p.delivery_date:'')+'</div></div>'
+        +'</div>';
+    });
+  });
+  document.getElementById('selectPropContent').innerHTML=html;
   closeMenu();openPanel('selectPropPanel');
 }
-function toggleFavItem(fixNo,seqNo){
-  var p=getAllProps().find(function(x){return x.fix_no===fixNo&&x.seq_no===seqNo;});
+function toggleFavItem(fixNo,enc,eid){
+  var name=decodeURIComponent(enc);
+  var p=getAllProps().find(function(x){return x.fix_no===fixNo&&x.name===name;});
   if(!p)return;
-  var ck=fixNo+'--'+seqNo,row=document.getElementById('spi-'+ck),check=row?row.querySelector('.spi-check'):null;
+  var row=document.getElementById(eid),check=row?row.querySelector('.spi-check'):null;
   if(isFav(p)){removeFav(p);if(check){check.className='spi-check';check.textContent='';}}
   else{addFav(p);if(check){check.className='spi-check checked';check.textContent='✓';}}
   renderBody();
@@ -1817,36 +1835,34 @@ var SEL_COLOR='#3b82f6';
 function openGanttEditorMenu(){
   openPanel('ganttEditorPanel');
   edProp=null;
-  renderGedList();
+  // 左リスト描画
+  var all=getAllProps();
+  var listEl=document.getElementById('gedListItems');
+  if(!listEl)return;
+  if(!myFavProps.length){
+    listEl.innerHTML='<div style="padding:12px 6px;font-size:9px;color:rgba(255,255,255,.3);text-align:center">マイ物件<br>未登録</div>';
+  } else {
+    listEl.innerHTML=myFavProps.map(function(fav){
+      var p=all.find(function(x){return x.fix_no===fav.fix_no&&x.name===fav.name;});
+      if(!p)return '';
+      var sn=p.name.replace(/^(Jack|Walter)\s*/i,'');
+      var hasC=!!customGantt[custKey(p)];
+      return '<div class="ged-item" data-fix="'+p.fix_no+'" data-enc="'+encodeURIComponent(p.name)+'" onclick="openGanttEditor(\''+p.fix_no+'\',\''+encodeURIComponent(p.name)+'\')">'
+        +'<div class="ged-item-name">'+sn+(hasC?' ✏️':'')+'</div>'
+        +'<div class="ged-item-meta">'+p.area+'</div>'
+        +'</div>';
+    }).join('');
+  }
+  // 右エリアをリセット
   document.getElementById('gedEmpty').style.display='flex';
-  document.getElementById('gedGantt').style.display='none';
+  var gg=document.getElementById('gedGantt');
+  gg.style.display='none';
   document.getElementById('gedToolbar').style.display='none';
   document.getElementById('gedSubTitle').textContent='物件を選択してください';
 }
 
-function renderGedList(){
-  var listEl=document.getElementById('gedListItems');
-  if(!listEl)return;
-  var all=getAllProps();
-  if(!myFavProps.length){
-    listEl.innerHTML='<div style="padding:12px 8px;font-size:10px;color:rgba(255,255,255,.3);text-align:center;line-height:1.7">マイ物件が<br>未登録です</div>';
-    return;
-  }
-  listEl.innerHTML=myFavProps.map(function(fav){
-    var p=all.find(function(x){return x.fix_no===fav.fix_no&&x.name===fav.name;});
-    if(!p)return '';
-    var hasC=!!customGantt[custKey(p)];
-    var isActive=edProp&&edProp.fix_no===p.fix_no&&edProp.name===p.name;
-    var shortName=p.name.replace(/^(Jack|Walter)\s*/i,'');
-    return '<div class="ged-item'+(isActive?' active':'')+'" onclick="openGanttEditor(\''+p.fix_no+'\',\''+encodeURIComponent(p.name)+'\')">'
-      +'<div class="ged-item-name">'+shortName+'</div>'
-      +'<div class="ged-item-meta">'+p.area+(hasC?' ✏️':'')+'</div>'
-      +'</div>';
-  }).join('');
-}
-
 // 後方互換
-function renderEditorSelector(){ renderGedList(); }
+function renderEditorSelector(){ openGanttEditorMenu(); }
 
 function buildEditorDates(segs) {
   // Build a date array covering from 1 month before first seg to 1 month after last seg
@@ -1869,25 +1885,26 @@ function openGanttEditor(fixNo,enc){
   var p=getAllProps().find(function(x){return x.fix_no===fixNo&&x.name===name;});
   if(!p)return;
   edProp=p;
-
-  // セグメント取得
   var ck=custKey(p);
-  var srcSegs=customGantt[ck]?customGantt[ck]:getActiveSegs(p);
-  if(!srcSegs||!srcSegs.length) srcSegs=computeMasterSegs(p.confirm_done);
-  edSegs=srcSegs.map(function(s){
-    var lbl=s.label||s.name||'';
-    var col=typeof s.col==='number'?s.col:0;
-    var dur=s.duration||s.dur||1;
-    return{col:col,label:lbl,color:s.color||EC[lbl]||'#64748b',duration:dur,layer:s.layer||0,date:FULL_DATES[col]||s.date||s.start_date||''};
+  var srcSegs = customGantt[ck] ? customGantt[ck] : getActiveSegs(p);
+  if (!srcSegs || !srcSegs.length) {
+    srcSegs = computeMasterSegs(p.confirm_done);
+  }
+  edSegs = srcSegs.map(function(s){
+    var lbl = s.label||s.name||'';
+    var col = typeof s.col==='number' ? s.col : 0;
+    var dur = s.duration||s.dur||1;
+    return {col:col, label:lbl, color:s.color||EC[lbl]||'#64748b',
+            duration:dur, layer:s.layer||0, date:FULL_DATES[col]||s.date||s.start_date||''};
   });
-  edDates=buildEditorDates(edSegs);
+  edDates = buildEditorDates(edSegs);
 
   // サブタイトル更新
-  var shortName=p.name.replace(/^(Jack|Walter)\s*/i,'');
+  var sn=p.name.replace(/^(Jack|Walter)\s*/i,'');
   var subEl=document.getElementById('gedSubTitle');
-  if(subEl)subEl.textContent=shortName+'　'+p.area+(p.delivery_date?' ／ 引渡:'+p.delivery_date:'');
+  if(subEl) subEl.textContent=sn+(p.delivery_date?' ／ 引渡:'+p.delivery_date:'');
 
-  // 右ガントエリアを表示
+  // 右ガントエリア表示
   document.getElementById('gedEmpty').style.display='none';
   var gg=document.getElementById('gedGantt');
   gg.style.cssText='display:flex;flex:1;flex-direction:column;overflow:hidden;';
@@ -1901,11 +1918,15 @@ function openGanttEditor(fixNo,enc){
     var wrap=document.getElementById('editorCanvasWrap');
     if(!wrap)return;
     var ti=edDates.indexOf(TODAY);
-    if(ti>0)wrap.scrollLeft=Math.max(0,(ti-1)*COL_W-100);
-  },60);
+    if(ti>0) wrap.scrollLeft=Math.max(0,(ti-3)*COL_W);
+  },50);
 
-  // 左リストのアクティブ更新
-  renderGedList();
+  // 左リストのアクティブ状態更新
+  var items=document.querySelectorAll('#gedListItems .ged-item');
+  items.forEach(function(el){
+    var active=(el.getAttribute('data-fix')===fixNo && decodeURIComponent(el.getAttribute('data-enc'))===name);
+    el.className='ged-item'+(active?' ged-active':'');
+  });
 
   // パネルが閉じていれば開く
   if(!document.getElementById('ganttEditorPanel').classList.contains('open'))
@@ -1922,24 +1943,41 @@ function xToEdCol(x) {
   return Math.max(1, Math.round(x / COL_W) + edStartIdx);
 }
 
+function showEdDeleteConfirm(idx,lbl){
+  var ov=document.getElementById('_edDelOv');
+  if(!ov){ov=document.createElement('div');ov.id='_edDelOv';ov.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:9999;display:flex;align-items:center;justify-content:center;';document.body.appendChild(ov);}
+  ov.innerHTML='<div style="background:#fff;border-radius:14px;padding:22px 24px;max-width:300px;width:90%;text-align:center;box-shadow:0 20px 60px rgba(0,0,0,.3)">'
+    +'<div style="font-size:30px;margin-bottom:8px">🗑️</div>'
+    +'<div style="font-size:14px;font-weight:800;color:#1e293b;margin-bottom:4px">「'+lbl+'」を削除</div>'
+    +'<div style="font-size:11px;color:#64748b;margin-bottom:16px">この操作は元に戻せません</div>'
+    +'<div style="display:flex;gap:8px">'
+    +'<button onclick="document.getElementById(\'_edDelOv\').style.display=\'none\'" style="flex:1;padding:10px;background:#f1f5f9;color:#475569;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;border:none">キャンセル</button>'
+    +'<button id="_edDelOk" style="flex:1;padding:10px;background:#ef4444;color:#fff;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;border:none">削除</button>'
+    +'</div></div>';
+  ov.style.display='flex';
+  document.getElementById('_edDelOk').onclick=function(){
+    ov.style.display='none';
+    if(edSegs[idx]){edSegs.splice(idx,1);renderEditorCanvas();}
+  };
+}
+
 function renderEditorCanvas(){
   var cv=document.getElementById('editorCanvas');
   var hdr=document.getElementById('editorDateHeader');
-  if(!cv)return;
-  cv.innerHTML='';
-  if(hdr)hdr.innerHTML='';
+  cv.innerHTML='';if(hdr)hdr.innerHTML='';
   if(!edDates||edDates.length<2)return;
 
-  var ROW_H=26;
+  var ROW_H=28;
   var nRows=Math.max(edSegs.length,1);
   var totalW=(edDates.length-1)*COL_W;
   var totalH=nRows*ROW_H;
 
+  // キャンバスサイズ — 高さは行数×ROW_Hで自動計算（固定60pxは廃止）
   cv.style.cssText='width:'+totalW+'px;height:'+totalH+'px;position:relative;background:#0f172a;display:block;';
 
   // ── ヘッダー ──
   if(hdr){
-    hdr.style.cssText='width:'+totalW+'px;height:28px;position:relative;background:#1e293b;flex-shrink:0;';
+    hdr.style.cssText='width:'+totalW+'px;height:28px;position:relative;background:#1e293b;flex-shrink:0;border-bottom:1px solid rgba(255,255,255,.08);';
     var months={};
     edDates.forEach(function(d,i){if(!d)return;var m=d.substring(0,7);if(!months[m])months[m]={start:i-1,count:0};months[m].count++;});
     var mn={'01':'1月','02':'2月','03':'3月','04':'4月','05':'5月','06':'6月','07':'7月','08':'8月','09':'9月','10':'10月','11':'11月','12':'12月'};
@@ -1951,9 +1989,11 @@ function renderEditorCanvas(){
     });
     edDates.forEach(function(d,i){
       if(!d)return;
-      var dow=getDow(d),day=parseInt(d.split('-')[2]),isToday=d===TODAY;
+      var dow=getDow(d),isToday=d===TODAY,day=parseInt(d.split('-')[2]);
       var el=document.createElement('div');
-      el.style.cssText='position:absolute;left:'+((i-1)*COL_W)+'px;top:14px;width:'+COL_W+'px;height:14px;display:flex;align-items:center;justify-content:center;font-size:7px;font-weight:700;border-right:1px solid rgba(255,255,255,.08);font-family:var(--mono);color:'+(isToday?'#fca5a5':dow===0?'#fca5a5':dow===6?'#93c5fd':'rgba(255,255,255,.75)')+';background:'+(isToday?'rgba(239,68,68,.3)':dow===0?'rgba(255,182,193,.2)':dow===6?'rgba(173,216,230,.2)':'transparent')+';';
+      el.style.cssText='position:absolute;left:'+((i-1)*COL_W)+'px;top:14px;width:'+COL_W+'px;height:14px;display:flex;align-items:center;justify-content:center;font-size:7px;font-weight:700;border-right:1px solid rgba(255,255,255,.08);font-family:var(--mono);'
+        +'color:'+(isToday?'#fca5a5':dow===0?'#fca5a5':dow===6?'#93c5fd':'rgba(255,255,255,.75)')+';'
+        +'background:'+(isToday?'rgba(239,68,68,.3)':dow===0?'rgba(255,182,193,.2)':dow===6?'rgba(173,216,230,.2)':'transparent')+';';
       el.textContent=day;hdr.appendChild(el);
     });
     var ti=edDates.indexOf(TODAY);
@@ -1969,7 +2009,7 @@ function renderEditorCanvas(){
   edDates.forEach(function(d,i){
     if(!d)return;
     var dow=getDow(d),px=(i-1)*COL_W;
-    if(dow===0||dow===6){var wf=document.createElement('div');wf.style.cssText='position:absolute;left:'+px+'px;top:0;width:'+COL_W+'px;height:'+totalH+'px;background:'+(dow===0?'rgba(255,182,193,.1)':'rgba(173,216,230,.08)')+';pointer-events:none;z-index:1;';cv.appendChild(wf);}
+    if(dow===0||dow===6){var wf=document.createElement('div');wf.style.cssText='position:absolute;left:'+px+'px;top:0;width:'+COL_W+'px;height:'+totalH+'px;background:'+(dow===0?'rgba(255,182,193,.12)':'rgba(173,216,230,.08)')+';pointer-events:none;z-index:1;';cv.appendChild(wf);}
     if(d.slice(8)==='01'&&i>1){var ml=document.createElement('div');ml.style.cssText='position:absolute;left:'+px+'px;top:0;width:2px;height:'+totalH+'px;background:#475569;pointer-events:none;z-index:2;';cv.appendChild(ml);}
   });
   var todayI=edDates.indexOf(TODAY);
@@ -1993,14 +2033,14 @@ function renderEditorCanvas(){
     var bar=document.createElement('div');
     bar.className='ed-bar-el';
     bar.style.cssText='left:'+x+'px;top:'+bt+'px;width:'+bw+'px;height:'+bh+'px;background:'+color+';color:'+tcolor+';font-size:'+(layer===1?'7':'8')+'px;font-weight:800;border-radius:'+(layer===1?'2':'3')+'px;z-index:'+(layer===1?12:10)+';';
-    if(bw>14)bar.textContent=lbl;else if(bw>8)bar.textContent=lbl.charAt(0);
+    if(bw>14) bar.textContent=lbl; else if(bw>8) bar.textContent=lbl.charAt(0);
     bar.title=lbl+' ('+dur+'日)';
 
     // 削除ボタン
     var delBtn=document.createElement('button');
     delBtn.style.cssText='position:absolute;right:1px;top:1px;width:13px;height:13px;background:#ef4444;color:white;border-radius:50%;font-size:9px;font-weight:900;display:flex;align-items:center;justify-content:center;padding:0;z-index:20;cursor:pointer;border:none;';
     delBtn.textContent='×';
-    (function(i2){delBtn.addEventListener('pointerdown',function(e){e.stopPropagation();e.preventDefault();showEdDeleteConfirm(i2,edSegs[i2]&&edSegs[i2].label||'工程');});})(idx);
+    (function(i2,lb2){delBtn.addEventListener('pointerdown',function(e){e.stopPropagation();e.preventDefault();showEdDeleteConfirm(i2,lb2);});})(idx,lbl);
     bar.appendChild(delBtn);
 
     // ドラッグ・リサイズ
@@ -2019,14 +2059,6 @@ function renderEditorCanvas(){
     em.textContent='＋工種追加からバーを追加してください';
     cv.appendChild(em);
   }
-}
-
-function showEdDeleteConfirm(idx,lbl){
-  var ov=document.getElementById('edDelOv');
-  if(!ov){ov=document.createElement('div');ov.id='edDelOv';ov.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:9999;display:flex;align-items:center;justify-content:center;';document.body.appendChild(ov);}
-  ov.innerHTML='<div style="background:white;border-radius:12px;padding:20px 24px;max-width:300px;width:90%;text-align:center;box-shadow:0 20px 60px rgba(0,0,0,.3)"><div style="font-size:28px;margin-bottom:8px">🗑️</div><div style="font-size:13px;font-weight:800;color:#1e293b;margin-bottom:4px">「'+lbl+'」を削除</div><div style="font-size:11px;color:#64748b;margin-bottom:16px">元に戻せません</div><div style="display:flex;gap:8px"><button onclick="document.getElementById(\'edDelOv\').style.display=\'none\'" style="flex:1;padding:9px;background:#f1f5f9;color:#475569;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;border:none">キャンセル</button><button id="edDelOkBtn" style="flex:1;padding:9px;background:#ef4444;color:white;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;border:none">削除</button></div></div>';
-  ov.style.display='flex';
-  document.getElementById('edDelOkBtn').onclick=function(){ov.style.display='none';if(edSegs[idx]){edSegs.splice(idx,1);renderEditorCanvas();}};
 }
 
 // Drag
@@ -2077,7 +2109,6 @@ function saveEditorChanges(){
   customGantt[ck]=edSegs.map(function(s){return{col:s.col,date:FULL_DATES[s.col]||s.date||'',label:s.label,color:s.color,duration:s.duration||1,layer:s.layer||0};});
   saveLS('jack_custom_gantt',customGantt);
   renderBody();renderMyPage();
-  renderGedList();
   showToast('✅ 工程表を保存しました','success');
 }
 function resetEditorChanges(){
@@ -2787,7 +2818,6 @@ window.openDetailFromFav=openDetailFromFav;
 window.removeFavCard=removeFavCard;
 window.openGanttEditor=openGanttEditor;
 window.openGanttEditorMenu=openGanttEditorMenu;
-window.renderGedList=renderGedList;
 window.saveEditorChanges=saveEditorChanges;
 window.resetEditorChanges=resetEditorChanges;
 window.toggleAddBarForm=toggleAddBarForm;
