@@ -1927,10 +1927,17 @@ function openGanttEditor(fixNo,enc){
   var mainEl=document.getElementById('ganttEditorMain');
   var tbEl=document.getElementById('ganttEditorToolbar');
   if(emptyEl)emptyEl.style.display='none';
-  if(mainEl){mainEl.style.display='flex';}
+  if(mainEl){mainEl.style.cssText='display:flex;flex:1;flex-direction:column;overflow:hidden;';}
   if(tbEl)tbEl.style.display='';
 
   renderEditorCanvas();
+  // 今日の位置に自動スクロール
+  setTimeout(function(){
+    var wrap=document.getElementById('editorCanvasWrap');
+    if(!wrap)return;
+    var todayI=edDates.indexOf(TODAY);
+    if(todayI>0){wrap.scrollLeft=Math.max(0,(todayI-1)*COL_W-120);}
+  },80);
 
   // 左リストのアクティブ状態を更新
   renderEditorSideList();
@@ -1953,22 +1960,29 @@ function xToEdCol(x) {
 function renderEditorCanvas(){
   var cv=document.getElementById('editorCanvas');
   var hdr=document.getElementById('editorDateHeader');
+  if(!cv)return;
   cv.innerHTML='';if(hdr)hdr.innerHTML='';
   if(!edDates||edDates.length<2)return;
 
-  var edLen = edDates.length-1; // number of days (excl padding)
-  var totalW = edLen * COL_W;
-  cv.style.cssText='width:'+totalW+'px;height:60px;position:relative;';
+  var ROW_H=28; // 1工程あたりの行高さ
+  var nRows=Math.max(edSegs.length,1);
+  var edLen=edDates.length-1;
+  var totalW=edLen*COL_W;
+  var totalH=nRows*ROW_H;
+
+  cv.style.cssText='width:'+totalW+'px;height:'+totalH+'px;position:relative;background:#0f172a;';
+
+  // ── ヘッダー描画 ──
   if(hdr){
-    hdr.style.cssText='width:'+totalW+'px;height:28px;position:relative;background:#1e293b;';
-    // Month bands
+    hdr.style.cssText='width:'+totalW+'px;height:28px;position:relative;background:#1e293b;flex-shrink:0;';
     var months={};
     edDates.forEach(function(d,i){if(!d)return;var m=d.substring(0,7);if(!months[m])months[m]={start:i-1,count:0};months[m].count++;});
     var mn={'01':'1月','02':'2月','03':'3月','04':'4月','05':'5月','06':'6月','07':'7月','08':'8月','09':'9月','10':'10月','11':'11月','12':'12月'};
     Object.keys(months).forEach(function(m){
       var v=months[m],mm=m.split('-')[1];
       var el=document.createElement('div');
-      el.style.cssText='position:absolute;left:'+(v.start*COL_W)+'px;top:0;width:'+(v.count*COL_W)+'px;height:14px;background:var(--primary);color:white;font-size:7px;font-weight:800;display:flex;align-items:center;justify-content:center;border-right:2px solid rgba(255,255,255,.4);overflow:hidden;';
+      el.style.cssText='position:absolute;left:'+(v.start*COL_W)+'px;top:0;width:'+(v.count*COL_W)+'px;height:14px;'
+        +'background:var(--primary);color:white;font-size:7px;font-weight:800;display:flex;align-items:center;justify-content:center;border-right:2px solid rgba(255,255,255,.4);overflow:hidden;';
       el.textContent=m.split('-')[0]+'年'+(mn[mm]||mm);hdr.appendChild(el);
     });
     edDates.forEach(function(d,i){
@@ -1982,44 +1996,115 @@ function renderEditorCanvas(){
         +'background:'+(isToday?'rgba(239,68,68,.3)':dow===0?'rgba(255,182,193,.2)':dow===6?'rgba(173,216,230,.2)':'transparent')+';';
       el.textContent=day;hdr.appendChild(el);
     });
-    // Today marker
-    var todayLocal=edDates.indexOf(TODAY);
-    if(todayLocal>0){
+    var todayLocalH=edDates.indexOf(TODAY);
+    if(todayLocalH>0){
       var tl=document.createElement('div');
-      tl.style.cssText='position:absolute;left:'+((todayLocal-1)*COL_W+COL_W/2)+'px;top:0;transform:translateX(-50%);'
-        +'background:#ef4444;color:white;font-size:7px;font-weight:800;padding:1px 3px;border-radius:2px;z-index:10;font-family:var(--mono);pointer-events:none;';
+      tl.style.cssText='position:absolute;left:'+((todayLocalH-1)*COL_W+COL_W/2-12)+'px;top:0;'
+        +'background:#ef4444;color:white;font-size:7px;font-weight:800;padding:1px 3px;border-radius:2px;z-index:10;font-family:var(--mono);pointer-events:none;white-space:nowrap;';
       tl.textContent='今日';hdr.appendChild(tl);
     }
   }
 
-  // Today line
-  var todayLocal2=edDates.indexOf(TODAY);
-  if(todayLocal2>0){
-    var tline=document.createElement('div');
-    tline.style.cssText='position:absolute;left:'+((todayLocal2-1)*COL_W)+'px;top:0;bottom:0;width:2px;background:#ef4444;z-index:5;pointer-events:none;';
-    cv.appendChild(tline);
+  // ── キャンバス背景: 行・週末・月区切り・今日線 ──
+  // 行背景
+  for(var ri=0;ri<nRows;ri++){
+    var rowBg=document.createElement('div');
+    rowBg.style.cssText='position:absolute;left:0;top:'+(ri*ROW_H)+'px;width:'+totalW+'px;height:'+ROW_H+'px;'
+      +'background:'+(ri%2===0?'rgba(255,255,255,.025)':'rgba(255,255,255,.045)')+';border-bottom:1px solid rgba(255,255,255,.06);pointer-events:none;';
+    cv.appendChild(rowBg);
   }
-
-  // Weekend fills and month lines
-  var edStartIdx = FULL_DATE_IDX[edDates[1]] || 0;
+  // 週末塗り・月区切り
   edDates.forEach(function(d,i){
     if(!d)return;
     var dow=getDow(d);
     var px=(i-1)*COL_W;
     if(dow===0||dow===6){
       var fill=document.createElement('div');
-      fill.style.cssText='position:absolute;left:'+px+'px;top:0;bottom:0;width:'+COL_W+'px;'
-        +'background:'+(dow===0?'rgba(255,182,193,.2)':'rgba(173,216,230,.18)')+';pointer-events:none;';
+      fill.style.cssText='position:absolute;left:'+px+'px;top:0;width:'+COL_W+'px;height:'+totalH+'px;'
+        +'background:'+(dow===0?'rgba(255,182,193,.12)':'rgba(173,216,230,.1)')+';pointer-events:none;z-index:1;';
       cv.appendChild(fill);
     }
     if(d.slice(8)==='01'&&i>1){
       var ml=document.createElement('div');
-      ml.style.cssText='position:absolute;left:'+px+'px;top:0;bottom:0;width:2px;background:#475569;pointer-events:none;';
+      ml.style.cssText='position:absolute;left:'+px+'px;top:0;width:2px;height:'+totalH+'px;background:#475569;pointer-events:none;z-index:2;';
       cv.appendChild(ml);
     }
   });
+  // 今日線
+  var todayLocal=edDates.indexOf(TODAY);
+  if(todayLocal>0){
+    var tline=document.createElement('div');
+    tline.style.cssText='position:absolute;left:'+((todayLocal-1)*COL_W)+'px;top:0;width:2px;height:'+totalH+'px;background:#ef4444;z-index:5;pointer-events:none;';
+    cv.appendChild(tline);
+  }
 
-  // Custom delete confirm (avoids confirm() blocking issues on mobile)
+  // ── バー描画 (1工程=1行) ──
+  var BAR_H=ROW_H-6;  // バーの高さ
+  var BAR_T=3;        // バーのtop offset
+
+  edSegs.forEach(function(seg,idx){
+    var lbl=seg.label||'';
+    var dur=seg.duration||1;
+    var layer=seg.layer||0;
+    var col=seg.col;
+    var x=edColToX(col);
+    var bw=Math.max(dur*COL_W-2, COL_W-2);
+    var color=seg.color||EC[lbl]||'#64748b';
+    var isDark=!!DARK_TEXT[lbl];
+    var tcOvr=seg.textColor||seg.text_color;
+    var tcolor=tcOvr&&tcOvr!=='auto'?tcOvr:(isDark?'#3a2a10':'white');
+
+    var rowTop=idx*ROW_H;
+    var bh=layer===1?Math.floor(BAR_H*0.7):BAR_H;
+    var bt=rowTop+BAR_T+(layer===1?3:0);
+
+    var bar=document.createElement('div');
+    bar.className='ed-bar-el';
+    bar.style.cssText='left:'+x+'px;top:'+bt+'px;width:'+bw+'px;height:'+bh+'px;'
+      +'background:'+color+';color:'+tcolor+';font-size:'+(layer===1?'7':'8')+'px;font-weight:800;'
+      +'border-radius:'+(layer===1?'2':'3')+'px;z-index:'+(layer===1?12:10)+';';
+    if(bw>14)bar.textContent=lbl;
+    else if(bw>8)bar.textContent=lbl.charAt(0);
+    bar.title=lbl+' ('+dur+'日)';
+
+    // 削除ボタン
+    var delBtn=document.createElement('button');
+    delBtn.style.cssText='position:absolute;right:1px;top:1px;width:14px;height:14px;background:#ef4444;color:white;'
+      +'border-radius:50%;font-size:10px;font-weight:900;display:flex;align-items:center;justify-content:center;'
+      +'line-height:1;padding:0;z-index:20;cursor:pointer;border:none;user-select:none;-webkit-user-select:none;';
+    delBtn.textContent='×';
+    delBtn.setAttribute('data-idx',idx);
+    (function(i2){
+      delBtn.addEventListener('pointerdown',function(e){
+        e.stopPropagation();e.preventDefault();
+        if(!edSegs[i2])return;
+        showEdDeleteConfirm(i2,edSegs[i2].label||'工程');
+      });
+    })(idx);
+    bar.appendChild(delBtn);
+
+    // ドラッグ
+    bar.addEventListener('mousedown',function(e){if(!e.target.classList.contains('ed-resize'))startEdDrag(e,idx,bar);});
+    bar.addEventListener('touchstart',function(e){if(!e.target.classList.contains('ed-resize'))startEdDragTouch(e,idx,bar);},{passive:false});
+
+    // リサイズハンドル
+    var rh=document.createElement('div');
+    rh.className='ed-resize';
+    rh.addEventListener('mousedown',function(e){e.stopPropagation();startEdResize(e,idx,bar);});
+    rh.addEventListener('touchstart',function(e){e.stopPropagation();startEdResizeTouch(e,idx,bar);},{passive:false});
+    bar.appendChild(rh);
+    cv.appendChild(bar);
+  });
+
+  if(edSegs.length===0){
+    var empty=document.createElement('div');
+    empty.style.cssText='position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:rgba(255,255,255,.3);font-size:12px;font-weight:700;';
+    empty.textContent='工程データがありません。＋工種追加から追加してください。';
+    cv.appendChild(empty);
+  }
+}
+
+// 削除確認ダイアログ
 function showEdDeleteConfirm(idx, lbl){
   var overlay=document.getElementById('edDelConfirmOverlay');
   if(!overlay){
@@ -2042,71 +2127,6 @@ function showEdDeleteConfirm(idx, lbl){
     overlay.style.display='none';
     if(edSegs[idx]){edSegs.splice(idx,1);renderEditorCanvas();}
   };
-}
-
-// Draw bars
-  edSegs.forEach(function(seg,idx){
-    var lbl=seg.label;
-    var dur=seg.duration||1;
-    var layer=seg.layer||0;
-    var col=seg.col;
-    var x=edColToX(col);
-    var bw=Math.max(dur*COL_W-2,COL_W-2);
-    var color=seg.color||EC[lbl]||'#64748b';
-    var isDark=!!DARK_TEXT[lbl]; var tcOvr=seg.textColor||seg.text_color; var tcolor=tcOvr&&tcOvr!=='auto'?tcOvr:(isDark?'#3a2a10':'white');
-
-    var bh=layer===1?13:20; var bTop=layer===1?5:9; var zIdx=layer===1?12:10;
-
-    var bar=document.createElement('div');
-    bar.className='ed-bar-el';
-    bar.style.cssText='left:'+x+'px;top:'+bTop+'px;width:'+bw+'px;height:'+bh+'px;'
-      +'background:'+color+';color:'+tcolor+';font-size:'+(layer===1?'7':'8')+'px;font-weight:800;'
-      +'border-radius:'+(layer===1?'2':'3')+'px;z-index:'+zIdx+';';
-    if(bw>14)bar.textContent=lbl; else if(bw>8)bar.textContent=lbl[0];
-    bar.title=lbl+' ('+dur+'日)';
-    // Delete button - right side, always visible
-    var delBtn=document.createElement('button');
-    delBtn.style.cssText='position:absolute;right:1px;top:1px;width:14px;height:14px;background:#ef4444;color:white;border-radius:50%;font-size:10px;font-weight:900;display:flex;align-items:center;justify-content:center;line-height:1;padding:0;z-index:20;cursor:pointer;border:none;user-select:none;-webkit-user-select:none;';
-    delBtn.textContent='×';
-    delBtn.setAttribute('data-idx', idx);
-    delBtn.addEventListener('pointerdown', function(e){
-      e.stopPropagation();e.preventDefault();
-      var i2=parseInt(this.getAttribute('data-idx'));
-      if(!edSegs[i2])return;
-      var lbl=edSegs[i2].label||'工程';
-      showEdDeleteConfirm(i2, lbl);
-    });
-    bar.appendChild(delBtn);
-    bar.addEventListener('mousedown',function(e){if(!e.target.classList.contains('ed-resize'))startEdDrag(e,idx,bar);});
-    bar.addEventListener('touchstart',function(e){if(!e.target.classList.contains('ed-resize'))startEdDragTouch(e,idx,bar);},{passive:false});
-    (function(i2){
-      // Double-click to delete
-      bar.addEventListener('dblclick',function(e){
-        e.stopPropagation();
-        if(confirm('"'+edSegs[i2].label+'" を削除しますか？')){
-          edSegs.splice(i2,1);renderEditorCanvas();
-        }
-      });
-      // Long press (touch) for delete
-      var _lpTimer=null;
-      bar.addEventListener('touchstart',function(e){
-        _lpTimer=setTimeout(function(){
-          if(confirm('"'+edSegs[i2].label+'" を削除しますか？')){
-            edSegs.splice(i2,1);renderEditorCanvas();
-          }
-        },800);
-      },{passive:true});
-      bar.addEventListener('touchend',function(){clearTimeout(_lpTimer);});
-      bar.addEventListener('touchmove',function(){clearTimeout(_lpTimer);});
-    })(idx);
-    var rh=document.createElement('div');
-    rh.className='ed-resize';
-    rh.addEventListener('mousedown',function(e){e.stopPropagation();startEdResize(e,idx,bar);});
-    rh.addEventListener('touchstart',function(e){e.stopPropagation();startEdResizeTouch(e,idx,bar);},{passive:false});
-    bar.appendChild(rh);
-    cv.appendChild(bar);
-  });
-  cv.style.height='60px';
 }
 
 // Drag
