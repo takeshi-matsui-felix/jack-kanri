@@ -456,28 +456,21 @@ body{display:flex;overflow:hidden;}
       <div class="panel-title">✏️ 工程表編集</div>
       <div id="gedSubTitle" style="font-size:9px;opacity:.7">物件を選択してください</div>
     </div>
+    <div id="gedToolbarBtns" style="display:none;gap:4px;align-items:center">
+      <button class="ed-btn ed-btn-add" style="padding:4px 8px;font-size:10px" onclick="toggleEdSidePanel()">＋ 工種</button>
+      <button class="ed-btn ed-btn-period" style="padding:4px 8px;font-size:10px" onclick="showPeriodShift()">📅</button>
+      <button class="ed-btn ed-btn-del" style="padding:4px 8px;font-size:10px" onclick="resetEditorChanges()">🔄</button>
+      <button class="ed-btn ed-btn-save" style="padding:4px 8px;font-size:10px" onclick="saveEditorChanges()">💾 保存</button>
+    </div>
     <button class="print-btn" onclick="printPage()">🖨️</button>
   </div>
-  <div id="gedToolbar" style="display:none;flex-shrink:0">
-    <div class="editor-toolbar">
-      <button class="ed-btn ed-btn-add" onclick="toggleAddBarForm()">＋ 工種追加</button>
-      <button class="ed-btn ed-btn-period" onclick="showPeriodShift()">📅 工期シフト</button>
-      <button class="ed-btn ed-btn-del" onclick="resetEditorChanges()">🔄 リセット</button>
-      <button class="ed-btn ed-btn-save" onclick="saveEditorChanges()">💾 保存</button>
-    </div>
-    <div id="addBarFormPanel" style="display:none"><div class="add-bar-form">
-      <div class="form-row"><label>工種名</label><input type="text" id="newBarName" placeholder="例: 外構工事"></div>
-      <div class="form-row"><label>日数</label><input type="number" id="newBarDays" value="7" min="1" max="180"></div>
-      <div class="form-row"><label>背景色</label><div class="color-picker" id="colorPicker"></div></div>
-      <div class="form-row"><label>文字色</label><select id="barTextColor" style="padding:5px 8px;border:1.5px solid var(--g200);border-radius:7px;font-size:12px;flex:1"><option value="auto">自動</option><option value="white">白</option><option value="black">黒</option><option value="#ef4444">赤</option><option value="#1a56db">青</option></select></div>
-      <button class="btn-primary" style="width:100%;margin-top:4px" onclick="addNewBar()">バーを追加</button>
-    </div></div>
-  </div>
-  <div style="flex:1;display:flex;overflow:hidden;min-height:0">
-    <div id="gedList" style="width:128px;min-width:128px;background:#1e293b;border-right:2px solid #475569;overflow-y:auto;flex-shrink:0">
+  <div style="flex:1;display:flex;overflow:hidden;min-height:0;position:relative">
+    <!-- 左：物件リスト -->
+    <div id="gedList" style="width:110px;min-width:110px;background:#1e293b;border-right:2px solid #475569;overflow-y:auto;flex-shrink:0">
       <div style="padding:5px 8px 3px;font-size:9px;font-weight:800;color:rgba(255,255,255,.35);letter-spacing:.5px;text-transform:uppercase">物件</div>
       <div id="gedListItems"></div>
     </div>
+    <!-- 中央：ガントエリア -->
     <div style="flex:1;display:flex;flex-direction:column;overflow:hidden;background:#1e293b">
       <div id="gedEmpty" style="flex:1;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:8px;color:rgba(255,255,255,.25)">
         <div style="font-size:28px">📋</div><div style="font-size:11px;font-weight:700">←物件を選択</div>
@@ -488,6 +481,35 @@ body{display:flex;overflow:hidden;}
           <div id="editorCanvas"></div>
         </div>
         <div style="padding:3px 10px;background:#0f172a;border-top:1px solid rgba(255,255,255,.08);font-size:9px;color:rgba(255,255,255,.3);flex-shrink:0">ドラッグで移動 ｜ 右端で延縮 ｜ ×で削除</div>
+      </div>
+    </div>
+    <!-- 右：工種追加サイドパネル -->
+    <div id="edSidePanel" style="display:none;width:200px;min-width:200px;background:#0f172a;border-left:2px solid #475569;flex-shrink:0;overflow-y:auto;padding:10px 10px 20px;flex-direction:column;gap:8px">
+      <div style="font-size:11px;font-weight:800;color:white;margin-bottom:4px">＋ 工種追加</div>
+      <div style="margin-bottom:6px">
+        <label style="font-size:9px;font-weight:700;color:rgba(255,255,255,.5);display:block;margin-bottom:3px">工種名</label>
+        <input type="text" id="newBarName" placeholder="例: 外構工事" style="width:100%;padding:5px 7px;background:#1e293b;border:1.5px solid rgba(255,255,255,.15);border-radius:6px;font-size:11px;color:white;box-sizing:border-box;outline:none">
+      </div>
+      <div style="margin-bottom:6px">
+        <label style="font-size:9px;font-weight:700;color:rgba(255,255,255,.5);display:block;margin-bottom:3px">日数</label>
+        <input type="number" id="newBarDays" value="7" min="1" max="180" style="width:100%;padding:5px 7px;background:#1e293b;border:1.5px solid rgba(255,255,255,.15);border-radius:6px;font-size:11px;color:white;box-sizing:border-box;outline:none">
+      </div>
+      <div style="margin-bottom:6px">
+        <label style="font-size:9px;font-weight:700;color:rgba(255,255,255,.5);display:block;margin-bottom:3px">背景色</label>
+        <div class="color-picker" id="colorPicker" style="display:flex;flex-wrap:wrap;gap:4px"></div>
+      </div>
+      <div style="margin-bottom:10px">
+        <label style="font-size:9px;font-weight:700;color:rgba(255,255,255,.5);display:block;margin-bottom:3px">文字色</label>
+        <select id="barTextColor" style="width:100%;padding:5px 7px;background:#1e293b;border:1.5px solid rgba(255,255,255,.15);border-radius:6px;font-size:11px;color:white;box-sizing:border-box">
+          <option value="auto">自動</option><option value="white">白</option><option value="black">黒</option><option value="#ef4444">赤</option><option value="#1a56db">青</option>
+        </select>
+      </div>
+      <button class="btn-primary" style="width:100%;font-size:12px;padding:9px" onclick="addNewBar()">バーを追加</button>
+      <div style="margin-top:12px;border-top:1px solid rgba(255,255,255,.1);padding-top:10px">
+        <div style="font-size:9px;font-weight:800;color:rgba(255,255,255,.4);margin-bottom:6px">クイック操作</div>
+        <button class="ed-btn ed-btn-period" style="width:100%;margin-bottom:5px;justify-content:center" onclick="showPeriodShift()">📅 工期シフト</button>
+        <button class="ed-btn ed-btn-del" style="width:100%;margin-bottom:5px;justify-content:center" onclick="resetEditorChanges()">🔄 リセット</button>
+        <button class="ed-btn ed-btn-save" style="width:100%;justify-content:center" onclick="saveEditorChanges()">💾 保存</button>
       </div>
     </div>
   </div>
@@ -1860,12 +1882,23 @@ function openGanttEditorMenu(){
   document.getElementById('gedEmpty').style.display='flex';
   var gg=document.getElementById('gedGantt');
   gg.style.display='none';
-  document.getElementById('gedToolbar').style.display='none';
+  var tb=document.getElementById('gedToolbarBtns');if(tb)tb.style.display='none';
+  var sp=document.getElementById('edSidePanel');if(sp)sp.style.display='none';
   document.getElementById('gedSubTitle').textContent='物件を選択してください';
 }
 
 // 後方互換
 function renderEditorSelector(){ openGanttEditorMenu(); }
+
+// 右サイドパネルのトグル
+function toggleEdSidePanel(){
+  var sp=document.getElementById('edSidePanel');
+  if(!sp)return;
+  var open=sp.style.display==='flex';
+  sp.style.display=open?'none':'flex';
+  sp.style.flexDirection='column';
+}
+window.toggleEdSidePanel=toggleEdSidePanel;
 
 // 物件詳細の工程表「✏️ 編集」ボタンから直接エディタを開く
 function openGanttEditorFromDetail(fixNo, enc) {
@@ -1925,8 +1958,21 @@ function openGanttEditor(fixNo,enc){
   }
   edSegs = srcSegs.map(function(s){
     var lbl = s.label||s.name||'';
-    var col = typeof s.col==='number' ? s.col : 0;
     var dur = s.duration||s.dur||1;
+    // colをFULL_DATESインデックスで解決（master_segsやsegmentsはcolが未設定の場合がある）
+    var col = typeof s.col==='number' ? s.col : undefined;
+    if(col===undefined || col===0){
+      var ds = s.start_date||s.date||'';
+      if(ds){
+        var ds2=ds.replace(/\//g,'-');
+        col=FULL_DATE_IDX[ds2];
+        if(col===undefined){
+          // 最近傍を探す
+          for(var fi2=0;fi2<FULL_DATES.length;fi2++){if(FULL_DATES[fi2]>=ds2){col=fi2;break;}}
+        }
+      }
+    }
+    if(!col||col<1) col=1;
     return {col:col, label:lbl, color:s.color||EC[lbl]||'#64748b',
             duration:dur, layer:s.layer||0, date:FULL_DATES[col]||s.date||s.start_date||''};
   });
@@ -1941,7 +1987,7 @@ function openGanttEditor(fixNo,enc){
   document.getElementById('gedEmpty').style.display='none';
   var gg=document.getElementById('gedGantt');
   gg.style.cssText='display:flex;flex:1;flex-direction:column;overflow:hidden;';
-  document.getElementById('gedToolbar').style.display='';
+  var tb=document.getElementById('gedToolbarBtns');if(tb)tb.style.display='flex';
 
   // ガント描画
   renderEditorCanvas();
@@ -2108,7 +2154,7 @@ function onEdResizeTouch(e){e.preventDefault();if(!resBar)return;var nd=Math.max
 function stopEdResize(){resBar=null;document.removeEventListener('mousemove',onEdResize);document.removeEventListener('mouseup',stopEdResize);document.removeEventListener('touchmove',onEdResizeTouch);document.removeEventListener('touchend',stopEdResize);renderEditorCanvas();}
 
 // Add bar
-function toggleAddBarForm(){var f=document.getElementById('addBarFormPanel');f.style.display=f.style.display==='none'||!f.style.display?'block':'none';}
+function toggleAddBarForm(){ toggleEdSidePanel(); }
 function selectEdColor(c,el){SEL_COLOR=c;document.querySelectorAll('.color-swatch').forEach(function(s){s.style.borderColor='transparent';s.style.transform='';});el.style.borderColor='var(--g700)';el.style.transform='scale(1.2)';}
 function addNewBar(){
   var nm=document.getElementById('newBarName').value.trim();
@@ -2123,7 +2169,7 @@ function addNewBar(){
   if(nc>=FULL_DATES.length)nc=Math.max(1,FULL_DATES.length-d-5);
   edSegs.push({col:nc,date:FULL_DATES[nc]||'',label:nm,color:SEL_COLOR,textColor:tc,duration:d,layer:0});
   document.getElementById('newBarName').value='';
-  document.getElementById('addBarFormPanel').style.display='none';
+  var sp=document.getElementById('edSidePanel');if(sp)sp.style.display='none';
   edDates=buildEditorDates(edSegs);
   renderEditorCanvas();
   showToast('「'+nm+'」('+d+'日)を追加しました','success');
