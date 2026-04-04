@@ -1959,22 +1959,23 @@ function openGanttEditor(fixNo,enc){
   edSegs = srcSegs.map(function(s){
     var lbl = s.label||s.name||'';
     var dur = s.duration||s.dur||1;
-    // colをFULL_DATESインデックスで解決（master_segsやsegmentsはcolが未設定の場合がある）
-    var col = typeof s.col==='number' ? s.col : undefined;
-    if(col===undefined || col===0){
-      var ds = s.start_date||s.date||'';
-      if(ds){
-        var ds2=ds.replace(/\//g,'-');
-        col=FULL_DATE_IDX[ds2];
-        if(col===undefined){
-          // 最近傍を探す
-          for(var fi2=0;fi2<FULL_DATES.length;fi2++){if(FULL_DATES[fi2]>=ds2){col=fi2;break;}}
-        }
+    var col;
+    // start_date/dateがあれば必ずFULL_DATE_IDXで逆引き（segmentsのcolはVIS_DATES基準のため不正確）
+    var ds = s.start_date||s.date||'';
+    if(ds){
+      var ds2=ds.replace(/\//g,'-');
+      col=FULL_DATE_IDX[ds2];
+      if(col===undefined){
+        for(var fi2=0;fi2<FULL_DATES.length;fi2++){if(FULL_DATES[fi2]>=ds2){col=fi2;break;}}
       }
+    }
+    // 日付がない場合はcolを使う（master_segsのcolはFULL_DATES基準で正しい）
+    if(!col||col<1){
+      col = typeof s.col==='number' ? s.col : 1;
     }
     if(!col||col<1) col=1;
     return {col:col, label:lbl, color:s.color||EC[lbl]||'#64748b',
-            duration:dur, layer:s.layer||0, date:FULL_DATES[col]||s.date||s.start_date||''};
+            duration:dur, layer:s.layer||0, date:FULL_DATES[col]||ds||''};
   });
   edDates = buildEditorDates(edSegs);
 
@@ -1992,12 +1993,21 @@ function openGanttEditor(fixNo,enc){
   // ガント描画
   renderEditorCanvas();
 
-  // 今日付近にスクロール
+  // 最初のバーが見える位置にスクロール（今日よりバー優先）
   setTimeout(function(){
     var wrap=document.getElementById('editorCanvasWrap');
     if(!wrap)return;
+    // バーの最初の位置を優先してスクロール
+    var scrollTarget=0;
+    if(edSegs.length>0){
+      var firstCol=edSegs[0].col;
+      var edStartIdx=FULL_DATE_IDX[edDates[1]]||0;
+      scrollTarget=Math.max(0,(firstCol-edStartIdx-3)*COL_W);
+    }
+    // 今日が範囲内なら今日も考慮
     var ti=edDates.indexOf(TODAY);
-    if(ti>0) wrap.scrollLeft=Math.max(0,(ti-3)*COL_W);
+    if(ti>0&&scrollTarget===0) scrollTarget=Math.max(0,(ti-3)*COL_W);
+    wrap.scrollLeft=scrollTarget;
   },50);
 
   // 左リストのアクティブ状態更新
