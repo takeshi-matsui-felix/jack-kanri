@@ -449,7 +449,8 @@ body{display:flex;overflow:hidden;}
 <div class="slide-panel" id="detailPanel"><div class="panel-header"><button class="panel-back" onclick="closePanel('detailPanel')">← 戻る</button><div style="flex:1"><div class="panel-title">物件詳細</div></div></div><div class="panel-scroll" id="dpContent"></div><div class="panel-action-bar" id="dpActionBar"></div></div>
 <div class="slide-panel" id="myPagePanel"><div class="panel-header"><button class="panel-back" onclick="closePanel('myPagePanel')">← 戻る</button><div style="flex:1"><div class="panel-title">⭐ マイ物件</div></div><button onclick="openSelectProp()" style="background:rgba(255,255,255,.2);color:white;border-radius:6px;padding:4px 9px;font-size:11px;font-weight:700">＋</button><button class="print-btn" onclick="printPage()">🖨️</button></div><div class="mypage-wrap" id="myPageContent"></div></div>
 <div class="slide-panel" id="selectPropPanel"><div class="panel-header"><button class="panel-back" onclick="closePanel('selectPropPanel')">← 戻る</button><div style="flex:1"><div class="panel-title">担当物件を選択</div></div><button onclick="closePanel('selectPropPanel')" style="background:rgba(255,255,255,.2);color:white;border-radius:6px;padding:4px 9px;font-size:11px;font-weight:700">完了</button></div><div class="panel-scroll" id="selectPropContent"></div></div>
-<div class="slide-panel" id="ganttEditorPanel" style="overflow:hidden">
+<div class="slide-panel" id="ganttEditorPanel" style="overflow:hidden;display:flex;flex-direction:column">
+  <!-- ヘッダー -->
   <div class="panel-header" style="flex-shrink:0">
     <button class="panel-back" onclick="closePanel('ganttEditorPanel')">← 戻る</button>
     <div style="flex:1;min-width:0">
@@ -458,36 +459,60 @@ body{display:flex;overflow:hidden;}
     </div>
     <button class="print-btn" onclick="printPage()">🖨️</button>
   </div>
-  <div id="gedToolbar" style="display:none;flex-shrink:0">
-    <div class="editor-toolbar">
-      <button class="ed-btn ed-btn-add" onclick="toggleAddBarForm()">＋ 工種追加</button>
-      <button class="ed-btn ed-btn-period" onclick="showPeriodShift()">📅 工期シフト</button>
-      <button class="ed-btn ed-btn-del" onclick="resetEditorChanges()">🔄 リセット</button>
-      <button class="ed-btn ed-btn-save" onclick="saveEditorChanges()">💾 保存</button>
-    </div>
-    <div id="addBarFormPanel" style="display:none"><div class="add-bar-form">
-      <div class="form-row"><label>工種名</label><input type="text" id="newBarName" placeholder="例: 外構工事"></div>
-      <div class="form-row"><label>日数</label><input type="number" id="newBarDays" value="7" min="1" max="180"></div>
-      <div class="form-row"><label>背景色</label><div class="color-picker" id="colorPicker"></div></div>
-      <div class="form-row"><label>文字色</label><select id="barTextColor" style="padding:5px 8px;border:1.5px solid var(--g200);border-radius:7px;font-size:12px;flex:1"><option value="auto">自動</option><option value="white">白</option><option value="black">黒</option><option value="#ef4444">赤</option><option value="#1a56db">青</option></select></div>
-      <button class="btn-primary" style="width:100%;margin-top:4px" onclick="addNewBar()">バーを追加</button>
-    </div></div>
-  </div>
+  <!-- メインエリア: 物件リスト | ガント+右サイドバー -->
   <div style="flex:1;display:flex;overflow:hidden;min-height:0">
-    <div id="gedList" style="width:128px;min-width:128px;background:#1e293b;border-right:2px solid #475569;overflow-y:auto;flex-shrink:0">
+    <!-- 左: 物件リスト -->
+    <div id="gedList" style="width:110px;min-width:110px;background:#1e293b;border-right:2px solid #334155;overflow-y:auto;flex-shrink:0">
       <div style="padding:5px 8px 3px;font-size:9px;font-weight:800;color:rgba(255,255,255,.35);letter-spacing:.5px;text-transform:uppercase">物件</div>
       <div id="gedListItems"></div>
     </div>
-    <div style="flex:1;display:flex;flex-direction:column;overflow:hidden;background:#1e293b">
-      <div id="gedEmpty" style="flex:1;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:8px;color:rgba(255,255,255,.25)">
+    <!-- 中央: ガント（白背景・物件詳細と同じ） -->
+    <div style="flex:1;display:flex;flex-direction:column;overflow:hidden;background:#f8fafc;min-width:0">
+      <div id="gedEmpty" style="flex:1;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:8px;color:#94a3b8">
         <div style="font-size:28px">📋</div><div style="font-size:11px;font-weight:700">←物件を選択</div>
       </div>
       <div id="gedGantt" style="display:none;flex:1;flex-direction:column;overflow:hidden">
-        <div id="editorDateHeader" style="flex-shrink:0;overflow:hidden"></div>
-        <div id="editorCanvasWrap" style="flex:1;overflow:auto;-webkit-overflow-scrolling:touch;position:relative">
-          <div id="editorCanvas"></div>
+        <!-- 工程表ヒント -->
+        <div style="padding:4px 10px;background:#f1f5f9;border-bottom:1px solid #e2e8f0;font-size:9px;color:#64748b;flex-shrink:0">
+          🏗️ 工程表（6ヶ月カレンダー）　<span style="color:#94a3b8">ドラッグで移動 ｜ 右端で延縮 ｜ ×で削除</span>
         </div>
-        <div style="padding:3px 10px;background:#0f172a;border-top:1px solid rgba(255,255,255,.08);font-size:9px;color:rgba(255,255,255,.3);flex-shrink:0">ドラッグで移動 ｜ 右端で延縮 ｜ ×で削除</div>
+        <!-- ガント本体（白背景） -->
+        <div id="editorCanvasWrap" style="flex:1;overflow:auto;-webkit-overflow-scrolling:touch;background:white;padding:0 0 8px 90px">
+          <div id="editorCanvas" style="position:relative;min-height:40px"></div>
+        </div>
+      </div>
+    </div>
+    <!-- 右: 編集サイドバー -->
+    <div id="gedSidebar" style="width:180px;min-width:180px;background:#1e293b;border-left:2px solid #334155;display:flex;flex-direction:column;overflow-y:auto;flex-shrink:0">
+      <!-- 保存・リセット -->
+      <div style="padding:8px;border-bottom:1px solid #334155;display:flex;flex-direction:column;gap:4px">
+        <button onclick="saveEditorChanges()" style="width:100%;padding:8px;background:#1a56db;color:white;border:none;border-radius:7px;font-size:11px;font-weight:800;cursor:pointer">💾 保存</button>
+        <div style="display:flex;gap:4px">
+          <button onclick="showPeriodShift()" style="flex:1;padding:5px;background:#475569;color:white;border:none;border-radius:6px;font-size:10px;font-weight:700;cursor:pointer">📅 シフト</button>
+          <button onclick="resetEditorChanges()" style="flex:1;padding:5px;background:#475569;color:white;border:none;border-radius:6px;font-size:10px;font-weight:700;cursor:pointer">🔄 リセット</button>
+        </div>
+      </div>
+      <!-- 工種追加フォーム -->
+      <div style="padding:8px;border-bottom:1px solid #334155">
+        <div style="font-size:10px;font-weight:800;color:rgba(255,255,255,.7);margin-bottom:6px">＋ 工種追加</div>
+        <div style="display:flex;flex-direction:column;gap:5px">
+          <input type="text" id="newBarName" placeholder="工種名" style="padding:5px 7px;border:1.5px solid #475569;border-radius:6px;font-size:11px;background:#0f172a;color:white;width:100%;box-sizing:border-box">
+          <div style="display:flex;align-items:center;gap:4px">
+            <span style="font-size:9px;color:rgba(255,255,255,.5);white-space:nowrap">日数</span>
+            <input type="number" id="newBarDays" value="7" min="1" max="180" style="padding:4px 6px;border:1.5px solid #475569;border-radius:6px;font-size:11px;background:#0f172a;color:white;width:100%;box-sizing:border-box">
+          </div>
+          <div style="display:flex;align-items:center;gap:4px">
+            <span style="font-size:9px;color:rgba(255,255,255,.5);white-space:nowrap">開始日</span>
+            <input type="date" id="newBarDate" style="padding:4px 4px;border:1.5px solid #475569;border-radius:6px;font-size:10px;background:#0f172a;color:white;width:100%;box-sizing:border-box">
+          </div>
+          <div id="colorPicker" style="display:flex;flex-wrap:wrap;gap:4px;margin:2px 0"></div>
+          <button onclick="addNewBar()" style="width:100%;padding:7px;background:#059669;color:white;border:none;border-radius:7px;font-size:11px;font-weight:800;cursor:pointer">バーを追加</button>
+        </div>
+      </div>
+      <!-- 工種一覧 -->
+      <div style="padding:6px 8px;flex:1">
+        <div style="font-size:9px;font-weight:800;color:rgba(255,255,255,.4);margin-bottom:4px">工種一覧</div>
+        <div id="gedSegList" style="display:flex;flex-direction:column;gap:3px"></div>
       </div>
     </div>
   </div>
@@ -1826,300 +1851,383 @@ function renderMyPage(){
 function openDetailFromFav(fixNo,enc){var name=decodeURIComponent(enc);var p=getAllProps().find(function(x){return x.fix_no===fixNo&&x.name===name;});if(p)openDetail(p);}
 function removeFavCard(fixNo,enc){var name=decodeURIComponent(enc);var p=getAllProps().find(function(x){return x.fix_no===fixNo&&x.name===name;});if(p){removeFav(p);renderMyPage();renderBody();}}
 
-// ===== GANTT EDITOR =====
-var edProp=null, edSegs=[], edDates=[];
-var dragBar=null, dragStartX=0, dragStartCol=0;
+// ===== GANTT EDITOR (white-bg, same as buildGanttTab multiRow) =====
+var edProp=null, edSegs=[];
+var SEL_COLOR='#d2b48c';
+// drag state (date-based)
+var dragBar=null, dragStartX=0, dragStartDateMs=0;
 var resBar=null,  resStartX=0,  resStartDur=0;
-var SEL_COLOR='#3b82f6';
+var GCW_ED=14; // 物件詳細と同じ 14px/day
 
-function openGanttEditorMenu(){
-  openPanel('ganttEditorPanel');
-  edProp=null;
-  // 左リスト描画
-  var all=getAllProps();
-  var listEl=document.getElementById('gedListItems');
-  if(!listEl)return;
-  if(!myFavProps.length){
-    listEl.innerHTML='<div style="padding:12px 6px;font-size:9px;color:rgba(255,255,255,.3);text-align:center">マイ物件<br>未登録</div>';
-  } else {
-    listEl.innerHTML=myFavProps.map(function(fav){
-      var p=all.find(function(x){return x.fix_no===fav.fix_no&&x.name===fav.name;});
-      if(!p)return '';
-      var sn=p.name.replace(/^(Jack|Walter)\s*/i,'');
-      var hasC=!!customGantt[custKey(p)];
-      return '<div class="ged-item" data-fix="'+p.fix_no+'" data-enc="'+encodeURIComponent(p.name)+'" onclick="openGanttEditor(\''+p.fix_no+'\',\''+encodeURIComponent(p.name)+'\')">'
-        +'<div class="ged-item-name">'+sn+(hasC?' ✏️':'')+'</div>'
-        +'<div class="ged-item-meta">'+p.area+'</div>'
-        +'</div>';
-    }).join('');
-  }
-  // 右エリアをリセット
-  document.getElementById('gedEmpty').style.display='flex';
-  var gg=document.getElementById('gedGantt');
-  gg.style.display='none';
-  document.getElementById('gedToolbar').style.display='none';
-  document.getElementById('gedSubTitle').textContent='物件を選択してください';
-}
-
-// 後方互換
-function renderEditorSelector(){ openGanttEditorMenu(); }
-
-function buildEditorDates(segs) {
-  // Build a date array covering from 1 month before first seg to 1 month after last seg
-  if (!segs || !segs.length) return VIS_DATES.slice();
-  var firstCol = segs[0].col;
-  var lastSeg  = segs[segs.length-1];
-  var lastCol  = lastSeg.col + (lastSeg.duration || lastSeg.dur || 1) + 30;
-  // Clamp to FULL_DATES
-  var startIdx = Math.max(1, firstCol - 30);
-  var endIdx   = Math.min(FULL_DATES.length-1, lastCol+30);
-  var arr = [''];
-  for (var i=startIdx; i<=endIdx; i++) {
-    arr.push(FULL_DATES[i]);
-  }
+/* ---- date helpers ---- */
+function edBuildDates(segs){
+  var todayDt=new Date(TODAY);
+  var gStart=new Date(todayDt); gStart.setMonth(gStart.getMonth()-1); gStart.setDate(1);
+  var gEnd=new Date(todayDt);   gEnd.setMonth(gEnd.getMonth()+6);    gEnd.setDate(0);
+  segs.forEach(function(s){
+    var sd=s.start_date||s.date||''; if(!sd)return;
+    var d0=new Date(sd.replace(/\//g,'-')); if(d0<gStart)gStart=new Date(d0.getFullYear(),d0.getMonth(),1);
+    var ed=s.end_date||''; if(!ed){var d2=new Date(sd.replace(/\//g,'-'));d2.setDate(d2.getDate()+(s.calendar_dur||s.duration||s.dur||1)-1);ed=d2.toISOString().slice(0,10);}
+    var d1=new Date(ed.replace(/\//g,'-')); if(d1>gEnd)gEnd=new Date(d1.getFullYear(),d1.getMonth()+1,0);
+  });
+  var arr=['']; var cur=new Date(gStart);
+  while(cur<=gEnd){arr.push(cur.toISOString().slice(0,10));cur.setDate(cur.getDate()+1);}
   return arr;
 }
 
-function openGanttEditor(fixNo,enc){
-  var name=decodeURIComponent(enc);
-  var p=getAllProps().find(function(x){return x.fix_no===fixNo&&x.name===name;});
-  if(!p)return;
-  edProp=p;
-  var ck=custKey(p);
-  var srcSegs = customGantt[ck] ? customGantt[ck] : getActiveSegs(p);
-  if (!srcSegs || !srcSegs.length) {
-    srcSegs = computeMasterSegs(p.confirm_done);
-  }
-  edSegs = srcSegs.map(function(s){
-    var lbl = s.label||s.name||'';
-    var col = typeof s.col==='number' ? s.col : 0;
-    var dur = s.duration||s.dur||1;
-    return {col:col, label:lbl, color:s.color||EC[lbl]||'#64748b',
-            duration:dur, layer:s.layer||0, date:FULL_DATES[col]||s.date||s.start_date||''};
-  });
-  edDates = buildEditorDates(edSegs);
-
-  // サブタイトル更新
-  var sn=p.name.replace(/^(Jack|Walter)\s*/i,'');
-  var subEl=document.getElementById('gedSubTitle');
-  if(subEl) subEl.textContent=sn+(p.delivery_date?' ／ 引渡:'+p.delivery_date:'');
-
-  // 右ガントエリア表示
-  document.getElementById('gedEmpty').style.display='none';
-  var gg=document.getElementById('gedGantt');
-  gg.style.cssText='display:flex;flex:1;flex-direction:column;overflow:hidden;';
-  document.getElementById('gedToolbar').style.display='';
-
-  // ガント描画
-  renderEditorCanvas();
-
-  // 今日付近にスクロール
-  setTimeout(function(){
-    var wrap=document.getElementById('editorCanvasWrap');
-    if(!wrap)return;
-    var ti=edDates.indexOf(TODAY);
-    if(ti>0) wrap.scrollLeft=Math.max(0,(ti-3)*COL_W);
-  },50);
-
-  // 左リストのアクティブ状態更新
-  var items=document.querySelectorAll('#gedListItems .ged-item');
-  items.forEach(function(el){
-    var active=(el.getAttribute('data-fix')===fixNo && decodeURIComponent(el.getAttribute('data-enc'))===name);
-    el.className='ged-item'+(active?' ged-active':'');
-  });
-
-  // パネルが閉じていれば開く
-  if(!document.getElementById('ganttEditorPanel').classList.contains('open'))
-    openPanel('ganttEditorPanel');
-}
-
-function edColToX(col) {
-  // col is in FULL_DATES space, edDates starts at some offset
-  var edStartIdx = FULL_DATE_IDX[edDates[1]] || 0;
-  return (col - edStartIdx) * COL_W;
-}
-function xToEdCol(x) {
-  var edStartIdx = FULL_DATE_IDX[edDates[1]] || 0;
-  return Math.max(1, Math.round(x / COL_W) + edStartIdx);
-}
-
-function showEdDeleteConfirm(idx,lbl){
-  var ov=document.getElementById('_edDelOv');
-  if(!ov){ov=document.createElement('div');ov.id='_edDelOv';ov.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:9999;display:flex;align-items:center;justify-content:center;';document.body.appendChild(ov);}
-  ov.innerHTML='<div style="background:#fff;border-radius:14px;padding:22px 24px;max-width:300px;width:90%;text-align:center;box-shadow:0 20px 60px rgba(0,0,0,.3)">'
-    +'<div style="font-size:30px;margin-bottom:8px">🗑️</div>'
-    +'<div style="font-size:14px;font-weight:800;color:#1e293b;margin-bottom:4px">「'+lbl+'」を削除</div>'
-    +'<div style="font-size:11px;color:#64748b;margin-bottom:16px">この操作は元に戻せません</div>'
-    +'<div style="display:flex;gap:8px">'
-    +'<button onclick="document.getElementById(\'_edDelOv\').style.display=\'none\'" style="flex:1;padding:10px;background:#f1f5f9;color:#475569;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;border:none">キャンセル</button>'
-    +'<button id="_edDelOk" style="flex:1;padding:10px;background:#ef4444;color:#fff;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;border:none">削除</button>'
-    +'</div></div>';
-  ov.style.display='flex';
-  document.getElementById('_edDelOk').onclick=function(){
-    ov.style.display='none';
-    if(edSegs[idx]){edSegs.splice(idx,1);renderEditorCanvas();}
-  };
-}
-
+/* ---- render (white-bg, same style as buildGanttTab multiRow, with drag handles) ---- */
 function renderEditorCanvas(){
+  var wrap=document.getElementById('editorCanvasWrap');
   var cv=document.getElementById('editorCanvas');
-  var hdr=document.getElementById('editorDateHeader');
-  cv.innerHTML='';if(hdr)hdr.innerHTML='';
-  if(!edDates||edDates.length<2)return;
+  if(!cv)return;
+  cv.innerHTML='';
 
-  var ROW_H=28;
-  var nRows=Math.max(edSegs.length,1);
-  var totalW=(edDates.length-1)*COL_W;
-  var totalH=nRows*ROW_H;
+  var segs=edSegs;
+  var todayDt=new Date(TODAY);
+  var gDates=edBuildDates(segs);
+  var gDateIdx={}; gDates.forEach(function(d,i){if(d)gDateIdx[d]=i;});
+  var GCW=GCW_ED;
+  var totalW=(gDates.length-1)*GCW;
+  var ROW_H=22;
+  var numRows=Math.max(segs.length,1);
 
-  // キャンバスサイズ — 高さは行数×ROW_Hで自動計算（固定60pxは廃止）
-  cv.style.cssText='width:'+totalW+'px;height:'+totalH+'px;position:relative;background:#0f172a;display:block;';
+  // months header
+  var months={};
+  gDates.forEach(function(d,i){if(!d)return;var m=d.substring(0,7);if(!months[m])months[m]={start:i-1,count:0};months[m].count++;});
+  var mn={'01':'1月','02':'2月','03':'3月','04':'4月','05':'5月','06':'6月','07':'7月','08':'8月','09':'9月','10':'10月','11':'11月','12':'12月'};
+  var hdrBands='';
+  Object.keys(months).forEach(function(m){var v=months[m],mm=m.split('-')[1];
+    hdrBands+='<div style="position:absolute;left:'+(v.start*GCW)+'px;top:0;width:'+(v.count*GCW)+'px;height:14px;background:#1a56db;color:white;font-size:7px;font-weight:800;display:flex;align-items:center;justify-content:center;border-right:2px solid rgba(255,255,255,.4);overflow:hidden;">'+m.split('-')[0]+'年'+(mn[mm]||mm)+'</div>';});
 
-  // ── ヘッダー ──
-  if(hdr){
-    hdr.style.cssText='width:'+totalW+'px;height:28px;position:relative;background:#1e293b;flex-shrink:0;border-bottom:1px solid rgba(255,255,255,.08);';
-    var months={};
-    edDates.forEach(function(d,i){if(!d)return;var m=d.substring(0,7);if(!months[m])months[m]={start:i-1,count:0};months[m].count++;});
-    var mn={'01':'1月','02':'2月','03':'3月','04':'4月','05':'5月','06':'6月','07':'7月','08':'8月','09':'9月','10':'10月','11':'11月','12':'12月'};
-    Object.keys(months).forEach(function(m){
-      var v=months[m],mm=m.split('-')[1];
-      var el=document.createElement('div');
-      el.style.cssText='position:absolute;left:'+(v.start*COL_W)+'px;top:0;width:'+(v.count*COL_W)+'px;height:14px;background:var(--primary);color:white;font-size:7px;font-weight:800;display:flex;align-items:center;justify-content:center;border-right:2px solid rgba(255,255,255,.4);overflow:hidden;';
-      el.textContent=m.split('-')[0]+'年'+(mn[mm]||mm);hdr.appendChild(el);
-    });
-    edDates.forEach(function(d,i){
-      if(!d)return;
-      var dow=getDow(d),isToday=d===TODAY,day=parseInt(d.split('-')[2]);
-      var el=document.createElement('div');
-      el.style.cssText='position:absolute;left:'+((i-1)*COL_W)+'px;top:14px;width:'+COL_W+'px;height:14px;display:flex;align-items:center;justify-content:center;font-size:7px;font-weight:700;border-right:1px solid rgba(255,255,255,.08);font-family:var(--mono);'
-        +'color:'+(isToday?'#fca5a5':dow===0?'#fca5a5':dow===6?'#93c5fd':'rgba(255,255,255,.75)')+';'
-        +'background:'+(isToday?'rgba(239,68,68,.3)':dow===0?'rgba(255,182,193,.2)':dow===6?'rgba(173,216,230,.2)':'transparent')+';';
-      el.textContent=day;hdr.appendChild(el);
-    });
-    var ti=edDates.indexOf(TODAY);
-    if(ti>0){var tl=document.createElement('div');tl.style.cssText='position:absolute;left:'+((ti-1)*COL_W+1)+'px;top:0;background:#ef4444;color:white;font-size:7px;font-weight:800;padding:1px 3px;border-radius:2px;z-index:10;pointer-events:none;white-space:nowrap;';tl.textContent='今日';hdr.appendChild(tl);}
-  }
+  // day numbers
+  var dayNums='';
+  gDates.forEach(function(d,i){if(!d)return;
+    var dow=getDow(d),day=parseInt(d.split('-')[2]),isToday=d===TODAY;
+    dayNums+='<div style="position:absolute;left:'+((i-1)*GCW)+'px;top:14px;width:'+GCW+'px;height:14px;display:flex;align-items:center;justify-content:center;font-size:6px;font-weight:700;font-family:var(--mono);color:'+(isToday?'#ef4444':dow===0?'#ef9999':dow===6?'#6ea8fe':'#555')+';background:'+(isToday?'rgba(239,68,68,.15)':dow===0?'rgba(255,182,193,.3)':dow===6?'rgba(173,216,230,.3)':'transparent')+';border-right:1px solid #e2e8f0;">'+(day===1||day%5===0?day:'')+'</div>';});
 
-  // ── 背景: 行・週末・月区切り・今日線 ──
-  for(var ri=0;ri<nRows;ri++){
-    var rb=document.createElement('div');
-    rb.style.cssText='position:absolute;left:0;top:'+(ri*ROW_H)+'px;width:'+totalW+'px;height:'+ROW_H+'px;background:'+(ri%2===0?'rgba(255,255,255,.02)':'rgba(255,255,255,.04)')+';border-bottom:1px solid rgba(255,255,255,.06);';
-    cv.appendChild(rb);
-  }
-  edDates.forEach(function(d,i){
-    if(!d)return;
-    var dow=getDow(d),px=(i-1)*COL_W;
-    if(dow===0||dow===6){var wf=document.createElement('div');wf.style.cssText='position:absolute;left:'+px+'px;top:0;width:'+COL_W+'px;height:'+totalH+'px;background:'+(dow===0?'rgba(255,182,193,.12)':'rgba(173,216,230,.08)')+';pointer-events:none;z-index:1;';cv.appendChild(wf);}
-    if(d.slice(8)==='01'&&i>1){var ml=document.createElement('div');ml.style.cssText='position:absolute;left:'+px+'px;top:0;width:2px;height:'+totalH+'px;background:#475569;pointer-events:none;z-index:2;';cv.appendChild(ml);}
+  // fills & month lines
+  var fills='';
+  gDates.forEach(function(d,i){if(!d)return;
+    var dow=getDow(d);
+    if(dow===0||dow===6)fills+='<div style="position:absolute;left:'+((i-1)*GCW)+'px;top:28px;width:'+GCW+'px;height:'+(numRows*ROW_H)+'px;background:'+(dow===0?'rgba(255,182,193,.22)':'rgba(173,216,230,.18)')+';pointer-events:none;z-index:0;"></div>';
+    if(d.slice(8)==='01'&&i>1)fills+='<div style="position:absolute;left:'+((i-1)*GCW)+'px;top:0;width:2px;height:'+(numRows*ROW_H+28)+'px;background:#94a3b8;pointer-events:none;z-index:2;"></div>';
   });
-  var todayI=edDates.indexOf(TODAY);
-  if(todayI>0){var tl2=document.createElement('div');tl2.style.cssText='position:absolute;left:'+((todayI-1)*COL_W)+'px;top:0;width:2px;height:'+totalH+'px;background:#ef4444;z-index:5;pointer-events:none;';cv.appendChild(tl2);}
 
-  // ── バー描画 (1工程=1行) ──
-  edSegs.forEach(function(seg,idx){
-    var lbl=seg.label||'';
-    var dur=seg.duration||1;
+  // today line
+  var todayCol=gDateIdx[TODAY]||0;
+  var todayLine=todayCol>0?'<div style="position:absolute;left:'+((todayCol-1)*GCW)+'px;top:0;width:2px;height:'+(numRows*ROW_H+28)+'px;background:#ef4444;z-index:10;pointer-events:none;"></div>':'';
+
+  // row bgs
+  var rowBgs='';
+  for(var ri=0;ri<numRows;ri++)rowBgs+='<div style="position:absolute;left:0;top:'+(ri*ROW_H+28)+'px;width:'+totalW+'px;height:'+ROW_H+'px;background:'+(ri%2===0?'white':'#f8fafc')+';border-bottom:1px solid #e2e8f0;"></div>';
+
+  // labels (left column, outside the canvas, handled by padding-left)
+  var labels='<div style="position:absolute;left:0;top:28px;width:0;height:'+(numRows*ROW_H)+'px;">';
+  segs.forEach(function(seg,ri){
+    var lbl=seg.label||seg.name||'';
+    labels+='<div style="position:absolute;left:-88px;top:'+(ri*ROW_H)+'px;width:86px;height:'+ROW_H+'px;display:flex;align-items:center;justify-content:flex-end;padding-right:4px;font-size:9px;font-weight:700;color:#334155;overflow:hidden;white-space:nowrap;background:'+(ri%2===0?'white':'#f8fafc')+';border-bottom:1px solid #e2e8f0;">'+lbl+'</div>';
+  });
+  labels+='</div>';
+
+  // bars (interactive)
+  var barsHtml='';
+  segs.forEach(function(seg,idx){
+    var lbl=seg.label||seg.name||'';
+    var sd=seg.start_date||seg.date||''; if(!sd)return;
+    var sdClean=sd.replace(/\//g,'-');
+    var iIdx=gDateIdx[sdClean]; if(!iIdx)return;
+    var calDur=seg.calendar_dur||seg.duration||seg.dur||1;
+    var sx=(iIdx-1)*GCW;
+    var bw=Math.max(calDur*GCW-1,GCW-1);
     var layer=seg.layer||0;
-    var x=edColToX(seg.col);
-    var bw=Math.max(dur*COL_W-2,COL_W-2);
+    var by=idx*ROW_H+28+(layer===1?3:0);
+    var bh=layer===1?ROW_H-9:ROW_H-5;
     var color=seg.color||EC[lbl]||'#64748b';
     var isDark=!!DARK_TEXT[lbl];
     var tcOvr=seg.textColor||seg.text_color;
     var tcolor=tcOvr&&tcOvr!=='auto'?tcOvr:(isDark?'#3a2a10':'white');
-    var rowTop=idx*ROW_H;
-    var bh=layer===1?ROW_H-10:ROW_H-6;
-    var bt=rowTop+3+(layer===1?2:0);
-
-    var bar=document.createElement('div');
-    bar.className='ed-bar-el';
-    bar.style.cssText='left:'+x+'px;top:'+bt+'px;width:'+bw+'px;height:'+bh+'px;background:'+color+';color:'+tcolor+';font-size:'+(layer===1?'7':'8')+'px;font-weight:800;border-radius:'+(layer===1?'2':'3')+'px;z-index:'+(layer===1?12:10)+';';
-    if(bw>14) bar.textContent=lbl; else if(bw>8) bar.textContent=lbl.charAt(0);
-    bar.title=lbl+' ('+dur+'日)';
-
-    // 削除ボタン
-    var delBtn=document.createElement('button');
-    delBtn.style.cssText='position:absolute;right:1px;top:1px;width:13px;height:13px;background:#ef4444;color:white;border-radius:50%;font-size:9px;font-weight:900;display:flex;align-items:center;justify-content:center;padding:0;z-index:20;cursor:pointer;border:none;';
-    delBtn.textContent='×';
-    (function(i2,lb2){delBtn.addEventListener('pointerdown',function(e){e.stopPropagation();e.preventDefault();showEdDeleteConfirm(i2,lb2);});})(idx,lbl);
-    bar.appendChild(delBtn);
-
-    // ドラッグ・リサイズ
-    bar.addEventListener('mousedown',function(e){if(!e.target.classList.contains('ed-resize'))startEdDrag(e,idx,bar);});
-    bar.addEventListener('touchstart',function(e){if(!e.target.classList.contains('ed-resize'))startEdDragTouch(e,idx,bar);},{passive:false});
-    var rh=document.createElement('div');rh.className='ed-resize';
-    rh.addEventListener('mousedown',function(e){e.stopPropagation();startEdResize(e,idx,bar);});
-    rh.addEventListener('touchstart',function(e){e.stopPropagation();startEdResizeTouch(e,idx,bar);},{passive:false});
-    bar.appendChild(rh);
-    cv.appendChild(bar);
+    var isPast=seg.end_date&&new Date(seg.end_date.replace(/\//g,'-'))<todayDt;
+    var isAct=!isPast&&sdClean&&new Date(sdClean)<=todayDt;
+    barsHtml+='<div class="ed-bar-el" id="edbar'+idx+'" data-idx="'+idx+'" style="position:absolute;left:'+sx+'px;top:'+by+'px;width:'+bw+'px;height:'+bh+'px;background:'+color+';color:'+tcolor+';font-size:6px;font-weight:800;border-radius:2px;display:flex;align-items:center;padding:0 14px 0 3px;overflow:hidden;white-space:nowrap;box-shadow:0 1px 3px rgba(0,0,0,.15);z-index:'+(layer===1?12:10)+';opacity:'+(isPast?'.6':'1')+';cursor:grab;user-select:none;'+(isAct?'outline:2px solid rgba(239,68,68,.5);':'')+';">'
+      +(bw>16?lbl:'')
+      +'<div class="ed-del-btn" data-idx="'+idx+'" style="position:absolute;right:1px;top:50%;transform:translateY(-50%);width:12px;height:12px;background:#ef4444;color:white;border-radius:50%;font-size:9px;font-weight:900;display:flex;align-items:center;justify-content:center;cursor:pointer;z-index:20;line-height:1;">×</div>'
+      +'<div class="ed-resize-handle" data-idx="'+idx+'" style="position:absolute;right:14px;top:0;width:6px;height:100%;cursor:ew-resize;z-index:15;background:rgba(255,255,255,.2);border-radius:0 2px 2px 0;"></div>'
+      +'</div>';
   });
 
-  if(edSegs.length===0){
-    var em=document.createElement('div');
-    em.style.cssText='position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:rgba(255,255,255,.25);font-size:11px;font-weight:700;';
-    em.textContent='＋工種追加からバーを追加してください';
-    cv.appendChild(em);
-  }
+  // assemble
+  var totalH=numRows*ROW_H+28;
+  cv.style.cssText='position:relative;width:'+totalW+'px;height:'+totalH+'px;';
+  cv.innerHTML=labels+hdrBands+dayNums+todayLine+fills+rowBgs+barsHtml;
+
+  // attach events
+  cv.querySelectorAll('.ed-bar-el').forEach(function(bar){
+    var idx=parseInt(bar.getAttribute('data-idx'));
+    bar.addEventListener('pointerdown',function(e){
+      if(e.target.classList.contains('ed-del-btn')){showEdDeleteConfirm(idx,edSegs[idx]?edSegs[idx].label||edSegs[idx].name:'');return;}
+      if(e.target.classList.contains('ed-resize-handle')){startEdResize(e,idx);return;}
+      startEdDrag(e,idx,bar);
+    });
+  });
+
+  // scroll to first bar or today
+  setTimeout(function(){
+    if(!wrap)return;
+    var sd0=segs.length?segs[0].start_date||segs[0].date||'':'';
+    var si=sd0?gDateIdx[sd0.replace(/\//g,'-')]||0:0;
+    var ti=gDateIdx[TODAY]||0;
+    var target=si>0?Math.max(0,(si-3)*GCW):Math.max(0,(ti-3)*GCW);
+    wrap.scrollLeft=target;
+  },30);
+
+  // update seg list in sidebar
+  renderEdSegList();
 }
 
-// Drag
-function startEdDrag(e,idx,bar){e.preventDefault();dragBar={idx:idx,bar:bar};dragStartX=e.clientX;dragStartCol=edSegs[idx].col;bar.classList.add('dragging');document.addEventListener('mousemove',onEdDrag);document.addEventListener('mouseup',stopEdDrag);}
-function startEdDragTouch(e,idx,bar){var t=e.touches[0];dragBar={idx:idx,bar:bar};dragStartX=t.clientX;dragStartCol=edSegs[idx].col;bar.classList.add('dragging');document.addEventListener('touchmove',onEdDragTouch,{passive:false});document.addEventListener('touchend',stopEdDrag);}
-function onEdDrag(e){if(!dragBar)return;var dx=e.clientX-dragStartX;var nc=Math.max(1,dragStartCol+Math.round(dx/COL_W));edSegs[dragBar.idx].col=nc;edSegs[dragBar.idx].date=FULL_DATES[nc]||'';dragBar.bar.style.left=edColToX(nc)+'px';}
-function onEdDragTouch(e){e.preventDefault();if(!dragBar)return;var dx=e.touches[0].clientX-dragStartX;var nc=Math.max(1,dragStartCol+Math.round(dx/COL_W));edSegs[dragBar.idx].col=nc;edSegs[dragBar.idx].date=FULL_DATES[nc]||'';dragBar.bar.style.left=edColToX(nc)+'px';}
-function stopEdDrag(){if(dragBar){dragBar.bar.classList.remove('dragging');dragBar=null;}document.removeEventListener('mousemove',onEdDrag);document.removeEventListener('mouseup',stopEdDrag);document.removeEventListener('touchmove',onEdDragTouch);document.removeEventListener('touchend',stopEdDrag);edDates=buildEditorDates(edSegs);renderEditorCanvas();}
-// Resize
-function startEdResize(e,idx,bar){e.preventDefault();resBar={idx:idx,bar:bar};resStartX=e.clientX;resStartDur=edSegs[idx].duration||1;document.addEventListener('mousemove',onEdResize);document.addEventListener('mouseup',stopEdResize);}
-function startEdResizeTouch(e,idx,bar){var t=e.touches[0];resBar={idx:idx,bar:bar};resStartX=t.clientX;resStartDur=edSegs[idx].duration||1;document.addEventListener('touchmove',onEdResizeTouch,{passive:false});document.addEventListener('touchend',stopEdResize);}
-function onEdResize(e){if(!resBar)return;var nd=Math.max(1,resStartDur+Math.round((e.clientX-resStartX)/COL_W));edSegs[resBar.idx].duration=nd;resBar.bar.style.width=Math.max(nd*COL_W-2,COL_W-2)+'px';}
-function onEdResizeTouch(e){e.preventDefault();if(!resBar)return;var nd=Math.max(1,resStartDur+Math.round((e.touches[0].clientX-resStartX)/COL_W));edSegs[resBar.idx].duration=nd;resBar.bar.style.width=Math.max(nd*COL_W-2,COL_W-2)+'px';}
-function stopEdResize(){resBar=null;document.removeEventListener('mousemove',onEdResize);document.removeEventListener('mouseup',stopEdResize);document.removeEventListener('touchmove',onEdResizeTouch);document.removeEventListener('touchend',stopEdResize);renderEditorCanvas();}
+/* ---- seg list in sidebar ---- */
+function renderEdSegList(){
+  var el=document.getElementById('gedSegList'); if(!el)return;
+  el.innerHTML=edSegs.map(function(s,i){
+    var lbl=s.label||s.name||'';
+    var dur=s.calendar_dur||s.duration||s.dur||1;
+    var sd=s.start_date||s.date||'';
+    return '<div style="display:flex;align-items:center;gap:4px;padding:3px 4px;background:#0f172a;border-radius:5px;">'
+      +'<div style="width:10px;height:10px;background:'+(s.color||EC[lbl]||'#64748b')+';border-radius:2px;flex-shrink:0;"></div>'
+      +'<div style="flex:1;font-size:9px;color:rgba(255,255,255,.8);overflow:hidden;white-space:nowrap;">'+lbl+'</div>'
+      +'<div style="font-size:8px;color:rgba(255,255,255,.4);white-space:nowrap;">'+dur+'日</div>'
+      +'<button onclick="showEdDeleteConfirm('+i+',\''+lbl+'\')" style="width:14px;height:14px;background:#ef4444;color:white;border:none;border-radius:50%;font-size:9px;cursor:pointer;padding:0;flex-shrink:0;display:flex;align-items:center;justify-content:center;">×</button>'
+      +'</div>';
+  }).join('');
+}
 
-// Add bar
-function toggleAddBarForm(){var f=document.getElementById('addBarFormPanel');f.style.display=f.style.display==='none'||!f.style.display?'block':'none';}
-function selectEdColor(c,el){SEL_COLOR=c;document.querySelectorAll('.color-swatch').forEach(function(s){s.style.borderColor='transparent';s.style.transform='';});el.style.borderColor='var(--g700)';el.style.transform='scale(1.2)';}
-function addNewBar(){
-  var nm=document.getElementById('newBarName').value.trim();
-  var d=parseInt(document.getElementById('newBarDays').value)||7;
-  if(!nm){showToast('工種名を入力してください','error');return;}
-  // Text color from selector
-  var tcEl=document.getElementById('barTextColor');
-  var tc=tcEl?tcEl.value:'auto';
-  var lastCol=1;
-  edSegs.forEach(function(s){var e2=s.col+(s.duration||1);if(e2>lastCol)lastCol=e2;});
-  var nc=lastCol+2;
-  if(nc>=FULL_DATES.length)nc=Math.max(1,FULL_DATES.length-d-5);
-  edSegs.push({col:nc,date:FULL_DATES[nc]||'',label:nm,color:SEL_COLOR,textColor:tc,duration:d,layer:0});
-  document.getElementById('newBarName').value='';
-  document.getElementById('addBarFormPanel').style.display='none';
-  edDates=buildEditorDates(edSegs);
+/* ---- drag ---- */
+function startEdDrag(e,idx,bar){
+  e.preventDefault();
+  var sd=edSegs[idx].start_date||edSegs[idx].date||'';
+  dragBar={idx:idx,bar:bar};
+  dragStartX=e.clientX;
+  dragStartDateMs=sd?new Date(sd.replace(/\//g,'-')).getTime():Date.now();
+  bar.style.cursor='grabbing';
+  document.addEventListener('pointermove',onEdDrag);
+  document.addEventListener('pointerup',stopEdDrag);
+}
+function onEdDrag(e){
+  if(!dragBar)return;
+  var dx=e.clientX-dragStartX;
+  var dayShift=Math.round(dx/GCW_ED);
+  var newMs=dragStartDateMs+dayShift*86400000;
+  var newDate=new Date(newMs).toISOString().slice(0,10);
+  edSegs[dragBar.idx].start_date=newDate; edSegs[dragBar.idx].date=newDate;
+  var gd=edBuildDates(edSegs); var gi={}; gd.forEach(function(d,i){if(d)gi[d]=i;});
+  var ni=gi[newDate]||0;
+  dragBar.bar.style.left=((ni-1)*GCW_ED)+'px';
+}
+function stopEdDrag(){
+  if(dragBar){dragBar.bar.style.cursor='grab';dragBar=null;}
+  document.removeEventListener('pointermove',onEdDrag);
+  document.removeEventListener('pointerup',stopEdDrag);
   renderEditorCanvas();
-  showToast('「'+nm+'」('+d+'日)を追加しました','success');
 }
+
+/* ---- resize ---- */
+function startEdResize(e,idx){
+  e.preventDefault();
+  resBar={idx:idx};
+  resStartX=e.clientX;
+  resStartDur=edSegs[idx].calendar_dur||edSegs[idx].duration||edSegs[idx].dur||1;
+  document.addEventListener('pointermove',onEdResize);
+  document.addEventListener('pointerup',stopEdResize);
+}
+function onEdResize(e){
+  if(!resBar)return;
+  var nd=Math.max(1,resStartDur+Math.round((e.clientX-resStartX)/GCW_ED));
+  edSegs[resBar.idx].calendar_dur=nd; edSegs[resBar.idx].duration=nd;
+  var bar=document.getElementById('edbar'+resBar.idx);
+  if(bar)bar.style.width=Math.max(nd*GCW_ED-1,GCW_ED-1)+'px';
+}
+function stopEdResize(){
+  resBar=null;
+  document.removeEventListener('pointermove',onEdResize);
+  document.removeEventListener('pointerup',stopEdResize);
+  renderEditorCanvas();
+}
+
+/* ---- delete confirm ---- */
+function showEdDeleteConfirm(idx,lbl){
+  var ov=document.getElementById('_edDelOv');
+  if(!ov){ov=document.createElement('div');ov.id='_edDelOv';ov.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:9999;display:flex;align-items:center;justify-content:center;';document.body.appendChild(ov);}
+  ov.innerHTML='<div style="background:#fff;border-radius:14px;padding:22px 24px;max-width:280px;width:90%;text-align:center;box-shadow:0 20px 60px rgba(0,0,0,.3)">'
+    +'<div style="font-size:28px;margin-bottom:8px">🗑️</div>'
+    +'<div style="font-size:13px;font-weight:800;color:#1e293b;margin-bottom:12px">「'+lbl+'」を削除</div>'
+    +'<div style="display:flex;gap:8px">'
+    +'<button onclick="document.getElementById('_edDelOv').style.display='none'" style="flex:1;padding:9px;background:#f1f5f9;color:#475569;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;border:none">キャンセル</button>'
+    +'<button id="_edDelOk" style="flex:1;padding:9px;background:#ef4444;color:#fff;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;border:none">削除</button>'
+    +'</div></div>';
+  ov.style.display='flex';
+  document.getElementById('_edDelOk').onclick=function(){
+    ov.style.display='none';
+    if(edSegs[idx]!==undefined){edSegs.splice(idx,1);renderEditorCanvas();}
+  };
+}
+
+/* ---- menu / open ---- */
+function openGanttEditorMenu(){
+  openPanel('ganttEditorPanel');
+  edProp=null;
+  var all=getAllProps();
+  var listEl=document.getElementById('gedListItems'); if(!listEl)return;
+  if(!myFavProps.length){
+    listEl.innerHTML='<div style="padding:10px 6px;font-size:9px;color:rgba(255,255,255,.3);text-align:center">マイ物件<br>未登録</div>';
+  } else {
+    listEl.innerHTML=myFavProps.map(function(fav){
+      var p=all.find(function(x){return x.fix_no===fav.fix_no&&x.name===fav.name;}); if(!p)return '';
+      var sn=p.name.replace(/^(Jack|Walter)\s*/i,'');
+      var hasC=!!customGantt[custKey(p)];
+      return '<div class="ged-item" data-fix="'+p.fix_no+'" data-enc="'+encodeURIComponent(p.name)+'" onclick="openGanttEditor(''+p.fix_no+'',''+encodeURIComponent(p.name)+'')">'
+        +'<div class="ged-item-name">'+sn+(hasC?' ✏️':'')+'</div>'
+        +'<div class="ged-item-meta">'+p.area+'</div></div>';
+    }).join('');
+  }
+  document.getElementById('gedEmpty').style.display='flex';
+  document.getElementById('gedGantt').style.display='none';
+  document.getElementById('gedSubTitle').textContent='物件を選択してください';
+  initColorPicker();
+}
+function renderEditorSelector(){openGanttEditorMenu();}
+
+function openGanttEditor(fixNo,enc){
+  var name=decodeURIComponent(enc);
+  var p=getAllProps().find(function(x){return x.fix_no===fixNo&&x.name===name;}); if(!p)return;
+  edProp=p;
+
+  // 物件詳細と同じgetActiveSegs
+  var srcSegs=getActiveSegs(p)||[];
+  if(!srcSegs.length)srcSegs=computeMasterSegs(p.confirm_done)||[];
+
+  // start_date / calendar_dur ベースでコピー
+  edSegs=srcSegs.map(function(s){
+    var sd=(s.start_date||s.date||'').replace(/\//g,'-');
+    var ed=(s.end_date||'').replace(/\//g,'-');
+    var calDur=s.calendar_dur||(function(){
+      if(ed&&sd){return Math.round((new Date(ed)-new Date(sd))/86400000)+1;}
+      return s.duration||s.dur||1;
+    })();
+    return {label:s.label||s.name||'',start_date:sd,date:sd,end_date:ed,calendar_dur:calDur,duration:calDur,color:s.color||EC[s.label||s.name||'']||'#64748b',layer:s.layer||0,textColor:s.textColor||s.text_color||'auto'};
+  });
+
+  var sn=p.name.replace(/^(Jack|Walter)\s*/i,'');
+  var subEl=document.getElementById('gedSubTitle');
+  if(subEl)subEl.textContent=sn+(p.delivery_date?' ／ 引渡:'+p.delivery_date:'');
+
+  document.getElementById('gedEmpty').style.display='none';
+  var gg=document.getElementById('gedGantt');
+  gg.style.cssText='display:flex;flex:1;flex-direction:column;overflow:hidden;';
+
+  // 開始日フォームを今日に初期化
+  var dateInput=document.getElementById('newBarDate');
+  if(dateInput)dateInput.value=TODAY;
+
+  renderEditorCanvas();
+
+  document.querySelectorAll('#gedListItems .ged-item').forEach(function(el){
+    var active=(el.getAttribute('data-fix')===fixNo&&decodeURIComponent(el.getAttribute('data-enc'))===name);
+    el.className='ged-item'+(active?' ged-active':'');
+  });
+  if(!document.getElementById('ganttEditorPanel').classList.contains('open'))openPanel('ganttEditorPanel');
+}
+
+function openGanttEditorFromDetail(fixNo,enc){
+  var name=decodeURIComponent(enc);
+  var p=getAllProps().find(function(x){return x.fix_no===fixNo&&x.name===name;}); if(!p)return;
+  var all=getAllProps();
+  var listEl=document.getElementById('gedListItems');
+  var listProps=myFavProps.map(function(fav){return all.find(function(x){return x.fix_no===fav.fix_no&&x.name===fav.name;});}).filter(Boolean);
+  if(!listProps.some(function(lp){return lp.fix_no===fixNo&&lp.name===name;}))listProps.unshift(p);
+  if(listEl)listEl.innerHTML=listProps.map(function(lp){
+    var sn=lp.name.replace(/^(Jack|Walter)\s*/i,'');
+    var hasC=!!customGantt[custKey(lp)];
+    return '<div class="ged-item" data-fix="'+lp.fix_no+'" data-enc="'+encodeURIComponent(lp.name)+'" onclick="openGanttEditor(''+lp.fix_no+'',''+encodeURIComponent(lp.name)+'')">'
+      +'<div class="ged-item-name">'+sn+(hasC?' ✏️':'')+'</div>'
+      +'<div class="ged-item-meta">'+lp.area+'</div></div>';
+  }).join('');
+  openGanttEditor(fixNo,enc);
+}
+window.openGanttEditorFromDetail=openGanttEditorFromDetail;
+
+/* ---- color picker ---- */
+function initColorPicker(){
+  var el=document.getElementById('colorPicker'); if(!el||el.children.length)return;
+  var colors=['#d2b48c','#add8e6','#d9d9d9','#d9ead3','#7030a0','#ffff00','#00b050','#1a56db','#ffc7ce','#e06666','#ff9900','#ea4335','#4285f4','#34a853','#ff6d00','#9c27b0','#607d8b','#795548'];
+  colors.forEach(function(c){
+    var sw=document.createElement('div');
+    sw.className='color-swatch';
+    sw.style.cssText='width:20px;height:20px;border-radius:50%;background:'+c+';cursor:pointer;border:2px solid transparent;flex-shrink:0;';
+    sw.onclick=function(){SEL_COLOR=c;document.querySelectorAll('.color-swatch').forEach(function(s){s.style.borderColor='transparent';s.style.transform='';});sw.style.borderColor='#334155';sw.style.transform='scale(1.2)';};
+    el.appendChild(sw);
+  });
+  // 最初の色を選択状態に
+  if(el.children[0]){el.children[0].style.borderColor='#334155';el.children[0].style.transform='scale(1.2)';}
+}
+
+/* ---- add bar ---- */
+function addNewBar(){
+  var nm=(document.getElementById('newBarName').value||'').trim();
+  var days=parseInt(document.getElementById('newBarDays').value)||7;
+  var dateInput=document.getElementById('newBarDate');
+  var startDate=dateInput&&dateInput.value?dateInput.value:TODAY;
+  if(!nm){showToast('工種名を入力してください','error');return;}
+  edSegs.push({label:nm,start_date:startDate,date:startDate,end_date:'',calendar_dur:days,duration:days,color:SEL_COLOR,layer:0,textColor:'auto'});
+  document.getElementById('newBarName').value='';
+  renderEditorCanvas();
+  showToast('「'+nm+'」('+days+'日)を追加しました','success');
+}
+
+/* ---- shift all ---- */
 function showPeriodShift(){
-  var v=prompt('全工程を何日シフトしますか？\nマイナス値で前倒し','7');
-  if(v===null)return;
-  var d=parseInt(v);if(isNaN(d)){showToast('数値を入力してください','error');return;}
-  edSegs=edSegs.map(function(s){var nc=Math.max(1,s.col+d);return{col:nc,date:FULL_DATES[nc]||s.date,label:s.label,color:s.color,duration:s.duration||1,layer:s.layer||0};});
-  edDates=buildEditorDates(edSegs);renderEditorCanvas();
-  showToast((d>0?'+':'')+d+'日シフトしました','success');
+  var v=prompt('全工程を何日シフト？（マイナスで前倒し）','7'); if(v===null)return;
+  var days=parseInt(v); if(isNaN(days)){showToast('数値を入力してください','error');return;}
+  edSegs=edSegs.map(function(s){
+    var sd=s.start_date||s.date||''; if(!sd)return s;
+    var d=new Date(sd.replace(/\//g,'-')); d.setDate(d.getDate()+days);
+    var ns=d.toISOString().slice(0,10);
+    return Object.assign({},s,{start_date:ns,date:ns});
+  });
+  renderEditorCanvas();
+  showToast((days>=0?'+':'')+days+'日シフトしました','success');
 }
+
+/* ---- save / reset ---- */
 function saveEditorChanges(){
   if(!edProp)return;
   var ck=custKey(edProp);
-  customGantt[ck]=edSegs.map(function(s){return{col:s.col,date:FULL_DATES[s.col]||s.date||'',label:s.label,color:s.color,duration:s.duration||1,layer:s.layer||0};});
+  customGantt[ck]=edSegs.map(function(s){
+    var sd=s.start_date||s.date||'';
+    var cd=s.calendar_dur||s.duration||1;
+    var ed=s.end_date||'';
+    if(!ed&&sd){var d=new Date(sd.replace(/\//g,'-'));d.setDate(d.getDate()+cd-1);ed=d.toISOString().slice(0,10);}
+    var col=FULL_DATE_IDX[sd]||0;
+    return {col:col,date:sd,start_date:sd,end_date:ed,label:s.label,color:s.color,calendar_dur:cd,duration:cd,dur:cd,layer:s.layer||0,textColor:s.textColor||'auto'};
+  });
   saveLS('jack_custom_gantt',customGantt);
-  renderBody();renderMyPage();
+  renderBody();
+  if(typeof renderMyPage==='function')renderMyPage();
   showToast('✅ 工程表を保存しました','success');
 }
 function resetEditorChanges(){
   if(!edProp||!confirm('カスタムをリセットして元データに戻しますか？'))return;
   delete customGantt[custKey(edProp)];
   saveLS('jack_custom_gantt',customGantt);
-  var srcSegs=getActiveSegs(edProp)||computeMasterSegs(edProp.confirm_done);
-  edSegs=srcSegs.map(function(s){var col=typeof s.col==='number'?s.col:0;return{col:col,label:s.label||s.name||'',color:s.color||null,duration:s.duration||s.dur||1,layer:s.layer||0,date:FULL_DATES[col]||''};});
-  edDates=buildEditorDates(edSegs);renderEditorCanvas();renderBody();
+  openGanttEditor(edProp.fix_no,encodeURIComponent(edProp.name));
+  renderBody();
   showToast('リセットしました','');
 }
+window.openGanttEditorMenu=openGanttEditorMenu;
+window.openGanttEditor=openGanttEditor;
+window.addNewBar=addNewBar;
+window.showPeriodShift=showPeriodShift;
+window.saveEditorChanges=saveEditorChanges;
+window.resetEditorChanges=resetEditorChanges;
+window.showEdDeleteConfirm=showEdDeleteConfirm;
 
 // ===== MASTER TEMPLATE PANEL =====
 var editingMaster = null;
@@ -2820,10 +2928,8 @@ window.openGanttEditor=openGanttEditor;
 window.openGanttEditorMenu=openGanttEditorMenu;
 window.saveEditorChanges=saveEditorChanges;
 window.resetEditorChanges=resetEditorChanges;
-window.toggleAddBarForm=toggleAddBarForm;
 window.addNewBar=addNewBar;
 window.showPeriodShift=showPeriodShift;
-window.selectEdColor=selectEdColor;
 window.openMasterPanel=openMasterPanel;
 window.startNewMaster=startNewMaster;
 window.startEditMaster=startEditMaster;
