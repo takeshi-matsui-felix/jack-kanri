@@ -2085,7 +2085,7 @@ function openGanttEditorMenu(){
       var p=all.find(function(x){return x.fix_no===fav.fix_no&&x.name===fav.name;}); if(!p)return '';
       var sn=p.name.replace(/^(Jack|Walter)\s*/i,'');
       var hasC=!!customGantt[custKey(p)];
-      return '<div class="ged-item" data-fix="'+p.fix_no+'" data-enc="'+encodeURIComponent(p.name)+'" onclick="openGanttEditor(''+p.fix_no+'',''+encodeURIComponent(p.name)+'')">'
+      return '<div class="ged-item" data-fix="'+p.fix_no+'" data-enc="'+encodeURIComponent(p.name)+'" onclick="openGanttEditor(\''+p.fix_no+'\',\''+encodeURIComponent(p.name)+'\')">'
         +'<div class="ged-item-name">'+sn+(hasC?' ✏️':'')+'</div>'
         +'<div class="ged-item-meta">'+p.area+'</div></div>';
     }).join('');
@@ -2148,7 +2148,7 @@ function openGanttEditorFromDetail(fixNo,enc){
   if(listEl)listEl.innerHTML=listProps.map(function(lp){
     var sn=lp.name.replace(/^(Jack|Walter)\s*/i,'');
     var hasC=!!customGantt[custKey(lp)];
-    return '<div class="ged-item" data-fix="'+lp.fix_no+'" data-enc="'+encodeURIComponent(lp.name)+'" onclick="openGanttEditor(''+lp.fix_no+'',''+encodeURIComponent(lp.name)+'')">'
+    return '<div class="ged-item" data-fix="'+lp.fix_no+'" data-enc="'+encodeURIComponent(lp.name)+'" onclick="openGanttEditor(\''+lp.fix_no+'\',\''+encodeURIComponent(lp.name)+'\')">'
       +'<div class="ged-item-name">'+sn+(hasC?' ✏️':'')+'</div>'
       +'<div class="ged-item-meta">'+lp.area+'</div></div>';
   }).join('');
