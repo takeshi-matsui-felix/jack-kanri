@@ -446,7 +446,7 @@ body{display:flex;overflow:hidden;}
   <div class="stats-strip" id="statsStrip"></div>
   <div class="table-wrap"><div class="table-header"><div id="freezeHeaderInner" style="border-right:2px solid #475569;flex-shrink:0;overflow:hidden"></div><div id="scrollHeaderWrap" style="flex:1;overflow:hidden"><div id="scrollHeaderInner"></div></div></div><div class="table-body"><div class="freeze-body" id="freezeBody"></div><div class="scroll-body" id="scrollBody"><div id="ganttCanvas"></div></div></div></div>
 </div>
-<div class="slide-panel" id="detailPanel" style="display:flex;flex-direction:row;overflow:hidden"><div style="flex:1;display:flex;flex-direction:column;overflow:hidden"><div class="panel-header"><button class="panel-back" onclick="closePanel('detailPanel')">← 戻る</button><div style="flex:1"><div class="panel-title">物件詳細</div></div></div><div class="panel-scroll" id="dpContent"></div><div class="panel-action-bar" id="dpActionBar"></div></div><div id="ganttEditSidebar" style="display:none;width:172px;min-width:172px;background:#1e293b;border-left:2px solid #334155;flex-direction:column;overflow-y:auto;flex-shrink:0"><div style="padding:8px;border-bottom:1px solid #334155;display:flex;flex-direction:column;gap:4px"><div style="font-size:10px;font-weight:800;color:rgba(255,255,255,.5);margin-bottom:2px">✏️ 工程表編集</div><button onclick="saveGanttEdit()" style="width:100%;padding:7px;background:#1a56db;color:white;border:none;border-radius:7px;font-size:11px;font-weight:800;cursor:pointer">💾 保存</button><div style="display:flex;gap:4px"><button onclick="shiftGanttEdit()" style="flex:1;padding:5px;background:#475569;color:white;border:none;border-radius:6px;font-size:10px;font-weight:700;cursor:pointer">📅 シフト</button><button onclick="resetGanttEdit()" style="flex:1;padding:5px;background:#475569;color:white;border:none;border-radius:6px;font-size:10px;font-weight:700;cursor:pointer">🔄 リセット</button></div></div><div style="padding:8px;border-bottom:1px solid #334155"><div style="font-size:10px;font-weight:800;color:rgba(255,255,255,.7);margin-bottom:6px">＋ 工種追加</div><div style="display:flex;flex-direction:column;gap:5px"><input type="text" id="geNewName" placeholder="工種名" style="padding:5px 7px;border:1.5px solid #475569;border-radius:6px;font-size:11px;background:#0f172a;color:white;width:100%;box-sizing:border-box"><div style="display:flex;align-items:center;gap:4px"><span style="font-size:9px;color:rgba(255,255,255,.5);white-space:nowrap">日数</span><input type="number" id="geNewDays" value="7" min="1" max="180" style="padding:4px 6px;border:1.5px solid #475569;border-radius:6px;font-size:11px;background:#0f172a;color:white;width:100%;box-sizing:border-box"></div><div style="display:flex;align-items:center;gap:4px"><span style="font-size:9px;color:rgba(255,255,255,.5);white-space:nowrap">開始日</span><input type="date" id="geNewDate" style="padding:4px 4px;border:1.5px solid #475569;border-radius:6px;font-size:10px;background:#0f172a;color:white;width:100%;box-sizing:border-box"></div><div id="geColorPicker" style="display:flex;flex-wrap:wrap;gap:4px;margin:2px 0"></div><button onclick="addGanttBar()" style="width:100%;padding:7px;background:#059669;color:white;border:none;border-radius:7px;font-size:11px;font-weight:800;cursor:pointer">バーを追加</button></div></div><div style="padding:6px 8px;flex:1"><div style="font-size:9px;font-weight:800;color:rgba(255,255,255,.4);margin-bottom:4px">工種一覧</div><div id="geSegList" style="display:flex;flex-direction:column;gap:3px"></div></div></div></div>
+<div class="slide-panel" id="detailPanel" style="display:flex;flex-direction:row;overflow:hidden"><div style="flex:1;display:flex;flex-direction:column;overflow:hidden"><div class="panel-header"><button class="panel-back" onclick="closePanel('detailPanel')">← 戻る</button><div style="flex:1"><div class="panel-title">物件詳細</div></div></div><div class="panel-scroll" id="dpContent"></div><div class="panel-action-bar" id="dpActionBar"></div></div><div id="ganttEditSidebar" style="display:none;width:172px;min-width:172px;background:#1e293b;border-left:2px solid #334155;flex-direction:column;overflow-y:auto;flex-shrink:0"><div style="padding:8px;border-bottom:1px solid #334155;display:flex;flex-direction:column;gap:4px"><div style="font-size:10px;font-weight:800;color:rgba(255,255,255,.5);margin-bottom:2px">✏️ 工程表編集</div><button onclick="saveGanttEdit()" style="width:100%;padding:7px;background:#1a56db;color:white;border:none;border-radius:7px;font-size:11px;font-weight:800;cursor:pointer">💾 保存</button><div style="display:flex;gap:4px"><button onclick="shiftGanttEdit()" style="flex:1;padding:5px;background:#475569;color:white;border:none;border-radius:6px;font-size:10px;font-weight:700;cursor:pointer">📅 シフト</button><button onclick="resetGanttEdit()" style="flex:1;padding:5px;background:#475569;color:white;border:none;border-radius:6px;font-size:10px;font-weight:700;cursor:pointer">🔄 リセット</button></div></div><div style="padding:8px;border-bottom:1px solid #334155"><div style="font-size:10px;font-weight:800;color:rgba(255,255,255,.7);margin-bottom:6px">＋ 工種追加</div><div style="display:flex;flex-direction:column;gap:5px"><input type="text" id="geNewName" placeholder="工種名" style="padding:5px 7px;border:1.5px solid #475569;border-radius:6px;font-size:11px;background:#0f172a;color:white;width:100%;box-sizing:border-box"><div style="display:flex;align-items:center;gap:4px"><span style="font-size:9px;color:rgba(255,255,255,.5);white-space:nowrap">日数</span><input type="number" id="geNewDays" placeholder="日数" min="1" max="180" style="padding:4px 6px;border:1.5px solid #475569;border-radius:6px;font-size:11px;background:#0f172a;color:white;width:100%;box-sizing:border-box"></div><div style="display:flex;align-items:center;gap:4px"><span style="font-size:9px;color:rgba(255,255,255,.5);white-space:nowrap">開始日</span><input type="date" id="geNewDate" style="padding:4px 4px;border:1.5px solid #475569;border-radius:6px;font-size:10px;background:#0f172a;color:white;width:100%;box-sizing:border-box"></div><div id="geColorPicker" style="display:flex;flex-wrap:wrap;gap:4px;margin:2px 0"></div><button onclick="addGanttBar()" style="width:100%;padding:7px;background:#059669;color:white;border:none;border-radius:7px;font-size:11px;font-weight:800;cursor:pointer">バーを追加</button></div></div><div style="padding:6px 8px;flex:1"><div style="font-size:9px;font-weight:800;color:rgba(255,255,255,.4);margin-bottom:4px">工種一覧</div><div id="geSegList" style="display:flex;flex-direction:column;gap:3px"></div></div></div></div>
 <div class="slide-panel" id="myPagePanel"><div class="panel-header"><button class="panel-back" onclick="closePanel('myPagePanel')">← 戻る</button><div style="flex:1"><div class="panel-title">⭐ マイ物件</div></div><button onclick="openSelectProp()" style="background:rgba(255,255,255,.2);color:white;border-radius:6px;padding:4px 9px;font-size:11px;font-weight:700">＋</button><button class="print-btn" onclick="printPage()">🖨️</button></div><div class="mypage-wrap" id="myPageContent"></div></div>
 <div class="slide-panel" id="selectPropPanel"><div class="panel-header"><button class="panel-back" onclick="closePanel('selectPropPanel')">← 戻る</button><div style="flex:1"><div class="panel-title">担当物件を選択</div></div><button onclick="closePanel('selectPropPanel')" style="background:rgba(255,255,255,.2);color:white;border-radius:6px;padding:4px 9px;font-size:11px;font-weight:700">完了</button></div><div class="panel-scroll" id="selectPropContent"></div></div>
 
@@ -1483,23 +1483,67 @@ function geRenderBars(){
   }
 }
 
+function geGetScrollWrap(){
+  // detail-gantt-multi の内側の overflow:auto div
+  var multiEl=document.getElementById('detail-gantt-multi');
+  return multiEl?multiEl.querySelector('div'):null;
+}
 function geStartDrag(e,idx,bar){
   e.preventDefault();
   var sd=geSegs[idx].start_date||geSegs[idx].date||'';
-  geDragBar={idx:idx,bar:bar}; geDragStartX=e.clientX;
+  var wrap=geGetScrollWrap();
+  geDragBar={
+    idx:idx, bar:bar,
+    startBarLeft:parseInt(bar.style.left)||0,
+    startClientX:e.clientX,
+    startScrollLeft:wrap?wrap.scrollLeft:0,
+    wrap:wrap
+  };
+  geDragStartX=e.clientX;
   geDragStartMs=sd?new Date(sd).getTime():Date.now();
   bar.style.cursor='grabbing';
+  bar.style.zIndex='100';
+  bar.style.boxShadow='0 4px 12px rgba(0,0,0,.4)';
   document.addEventListener('pointermove',geOnDrag);
   document.addEventListener('pointerup',geStopDrag);
 }
 function geOnDrag(e){
   if(!geDragBar)return;
-  var dayShift=Math.round((e.clientX-geDragStartX)/GCW_GE);
+  e.preventDefault();
+  var wrap=geDragBar.wrap;
+  // スクロール量も加味したピクセル移動
+  var scrollDelta=wrap?(wrap.scrollLeft-geDragBar.startScrollLeft):0;
+  var pxMoved=(e.clientX-geDragBar.startClientX)+scrollDelta;
+  var dayShift=Math.round(pxMoved/GCW_GE);
+  // バーのDOM位置をリアルタイム更新
+  var newLeft=geDragBar.startBarLeft+dayShift*GCW_GE;
+  if(newLeft<0)newLeft=0;
+  geDragBar.bar.style.left=newLeft+'px';
+  // 日付更新
   var nd=new Date(geDragStartMs+dayShift*86400000).toISOString().slice(0,10);
   geSegs[geDragBar.idx].start_date=nd; geSegs[geDragBar.idx].date=nd;
+  // 画面端に来たら自動スクロール
+  if(wrap){
+    var wrapRect=wrap.getBoundingClientRect();
+    var barRight=newLeft+GCW_GE*14; // approximate bar right
+    var edge=40; // px from edge to trigger scroll
+    if(e.clientX>wrapRect.right-edge) wrap.scrollLeft+=8;
+    else if(e.clientX<wrapRect.left+edge+90) wrap.scrollLeft-=8;
+    // バーが常時見えるようにスクロール調整
+    var barScreenLeft=newLeft-wrap.scrollLeft+90; // +90 for label col
+    var barScreenRight=barScreenLeft+(parseInt(geDragBar.bar.style.width)||GCW_GE);
+    var wrapW=wrapRect.width;
+    if(barScreenRight>wrapW-20) wrap.scrollLeft=newLeft-(wrapW-90-GCW_GE*8);
+    else if(barScreenLeft<90+20) wrap.scrollLeft=newLeft-GCW_GE*3;
+  }
 }
 function geStopDrag(){
-  if(geDragBar){geDragBar.bar.style.cursor='grab';geDragBar=null;}
+  if(geDragBar){
+    geDragBar.bar.style.cursor='grab';
+    geDragBar.bar.style.zIndex='';
+    geDragBar.bar.style.boxShadow='';
+    geDragBar=null;
+  }
   document.removeEventListener('pointermove',geOnDrag);
   document.removeEventListener('pointerup',geStopDrag);
   geRenderBars();
@@ -1538,11 +1582,14 @@ function geRenderSegList(){
 
 function addGanttBar(){
   var nm=(document.getElementById('geNewName').value||'').trim();
-  var days=parseInt(document.getElementById('geNewDays').value)||7;
+  var daysVal=document.getElementById('geNewDays').value;
+  var days=parseInt(daysVal);
   var sd=document.getElementById('geNewDate').value||TODAY;
   if(!nm){showToast('工種名を入力してください','error');return;}
+  if(!daysVal||isNaN(days)||days<1){showToast('日数を入力してください','error');return;}
   geSegs.push({label:nm,start_date:sd,date:sd,end_date:'',calendar_dur:days,duration:days,color:geSelColor,layer:0,textColor:'auto'});
   document.getElementById('geNewName').value='';
+  document.getElementById('geNewDays').value='';
   geRenderBars(); showToast(nm+'を追加しました','success');
 }
 window.addGanttBar=addGanttBar;
