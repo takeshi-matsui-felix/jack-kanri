@@ -1484,7 +1484,6 @@ function geRenderBars(){
 }
 
 function geGetScrollWrap(){
-  // detail-gantt-multi の内側の overflow:auto div
   var multiEl=document.getElementById('detail-gantt-multi');
   return multiEl?multiEl.querySelector('div'):null;
 }
@@ -1492,55 +1491,52 @@ function geStartDrag(e,idx,bar){
   e.preventDefault();
   var sd=geSegs[idx].start_date||geSegs[idx].date||'';
   var wrap=geGetScrollWrap();
+  var cv=document.getElementById('geCanvas');
+  var cvLeft=cv?cv.getBoundingClientRect().left:0;
   geDragBar={
     idx:idx, bar:bar,
     startBarLeft:parseInt(bar.style.left)||0,
-    startClientX:e.clientX,
-    startScrollLeft:wrap?wrap.scrollLeft:0,
+    // canvas左端からのポインタ位置を記録
+    startCanvasX:(e.clientX - cvLeft),
     wrap:wrap
   };
-  geDragStartX=e.clientX;
-  geDragStartMs=sd?new Date(sd).getTime():Date.now();
+  geDragStartMs=sd?new Date(sd.replace(/\//g,'-')).getTime():Date.now();
   bar.style.cursor='grabbing';
   bar.style.zIndex='100';
-  bar.style.boxShadow='0 4px 12px rgba(0,0,0,.4)';
-  document.addEventListener('pointermove',geOnDrag);
+  bar.style.opacity='0.85';
+  bar.style.boxShadow='0 4px 16px rgba(0,0,0,.5)';
+  document.addEventListener('pointermove',geOnDrag,{passive:false});
   document.addEventListener('pointerup',geStopDrag);
 }
 function geOnDrag(e){
   if(!geDragBar)return;
   e.preventDefault();
-  var wrap=geDragBar.wrap;
-  // スクロール量も加味したピクセル移動
-  var scrollDelta=wrap?(wrap.scrollLeft-geDragBar.startScrollLeft):0;
-  var pxMoved=(e.clientX-geDragBar.startClientX)+scrollDelta;
+  var cv=document.getElementById('geCanvas');
+  if(!cv)return;
+  var cvLeft=cv.getBoundingClientRect().left;
+  // canvas座標系での現在のX位置
+  var currentCanvasX=e.clientX - cvLeft;
+  var pxMoved=currentCanvasX - geDragBar.startCanvasX;
   var dayShift=Math.round(pxMoved/GCW_GE);
-  // バーのDOM位置をリアルタイム更新
-  var newLeft=geDragBar.startBarLeft+dayShift*GCW_GE;
+  var newLeft=geDragBar.startBarLeft + dayShift*GCW_GE;
   if(newLeft<0)newLeft=0;
   geDragBar.bar.style.left=newLeft+'px';
   // 日付更新
   var nd=new Date(geDragStartMs+dayShift*86400000).toISOString().slice(0,10);
   geSegs[geDragBar.idx].start_date=nd; geSegs[geDragBar.idx].date=nd;
-  // 画面端に来たら自動スクロール
+  // バーが見えるよう自動スクロール（端から60px以内）
+  var wrap=geDragBar.wrap;
   if(wrap){
-    var wrapRect=wrap.getBoundingClientRect();
-    var barRight=newLeft+GCW_GE*14; // approximate bar right
-    var edge=40; // px from edge to trigger scroll
-    if(e.clientX>wrapRect.right-edge) wrap.scrollLeft+=8;
-    else if(e.clientX<wrapRect.left+edge+90) wrap.scrollLeft-=8;
-    // バーが常時見えるようにスクロール調整
-    var barScreenLeft=newLeft-wrap.scrollLeft+90; // +90 for label col
-    var barScreenRight=barScreenLeft+(parseInt(geDragBar.bar.style.width)||GCW_GE);
-    var wrapW=wrapRect.width;
-    if(barScreenRight>wrapW-20) wrap.scrollLeft=newLeft-(wrapW-90-GCW_GE*8);
-    else if(barScreenLeft<90+20) wrap.scrollLeft=newLeft-GCW_GE*3;
+    var wr=wrap.getBoundingClientRect();
+    if(e.clientX > wr.right-60) wrap.scrollLeft += 12;
+    else if(e.clientX < wr.left+60) wrap.scrollLeft -= 12;
   }
 }
 function geStopDrag(){
   if(geDragBar){
     geDragBar.bar.style.cursor='grab';
     geDragBar.bar.style.zIndex='';
+    geDragBar.bar.style.opacity='';
     geDragBar.bar.style.boxShadow='';
     geDragBar=null;
   }
@@ -1575,10 +1571,58 @@ function geShowDelConfirm(idx,lbl){
 function geRenderSegList(){
   var el=document.getElementById('geSegList'); if(!el)return;
   el.innerHTML=geSegs.map(function(s,i){
-    var lbl=s.label||'',dur=s.calendar_dur||s.duration||1;
-    return '<div style="display:flex;align-items:center;gap:4px;padding:3px 4px;background:#0f172a;border-radius:5px;"><div style="width:10px;height:10px;background:'+(s.color||'#64748b')+';border-radius:2px;flex-shrink:0;"></div><div style="flex:1;font-size:9px;color:rgba(255,255,255,.8);overflow:hidden;white-space:nowrap;">'+lbl+'</div><div style="font-size:8px;color:rgba(255,255,255,.4);">'+dur+'日</div></div>';
+    var lbl=s.label||'';
+    var sd=s.start_date||s.date||'';
+    var dur=s.calendar_dur||s.duration||1;
+    // 完了日を計算（start + dur - 1日）
+    var edVal=s.end_date||'';
+    if(!edVal&&sd){
+      var d=new Date(sd.replace(/\//g,'-')); d.setDate(d.getDate()+dur-1);
+      edVal=d.toISOString().slice(0,10);
+    }
+    var inputStyle='padding:2px 4px;border:1px solid #475569;border-radius:4px;font-size:9px;background:#0f172a;color:white;width:88px;box-sizing:border-box;';
+    return '<div style="display:flex;flex-direction:column;gap:3px;padding:5px 4px;background:#0f172a;border-radius:6px;border-left:3px solid '+(s.color||'#64748b')+';">'
+      +'<div style="display:flex;align-items:center;gap:4px;">'
+      +'<div style="flex:1;font-size:9px;font-weight:700;color:rgba(255,255,255,.9);overflow:hidden;white-space:nowrap;">'+lbl+'</div>'
+      +'<div style="font-size:8px;color:rgba(255,255,255,.4);white-space:nowrap;">'+dur+'日</div>'
+      +'</div>'
+      +'<div style="display:flex;gap:3px;align-items:center;">'
+      +'<label style="font-size:8px;color:rgba(255,255,255,.4);white-space:nowrap;">開始</label>'
+      +'<input type="date" data-idx="'+i+'" data-field="start" value="'+sd+'" style="'+inputStyle+'" onchange="geUpdateSegDate(this)">'
+      +'</div>'
+      +'<div style="display:flex;gap:3px;align-items:center;">'
+      +'<label style="font-size:8px;color:rgba(255,255,255,.4);white-space:nowrap;">完了</label>'
+      +'<input type="date" data-idx="'+i+'" data-field="end" value="'+edVal+'" style="'+inputStyle+'" onchange="geUpdateSegDate(this)">'
+      +'</div>'
+      +'</div>';
   }).join('');
 }
+function geUpdateSegDate(input){
+  var idx=parseInt(input.getAttribute('data-idx'));
+  var field=input.getAttribute('data-field');
+  var val=input.value; if(!val)return;
+  var s=geSegs[idx]; if(!s)return;
+  if(field==='start'){
+    s.start_date=val; s.date=val;
+    // 完了日から日数再計算
+    var ed=s.end_date||'';
+    if(ed&&ed>=val){
+      s.calendar_dur=Math.round((new Date(ed)-new Date(val))/86400000)+1;
+      s.duration=s.calendar_dur;
+    }
+  } else {
+    // 完了日変更 → 日数再計算
+    var sd2=s.start_date||s.date||'';
+    if(sd2&&val>=sd2){
+      s.end_date=val;
+      s.calendar_dur=Math.round((new Date(val)-new Date(sd2))/86400000)+1;
+      s.duration=s.calendar_dur;
+    }
+  }
+  // 再描画（入力欄を保持するためgeRenderBarsをやや遅延）
+  geRenderBars();
+}
+window.geUpdateSegDate=geUpdateSegDate;
 
 function addGanttBar(){
   var nm=(document.getElementById('geNewName').value||'').trim();
