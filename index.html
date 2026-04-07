@@ -1875,114 +1875,139 @@ function edBuildDates(segs){
   return arr;
 }
 
-/* ---- render (white-bg, same style as buildGanttTab multiRow, with drag handles) ---- */
+/* ---- render: buildGanttTabのmultiRowを直接流用＋ドラッグハンドル追加 ---- */
+/* ---- render: buildGanttTabと同一ロジック ---- */
 function renderEditorCanvas(){
   var wrap=document.getElementById('editorCanvasWrap');
   var cv=document.getElementById('editorCanvas');
-  if(!cv)return;
-  cv.innerHTML='';
+  if(!cv||!wrap)return;
+
+  // 表示切り替え
+  var gg=document.getElementById('gedGantt');
+  if(gg)gg.style.cssText='display:flex;flex:1;flex-direction:column;overflow:hidden;';
+  var ge=document.getElementById('gedEmpty');
+  if(ge)ge.style.display='none';
 
   var segs=edSegs;
-  var todayDt=new Date(TODAY);
-  var gDates=edBuildDates(segs);
-  var gDateIdx={}; gDates.forEach(function(d,i){if(d)gDateIdx[d]=i;});
-  var GCW=GCW_ED;
-  var totalW=(gDates.length-1)*GCW;
-  var ROW_H=22;
-  var numRows=Math.max(segs.length,1);
+  if(!segs||!segs.length){
+    cv.style.cssText='position:relative;width:200px;min-height:60px;';
+    cv.innerHTML='<div style="padding:20px;color:#94a3b8;font-size:11px;">工種追加からバーを追加してください</div>';
+    renderEdSegList(); return;
+  }
 
-  // months header
+  var todayDt=new Date(TODAY);
+  var GCW=14;
+  var ROW_H=22;
+
+  // ── buildGanttTab と全く同じ日付範囲計算 ──
+  var gStart=new Date(TODAY); gStart.setMonth(gStart.getMonth()-1); gStart.setDate(1);
+  var gEnd=new Date(TODAY);   gEnd.setMonth(gEnd.getMonth()+6);    gEnd.setDate(0);
+  segs.forEach(function(seg){
+    var sd=seg.start_date||seg.date||'';
+    if(sd){var dt=new Date(sd.replace(/\//g,'-'));if(dt<gStart)gStart=new Date(dt.getFullYear(),dt.getMonth(),1);}
+    var ed=seg.end_date||'';
+    if(ed){var dt=new Date(ed.replace(/[/]/g,'-'));if(dt>gEnd)gEnd=new Date(dt.getFullYear(),dt.getMonth()+1,0);}
+  });
+  var gDates=['']; var cur=new Date(gStart.getTime());
+  while(cur<=gEnd){gDates.push(cur.toISOString().slice(0,10));cur.setDate(cur.getDate()+1);}
+  var gDateIdx={}; gDates.forEach(function(d,i){if(d)gDateIdx[d]=i;});
+
+  var totalW=(gDates.length-1)*GCW;
+  var numRows=segs.length;
+  var mn={'01':'1月','02':'2月','03':'3月','04':'4月','05':'5月','06':'6月','07':'7月','08':'8月','09':'9月','10':'10月','11':'11月','12':'12月'};
+
+  // ── buildGanttTab multiRow と全く同じHTML生成 ──
   var months={};
   gDates.forEach(function(d,i){if(!d)return;var m=d.substring(0,7);if(!months[m])months[m]={start:i-1,count:0};months[m].count++;});
-  var mn={'01':'1月','02':'2月','03':'3月','04':'4月','05':'5月','06':'6月','07':'7月','08':'8月','09':'9月','10':'10月','11':'11月','12':'12月'};
   var hdrBands='';
   Object.keys(months).forEach(function(m){var v=months[m],mm=m.split('-')[1];
     hdrBands+='<div style="position:absolute;left:'+(v.start*GCW)+'px;top:0;width:'+(v.count*GCW)+'px;height:14px;background:#1a56db;color:white;font-size:7px;font-weight:800;display:flex;align-items:center;justify-content:center;border-right:2px solid rgba(255,255,255,.4);overflow:hidden;">'+m.split('-')[0]+'年'+(mn[mm]||mm)+'</div>';});
 
-  // day numbers
   var dayNums='';
   gDates.forEach(function(d,i){if(!d)return;
     var dow=getDow(d),day=parseInt(d.split('-')[2]),isToday=d===TODAY;
-    dayNums+='<div style="position:absolute;left:'+((i-1)*GCW)+'px;top:14px;width:'+GCW+'px;height:14px;display:flex;align-items:center;justify-content:center;font-size:6px;font-weight:700;font-family:var(--mono);color:'+(isToday?'#ef4444':dow===0?'#ef9999':dow===6?'#6ea8fe':'#555')+';background:'+(isToday?'rgba(239,68,68,.15)':dow===0?'rgba(255,182,193,.3)':dow===6?'rgba(173,216,230,.3)':'transparent')+';border-right:1px solid #e2e8f0;">'+(day===1||day%5===0?day:'')+'</div>';});
+    dayNums+='<div style="position:absolute;left:'+((i-1)*GCW)+'px;top:14px;width:'+GCW+'px;height:14px;display:flex;align-items:center;justify-content:center;font-size:6px;font-weight:700;font-family:var(--mono);color:'+(isToday?'#ef4444':dow===0?'#fca5a5':dow===6?'#93c5fd':'rgba(255,255,255,.65)')+';background:'+(isToday?'rgba(239,68,68,.35)':dow===0?'rgba(255,182,193,.22)':dow===6?'rgba(173,216,230,.18)':'transparent')+';">'+(day===1||day%5===0?day:'')+'</div>';});
 
-  // fills & month lines
+  var todayCol=gDateIdx[TODAY]||0;
+  var todayLine=todayCol>0?'<div style="position:absolute;left:'+((todayCol-1)*GCW)+'px;top:0;width:2px;height:'+(numRows*ROW_H+28)+'px;background:#ef4444;z-index:10;pointer-events:none;"></div>':'';
+
   var fills='';
   gDates.forEach(function(d,i){if(!d)return;
     var dow=getDow(d);
     if(dow===0||dow===6)fills+='<div style="position:absolute;left:'+((i-1)*GCW)+'px;top:28px;width:'+GCW+'px;height:'+(numRows*ROW_H)+'px;background:'+(dow===0?'rgba(255,182,193,.22)':'rgba(173,216,230,.18)')+';pointer-events:none;z-index:0;"></div>';
-    if(d.slice(8)==='01'&&i>1)fills+='<div style="position:absolute;left:'+((i-1)*GCW)+'px;top:0;width:2px;height:'+(numRows*ROW_H+28)+'px;background:#94a3b8;pointer-events:none;z-index:2;"></div>';
+    if(d.slice(8)==='01'&&i>1)fills+='<div style="position:absolute;left:'+((i-1)*GCW)+'px;top:0;width:2px;height:'+(numRows*ROW_H+28)+'px;background:#475569;pointer-events:none;z-index:2;"></div>';
   });
 
-  // today line
-  var todayCol=gDateIdx[TODAY]||0;
-  var todayLine=todayCol>0?'<div style="position:absolute;left:'+((todayCol-1)*GCW)+'px;top:0;width:2px;height:'+(numRows*ROW_H+28)+'px;background:#ef4444;z-index:10;pointer-events:none;"></div>':'';
-
-  // row bgs
   var rowBgs='';
-  for(var ri=0;ri<numRows;ri++)rowBgs+='<div style="position:absolute;left:0;top:'+(ri*ROW_H+28)+'px;width:'+totalW+'px;height:'+ROW_H+'px;background:'+(ri%2===0?'white':'#f8fafc')+';border-bottom:1px solid #e2e8f0;"></div>';
+  for(var ri2=0;ri2<numRows;ri2++)rowBgs+='<div style="position:absolute;left:0;top:'+(ri2*ROW_H+28)+'px;width:'+totalW+'px;height:'+ROW_H+'px;background:'+(ri2%2===0?'rgba(255,255,255,.03)':'rgba(255,255,255,.07)')+';border-bottom:1px solid rgba(255,255,255,.05);"></div>';
 
-  // labels (left column, outside the canvas, handled by padding-left)
+  // ラベル列
   var labels='<div style="position:absolute;left:0;top:28px;width:0;height:'+(numRows*ROW_H)+'px;">';
   segs.forEach(function(seg,ri){
-    var lbl=seg.label||seg.name||'';
-    labels+='<div style="position:absolute;left:-88px;top:'+(ri*ROW_H)+'px;width:86px;height:'+ROW_H+'px;display:flex;align-items:center;justify-content:flex-end;padding-right:4px;font-size:9px;font-weight:700;color:#334155;overflow:hidden;white-space:nowrap;background:'+(ri%2===0?'white':'#f8fafc')+';border-bottom:1px solid #e2e8f0;">'+lbl+'</div>';
+    labels+='<div style="position:absolute;left:-90px;top:'+(ri*ROW_H)+'px;width:88px;height:'+ROW_H+'px;display:flex;align-items:center;justify-content:flex-end;padding-right:4px;font-size:9px;font-weight:700;color:rgba(255,255,255,.75);overflow:hidden;white-space:nowrap;">'+(seg.label||seg.name||'')+'</div>';
   });
   labels+='</div>';
 
-  // bars (interactive)
-  var barsHtml='';
+  // バー（buildGanttTab multiRowと同じ座標 + 編集ハンドル）
+  var bars='';
   segs.forEach(function(seg,idx){
     var lbl=seg.label||seg.name||'';
     var sd=seg.start_date||seg.date||''; if(!sd)return;
     var sdClean=sd.replace(/\//g,'-');
-    var iIdx=gDateIdx[sdClean]; if(!iIdx)return;
-    var calDur=seg.calendar_dur||seg.duration||seg.dur||1;
-    var sx=(iIdx-1)*GCW;
+    var col=gDateIdx[sdClean]; if(col===undefined||col===0)return;
+    var calDur=seg.calendar_dur||(function(){
+      var ed=seg.end_date||'';
+      if(ed)return Math.round((new Date(ed.replace(/[/]/g,'-'))-new Date(sdClean))/86400000)+1;
+      return seg.duration||seg.dur||1;
+    })();
+    var sx=(col-1)*GCW;
     var bw=Math.max(calDur*GCW-1,GCW-1);
     var layer=seg.layer||0;
     var by=idx*ROW_H+28+(layer===1?3:0);
-    var bh=layer===1?ROW_H-9:ROW_H-5;
+    var bh=layer===1?ROW_H-7:ROW_H-3;
     var color=seg.color||EC[lbl]||'#64748b';
     var isDark=!!DARK_TEXT[lbl];
     var tcOvr=seg.textColor||seg.text_color;
     var tcolor=tcOvr&&tcOvr!=='auto'?tcOvr:(isDark?'#3a2a10':'white');
-    var isPast=seg.end_date&&new Date(seg.end_date.replace(/\//g,'-'))<todayDt;
+    var isPast=seg.end_date&&new Date(seg.end_date.replace(/[/]/g,'-'))<todayDt;
     var isAct=!isPast&&sdClean&&new Date(sdClean)<=todayDt;
-    barsHtml+='<div class="ed-bar-el" id="edbar'+idx+'" data-idx="'+idx+'" style="position:absolute;left:'+sx+'px;top:'+by+'px;width:'+bw+'px;height:'+bh+'px;background:'+color+';color:'+tcolor+';font-size:6px;font-weight:800;border-radius:2px;display:flex;align-items:center;padding:0 14px 0 3px;overflow:hidden;white-space:nowrap;box-shadow:0 1px 3px rgba(0,0,0,.15);z-index:'+(layer===1?12:10)+';opacity:'+(isPast?'.6':'1')+';cursor:grab;user-select:none;'+(isAct?'outline:2px solid rgba(239,68,68,.5);':'')+';">'
-      +(bw>16?lbl:'')
-      +'<div class="ed-del-btn" data-idx="'+idx+'" style="position:absolute;right:1px;top:50%;transform:translateY(-50%);width:12px;height:12px;background:#ef4444;color:white;border-radius:50%;font-size:9px;font-weight:900;display:flex;align-items:center;justify-content:center;cursor:pointer;z-index:20;line-height:1;">×</div>'
-      +'<div class="ed-resize-handle" data-idx="'+idx+'" style="position:absolute;right:14px;top:0;width:6px;height:100%;cursor:ew-resize;z-index:15;background:rgba(255,255,255,.2);border-radius:0 2px 2px 0;"></div>'
+    bars+='<div id="edbar'+idx+'" data-idx="'+idx+'" class="ed-bar-el" style="position:absolute;left:'+sx+'px;top:'+by+'px;width:'+bw+'px;height:'+bh+'px;background:'+color+';color:'+tcolor+';font-size:6px;font-weight:800;border-radius:2px;display:flex;align-items:center;padding:0 2px;overflow:hidden;white-space:nowrap;box-shadow:0 1px 2px rgba(0,0,0,.2);z-index:'+(layer===1?12:10)+';opacity:'+(isPast?'.6':'1')+';cursor:grab;user-select:none;'+(isAct?'outline:2px solid rgba(255,255,0,.5);outline-offset:0;':'')+';">'
+      +(bw>14?lbl:'')
+      +'<span class="ed-del-btn" data-idx="'+idx+'" style="position:absolute;right:1px;top:1px;width:11px;height:11px;background:rgba(239,68,68,.85);color:white;border-radius:50%;font-size:8px;font-weight:900;display:flex;align-items:center;justify-content:center;cursor:pointer;z-index:20;line-height:1;">x</span>'
+      +'<span class="ed-rsz" data-idx="'+idx+'" style="position:absolute;right:0;top:0;width:7px;height:100%;cursor:ew-resize;z-index:15;background:rgba(255,255,255,.15);"></span>'
       +'</div>';
   });
 
-  // assemble
+  // 組み立て（buildGanttTab multiRowと同じ構造）
   var totalH=numRows*ROW_H+28;
-  cv.style.cssText='position:relative;width:'+totalW+'px;height:'+totalH+'px;';
-  cv.innerHTML=labels+hdrBands+dayNums+todayLine+fills+rowBgs+barsHtml;
+  cv.innerHTML='';
+  cv.style.cssText='position:relative;width:'+totalW+'px;height:'+totalH+'px;background:#1e293b;';
+  // wrapのpaddingを90pxにして背景色を合わせる
+  wrap.style.cssText='flex:1;overflow:auto;-webkit-overflow-scrolling:touch;padding-left:90px;background:#1e293b;';
+  cv.innerHTML=labels+hdrBands+dayNums+todayLine+fills+rowBgs+bars;
 
-  // attach events
+  // イベント付与
   cv.querySelectorAll('.ed-bar-el').forEach(function(bar){
     var idx=parseInt(bar.getAttribute('data-idx'));
     bar.addEventListener('pointerdown',function(e){
-      if(e.target.classList.contains('ed-del-btn')){showEdDeleteConfirm(idx,edSegs[idx]?edSegs[idx].label||edSegs[idx].name:'');return;}
-      if(e.target.classList.contains('ed-resize-handle')){startEdResize(e,idx);return;}
+      var t=e.target;
+      if(t.classList.contains('ed-del-btn')){e.stopPropagation();showEdDeleteConfirm(idx,edSegs[idx]?edSegs[idx].label||edSegs[idx].name:'');return;}
+      if(t.classList.contains('ed-rsz')){e.stopPropagation();startEdResize(e,idx);return;}
       startEdDrag(e,idx,bar);
     });
   });
 
-  // scroll to first bar or today
+  // 最初のバーにスクロール
   setTimeout(function(){
-    if(!wrap)return;
-    var sd0=segs.length?segs[0].start_date||segs[0].date||'':'';
+    var sd0=segs.length?(segs[0].start_date||segs[0].date||''):'';
     var si=sd0?gDateIdx[sd0.replace(/\//g,'-')]||0:0;
     var ti=gDateIdx[TODAY]||0;
-    var target=si>0?Math.max(0,(si-3)*GCW):Math.max(0,(ti-3)*GCW);
-    wrap.scrollLeft=target;
+    wrap.scrollLeft=Math.max(0,((si||ti)-5)*GCW);
   },30);
 
-  // update seg list in sidebar
   renderEdSegList();
 }
+
 
 /* ---- seg list in sidebar ---- */
 function renderEdSegList(){
@@ -2078,11 +2103,14 @@ function openGanttEditorMenu(){
   edProp=null;
   var all=getAllProps();
   var listEl=document.getElementById('gedListItems'); if(!listEl)return;
-  if(!myFavProps.length){
-    listEl.innerHTML='<div style="padding:10px 6px;font-size:9px;color:rgba(255,255,255,.3);text-align:center">マイ物件<br>未登録</div>';
+  // myFavPropsがあればそれ優先、なければ全件表示
+  var listProps=myFavProps.length
+    ? myFavProps.map(function(fav){return all.find(function(x){return x.fix_no===fav.fix_no&&x.name===fav.name;});}).filter(Boolean)
+    : all;
+  if(!listProps.length){
+    listEl.innerHTML='<div style="padding:10px 6px;font-size:9px;color:rgba(255,255,255,.3);text-align:center">物件なし</div>';
   } else {
-    listEl.innerHTML=myFavProps.map(function(fav){
-      var p=all.find(function(x){return x.fix_no===fav.fix_no&&x.name===fav.name;}); if(!p)return '';
+    listEl.innerHTML=listProps.map(function(p){
       var sn=p.name.replace(/^(Jack|Walter)\s*/i,'');
       var hasC=!!customGantt[custKey(p)];
       return '<div class="ged-item" data-fix="'+p.fix_no+'" data-enc="'+encodeURIComponent(p.name)+'" onclick="openGanttEditor(\''+p.fix_no+'\',\''+encodeURIComponent(p.name)+'\')">'
