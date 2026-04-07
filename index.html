@@ -411,7 +411,7 @@ body{display:flex;overflow:hidden;}
     <div class="sb-item" onclick="sbOpenSub('sbSubMyProp')"><span class="sb-icon">⭐</span><span class="sb-label">マイ物件編集</span><span class="sb-caret" id="cMyProp">▾</span></div>
     <div class="sb-sub" id="sbSubMyProp">
       <div class="sb-item" onclick="openSelectProp()"><span class="sb-icon">➕</span><span class="sb-label">登録・削除</span></div>
-      <div class="sb-item" onclick="openGanttEditorMenu()"><span class="sb-icon">✏️</span><span class="sb-label">工程表編集</span></div>
+      
       <div class="sb-item" onclick="openMyCalendar()"><span class="sb-icon">📅</span><span class="sb-label">工事カレンダー</span></div>
     </div>
     <div class="sb-divider"></div>
@@ -446,78 +446,10 @@ body{display:flex;overflow:hidden;}
   <div class="stats-strip" id="statsStrip"></div>
   <div class="table-wrap"><div class="table-header"><div id="freezeHeaderInner" style="border-right:2px solid #475569;flex-shrink:0;overflow:hidden"></div><div id="scrollHeaderWrap" style="flex:1;overflow:hidden"><div id="scrollHeaderInner"></div></div></div><div class="table-body"><div class="freeze-body" id="freezeBody"></div><div class="scroll-body" id="scrollBody"><div id="ganttCanvas"></div></div></div></div>
 </div>
-<div class="slide-panel" id="detailPanel"><div class="panel-header"><button class="panel-back" onclick="closePanel('detailPanel')">← 戻る</button><div style="flex:1"><div class="panel-title">物件詳細</div></div></div><div class="panel-scroll" id="dpContent"></div><div class="panel-action-bar" id="dpActionBar"></div></div>
+<div class="slide-panel" id="detailPanel" style="display:flex;flex-direction:row;overflow:hidden"><div style="flex:1;display:flex;flex-direction:column;overflow:hidden"><div class="panel-header"><button class="panel-back" onclick="closePanel('detailPanel')">← 戻る</button><div style="flex:1"><div class="panel-title">物件詳細</div></div></div><div class="panel-scroll" id="dpContent"></div><div class="panel-action-bar" id="dpActionBar"></div></div><div id="ganttEditSidebar" style="display:none;width:172px;min-width:172px;background:#1e293b;border-left:2px solid #334155;flex-direction:column;overflow-y:auto;flex-shrink:0"><div style="padding:8px;border-bottom:1px solid #334155;display:flex;flex-direction:column;gap:4px"><div style="font-size:10px;font-weight:800;color:rgba(255,255,255,.5);margin-bottom:2px">✏️ 工程表編集</div><button onclick="saveGanttEdit()" style="width:100%;padding:7px;background:#1a56db;color:white;border:none;border-radius:7px;font-size:11px;font-weight:800;cursor:pointer">💾 保存</button><div style="display:flex;gap:4px"><button onclick="shiftGanttEdit()" style="flex:1;padding:5px;background:#475569;color:white;border:none;border-radius:6px;font-size:10px;font-weight:700;cursor:pointer">📅 シフト</button><button onclick="resetGanttEdit()" style="flex:1;padding:5px;background:#475569;color:white;border:none;border-radius:6px;font-size:10px;font-weight:700;cursor:pointer">🔄 リセット</button></div></div><div style="padding:8px;border-bottom:1px solid #334155"><div style="font-size:10px;font-weight:800;color:rgba(255,255,255,.7);margin-bottom:6px">＋ 工種追加</div><div style="display:flex;flex-direction:column;gap:5px"><input type="text" id="geNewName" placeholder="工種名" style="padding:5px 7px;border:1.5px solid #475569;border-radius:6px;font-size:11px;background:#0f172a;color:white;width:100%;box-sizing:border-box"><div style="display:flex;align-items:center;gap:4px"><span style="font-size:9px;color:rgba(255,255,255,.5);white-space:nowrap">日数</span><input type="number" id="geNewDays" value="7" min="1" max="180" style="padding:4px 6px;border:1.5px solid #475569;border-radius:6px;font-size:11px;background:#0f172a;color:white;width:100%;box-sizing:border-box"></div><div style="display:flex;align-items:center;gap:4px"><span style="font-size:9px;color:rgba(255,255,255,.5);white-space:nowrap">開始日</span><input type="date" id="geNewDate" style="padding:4px 4px;border:1.5px solid #475569;border-radius:6px;font-size:10px;background:#0f172a;color:white;width:100%;box-sizing:border-box"></div><div id="geColorPicker" style="display:flex;flex-wrap:wrap;gap:4px;margin:2px 0"></div><button onclick="addGanttBar()" style="width:100%;padding:7px;background:#059669;color:white;border:none;border-radius:7px;font-size:11px;font-weight:800;cursor:pointer">バーを追加</button></div></div><div style="padding:6px 8px;flex:1"><div style="font-size:9px;font-weight:800;color:rgba(255,255,255,.4);margin-bottom:4px">工種一覧</div><div id="geSegList" style="display:flex;flex-direction:column;gap:3px"></div></div></div></div>
 <div class="slide-panel" id="myPagePanel"><div class="panel-header"><button class="panel-back" onclick="closePanel('myPagePanel')">← 戻る</button><div style="flex:1"><div class="panel-title">⭐ マイ物件</div></div><button onclick="openSelectProp()" style="background:rgba(255,255,255,.2);color:white;border-radius:6px;padding:4px 9px;font-size:11px;font-weight:700">＋</button><button class="print-btn" onclick="printPage()">🖨️</button></div><div class="mypage-wrap" id="myPageContent"></div></div>
 <div class="slide-panel" id="selectPropPanel"><div class="panel-header"><button class="panel-back" onclick="closePanel('selectPropPanel')">← 戻る</button><div style="flex:1"><div class="panel-title">担当物件を選択</div></div><button onclick="closePanel('selectPropPanel')" style="background:rgba(255,255,255,.2);color:white;border-radius:6px;padding:4px 9px;font-size:11px;font-weight:700">完了</button></div><div class="panel-scroll" id="selectPropContent"></div></div>
-<div class="slide-panel" id="ganttEditorPanel" style="overflow:hidden;display:flex;flex-direction:column">
-  <!-- ヘッダー -->
-  <div class="panel-header" style="flex-shrink:0">
-    <button class="panel-back" onclick="closePanel('ganttEditorPanel')">← 戻る</button>
-    <div style="flex:1;min-width:0">
-      <div class="panel-title">✏️ 工程表編集</div>
-      <div id="gedSubTitle" style="font-size:9px;opacity:.7">物件を選択してください</div>
-    </div>
-    <button class="print-btn" onclick="printPage()">🖨️</button>
-  </div>
-  <!-- メインエリア: 物件リスト | ガント+右サイドバー -->
-  <div style="flex:1;display:flex;overflow:hidden;min-height:0">
-    <!-- 左: 物件リスト -->
-    <div id="gedList" style="width:110px;min-width:110px;background:#1e293b;border-right:2px solid #334155;overflow-y:auto;flex-shrink:0">
-      <div style="padding:5px 8px 3px;font-size:9px;font-weight:800;color:rgba(255,255,255,.35);letter-spacing:.5px;text-transform:uppercase">物件</div>
-      <div id="gedListItems"></div>
-    </div>
-    <!-- 中央: ガント（白背景・物件詳細と同じ） -->
-    <div style="flex:1;display:flex;flex-direction:column;overflow:hidden;background:#f8fafc;min-width:0">
-      <div id="gedEmpty" style="flex:1;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:8px;color:#94a3b8">
-        <div style="font-size:28px">📋</div><div style="font-size:11px;font-weight:700">←物件を選択</div>
-      </div>
-      <div id="gedGantt" style="display:none;flex:1;flex-direction:column;overflow:hidden">
-        <!-- 工程表ヒント -->
-        <div style="padding:4px 10px;background:#f1f5f9;border-bottom:1px solid #e2e8f0;font-size:9px;color:#64748b;flex-shrink:0">
-          🏗️ 工程表（6ヶ月カレンダー）　<span style="color:#94a3b8">ドラッグで移動 ｜ 右端で延縮 ｜ ×で削除</span>
-        </div>
-        <!-- ガント本体（白背景） -->
-        <div id="editorCanvasWrap" style="flex:1;overflow:auto;-webkit-overflow-scrolling:touch;background:white;padding:0 0 8px 90px">
-          <div id="editorCanvas" style="position:relative;min-height:40px"></div>
-        </div>
-      </div>
-    </div>
-    <!-- 右: 編集サイドバー -->
-    <div id="gedSidebar" style="width:180px;min-width:180px;background:#1e293b;border-left:2px solid #334155;display:flex;flex-direction:column;overflow-y:auto;flex-shrink:0">
-      <!-- 保存・リセット -->
-      <div style="padding:8px;border-bottom:1px solid #334155;display:flex;flex-direction:column;gap:4px">
-        <button onclick="saveEditorChanges()" style="width:100%;padding:8px;background:#1a56db;color:white;border:none;border-radius:7px;font-size:11px;font-weight:800;cursor:pointer">💾 保存</button>
-        <div style="display:flex;gap:4px">
-          <button onclick="showPeriodShift()" style="flex:1;padding:5px;background:#475569;color:white;border:none;border-radius:6px;font-size:10px;font-weight:700;cursor:pointer">📅 シフト</button>
-          <button onclick="resetEditorChanges()" style="flex:1;padding:5px;background:#475569;color:white;border:none;border-radius:6px;font-size:10px;font-weight:700;cursor:pointer">🔄 リセット</button>
-        </div>
-      </div>
-      <!-- 工種追加フォーム -->
-      <div style="padding:8px;border-bottom:1px solid #334155">
-        <div style="font-size:10px;font-weight:800;color:rgba(255,255,255,.7);margin-bottom:6px">＋ 工種追加</div>
-        <div style="display:flex;flex-direction:column;gap:5px">
-          <input type="text" id="newBarName" placeholder="工種名" style="padding:5px 7px;border:1.5px solid #475569;border-radius:6px;font-size:11px;background:#0f172a;color:white;width:100%;box-sizing:border-box">
-          <div style="display:flex;align-items:center;gap:4px">
-            <span style="font-size:9px;color:rgba(255,255,255,.5);white-space:nowrap">日数</span>
-            <input type="number" id="newBarDays" value="7" min="1" max="180" style="padding:4px 6px;border:1.5px solid #475569;border-radius:6px;font-size:11px;background:#0f172a;color:white;width:100%;box-sizing:border-box">
-          </div>
-          <div style="display:flex;align-items:center;gap:4px">
-            <span style="font-size:9px;color:rgba(255,255,255,.5);white-space:nowrap">開始日</span>
-            <input type="date" id="newBarDate" style="padding:4px 4px;border:1.5px solid #475569;border-radius:6px;font-size:10px;background:#0f172a;color:white;width:100%;box-sizing:border-box">
-          </div>
-          <div id="colorPicker" style="display:flex;flex-wrap:wrap;gap:4px;margin:2px 0"></div>
-          <button onclick="addNewBar()" style="width:100%;padding:7px;background:#059669;color:white;border:none;border-radius:7px;font-size:11px;font-weight:800;cursor:pointer">バーを追加</button>
-        </div>
-      </div>
-      <!-- 工種一覧 -->
-      <div style="padding:6px 8px;flex:1">
-        <div style="font-size:9px;font-weight:800;color:rgba(255,255,255,.4);margin-bottom:4px">工種一覧</div>
-        <div id="gedSegList" style="display:flex;flex-direction:column;gap:3px"></div>
-      </div>
-    </div>
-  </div>
-</div>
-<div id="ganttEditorDetailPanel" style="display:none"></div>
+
 <div class="slide-panel" id="masterPanel"><div class="panel-header"><button class="panel-back" onclick="closePanel('masterPanel')">← 戻る</button><div style="flex:1"><div class="panel-title">📋 マスター工程</div></div></div><div class="panel-scroll" id="masterPanelContent"></div></div>
 <div class="slide-panel" id="masterEditorPanel">
   <div class="panel-header"><button class="panel-back" onclick="closePanel('masterEditorPanel')">← 戻る</button><div style="flex:1"><div class="panel-title" id="masterEditorTitle">マスター工程編集</div><div class="panel-sub">色をクリックで変更 ｜ 行をドラッグで並び替え</div></div><button class="ed-btn ed-btn-save" style="padding:5px 12px;font-size:11px" onclick="saveMasterEditorChanges()">💾 保存</button></div>
@@ -527,7 +459,7 @@ body{display:flex;overflow:hidden;}
 </div>
 <div class="slide-panel" id="settingsPanel"><div class="panel-header"><button class="panel-back" onclick="closePanel('settingsPanel')">← 戻る</button><div style="flex:1"><div class="panel-title">⚙️ 設定</div></div></div><div class="panel-scroll" id="settingsContent"></div></div>
 <div class="menu-overlay" id="menuOverlay" onclick="closeMenu()"></div>
-<div class="side-menu" id="sideMenu"><div class="menu-head"><div class="menu-user">🏗️ 現場担当者</div><div class="menu-role">JACK 現場管理アプリ</div></div><div class="menu-body"><div class="menu-section">マイ物件</div><div class="menu-item" onclick="openMyPage()"><span class="mi-icon">⭐</span>マイ物件を見る</div><div class="menu-item" onclick="openSelectProp()"><span class="mi-icon">✅</span>担当物件を選択</div><div class="menu-item" onclick="closeMenu();openGanttEditorMenu()"><span class="mi-icon">✏️</span>工程表を編集</div><div class="menu-item" onclick="closeMenu();openMasterPanel()"><span class="mi-icon">📋</span>マスター工程</div><div class="menu-divider"></div><div class="menu-section">表示</div><div class="menu-item" onclick="closeMenu();setMode(false)"><span class="mi-icon">📱</span>スマホ表示</div><div class="menu-item" onclick="closeMenu();setMode(true)"><span class="mi-icon">🖥️</span>PC横長表示</div><div class="menu-divider"></div><div class="menu-section">その他</div><div class="menu-item" onclick="closeMenu();doSync()"><span class="mi-icon">🔄</span>今すぐ同期</div><div class="menu-item" onclick="openSettings()"><span class="mi-icon">⚙️</span>設定</div><div class="menu-item" onclick="closeMenu();printPage()"><span class="mi-icon">🖨️</span>印刷</div></div></div>
+<div class="side-menu" id="sideMenu"><div class="menu-head"><div class="menu-user">🏗️ 現場担当者</div><div class="menu-role">JACK 現場管理アプリ</div></div><div class="menu-body"><div class="menu-section">マイ物件</div><div class="menu-item" onclick="openMyPage()"><span class="mi-icon">⭐</span>マイ物件を見る</div><div class="menu-item" onclick="openSelectProp()"><span class="mi-icon">✅</span>担当物件を選択</div><div class="menu-item" onclick="closeMenu();openMasterPanel()"><span class="mi-icon">📋</span>マスター工程</div><div class="menu-divider"></div><div class="menu-section">表示</div><div class="menu-item" onclick="closeMenu();setMode(false)"><span class="mi-icon">📱</span>スマホ表示</div><div class="menu-item" onclick="closeMenu();setMode(true)"><span class="mi-icon">🖥️</span>PC横長表示</div><div class="menu-divider"></div><div class="menu-section">その他</div><div class="menu-item" onclick="closeMenu();doSync()"><span class="mi-icon">🔄</span>今すぐ同期</div><div class="menu-item" onclick="openSettings()"><span class="mi-icon">⚙️</span>設定</div><div class="menu-item" onclick="closeMenu();printPage()"><span class="mi-icon">🖨️</span>印刷</div></div></div>
 <div class="popup-overlay" id="updatePopup" style="display:none"><div class="popup-box"><div class="popup-head">🔔 データ更新情報</div><div class="popup-body" id="updateContent"></div><div class="popup-footer"><button class="popup-close" onclick="closeUpdatePopup()">閉じる</button></div></div></div>
 <div class="tooltip" id="tooltip"></div><div class="toast" id="toast"></div>
 </div>
@@ -1408,6 +1340,7 @@ function buildGanttTab(p){
     +'<div id="detail-gantt-print-btn" style="display:none">'
     +'<button onclick="printDetailGantt()" style="background:#10b981;color:white;padding:3px 10px;border-radius:5px;font-size:10px;font-weight:700">🖨️ 印刷</button>'
     +'</div>'
+    +'<button id="detail-gantt-edit-btn" onclick="toggleGanttEditMode()" style="display:none;background:#f59e0b;color:white;padding:3px 10px;border-radius:5px;font-size:10px;font-weight:700;margin-left:auto">✏️ 編集</button>'
     +'</div>';
 
   return '<div class="dp-sec" id="detail-gantt-sec">'
@@ -1421,18 +1354,237 @@ function toggleDetailGanttExpand(){
   var m=document.getElementById('detail-gantt-multi');
   var btn=document.getElementById('detail-gantt-expand-btn');
   var printBtn=document.getElementById('detail-gantt-print-btn');
+  var editBtn=document.getElementById('detail-gantt-edit-btn');
   if(!c||!m)return;
   var expanded=m.style.display!=='none';
   if(expanded){
     c.style.display='';m.style.display='none';
     btn.textContent='🔍 拡大';
     if(printBtn)printBtn.style.display='none';
+    if(editBtn)editBtn.style.display='none';
+    // 編集モード終了
+    if(ganttEditMode)toggleGanttEditMode();
   }else{
     c.style.display='none';m.style.display='';
     btn.textContent='🗜️ 縮小';
     if(printBtn)printBtn.style.display='';
+    if(editBtn)editBtn.style.display='';
   }
 }
+
+// ===== INLINE GANTT EDITOR =====
+var ganttEditMode=false;
+var geSegs=[];
+var geSelColor='#d2b48c';
+var geDragBar=null,geDragStartX=0,geDragStartMs=0;
+var geResBar=null,geResStartX=0,geResStartDur=0;
+var GCW_GE=14;
+
+function toggleGanttEditMode(){
+  var btn=document.getElementById('detail-gantt-edit-btn');
+  var sb=document.getElementById('ganttEditSidebar');
+  if(!currentProp||!btn||!sb)return;
+  ganttEditMode=!ganttEditMode;
+  if(ganttEditMode){
+    btn.textContent='x 編集終了'; btn.style.background='#ef4444';
+    sb.style.display='flex';
+    var srcSegs=getActiveSegs(currentProp)||[];
+    geSegs=srcSegs.map(function(s){
+      var sd=(s.start_date||s.date||'').replace(/\//g,'-');
+      var ed=(s.end_date||'').replace(/\//g,'-');
+      var calDur=s.calendar_dur||(ed&&sd?Math.round((new Date(ed)-new Date(sd))/86400000)+1:s.duration||s.dur||1);
+      return {label:s.label||s.name||'',start_date:sd,date:sd,end_date:ed,calendar_dur:calDur,duration:calDur,color:s.color||EC[s.label||s.name||'']||'#64748b',layer:s.layer||0,textColor:s.textColor||s.text_color||'auto'};
+    });
+    document.getElementById('geNewDate').value=TODAY;
+    geInitColorPicker();
+    geRenderBars();
+  } else {
+    btn.textContent='Edit'; btn.style.background='#f59e0b';
+    sb.style.display='none';
+    geRenderBars();
+  }
+}
+window.toggleGanttEditMode=toggleGanttEditMode;
+
+function geInitColorPicker(){
+  var el=document.getElementById('geColorPicker'); if(!el||el.children.length)return;
+  ['#d2b48c','#add8e6','#d9d9d9','#d9ead3','#7030a0','#ffff00','#00b050','#1a56db','#ffc7ce','#e06666','#ff9900','#ea4335','#34a853','#9c27b0','#607d8b'].forEach(function(c){
+    var sw=document.createElement('div');
+    sw.style.cssText='width:20px;height:20px;border-radius:50%;background:'+c+';cursor:pointer;border:2px solid transparent;flex-shrink:0;';
+    sw.onclick=function(){geSelColor=c;document.querySelectorAll('#geColorPicker div').forEach(function(s){s.style.borderColor='transparent';});sw.style.borderColor='white';};
+    el.appendChild(sw);
+  });
+  if(el.children[0])el.children[0].style.borderColor='white';
+}
+
+function geRenderBars(){
+  var multiEl=document.getElementById('detail-gantt-multi'); if(!multiEl)return;
+  var segs=ganttEditMode?geSegs:getActiveSegs(currentProp)||[];
+  var todayDt=new Date(TODAY);
+  var GCW=GCW_GE, ROW_H=20;
+  var gStart=new Date(TODAY); gStart.setMonth(gStart.getMonth()-1); gStart.setDate(1);
+  var gEnd=new Date(TODAY);   gEnd.setMonth(gEnd.getMonth()+6);    gEnd.setDate(0);
+  segs.forEach(function(s){
+    var sd=s.start_date||s.date||''; if(sd){var dt=new Date(sd.replace(/\//g,'-'));if(dt<gStart)gStart=new Date(dt.getFullYear(),dt.getMonth(),1);}
+    var ed=s.end_date||''; if(ed){var dt=new Date(ed.replace(/[/]/g,'-'));if(dt>gEnd)gEnd=new Date(dt.getFullYear(),dt.getMonth()+1,0);}
+  });
+  var gDates=[''],cur=new Date(gStart);
+  while(cur<=gEnd){gDates.push(cur.toISOString().slice(0,10));cur.setDate(cur.getDate()+1);}
+  var gDateIdx={}; gDates.forEach(function(d,i){if(d)gDateIdx[d]=i;});
+  var totalW=(gDates.length-1)*GCW, numRows=segs.length;
+  var mn={'01':'1月','02':'2月','03':'3月','04':'4月','05':'5月','06':'6月','07':'7月','08':'8月','09':'9月','10':'10月','11':'11月','12':'12月'};
+  var months={}; gDates.forEach(function(d,i){if(!d)return;var m=d.substring(0,7);if(!months[m])months[m]={start:i-1,count:0};months[m].count++;});
+  var hdrBands=''; Object.keys(months).forEach(function(m){var v=months[m],mm=m.split('-')[1];hdrBands+='<div style="position:absolute;left:'+(v.start*GCW)+'px;top:0;width:'+(v.count*GCW)+'px;height:14px;background:var(--primary);color:white;font-size:7px;font-weight:800;display:flex;align-items:center;justify-content:center;border-right:2px solid rgba(255,255,255,.4);overflow:hidden;">'+m.split('-')[0]+'年'+(mn[mm]||mm)+'</div>';});
+  var dayNums=''; gDates.forEach(function(d,i){if(!d)return;var dow=getDow(d),day=parseInt(d.split('-')[2]),isToday=d===TODAY;dayNums+='<div style="position:absolute;left:'+((i-1)*GCW)+'px;top:14px;width:'+GCW+'px;height:14px;display:flex;align-items:center;justify-content:center;font-size:6px;font-weight:700;font-family:var(--mono);color:'+(isToday?'#ef4444':dow===0?'#fca5a5':dow===6?'#93c5fd':'rgba(255,255,255,.65)')+';background:'+(isToday?'rgba(239,68,68,.35)':dow===0?'rgba(255,182,193,.22)':dow===6?'rgba(173,216,230,.18)':'transparent')+';">'+(day===1||day%5===0?day:'')+'</div>';});
+  var todayCol=gDateIdx[TODAY]||0;
+  var todayLine=todayCol>0?'<div style="position:absolute;left:'+((todayCol-1)*GCW)+'px;top:0;width:2px;height:'+(numRows*ROW_H+28)+'px;background:#ef4444;z-index:10;pointer-events:none;"></div>':'';
+  var fills=''; gDates.forEach(function(d,i){if(!d)return;var dow=getDow(d);if(dow===0||dow===6)fills+='<div style="position:absolute;left:'+((i-1)*GCW)+'px;top:28px;width:'+GCW+'px;height:'+(numRows*ROW_H)+'px;background:'+(dow===0?'rgba(255,182,193,.22)':'rgba(173,216,230,.18)')+';pointer-events:none;z-index:0;"></div>';if(d.slice(8)==='01'&&i>1)fills+='<div style="position:absolute;left:'+((i-1)*GCW)+'px;top:0;width:2px;height:'+(numRows*ROW_H+28)+'px;background:#475569;pointer-events:none;z-index:2;"></div>';});
+  var rowBgs=''; for(var ri2=0;ri2<numRows;ri2++)rowBgs+='<div style="position:absolute;left:0;top:'+(ri2*ROW_H+28)+'px;width:'+totalW+'px;height:'+ROW_H+'px;background:'+(ri2%2===0?'rgba(255,255,255,.03)':'rgba(255,255,255,.07)')+';border-bottom:1px solid rgba(255,255,255,.05);"></div>';
+  var labels='<div style="position:absolute;left:0;top:28px;width:0;height:'+(numRows*ROW_H)+'px;">';
+  segs.forEach(function(s,ri){labels+='<div style="position:absolute;left:-90px;top:'+(ri*ROW_H)+'px;width:88px;height:'+ROW_H+'px;display:flex;align-items:center;justify-content:flex-end;padding-right:4px;font-size:9px;font-weight:700;color:rgba(255,255,255,.75);overflow:hidden;white-space:nowrap;">'+(s.label||s.name||'')+'</div>';});
+  labels+='</div>';
+  var bars='';
+  segs.forEach(function(seg,idx){
+    var lbl=seg.label||seg.name||'';
+    var sd=seg.start_date||seg.date||''; if(!sd)return;
+    var sdClean=sd.replace(/\//g,'-');
+    var col=gDateIdx[sdClean]; if(col===undefined||col===0)return;
+    var calDur=seg.calendar_dur||(function(){var ed=seg.end_date||'';if(ed)return Math.round((new Date(ed.replace(/[/]/g,'-'))-new Date(sdClean))/86400000)+1;return seg.duration||seg.dur||1;})();
+    var sx=(col-1)*GCW, bw=Math.max(calDur*GCW-1,GCW-1);
+    var layer=seg.layer||0, by=idx*ROW_H+28+(layer===1?3:0), bh=layer===1?ROW_H-7:ROW_H-3;
+    var color=seg.color||EC[lbl]||'#64748b';
+    var isDark=!!DARK_TEXT[lbl],tcOvr=seg.textColor||seg.text_color,tcolor=tcOvr&&tcOvr!=='auto'?tcOvr:(isDark?'#3a2a10':'white');
+    var isPast=seg.end_date&&new Date(seg.end_date.replace(/[/]/g,'-'))<todayDt;
+    var isAct=!isPast&&sdClean&&new Date(sdClean)<=todayDt;
+    if(ganttEditMode){
+      bars+='<div id="gebar'+idx+'" data-idx="'+idx+'" style="position:absolute;left:'+sx+'px;top:'+by+'px;width:'+bw+'px;height:'+bh+'px;background:'+color+';color:'+tcolor+';font-size:6px;font-weight:800;border-radius:2px;display:flex;align-items:center;padding:0 2px;overflow:hidden;white-space:nowrap;box-shadow:0 1px 2px rgba(0,0,0,.2);z-index:'+(layer===1?12:10)+';opacity:'+(isPast?'.6':'1')+';cursor:grab;user-select:none;'+(isAct?'outline:2px solid rgba(255,255,0,.5);':'')+';">'
+        +(bw>14?lbl:'')
+        +'<span class="ge-del" data-idx="'+idx+'" style="position:absolute;right:1px;top:1px;width:11px;height:11px;background:rgba(239,68,68,.9);color:white;border-radius:50%;font-size:8px;display:flex;align-items:center;justify-content:center;cursor:pointer;z-index:20;line-height:1;">x</span>'
+        +'<span class="ge-rsz" data-idx="'+idx+'" style="position:absolute;right:0;top:0;width:7px;height:100%;cursor:ew-resize;z-index:15;background:rgba(255,255,255,.2);"></span>'
+        +'</div>';
+    } else {
+      bars+='<div style="position:absolute;left:'+sx+'px;top:'+by+'px;width:'+bw+'px;height:'+bh+'px;background:'+color+';color:'+tcolor+';font-size:6px;font-weight:800;border-radius:2px;display:flex;align-items:center;padding:0 2px;overflow:hidden;white-space:nowrap;box-shadow:0 1px 2px rgba(0,0,0,.2);z-index:'+(layer===1?12:10)+';opacity:'+(isPast?'.6':'1')+';'+(isAct?'outline:2px solid rgba(255,255,0,.5);':'')+';">'+(bw>14?lbl:'')+'</div>';
+    }
+  });
+  var totalH=numRows*ROW_H+28;
+  multiEl.innerHTML='<div style="overflow-x:auto;-webkit-overflow-scrolling:touch;padding-left:90px;"><div id="geCanvas" style="position:relative;width:'+totalW+'px;height:'+totalH+'px;background:white;">'+labels+hdrBands+dayNums+todayLine+fills+rowBgs+bars+'</div></div>';
+  if(ganttEditMode){
+    var cv2=document.getElementById('geCanvas'); if(!cv2)return;
+    cv2.querySelectorAll('[id^=gebar]').forEach(function(bar){
+      var idx=parseInt(bar.getAttribute('data-idx'));
+      bar.addEventListener('pointerdown',function(e){
+        var t=e.target;
+        if(t.classList.contains('ge-del')){e.stopPropagation();geShowDelConfirm(idx,geSegs[idx]?geSegs[idx].label:'');return;}
+        if(t.classList.contains('ge-rsz')){e.stopPropagation();geStartResize(e,idx);return;}
+        geStartDrag(e,idx,bar);
+      });
+    });
+    geRenderSegList();
+  }
+}
+
+function geStartDrag(e,idx,bar){
+  e.preventDefault();
+  var sd=geSegs[idx].start_date||geSegs[idx].date||'';
+  geDragBar={idx:idx,bar:bar}; geDragStartX=e.clientX;
+  geDragStartMs=sd?new Date(sd).getTime():Date.now();
+  bar.style.cursor='grabbing';
+  document.addEventListener('pointermove',geOnDrag);
+  document.addEventListener('pointerup',geStopDrag);
+}
+function geOnDrag(e){
+  if(!geDragBar)return;
+  var dayShift=Math.round((e.clientX-geDragStartX)/GCW_GE);
+  var nd=new Date(geDragStartMs+dayShift*86400000).toISOString().slice(0,10);
+  geSegs[geDragBar.idx].start_date=nd; geSegs[geDragBar.idx].date=nd;
+}
+function geStopDrag(){
+  if(geDragBar){geDragBar.bar.style.cursor='grab';geDragBar=null;}
+  document.removeEventListener('pointermove',geOnDrag);
+  document.removeEventListener('pointerup',geStopDrag);
+  geRenderBars();
+}
+function geStartResize(e,idx){
+  e.preventDefault();
+  geResBar={idx:idx}; geResStartX=e.clientX;
+  geResStartDur=geSegs[idx].calendar_dur||geSegs[idx].duration||1;
+  document.addEventListener('pointermove',geOnResize);
+  document.addEventListener('pointerup',geStopResize);
+}
+function geOnResize(e){
+  if(!geResBar)return;
+  var nd=Math.max(1,geResStartDur+Math.round((e.clientX-geResStartX)/GCW_GE));
+  geSegs[geResBar.idx].calendar_dur=nd; geSegs[geResBar.idx].duration=nd;
+  var bar=document.getElementById('gebar'+geResBar.idx);
+  if(bar)bar.style.width=Math.max(nd*GCW_GE-1,GCW_GE-1)+'px';
+}
+function geStopResize(){geResBar=null;document.removeEventListener('pointermove',geOnResize);document.removeEventListener('pointerup',geStopResize);geRenderBars();}
+
+function geShowDelConfirm(idx,lbl){
+  var ov=document.getElementById('_geDelOv');
+  if(!ov){ov=document.createElement('div');ov.id='_geDelOv';ov.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:9999;display:flex;align-items:center;justify-content:center;';document.body.appendChild(ov);}
+  ov.innerHTML='<div style="background:#fff;border-radius:14px;padding:22px 24px;max-width:280px;width:90%;text-align:center"><div style="font-size:28px;margin-bottom:8px">?</div><div style="font-size:13px;font-weight:800;color:#1e293b;margin-bottom:12px">'+lbl+'を削除</div><div style="display:flex;gap:8px"><button onclick="document.getElementById(\'_geDelOv\').style.display=\'none\'" style="flex:1;padding:9px;background:#f1f5f9;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;border:none">キャンセル</button><button id="_geDelOk" style="flex:1;padding:9px;background:#ef4444;color:#fff;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;border:none">削除</button></div></div>';
+  ov.style.display='flex';
+  document.getElementById('_geDelOk').onclick=function(){ov.style.display='none';if(geSegs[idx]!==undefined){geSegs.splice(idx,1);geRenderBars();}};
+}
+
+function geRenderSegList(){
+  var el=document.getElementById('geSegList'); if(!el)return;
+  el.innerHTML=geSegs.map(function(s,i){
+    var lbl=s.label||'',dur=s.calendar_dur||s.duration||1;
+    return '<div style="display:flex;align-items:center;gap:4px;padding:3px 4px;background:#0f172a;border-radius:5px;"><div style="width:10px;height:10px;background:'+(s.color||'#64748b')+';border-radius:2px;flex-shrink:0;"></div><div style="flex:1;font-size:9px;color:rgba(255,255,255,.8);overflow:hidden;white-space:nowrap;">'+lbl+'</div><div style="font-size:8px;color:rgba(255,255,255,.4);">'+dur+'日</div></div>';
+  }).join('');
+}
+
+function addGanttBar(){
+  var nm=(document.getElementById('geNewName').value||'').trim();
+  var days=parseInt(document.getElementById('geNewDays').value)||7;
+  var sd=document.getElementById('geNewDate').value||TODAY;
+  if(!nm){showToast('工種名を入力してください','error');return;}
+  geSegs.push({label:nm,start_date:sd,date:sd,end_date:'',calendar_dur:days,duration:days,color:geSelColor,layer:0,textColor:'auto'});
+  document.getElementById('geNewName').value='';
+  geRenderBars(); showToast(nm+'を追加しました','success');
+}
+window.addGanttBar=addGanttBar;
+
+function shiftGanttEdit(){
+  var v=prompt('全工程を何日シフト？（マイナスで前倒し）','7'); if(v===null)return;
+  var days=parseInt(v); if(isNaN(days)){showToast('数値を入力してください','error');return;}
+  geSegs=geSegs.map(function(s){
+    var sd=s.start_date||s.date||''; if(!sd)return s;
+    var d=new Date(sd); d.setDate(d.getDate()+days); var ns=d.toISOString().slice(0,10);
+    return Object.assign({},s,{start_date:ns,date:ns});
+  });
+  geRenderBars(); showToast((days>=0?'+':'')+days+'日シフトしました','success');
+}
+window.shiftGanttEdit=shiftGanttEdit;
+
+function saveGanttEdit(){
+  if(!currentProp)return;
+  var ck=custKey(currentProp);
+  customGantt[ck]=geSegs.map(function(s){
+    var sd=s.start_date||s.date||'',cd=s.calendar_dur||s.duration||1,ed=s.end_date||'';
+    if(!ed&&sd){var d=new Date(sd);d.setDate(d.getDate()+cd-1);ed=d.toISOString().slice(0,10);}
+    return {col:FULL_DATE_IDX[sd]||0,date:sd,start_date:sd,end_date:ed,label:s.label,color:s.color,calendar_dur:cd,duration:cd,dur:cd,layer:s.layer||0,textColor:s.textColor||'auto'};
+  });
+  saveLS('jack_custom_gantt',customGantt);
+  renderBody(); if(typeof renderMyPage==='function')renderMyPage();
+  showToast('工程表を保存しました','success');
+}
+window.saveGanttEdit=saveGanttEdit;
+
+function resetGanttEdit(){
+  if(!currentProp||!confirm('カスタムをリセットして元データに戻しますか？'))return;
+  delete customGantt[custKey(currentProp)]; saveLS('jack_custom_gantt',customGantt);
+  var srcSegs=getActiveSegs(currentProp)||[];
+  geSegs=srcSegs.map(function(s){
+    var sd=(s.start_date||s.date||'').replace(/\//g,'-'),ed=(s.end_date||'').replace(/\//g,'-');
+    var calDur=s.calendar_dur||(ed&&sd?Math.round((new Date(ed)-new Date(sd))/86400000)+1:s.duration||s.dur||1);
+    return {label:s.label||s.name||'',start_date:sd,date:sd,end_date:ed,calendar_dur:calDur,duration:calDur,color:s.color||EC[s.label||s.name||'']||'#64748b',layer:s.layer||0,textColor:s.textColor||s.text_color||'auto'};
+  });
+  geRenderBars(); renderBody(); showToast('リセットしました','');
+}
+window.resetGanttEdit=resetGanttEdit;
 
 function printDetailGantt(){
   if(!currentProp)return;
@@ -1823,7 +1975,7 @@ function renderMyPage(){
   var all=getAllProps();
   var html='<div style="padding:8px 12px 4px;font-size:11px;color:var(--g400)">登録物件 '+myFavProps.length+'件</div>'
     +'<div style="padding:4px 12px 8px;display:flex;gap:6px;flex-wrap:wrap">'
-    +'<button class="btn-primary" style="font-size:11px;padding:7px 12px" onclick="openGanttEditorMenu()">✏️ 工程表を編集</button>'
+    +''
     +'<button class="btn-secondary" style="font-size:11px;padding:7px 12px" onclick="openMasterPanel()">📋 マスター工程</button>'
     +'<button class="btn-secondary" style="font-size:11px;padding:7px 12px" onclick="printPage()">🖨️ 印刷</button>'
     +'</div>';
