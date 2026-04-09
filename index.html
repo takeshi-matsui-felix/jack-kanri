@@ -2218,57 +2218,62 @@ function savePropEdit(){
   function getDateVal(id){var el=document.getElementById(id);if(!el||!el.value)return null;return el.value.replace(/-/g,'/');}
   function getStrVal(id){var el=document.getElementById(id);return(el&&el.value.trim())||null;}
 
-  var updates={
+  // Supabaseのpropertiesテーブルに存在するカラムのみ
+  var dbUpdates={
     tantou:        getStrVal('pe-tantou'),
-    address:       getStrVal('pe-address'),
     status:        getStrVal('pe-status'),
     land_contract: getDateVal('pe-land_contract'),
     land_payment:  getDateVal('pe-land_payment'),
     confirm_submit:getDateVal('pe-confirm_submit'),
     confirm_done:  getDateVal('pe-confirm_done'),
+    delivery_date: getDateVal('pe-delivery_date')
+  };
+  // nullを除去（未入力は上書きしない）
+  Object.keys(dbUpdates).forEach(function(k){if(dbUpdates[k]===null)delete dbUpdates[k];});
+
+  // address・parkings・inspection_date・complete_dateはLocalStorageに保存（DBスキーマ外）
+  var localExtra={
+    address:       getStrVal('pe-address'),
     inspection_date:getDateVal('pe-inspection_date'),
     complete_date: getDateVal('pe-complete_date'),
-    delivery_date: getDateVal('pe-delivery_date'),
     parkings:      JSON.parse(JSON.stringify(window._editParkings||[]))
   };
+  Object.keys(localExtra).forEach(function(k){if(localExtra[k]===null)delete localExtra[k];});
+
+  var allUpdates=Object.assign({},dbUpdates,localExtra);
 
   function applyLocally(){
-    Object.assign(currentProp,updates);
-    getAllProps().forEach(function(pp){if(pp.fix_no===p.fix_no&&pp.name===p.name)Object.assign(pp,updates);});
+    Object.assign(currentProp,allUpdates);
+    getAllProps().forEach(function(pp){if(pp.fix_no===p.fix_no&&pp.name===p.name)Object.assign(pp,allUpdates);});
+    // LocalStorageにも追記（フォールバック用）
+    var ov=loadLS('jack_prop_overrides',{});
+    ov[custKey(p)]=Object.assign(ov[custKey(p)]||{},localExtra);
+    saveLS('jack_prop_overrides',ov);
   }
 
   if(!sb){
-    // オフライン: LocalStorageにフォールバック
-    var ov=loadLS('jack_prop_overrides',{});
-    ov[custKey(p)]=Object.assign(ov[custKey(p)]||{},updates);
-    saveLS('jack_prop_overrides',ov);
     applyLocally();
     closePropEditModal(); openDetail(currentProp); renderBody();
-    showToast('⚠️ オフライン: ローカルに保存しました（他端末には反映されません）','');
+    showToast('⚠️ オフライン: ローカルに保存（他端末未反映）','');
     return;
   }
 
-  // Supabaseに全項目まとめて保存
   sb.from('properties').select('id').eq('fix_no',String(p.fix_no)).single()
     .then(function(res){
       if(res.error||!res.data){
-        // DBに未登録 → LocalStorageにフォールバック
-        var ov=loadLS('jack_prop_overrides',{});
-        ov[custKey(p)]=Object.assign(ov[custKey(p)]||{},updates);
-        saveLS('jack_prop_overrides',ov);
         applyLocally();
         closePropEditModal(); openDetail(currentProp); renderBody();
-        showToast('⚠️ DB未登録物件: ローカル保存しました','');
+        showToast('⚠️ DB未登録: ローカル保存しました','');
         return null;
       }
-      return sb.from('properties').update(updates).eq('id',res.data.id);
+      return sb.from('properties').update(dbUpdates).eq('id',res.data.id);
     })
     .then(function(res2){
       if(!res2)return;
       if(res2.error){showToast('保存エラー: '+res2.error.message,'error');return;}
       applyLocally();
       closePropEditModal(); openDetail(currentProp); renderBody();
-      showToast('✅ 保存しました（全ユーザーに共有）','success');
+      showToast('✅ 保存しました','success');
     })
     .catch(function(e){showToast('保存エラー: '+e.message,'error');});
 }
@@ -3762,35 +3767,110 @@ function closeJackMap(){
 window.closeJackMap=closeJackMap;
 
 // ================================================================
-// 工事カレンダー (左:マイ物件リスト / 右:カレンダー)
+// 工事カレンダー
 // ================================================================
 var calYear=new Date().getFullYear(), calMonth=new Date().getMonth();
 var calTasks=[], calDragId=null;
+// 選択中の工種: { 'fix_no__encName__encLbl': true }
+var calSelections={};
 
 function openMyCalendar(){
   try{calTasks=loadLS('jack_cal_tasks',[]);}catch(e){calTasks=[];}
-  // Auto-import gantt segs from myFavProps
-  var favs=(typeof myFavProps!=='undefined')?myFavProps:[];
-  favs.forEach(function(fav){
-    var segs=(typeof getActiveSegs==='function')?getActiveSegs(fav):[];
-    if(!segs)segs=fav.segments||[];
-    segs.filter(function(s){return !s.layer&&s.start_date&&s.end_date;}).forEach(function(s){
-      var lbl=s.label||s.name||'';
-      var sd=(s.start_date||'').replace(/\//g,'-');
-      var ed=(s.end_date||'').replace(/\//g,'-');
-      if(!lbl||!sd||!ed)return;
-      var id='auto_'+(fav.fix_no||fav.name||'')+'_'+lbl;
-      if(!calTasks.find(function(t){return t.id===id;})){
-        calTasks.push({id:id,title:lbl,prop:fav.name||'',startDate:sd,endDate:ed,color:s.color||'#1a56db'});
-      }
-    });
-  });
-  try{saveLS('jack_cal_tasks',calTasks);}catch(e){}
+  try{calSelections=loadLS('jack_cal_sel',{});}catch(e){calSelections={};}
   calYear=new Date().getFullYear();calMonth=new Date().getMonth();
   renderCalendar();
   openPanel('jackCalendarPanel');
 }
 window.openMyCalendar=openMyCalendar;
+
+// 物件名クリックで工種ポップアップ
+function showSegPopup(favEnc){
+  var favName=decodeURIComponent(favEnc);
+  var fav=myFavProps.find(function(f){return f.name===favName;})||{name:favName};
+  var segs=(typeof getActiveSegs==='function')?getActiveSegs(fav):[];
+  if(!segs)segs=fav.segments||[];
+  var validSegs=segs.filter(function(s){return !s.layer&&(s.start_date||s.date)&&s.end_date;});
+
+  var ov=document.getElementById('_calSegOv');
+  if(!ov){ov=document.createElement('div');ov.id='_calSegOv';
+    ov.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:9999;display:flex;align-items:center;justify-content:center;';
+    ov.addEventListener('click',function(e){if(e.target===ov)ov.style.display='none';});
+    document.body.appendChild(ov);}
+
+  var sn=favName.replace(/^(Jack|Walter)\s*/i,'');
+  var rows=validSegs.map(function(s){
+    var lbl=s.label||s.name||'';
+    var key=(fav.fix_no||favName)+'__'+encodeURIComponent(favName)+'__'+encodeURIComponent(lbl);
+    var checked=!!calSelections[key];
+    var color=s.color||'#1a56db';
+    return '<label style="display:flex;align-items:center;gap:8px;padding:7px 12px;border-bottom:1px solid #e2e8f0;cursor:pointer;">'
+      +'<input type="checkbox" data-key="'+key+'" data-prop="'+encodeURIComponent(favName)+'" data-fixno="'+(fav.fix_no||'')+'" '
+      +'data-lbl="'+encodeURIComponent(lbl)+'" '
+      +'data-sd="'+(s.start_date||s.date||'').replace(/\//g,'-')+'" '
+      +'data-ed="'+s.end_date.replace(/\//g,'-')+'" '
+      +'data-color="'+encodeURIComponent(color)+'" '
+      +(checked?'checked':'')+' style="width:16px;height:16px;cursor:pointer;accent-color:'+color+';">'
+      +'<div style="width:10px;height:10px;border-radius:2px;background:'+color+';flex-shrink:0;"></div>'
+      +'<div style="flex:1;font-size:12px;font-weight:600;color:#1e293b;">'+lbl+'</div>'
+      +'<div style="font-size:10px;color:#94a3b8;">'+((s.start_date||s.date||'').slice(0,10))+' 〜</div>'
+      +'</label>';
+  }).join('');
+
+  ov.innerHTML='<div style="background:white;border-radius:14px;width:90%;max-width:360px;max-height:80vh;display:flex;flex-direction:column;box-shadow:0 20px 60px rgba(0,0,0,.3)">'
+    +'<div style="padding:14px 16px;border-bottom:1px solid #e2e8f0;display:flex;align-items:center;gap:8px;">'
+      +'<div style="font-size:13px;font-weight:800;color:#1e293b;flex:1">📋 '+sn+'</div>'
+      +'<button onclick="calSelectAll(\''+favEnc+'\')" style="font-size:10px;padding:4px 10px;background:#e0f2fe;color:#0369a1;border:none;border-radius:5px;cursor:pointer;font-weight:700">全選択</button>'
+      +'<button onclick="calDeselectAll(\''+favEnc+'\')" style="font-size:10px;padding:4px 10px;background:#fee2e2;color:#dc2626;border:none;border-radius:5px;cursor:pointer;font-weight:700">全解除</button>'
+      +'<button onclick="document.getElementById(\'_calSegOv\').style.display=\'none\'" style="font-size:12px;padding:4px 10px;background:#f1f5f9;border:none;border-radius:5px;cursor:pointer;">✕</button>'
+    +'</div>'
+    +(rows||'<div style="padding:20px;text-align:center;color:#94a3b8;font-size:12px;">工程データなし</div>')
+    +'</div>';
+  ov.style.display='flex';
+
+  // checkboxイベント
+  ov.querySelectorAll('input[type=checkbox]').forEach(function(cb){
+    cb.addEventListener('change',function(){
+      var key=cb.getAttribute('data-key');
+      if(cb.checked){
+        calSelections[key]=true;
+        var id='auto_'+key;
+        if(!calTasks.find(function(t){return t.id===id;})){
+          calTasks.push({id:id,
+            title:decodeURIComponent(cb.getAttribute('data-lbl')||''),
+            prop:decodeURIComponent(cb.getAttribute('data-prop')||''),
+            startDate:cb.getAttribute('data-sd')||'',
+            endDate:cb.getAttribute('data-ed')||'',
+            color:decodeURIComponent(cb.getAttribute('data-color')||'#1a56db')
+          });
+        }
+      } else {
+        delete calSelections[key];
+        var rmId='auto_'+key;
+        calTasks=calTasks.filter(function(t){return t.id!==rmId;});
+      }
+      try{saveLS('jack_cal_tasks',calTasks);}catch(e){}
+      try{saveLS('jack_cal_sel',calSelections);}catch(e){}
+      renderCalendar();
+    });
+  });
+}
+window.showSegPopup=showSegPopup;
+
+function calSelectAll(favEnc){
+  var favName=decodeURIComponent(favEnc);
+  var ov=document.getElementById('_calSegOv');
+  if(ov)ov.querySelectorAll('input[type=checkbox]').forEach(function(cb){
+    if(!cb.checked){cb.checked=true;cb.dispatchEvent(new Event('change'));}
+  });
+}
+window.calSelectAll=calSelectAll;
+function calDeselectAll(favEnc){
+  var ov=document.getElementById('_calSegOv');
+  if(ov)ov.querySelectorAll('input[type=checkbox]').forEach(function(cb){
+    if(cb.checked){cb.checked=false;cb.dispatchEvent(new Event('change'));}
+  });
+}
+window.calDeselectAll=calDeselectAll;
 
 function renderCalendar(){
   var el=document.getElementById('jackCalContent');
@@ -3800,7 +3880,7 @@ function renderCalendar(){
   var last=new Date(calYear,calMonth+1,0);
   var favs=(typeof myFavProps!=='undefined')?myFavProps:[];
 
-  // Build left panel HTML
+  // 左パネル: 物件名のみ表示（クリックで工種ポップアップ）
   var leftHtml='<div style="padding:6px 10px;font-size:10px;font-weight:800;color:rgba(255,255,255,.5);border-bottom:1px solid rgba(255,255,255,.1);letter-spacing:.4px">マイ物件</div>';
   if(!favs.length){
     leftHtml+='<div style="padding:10px;font-size:11px;color:rgba(255,255,255,.4)">マイ物件を登録してください</div>';
@@ -3808,35 +3888,25 @@ function renderCalendar(){
     favs.forEach(function(fav){
       var segs=(typeof getActiveSegs==='function')?getActiveSegs(fav):[];
       if(!segs)segs=fav.segments||[];
-      var validSegs=segs.filter(function(s){return !s.layer&&s.start_date&&s.end_date;});
-      leftHtml+='<div style="padding:6px 10px;border-bottom:1px solid rgba(255,255,255,.08)">'
-        +'<div style="font-size:10px;font-weight:700;color:white;margin-bottom:4px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+(fav.name||'').replace('Jack','')+'</div>';
-      if(!validSegs.length){
-        leftHtml+='<div style="font-size:9px;color:rgba(255,255,255,.3)">工程データなし</div>';
-      } else {
-        leftHtml+='<div style="display:flex;flex-direction:column;gap:2px">';
-        validSegs.forEach(function(s){
-          var lbl=s.label||s.name||'';
-          var color=s.color||'#1a56db';
-          var sd=(s.start_date||'').replace(/\//g,'-');
-          var ed=(s.end_date||'').replace(/\//g,'-');
-          var id='auto_'+(fav.fix_no||fav.name||'')+'_'+lbl;
-          var added=calTasks.find(function(t){return t.id===id;});
-          leftHtml+='<div class="cal-seg-btn" data-id="'+id+'" '
-            +'data-prop="'+encodeURIComponent(fav.name||'')+'" '
-            +'data-lbl="'+encodeURIComponent(lbl)+'" '
-            +'data-sd="'+sd+'" data-ed="'+ed+'" data-color="'+encodeURIComponent(color)+'" '
-            +'style="font-size:9px;padding:2px 6px;border-radius:3px;background:'+(added?color:'rgba(255,255,255,.1)')+';'
-            +'color:'+(added?'white':'rgba(255,255,255,.6)')+';cursor:pointer;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'
-            +lbl+(added?' ✓':'')+'</div>';
-        });
-        leftHtml+='</div>';
-      }
-      leftHtml+='</div>';
+      var validSegs=segs.filter(function(s){return !s.layer&&(s.start_date||s.date)&&s.end_date;});
+      var sn=(fav.name||'').replace(/^(Jack|Walter)\s*/i,'');
+      // 選択中の工種数を数える
+      var selCount=validSegs.filter(function(s){
+        var lbl=s.label||s.name||'';
+        var key=(fav.fix_no||fav.name)+'__'+encodeURIComponent(fav.name||'')+'__'+encodeURIComponent(lbl);
+        return !!calSelections[key];
+      }).length;
+      leftHtml+='<div onclick="showSegPopup(\''+encodeURIComponent(fav.name||'')+'\')" '
+        +'style="padding:8px 10px;border-bottom:1px solid rgba(255,255,255,.08);cursor:pointer;'
+        +'background:rgba(255,255,255,.03);transition:background .15s" '
+        +'onmouseover="this.style.background=\'rgba(255,255,255,.1)\'" onmouseout="this.style.background=\'rgba(255,255,255,.03)\'">'
+        +'<div style="font-size:10px;font-weight:700;color:white;margin-bottom:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+sn+'</div>'
+        +'<div style="font-size:9px;color:rgba(255,255,255,.45);">'+(selCount>0?'✅ '+selCount+'工種選択中':'タップして工種を選択')+'</div>'
+        +'</div>';
     });
   }
 
-  // Calendar grid
+  // カレンダーグリッド
   var calHtml='<div style="display:flex;align-items:center;justify-content:space-between;padding:8px 12px;border-bottom:1px solid #e2e8f0;flex-shrink:0">'
     +'<button onclick="calNav(-1)" style="padding:5px 14px;border-radius:7px;background:#f1f5f9;font-size:12px;cursor:pointer;font-weight:700">◀</button>'
     +'<div style="font-size:15px;font-weight:800;color:#1e293b">'+calYear+'年'+(calMonth+1)+'月</div>'
@@ -3861,49 +3931,32 @@ function renderCalendar(){
     var dayTasks=calTasks.filter(function(t){return t.startDate<=ds&&t.endDate>=ds;});
     calHtml+='<div class="cal-day" data-date="'+ds+'" style="min-height:70px;border:1px solid '+(isToday?'#1a56db':'#e2e8f0')+';border-radius:5px;padding:2px;background:'+(isToday?'#eff6ff':'white')+'">'
       +'<div style="font-size:10px;font-weight:700;text-align:right;margin-bottom:1px;color:'+(isToday?'#1a56db':dow===0?'#ef4444':dow===6?'#3b82f6':'#475569')+'">'+day+'</div>';
-    dayTasks.slice(0,3).forEach(function(t){
+    dayTasks.slice(0,4).forEach(function(t){
+      // 物件名（短縮）＋工種を表示
+      var propShort=(t.prop||'').replace(/^(Jack|Walter)\s*/i,'');
+      var barLabel=propShort?propShort+' '+t.title:t.title;
       calHtml+='<div class="cal-task-bar" draggable="true" data-task-id="'+t.id+'" '
         +'style="font-size:8px;padding:1px 4px;border-radius:2px;background:'+(t.color||'#1a56db')+';color:white;'
-        +'margin-top:1px;cursor:grab;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;border-left:2px solid rgba(0,0,0,.2)">'
-        +t.title+'</div>';
+        +'margin-top:1px;cursor:grab;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;border-left:2px solid rgba(0,0,0,.2)" '
+        +'title="'+barLabel+'">'
+        +barLabel+'</div>';
     });
-    if(dayTasks.length>3)calHtml+='<div style="font-size:8px;color:#94a3b8">+'+(dayTasks.length-3)+'</div>';
+    if(dayTasks.length>4)calHtml+='<div style="font-size:8px;color:#94a3b8">+'+(dayTasks.length-4)+'</div>';
     calHtml+='</div>';
   }
   calHtml+='</div></div>';
 
   el.innerHTML='<div style="display:flex;height:100%;overflow:hidden">'
-    // Left sidebar
-    +'<div style="width:170px;flex-shrink:0;background:#1e293b;overflow-y:auto;display:flex;flex-direction:column">'+leftHtml+'</div>'
-    // Right calendar
+    +'<div style="width:160px;flex-shrink:0;background:#1e293b;overflow-y:auto;display:flex;flex-direction:column">'+leftHtml+'</div>'
     +'<div style="flex:1;display:flex;flex-direction:column;overflow:hidden">'+calHtml+'</div>'
   +'</div>';
 
   initCalDrag();
 }
 
-// Seg button click
+// drag
 document.addEventListener('click',function(e){
-  var btn=e.target.closest('.cal-seg-btn');
-  if(!btn)return;
-  var id=btn.getAttribute('data-id');
-  var idx=calTasks.findIndex(function(t){return t.id===id;});
-  if(idx>=0){
-    calTasks.splice(idx,1);
-    showToast('削除しました','');
-  } else {
-    calTasks.push({
-      id:id,
-      title:decodeURIComponent(btn.getAttribute('data-lbl')||''),
-      prop:decodeURIComponent(btn.getAttribute('data-prop')||''),
-      startDate:btn.getAttribute('data-sd')||'',
-      endDate:btn.getAttribute('data-ed')||'',
-      color:decodeURIComponent(btn.getAttribute('data-color')||'#1a56db')
-    });
-    showToast('✅ カレンダーに追加','success');
-  }
-  try{saveLS('jack_cal_tasks',calTasks);}catch(e){}
-  renderCalendar();
+  // ポップアップ外のcal-seg-btnクリックは不要になったが念のため
 });
 
 function initCalDrag(){
@@ -3933,7 +3986,7 @@ function initCalDrag(){
 
 function calNav(dir){calMonth+=dir;if(calMonth<0){calMonth=11;calYear--;}if(calMonth>11){calMonth=0;calYear++;}renderCalendar();}
 window.calNav=calNav;
-function clearCalTasks(){if(!confirm('カレンダーを全クリアしますか？'))return;calTasks=[];try{saveLS('jack_cal_tasks',calTasks);}catch(e){}renderCalendar();showToast('クリアしました','');}
+function clearCalTasks(){if(!confirm('カレンダーを全クリアしますか？'))return;calTasks=[];calSelections={};try{saveLS('jack_cal_tasks',calTasks);saveLS('jack_cal_sel',calSelections);}catch(e){}renderCalendar();showToast('クリアしました','');}
 window.clearCalTasks=clearCalTasks;
 function printCalendar(){window.print();}
 window.printCalendar=printCalendar;
