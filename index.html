@@ -711,7 +711,11 @@ function fullColToVisX(fullCol) {
 
 // ===== SEGMENT RESOLUTION =====
 function getActiveSegs(p) {
-  var ck = custKey(p);
+  // LocalStorageのオーバーライドをマージ
+  var ov=loadLS('jack_prop_overrides',{});
+  var ck=custKey(p);
+  if(ov[ck])p=Object.assign({},p,ov[ck]);
+  ck=custKey(p);
   if (customGantt[ck]) return customGantt[ck];
   var masterName = propMaster[ck];
   if (masterName) {
@@ -2008,6 +2012,12 @@ function printPropInfo(){
 // ===== DETAIL PANEL =====
 function openDetail(p){
   currentProp=p;
+  // LocalStorageのオーバーライドをマージ
+  var ov=loadLS('jack_prop_overrides',{});
+  var ck=custKey(p);
+  if(ov[ck])p=Object.assign({},p,ov[ck]);
+  currentProp=p;
+
   var today=new Date(TODAY),days=daysUntil(p.delivery_date),isUrgent=days!==null&&days>=0&&days<=30;
   var steps=[
     {n:'土地契約',d:p.land_contract},{n:'土地決済',d:p.land_payment},
@@ -2027,6 +2037,31 @@ function openDetail(p){
   var dStyle=isUrgent?'" style="color:var(--danger);font-weight:800':'';
   var delivRow='<div class="dp-row"><span class="dp-label">引渡し日</span><span class="dp-val'+dStyle+'">'+(p.delivery_date||'－')+(days!==null&&days>=0?' (残'+days+'日)':'')+'</span></div>';
 
+  // 管理者のみ編集ボタン表示
+  var isAdmin=(typeof currentProfile!=='undefined'&&currentProfile&&currentProfile.role==='admin');
+  var editBtn=isAdmin
+    ?'<button onclick="openPropEditModal()" style="margin-left:auto;background:#f59e0b;color:white;padding:4px 12px;border-radius:6px;font-size:10px;font-weight:700;border:none;cursor:pointer">✏️ 物件情報を編集</button>'
+    :'';
+
+  // 住所表示
+  var addrVal=p.address||(typeof p.address==='object'?p.address.address||'':'');;
+  if(typeof addrVal==='object')addrVal=addrVal.address||'';
+
+  // 駐車場表示
+  var parkings=p.parkings||[];
+  var parkHtml='';
+  if(parkings.length){
+    parkHtml='<div class="dp-sec"><div class="dp-sec-head">🚗 駐車場情報</div>'
+      +parkings.map(function(pk,i){
+        return '<div style="padding:5px 12px;border-bottom:1px solid var(--g100)">'
+          +'<div style="font-size:10px;font-weight:700;color:var(--g700)">【'+(i+1)+'】 '+(pk.name||'駐車場'+(i+1))+'</div>'
+          +(pk.address?'<div style="font-size:10px;color:var(--g500);margin-top:2px">📍 '+pk.address+'</div>':'')
+          +(pk.carno?'<div style="font-size:10px;color:var(--g500)">🚘 '+pk.carno+'</div>':'')
+          +'</div>';
+      }).join('')
+      +'</div>';
+  }
+
   document.getElementById('dpContent').innerHTML=
     '<div class="dp-hero"><div class="dp-area-tag">'+(p.area||'不明')+'</div>'
     +'<div class="dp-name">'+p.name+'</div>'
@@ -2035,14 +2070,17 @@ function openDetail(p){
     +buildGanttTab(p)
     +'<div class="dp-sec"><div class="dp-sec-head">📅 マイルストーン</div><div class="proc-list">'+procHtml+'</div></div>'
     +buildProgressSection(p)
-    +'<div class="dp-sec"><div class="dp-sec-head">🏠 基本情報</div>'+mkRow('FiX No.',p.fix_no)+mkRow('通し番号',p.seq_no)+mkRow('エリア',p.area,false)+mkRow('物件名',p.name,false)+mkRow('担当者',p.tantou||p.staff||'',false)+mkRow('手組',p.hand_kumi,false)+'</div>'
+    +'<div class="dp-sec"><div class="dp-sec-head" style="display:flex;align-items:center;">🏠 基本情報'+editBtn+'</div>'
+      +mkRow('FiX No.',p.fix_no)+mkRow('通し番号',p.seq_no)+mkRow('エリア',p.area,false)+mkRow('物件名',p.name,false)
+      +mkRow('担当者',p.tantou||p.staff||'',false)+mkRow('手組',p.hand_kumi,false)
+      +mkRow('住所',addrVal,false)+'</div>'
     +'<div class="dp-sec"><div class="dp-sec-head">📋 土地・契約情報</div>'+mkRow('土地契約日',p.land_contract)+mkRow('土地決済期日',p.land_payment)+'</div>'
     +'<div class="dp-sec"><div class="dp-sec-head">📐 設計・調査情報</div>'+mkRow('確認申請提出日',p.confirm_submit)+mkRow('確認申請完了日',p.confirm_done)+mkRow('地盤調査確定日',p.ground_survey)+'</div>'
     +'<div class="dp-sec"><div class="dp-sec-head">🏁 完了・引渡し情報</div>'+mkRow('完了検査日',p.inspection_date)+mkRow('完成日',p.complete_date)+delivRow+mkRow('引渡月',p.delivery_month)+'</div>'
     +'<div class="dp-sec"><div class="dp-sec-head">🏦 販売情報</div><div class="dp-row"><span class="dp-label">販売ステータス</span>'+makeBadge(p.status,true)+'</div>'+mkRow('銀行',p.bank,false)+mkRow('ディーラー',p.dealer,false)+'</div>'
+    +parkHtml
     +buildVendorSection(p)
     +'<div class="dp-sec" id="weather-sec-'+p.fix_no+'"><div class="dp-sec-head">🌤 週間天気（現場エリア）</div><div id="weather-content-'+p.fix_no+'"></div></div>';
-  // Fetch weather after render
   setTimeout(function(){fetchWeather(p,'weather-content-'+p.fix_no);},300);
 
   document.getElementById('dpActionBar').innerHTML=
@@ -2052,6 +2090,163 @@ function openDetail(p){
     +'<button class="btn-secondary" onclick="printPropInfo()" style="font-size:11px;padding:8px 10px">🖨️ この物件を印刷</button>';
   openPanel('detailPanel');
 }
+
+// ===== 物件情報編集モーダル（管理者専用） =====
+function openPropEditModal(){
+  var p=currentProp; if(!p)return;
+  var ov=loadLS('jack_prop_overrides',{});
+  var ck=custKey(p);
+  var cur=Object.assign({},p,ov[ck]||{});
+  var parkings=cur.parkings||[];
+
+  // モーダル作成
+  var modal=document.getElementById('_propEditModal');
+  if(!modal){
+    modal=document.createElement('div');
+    modal.id='_propEditModal';
+    modal.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:9999;display:flex;align-items:flex-start;justify-content:center;overflow-y:auto;padding:20px 10px;';
+    document.body.appendChild(modal);
+  }
+
+  var iStyle='padding:7px 10px;border:1.5px solid #e2e8f0;border-radius:7px;font-size:12px;width:100%;box-sizing:border-box;';
+  var statusOpts=['未公開','公開中','契約済','完工'].map(function(s){
+    return '<option value="'+s+'"'+(cur.status===s?' selected':'')+'>'+s+'</option>';
+  }).join('');
+
+  function parkRow(pk,i){
+    return '<div id="pk-row-'+i+'" style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:10px;margin-bottom:6px;display:flex;flex-direction:column;gap:6px;">'
+      +'<div style="display:flex;align-items:center;gap:6px;font-size:10px;font-weight:700;color:#475569">🚗 駐車場 '+(i+1)
+      +'<button onclick="removeParkRow('+i+')" style="margin-left:auto;background:#fee2e2;color:#ef4444;border:none;border-radius:4px;padding:2px 8px;font-size:10px;cursor:pointer">削除</button></div>'
+      +'<div style="display:flex;flex-direction:column;gap:4px">'
+      +'<label style="font-size:10px;color:#64748b">駐車場名</label>'
+      +'<input id="pk-name-'+i+'" type="text" value="'+(pk.name||'')+'" placeholder="例: 近隣コインパーキング" style="'+iStyle+'"></div>'
+      +'<div style="display:flex;flex-direction:column;gap:4px">'
+      +'<label style="font-size:10px;color:#64748b">車番</label>'
+      +'<input id="pk-carno-'+i+'" type="text" value="'+(pk.carno||'')+'" placeholder="例: 3番" style="'+iStyle+'"></div>'
+      +'<div style="display:flex;flex-direction:column;gap:4px">'
+      +'<label style="font-size:10px;color:#64748b">住所</label>'
+      +'<input id="pk-addr-'+i+'" type="text" value="'+(pk.address||'')+'" placeholder="例: 愛知県常滑市新開町2-1" style="'+iStyle+'"></div>'
+      +'</div>';
+  }
+
+  function renderModal(){
+    var pks=window._editParkings||parkings;
+    modal.innerHTML='<div style="background:white;border-radius:14px;padding:20px;width:100%;max-width:480px;box-shadow:0 20px 60px rgba(0,0,0,.25)">'
+      +'<div style="display:flex;align-items:center;margin-bottom:16px">'
+      +'<div style="font-size:14px;font-weight:800;color:#1e293b">✏️ 物件情報編集</div>'
+      +'<button onclick="closePropEditModal()" style="margin-left:auto;background:#f1f5f9;border:none;border-radius:7px;padding:5px 12px;font-size:12px;cursor:pointer">✕ 閉じる</button>'
+      +'</div>'
+      // 基本情報
+      +'<div style="font-size:11px;font-weight:800;color:#475569;margin-bottom:8px;padding-bottom:4px;border-bottom:2px solid #e2e8f0">🏠 基本情報</div>'
+      +'<div style="display:flex;flex-direction:column;gap:10px;margin-bottom:16px">'
+      +'<div><label style="font-size:10px;color:#64748b;display:block;margin-bottom:3px">担当者</label>'
+      +'<input id="pe-tantou" type="text" value="'+(cur.tantou||cur.staff||'')+'" placeholder="担当者名" style="'+iStyle+'"></div>'
+      +'<div><label style="font-size:10px;color:#64748b;display:block;margin-bottom:3px">住所</label>'
+      +'<input id="pe-address" type="text" value="'+(typeof cur.address==='string'?cur.address:(cur.address&&cur.address.address)||'')+'" placeholder="例: 愛知県常滑市新開町1-1" style="'+iStyle+'"></div>'
+      +'<div><label style="font-size:10px;color:#64748b;display:block;margin-bottom:3px">販売ステータス</label>'
+      +'<select id="pe-status" style="'+iStyle+'">'+statusOpts+'</select></div>'
+      +'</div>'
+      // 日程情報
+      +'<div style="font-size:11px;font-weight:800;color:#475569;margin-bottom:8px;padding-bottom:4px;border-bottom:2px solid #e2e8f0">📅 日程情報</div>'
+      +'<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:16px">'
+      +['land_contract:土地契約日','land_payment:土地決済','confirm_submit:確認申請提出','confirm_done:確認申請完了','inspection_date:完了検査日','complete_date:完成日','delivery_date:引渡し日'].map(function(pair){
+        var parts=pair.split(':'),key=parts[0],lbl=parts[1];
+        var val=(cur[key]||'').replace(/\//g,'-');
+        return '<div><label style="font-size:9px;color:#64748b;display:block;margin-bottom:2px">'+lbl+'</label>'
+          +'<input id="pe-'+key+'" type="date" value="'+val+'" style="'+iStyle+'padding:5px 6px;font-size:11px;"></div>';
+      }).join('')
+      +'</div>'
+      // 駐車場
+      +'<div style="font-size:11px;font-weight:800;color:#475569;margin-bottom:8px;padding-bottom:4px;border-bottom:2px solid #e2e8f0">🚗 駐車場情報</div>'
+      +'<div id="pk-list" style="margin-bottom:8px">'
+      +pks.map(function(pk,i){return parkRow(pk,i);}).join('')
+      +'</div>'
+      +'<button onclick="addParkRow()" style="width:100%;padding:8px;background:#f1f5f9;color:#1a56db;border:1.5px dashed #93c5fd;border-radius:8px;font-size:11px;font-weight:700;cursor:pointer;margin-bottom:16px">＋ 駐車場を追加</button>'
+      // 保存
+      +'<button onclick="savePropEdit()" style="width:100%;padding:12px;background:#1a56db;color:white;border:none;border-radius:9px;font-size:13px;font-weight:800;cursor:pointer">💾 保存する</button>'
+      +'</div>';
+    modal.style.display='flex';
+  }
+
+  window._editParkings=JSON.parse(JSON.stringify(parkings));
+  window._editPropCk=ck;
+  renderModal();
+  window._rerenderPropModal=renderModal;
+}
+window.openPropEditModal=openPropEditModal;
+
+function closePropEditModal(){
+  var m=document.getElementById('_propEditModal');
+  if(m)m.style.display='none';
+  window._editParkings=null;
+}
+window.closePropEditModal=closePropEditModal;
+
+function addParkRow(){
+  if(!window._editParkings)window._editParkings=[];
+  // 現在のDOMから値を読み取って保存
+  _syncParkingsFromDOM();
+  window._editParkings.push({name:'',carno:'',address:''});
+  window._rerenderPropModal&&window._rerenderPropModal();
+}
+window.addParkRow=addParkRow;
+
+function removeParkRow(idx){
+  _syncParkingsFromDOM();
+  if(window._editParkings)window._editParkings.splice(idx,1);
+  window._rerenderPropModal&&window._rerenderPropModal();
+}
+window.removeParkRow=removeParkRow;
+
+function _syncParkingsFromDOM(){
+  var pks=window._editParkings||[];
+  pks.forEach(function(_,i){
+    var n=document.getElementById('pk-name-'+i);
+    var c=document.getElementById('pk-carno-'+i);
+    var a=document.getElementById('pk-addr-'+i);
+    if(n)pks[i].name=n.value;
+    if(c)pks[i].carno=c.value;
+    if(a)pks[i].address=a.value;
+  });
+}
+
+function savePropEdit(){
+  _syncParkingsFromDOM();
+  var ov=loadLS('jack_prop_overrides',{});
+  var ck=window._editPropCk||custKey(currentProp);
+
+  function getDate(id){
+    var el=document.getElementById(id); if(!el||!el.value)return '';
+    return el.value.replace(/-/g,'/');
+  }
+
+  var updates={
+    tantou:(document.getElementById('pe-tantou')||{}).value||'',
+    address:(document.getElementById('pe-address')||{}).value||'',
+    status:(document.getElementById('pe-status')||{}).value||'',
+    land_contract:getDate('pe-land_contract'),
+    land_payment:getDate('pe-land_payment'),
+    confirm_submit:getDate('pe-confirm_submit'),
+    confirm_done:getDate('pe-confirm_done'),
+    inspection_date:getDate('pe-inspection_date'),
+    complete_date:getDate('pe-complete_date'),
+    delivery_date:getDate('pe-delivery_date'),
+    parkings:JSON.parse(JSON.stringify(window._editParkings||[]))
+  };
+  // 空値を除去（元データを維持）
+  Object.keys(updates).forEach(function(k){if(updates[k]===''||updates[k]===null)delete updates[k];});
+  ov[ck]=Object.assign(ov[ck]||{},updates);
+  saveLS('jack_prop_overrides',ov);
+
+  // currentPropを更新
+  currentProp=Object.assign({},currentProp,updates);
+
+  closePropEditModal();
+  openDetail(currentProp);
+  renderBody();
+  showToast('✅ 物件情報を保存しました','success');
+}
+window.savePropEdit=savePropEdit;
 function addFavAction(){if(currentProp){addFav(currentProp);renderBody();showToast('⭐ マイ物件に追加しました','success');openDetail(currentProp);}}
 
 function removeFavAction(){if(currentProp){removeFav(currentProp);renderBody();showToast('マイ物件から削除しました','');openDetail(currentProp);}}
