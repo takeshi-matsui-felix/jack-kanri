@@ -711,7 +711,7 @@ function fullColToVisX(fullCol) {
 
 // ===== SEGMENT RESOLUTION =====
 function getActiveSegs(p) {
-  // LocalStorageのオーバーライドをマージ
+  // prop_overrides(LocalStorage)も追加でマージ（DB未登録物件のフォールバック）
   var ov=loadLS('jack_prop_overrides',{});
   var ck=custKey(p);
   if(ov[ck])p=Object.assign({},p,ov[ck]);
@@ -2163,7 +2163,7 @@ function openPropEditModal(){
       +'</div>'
       +'<button onclick="addParkRow()" style="width:100%;padding:8px;background:#f1f5f9;color:#1a56db;border:1.5px dashed #93c5fd;border-radius:8px;font-size:11px;font-weight:700;cursor:pointer;margin-bottom:16px">＋ 駐車場を追加</button>'
       // 保存
-      +'<button onclick="savePropEdit()" style="width:100%;padding:12px;background:#1a56db;color:white;border:none;border-radius:9px;font-size:13px;font-weight:800;cursor:pointer">💾 保存する</button>'
+      +'<button id="_saveBtn" onclick="savePropEdit()" style="width:100%;padding:12px;background:#1a56db;color:white;border:none;border-radius:9px;font-size:13px;font-weight:800;cursor:pointer">💾 保存する（全ユーザーに共有）</button>'
       +'</div>';
     modal.style.display='flex';
   }
@@ -2212,39 +2212,65 @@ function _syncParkingsFromDOM(){
 
 function savePropEdit(){
   _syncParkingsFromDOM();
-  var ov=loadLS('jack_prop_overrides',{});
-  var ck=window._editPropCk||custKey(currentProp);
+  var sb=getSB();
+  var p=currentProp; if(!p)return;
 
-  function getDate(id){
-    var el=document.getElementById(id); if(!el||!el.value)return '';
-    return el.value.replace(/-/g,'/');
-  }
+  function getDateVal(id){var el=document.getElementById(id);if(!el||!el.value)return null;return el.value.replace(/-/g,'/');}
+  function getStrVal(id){var el=document.getElementById(id);return(el&&el.value.trim())||null;}
 
   var updates={
-    tantou:(document.getElementById('pe-tantou')||{}).value||'',
-    address:(document.getElementById('pe-address')||{}).value||'',
-    status:(document.getElementById('pe-status')||{}).value||'',
-    land_contract:getDate('pe-land_contract'),
-    land_payment:getDate('pe-land_payment'),
-    confirm_submit:getDate('pe-confirm_submit'),
-    confirm_done:getDate('pe-confirm_done'),
-    inspection_date:getDate('pe-inspection_date'),
-    complete_date:getDate('pe-complete_date'),
-    delivery_date:getDate('pe-delivery_date'),
-    parkings:JSON.parse(JSON.stringify(window._editParkings||[]))
+    tantou:        getStrVal('pe-tantou'),
+    address:       getStrVal('pe-address'),
+    status:        getStrVal('pe-status'),
+    land_contract: getDateVal('pe-land_contract'),
+    land_payment:  getDateVal('pe-land_payment'),
+    confirm_submit:getDateVal('pe-confirm_submit'),
+    confirm_done:  getDateVal('pe-confirm_done'),
+    inspection_date:getDateVal('pe-inspection_date'),
+    complete_date: getDateVal('pe-complete_date'),
+    delivery_date: getDateVal('pe-delivery_date'),
+    parkings:      JSON.parse(JSON.stringify(window._editParkings||[]))
   };
-  // 空値を除去（元データを維持）
-  Object.keys(updates).forEach(function(k){if(updates[k]===''||updates[k]===null)delete updates[k];});
-  ov[ck]=Object.assign(ov[ck]||{},updates);
-  saveLS('jack_prop_overrides',ov);
 
-  // currentPropを更新
-  currentProp=Object.assign({},currentProp,updates);
+  function applyLocally(){
+    Object.assign(currentProp,updates);
+    getAllProps().forEach(function(pp){if(pp.fix_no===p.fix_no&&pp.name===p.name)Object.assign(pp,updates);});
+  }
 
-  closePropEditModal();
-  openDetail(currentProp);
-  renderBody();
-  showToast('✅ 物件情報を保存しました','success');
+  if(!sb){
+    // オフライン: LocalStorageにフォールバック
+    var ov=loadLS('jack_prop_overrides',{});
+    ov[custKey(p)]=Object.assign(ov[custKey(p)]||{},updates);
+    saveLS('jack_prop_overrides',ov);
+    applyLocally();
+    closePropEditModal(); openDetail(currentProp); renderBody();
+    showToast('⚠️ オフライン: ローカルに保存しました（他端末には反映されません）','');
+    return;
+  }
+
+  // Supabaseに全項目まとめて保存
+  sb.from('properties').select('id').eq('fix_no',String(p.fix_no)).single()
+    .then(function(res){
+      if(res.error||!res.data){
+        // DBに未登録 → LocalStorageにフォールバック
+        var ov=loadLS('jack_prop_overrides',{});
+        ov[custKey(p)]=Object.assign(ov[custKey(p)]||{},updates);
+        saveLS('jack_prop_overrides',ov);
+        applyLocally();
+        closePropEditModal(); openDetail(currentProp); renderBody();
+        showToast('⚠️ DB未登録物件: ローカル保存しました','');
+        return null;
+      }
+      return sb.from('properties').update(updates).eq('id',res.data.id);
+    })
+    .then(function(res2){
+      if(!res2)return;
+      if(res2.error){showToast('保存エラー: '+res2.error.message,'error');return;}
+      applyLocally();
+      closePropEditModal(); openDetail(currentProp); renderBody();
+      showToast('✅ 保存しました（全ユーザーに共有）','success');
+    })
+    .catch(function(e){showToast('保存エラー: '+e.message,'error');});
 }
 window.savePropEdit=savePropEdit;
 function addFavAction(){if(currentProp){addFav(currentProp);renderBody();showToast('⭐ マイ物件に追加しました','success');openDetail(currentProp);}}
@@ -3931,10 +3957,6 @@ function renderAdminCPShell(){
     +'<div id="admLeft" style="width:150px;flex-shrink:0;background:#1e293b;display:flex;flex-direction:column;padding:6px 0">'
       +admMenuItem('users','👥','ユーザー管理')
       +'<div style="height:1px;background:rgba(255,255,255,.08);margin:3px 10px"></div>'
-      +admMenuItem('props','🏠','物件管理')
-      +admMenuItem('address','📍','住所登録')
-      +admMenuItem('tantou','👤','担当者登録')
-      +'<div style="height:1px;background:rgba(255,255,255,.08);margin:3px 10px"></div>'
       +admMenuItem('import','📥','データ取込')
     +'</div>'
     +'<div id="admRight" style="flex:1;overflow-y:auto;background:#f8fafc"></div>'
@@ -3972,76 +3994,6 @@ async function loadAdmSec(sec){
         +pending.map(function(u){return admUserCard(u,false);}).join('')+'</div>':'')
       +'<div style="font-size:12px;font-weight:700;color:#64748b;margin-bottom:8px">承認済（'+approved.length+'件）</div>'
       +approved.map(function(u){return admUserCard(u,true);}).join('')
-      +'</div>';
-
-  } else if(sec==='props'){
-    var r2=await sb.from('properties').select('*').order('fix_no');
-    var props=r2.data||[];
-    right.innerHTML='<div style="padding:14px">'
-      +'<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">'
-        +'<div style="font-size:16px;font-weight:800;color:#1e293b">🏠 物件管理（'+props.length+'件）</div>'
-        +'<div style="display:flex;gap:8px">'
-          +'<button onclick="admOpenPropForm(null)" style="background:#1a56db;color:white;padding:7px 14px;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer">＋ 手入力</button>'
-          +'<button onclick="loadAdmSec(\'import\')" style="background:#10b981;color:white;padding:7px 14px;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer">📥 データ取込</button>'
-        +'</div>'
-      +'</div>'
-      +'<div id="admPropList">'+props.map(admPropRow).join('')+'</div>'
-      +'<div id="admPropForm" style="display:none;margin-top:12px;padding:14px;background:white;border-radius:10px;border:2px solid #1a56db"></div>'
-      +'</div>';
-
-  } else if(sec==='address'){
-    // Show ALL props from DB + localData, prioritize unregistered ones
-    var r3=await sb.from('properties').select('id,fix_no,name,area,address').order('fix_no');
-    var props3=r3.data||[];
-    // Also get local data props not in DB
-    var localProps=(typeof DATA!=='undefined'&&DATA.all)?
-      ['全物件進捗','来期物件'].reduce(function(acc,sh){return acc.concat(DATA.all[sh]||[]);},[]):[];
-    var dbFixNos=new Set(props3.map(function(p){return String(p.fix_no);}));
-    var localOnly=localProps.filter(function(p){return !dbFixNos.has(String(p.fix_no));});
-
-    right.innerHTML='<div style="padding:14px">'
-      +'<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">'
-        +'<div><div style="font-size:16px;font-weight:800;color:#1e293b">📍 住所登録</div>'
-        +'<div style="font-size:11px;color:#64748b">住所を登録するとマップで現場地図が表示されます</div></div>'
-        +'<label style="background:#10b981;color:white;padding:7px 14px;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer">'
-          +'📋 住所Excelから一括取込'
-          +'<input type="file" id="addrXlsxInput" accept=".xlsx,.xls" onchange="handleAddrXlsx(this)" style="display:none">'
-        +'</label>'
-      +'</div>'
-      +'<div style="background:#fffbeb;border:1px solid #fde68a;border-radius:8px;padding:8px 12px;margin-bottom:12px;font-size:11px;color:#92400e">'
-        +'💡 「現場住所一覧.xlsx」をアップロードすると東海・関東タブのA列(市区町村)+B列(現場名)→C列(住所)を自動登録します'
-      +'</div>'
-      +'<div id="addrImportStatus"></div>'
-      +(props3.filter(function(p){return !p.address;}).length>0?
-        '<div style="font-size:11px;font-weight:700;color:#dc2626;margin-bottom:8px">⚠️ 住所未登録: '+props3.filter(function(p){return !p.address;}).length+'件</div>':
-        '<div style="font-size:11px;font-weight:700;color:#10b981;margin-bottom:8px">✅ 全件登録済み</div>')
-      +props3.map(function(p){
-          return '<div style="display:flex;align-items:center;gap:8px;padding:7px 0;border-bottom:1px solid #e2e8f0">'
-            +'<div style="flex:1;min-width:0">'
-              +'<div style="font-size:12px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'
-                +(p.address?'':'<span style="color:#dc2626">●</span> ')+'FiX '+p.fix_no+' '+p.name+'</div>'
-              +'<div style="font-size:10px;color:#94a3b8">'+p.area+'</div>'
-            +'</div>'
-            +'<input type="text" class="adm-addr-input" data-pid="'+p.id+'" value="'+(p.address||'')+'" placeholder="住所を入力..." '
-              +'style="width:280px;padding:6px 9px;border:1.5px solid '+(p.address?'#e2e8f0':'#fca5a5')+';border-radius:7px;font-size:11px;flex-shrink:0" '
-              +'onchange="admSaveField(this,\'address\')">'
-            +'</div>';
-        }).join('')
-      +'</div>';
-
-  } else if(sec==='tantou'){
-    var r4=await sb.from('properties').select('id,fix_no,name,area,tantou').order('fix_no');
-    right.innerHTML='<div style="padding:14px">'
-      +'<div style="font-size:16px;font-weight:800;color:#1e293b;margin-bottom:14px">👤 担当者登録</div>'
-      +(r4.data||[]).map(function(p){
-          return '<div style="display:flex;align-items:center;gap:8px;padding:7px 0;border-bottom:1px solid #e2e8f0">'
-            +'<div style="flex:1;min-width:0"><div style="font-size:12px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">FiX '+p.fix_no+' '+p.name+'</div>'
-            +'<div style="font-size:10px;color:#94a3b8">'+p.area+'</div></div>'
-            +'<input type="text" class="adm-tantou-input" data-pid="'+p.id+'" value="'+(p.tantou||'')+'" placeholder="担当者名..." '
-              +'style="width:180px;padding:6px 9px;border:1.5px solid #e2e8f0;border-radius:7px;font-size:11px;flex-shrink:0" '
-              +'onchange="admSaveField(this,\'tantou\')">'
-            +'</div>';
-        }).join('')
       +'</div>';
 
   } else if(sec==='import'){
