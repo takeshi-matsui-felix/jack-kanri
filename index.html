@@ -2074,6 +2074,7 @@ function openDetail(p){
       +mkRow('FiX No.',p.fix_no)+mkRow('通し番号',p.seq_no)+mkRow('エリア',p.area,false)+mkRow('物件名',p.name,false)
       +mkRow('担当者',p.tantou||p.staff||'',false)+mkRow('手組',p.hand_kumi,false)
       +mkRow('住所',addrVal,false)+'</div>'
+    +buildMasterLinkSection(p)
     +'<div class="dp-sec"><div class="dp-sec-head">📋 土地・契約情報</div>'+mkRow('土地契約日',p.land_contract)+mkRow('土地決済期日',p.land_payment)+'</div>'
     +'<div class="dp-sec"><div class="dp-sec-head">📐 設計・調査情報</div>'+mkRow('確認申請提出日',p.confirm_submit)+mkRow('確認申請完了日',p.confirm_done)+mkRow('地盤調査確定日',p.ground_survey)+'</div>'
     +'<div class="dp-sec"><div class="dp-sec-head">🏁 完了・引渡し情報</div>'+mkRow('完了検査日',p.inspection_date)+mkRow('完成日',p.complete_date)+delivRow+mkRow('引渡月',p.delivery_month)+'</div>'
@@ -2090,6 +2091,75 @@ function openDetail(p){
     +'<button class="btn-secondary" onclick="printPropInfo()" style="font-size:11px;padding:8px 10px">🖨️ この物件を印刷</button>';
   openPanel('detailPanel');
 }
+
+// ===== マスター工程紐付けセクション（物件詳細内） =====
+function buildMasterLinkSection(p){
+  var ck=custKey(p);
+  var currentMaster=propMaster[ck]||'';
+  var isAdmin=(typeof currentProfile!=='undefined'&&currentProfile&&currentProfile.role==='admin');
+  var linkBtn=isAdmin
+    ?'<button onclick="openMasterLinkModal()" style="margin-left:auto;background:#8b5cf6;color:white;padding:4px 12px;border-radius:6px;font-size:10px;font-weight:700;border:none;cursor:pointer">🔗 紐付け変更</button>'
+    :'';
+  var masterInfo=currentMaster
+    ?'<div class="dp-row"><span class="dp-label">適用マスター</span><span class="dp-val txt" style="color:#7c3aed;font-weight:700">📋 '+currentMaster+'</span></div>'
+    :'<div class="dp-row"><span class="dp-label">適用マスター</span><span class="dp-val txt" style="color:var(--g400)">デフォルト（日曜休工）</span></div>';
+  return '<div class="dp-sec"><div class="dp-sec-head" style="display:flex;align-items:center;">📋 マスター工程'+linkBtn+'</div>'
+    +masterInfo+'</div>';
+}
+
+function openMasterLinkModal(){
+  var p=currentProp; if(!p)return;
+  var ck=custKey(p);
+  var currentMaster=propMaster[ck]||'';
+  var modal=document.getElementById('_masterLinkModal');
+  if(!modal){
+    modal=document.createElement('div');
+    modal.id='_masterLinkModal';
+    modal.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:9999;display:flex;align-items:center;justify-content:center;';
+    modal.addEventListener('click',function(e){if(e.target===modal)modal.style.display='none';});
+    document.body.appendChild(modal);
+  }
+  var sn=p.name.replace(/^(Jack|Walter)\s*/i,'');
+  var options='<label style="display:flex;align-items:center;gap:10px;padding:10px 14px;border-bottom:1px solid #e2e8f0;cursor:pointer;">'
+    +'<input type="radio" name="masterLink" value="" '+(currentMaster===''?'checked':'')+' style="width:16px;height:16px;accent-color:#1a56db;">'
+    +'<div><div style="font-size:12px;font-weight:700;color:#1e293b;">デフォルト（日曜休工）</div>'
+    +'<div style="font-size:10px;color:#94a3b8;">確認申請完了日を起点に自動生成</div></div></label>';
+  myMasters.forEach(function(m){
+    options+='<label style="display:flex;align-items:center;gap:10px;padding:10px 14px;border-bottom:1px solid #e2e8f0;cursor:pointer;">'
+      +'<input type="radio" name="masterLink" value="'+encodeURIComponent(m.name)+'" '+(currentMaster===m.name?'checked':'')+' style="width:16px;height:16px;accent-color:#7c3aed;">'
+      +'<div><div style="font-size:12px;font-weight:700;color:#1e293b;">📋 '+m.name+'</div>'
+      +'<div style="font-size:10px;color:#94a3b8;">'+m.steps.length+'工種</div></div></label>';
+  });
+  if(!myMasters.length)options+='<div style="padding:16px;text-align:center;color:#94a3b8;font-size:12px;">マスター工程が未作成です</div>';
+  modal.innerHTML='<div style="background:white;border-radius:14px;width:90%;max-width:380px;max-height:80vh;display:flex;flex-direction:column;box-shadow:0 20px 60px rgba(0,0,0,.3)">'
+    +'<div style="padding:14px 16px;border-bottom:1px solid #e2e8f0;display:flex;align-items:center;">'
+      +'<div style="font-size:13px;font-weight:800;color:#1e293b;flex:1">🔗 マスター工程の紐付け<br><span style="font-size:10px;font-weight:400;color:#64748b;">'+sn+'</span></div>'
+      +'<button onclick="closeMasterLinkModal()" style="padding:4px 10px;background:#f1f5f9;border:none;border-radius:5px;cursor:pointer;font-size:12px;">x</button>'
+    +'</div>'
+    +'<div style="overflow-y:auto;flex:1;">'+options+'</div>'
+    +'<div style="padding:12px 16px;border-top:1px solid #e2e8f0;">'
+      +'<button onclick="saveMasterLink()" style="width:100%;padding:11px;background:#7c3aed;color:white;border:none;border-radius:9px;font-size:13px;font-weight:800;cursor:pointer;">💾 保存する</button>'
+    +'</div></div>';
+  modal.style.display='flex';
+}
+window.openMasterLinkModal=openMasterLinkModal;
+
+function saveMasterLink(){
+  var p=currentProp; if(!p)return;
+  var ck=custKey(p);
+  var sel=document.querySelector('input[name="masterLink"]:checked');
+  if(!sel)return;
+  var val=sel.value;
+  if(val===''){delete propMaster[ck];}
+  else{propMaster[ck]=decodeURIComponent(val);}
+  saveLS('jack_prop_master',propMaster);
+  document.getElementById('_masterLinkModal').style.display='none';
+  openDetail(currentProp); renderBody(); renderMyPage();
+  showToast('マスター工程の紐付けを更新しました','success');
+}
+window.saveMasterLink=saveMasterLink;
+function closeMasterLinkModal(){var m=document.getElementById('_masterLinkModal');if(m)m.style.display='none';}
+window.closeMasterLinkModal=closeMasterLinkModal;
 
 // ===== 物件情報編集モーダル（管理者専用） =====
 function openPropEditModal(){
@@ -2806,8 +2876,8 @@ function renderMasterPanel(){
       html+='<div class="dp-sec" style="margin:0 8px 8px">'
         +'<div class="dp-sec-head">⭐ '+m.name
         +'<div style="margin-left:auto;display:flex;gap:4px">'
-        +'<button style="font-size:10px;background:var(--primary-l);color:var(--primary);padding:3px 7px;border-radius:5px;font-weight:700" onclick="startEditMaster('+mi+')">✏️ 編集</button>'
-        +'<button style="font-size:10px;background:#dbeafe;color:var(--primary);padding:3px 7px;border-radius:5px;font-weight:700" onclick="assignMasterToProps('+mi+')">物件に適用</button>'
+        +'<button style="font-size:10px;background:#fef9c3;color:#854d0e;padding:3px 7px;border-radius:5px;font-weight:700" onclick="renameMaster('+mi+')">✏️ 名称変更</button>'
+        +'<button style="font-size:10px;background:var(--primary-l);color:var(--primary);padding:3px 7px;border-radius:5px;font-weight:700" onclick="startEditMaster('+mi+')">📋 工程編集</button>'
         +'<button style="font-size:10px;background:#fee2e2;color:var(--danger);padding:3px 7px;border-radius:5px;font-weight:700" onclick="deleteMaster('+mi+')">削除</button>'
         +'</div></div>'
         +m.steps.map(function(s){
@@ -3264,6 +3334,25 @@ function saveMasterEditorChanges(){
   closePanel('masterEditorPanel');
   showToast('✅ マスター工程「'+saved.name+'」を保存しました','success');
 }
+
+function renameMaster(idx){
+  var m=myMasters[idx]; if(!m)return;
+  var newName=prompt('マスター工程名を変更してください',m.name);
+  if(!newName||newName.trim()===m.name)return;
+  newName=newName.trim();
+  var oldName=m.name;
+  myMasters[idx].name=newName;
+  // propMasterの紐付けも更新
+  Object.keys(propMaster).forEach(function(ck){
+    if(propMaster[ck]===oldName)propMaster[ck]=newName;
+  });
+  saveLS('jack_my_masters',myMasters);
+  saveLS('jack_prop_master',propMaster);
+  renderMasterPanel();
+  renderBody();renderMyPage();
+  showToast('「'+oldName+'」→「'+newName+'」に変更しました','success');
+}
+window.renameMaster=renameMaster;
 
 function deleteMaster(idx){
   if(!confirm(myMasters[idx].name+'を削除しますか？'))return;
@@ -3777,6 +3866,30 @@ var calSelections={};
 function openMyCalendar(){
   try{calTasks=loadLS('jack_cal_tasks',[]);}catch(e){calTasks=[];}
   try{calSelections=loadLS('jack_cal_sel',{});}catch(e){calSelections={};}
+
+  // 古いキャッシュクリーンアップ：現在のマイ物件に存在しない工種タスクを除去
+  var favs=(typeof myFavProps!=='undefined')?myFavProps:[];
+  var validIds=new Set();
+  favs.forEach(function(fav){
+    var segs=(typeof getActiveSegs==='function')?getActiveSegs(fav):[];
+    if(!segs)segs=fav.segments||[];
+    segs.filter(function(s){return !s.layer&&(s.start_date||s.date)&&s.end_date;}).forEach(function(s){
+      var lbl=s.label||s.name||'';
+      var key=(fav.fix_no||fav.name)+'__'+encodeURIComponent(fav.name||'')+'__'+encodeURIComponent(lbl);
+      validIds.add('auto_'+key);
+    });
+  });
+  // auto_プレフィックスのタスクのみクリーンアップ対象（手動追加タスクは残す）
+  calTasks=calTasks.filter(function(t){
+    if(!t.id||!t.id.startsWith('auto_'))return true; // 手動タスクは残す
+    return validIds.has(t.id);
+  });
+  // selectionも同様にクリーンアップ
+  Object.keys(calSelections).forEach(function(k){
+    if(!validIds.has('auto_'+k))delete calSelections[k];
+  });
+  try{saveLS('jack_cal_tasks',calTasks);saveLS('jack_cal_sel',calSelections);}catch(e){}
+
   calYear=new Date().getFullYear();calMonth=new Date().getMonth();
   renderCalendar();
   openPanel('jackCalendarPanel');
