@@ -717,7 +717,9 @@ function getActiveSegs(p) {
   if(ov[ck])p=Object.assign({},p,ov[ck]);
   ck=custKey(p);
   if (customGantt[ck]) return customGantt[ck];
-  var masterName = propMaster[ck];
+  // propMasterを毎回LocalStorageから読んで最新を保証
+  var pm=loadLS('jack_prop_master',{});
+  var masterName = pm[ck] || propMaster[ck];
   if (masterName) {
     var tmpl = myMasters.find(function(m){return m.name===masterName;});
     if (tmpl) return computeMasterSegs(p.confirm_done, tmpl.steps, p.hand_kumi);
@@ -2150,12 +2152,40 @@ function saveMasterLink(){
   var sel=document.querySelector('input[name="masterLink"]:checked');
   if(!sel)return;
   var val=sel.value;
-  if(val===''){delete propMaster[ck];}
-  else{propMaster[ck]=decodeURIComponent(val);}
+  var masterName=val===''?null:decodeURIComponent(val);
+
+  if(!masterName){
+    delete propMaster[ck];
+  } else {
+    propMaster[ck]=masterName;
+  }
   saveLS('jack_prop_master',propMaster);
-  document.getElementById('_masterLinkModal').style.display='none';
-  openDetail(currentProp); renderBody(); renderMyPage();
-  showToast('マスター工程の紐付けを更新しました','success');
+  // グローバル変数も即時更新（再読込不要）
+  propMaster=loadLS('jack_prop_master',{});
+  closeMasterLinkModal();
+
+  // customGanttのキャッシュをクリア（マスター変更を確実に反映させる）
+  if(customGantt[ck]){
+    // カスタム工程がある場合はそちらが優先されるため、確認してから削除
+    if(confirm('カスタム工程表が設定されています。マスター工程を反映するにはカスタムをリセットしてください。\nリセットしますか？')){
+      delete customGantt[ck];
+      saveLS('jack_custom_gantt',customGantt);
+    }
+  }
+
+  // currentPropをDATA/DB_PROPSから再取得して確実に反映
+  var fresh=getAllProps().find(function(x){return x.fix_no===p.fix_no&&x.name===p.name;});
+  if(fresh){
+    currentProp=fresh;
+    // prop_overridesをマージ
+    var ov=loadLS('jack_prop_overrides',{});
+    if(ov[ck])currentProp=Object.assign({},fresh,ov[ck]);
+  }
+
+  renderBody();
+  renderMyPage();
+  openDetail(currentProp);
+  showToast('マスター工程「'+(masterName||'デフォルト')+'」を紐付けました','success');
 }
 window.saveMasterLink=saveMasterLink;
 function closeMasterLinkModal(){var m=document.getElementById('_masterLinkModal');if(m)m.style.display='none';}
