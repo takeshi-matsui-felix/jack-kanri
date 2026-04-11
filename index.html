@@ -508,13 +508,24 @@ body{display:flex;overflow:hidden;}
 <div id="jackMapModal" onclick="if(event.target.id==='jackMapModal')closeJackMap()" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:9998;align-items:center;justify-content:center">
   <div id="jackMapBox">
     <div id="jackMapHeader">
-      <div style="display:flex;align-items:center;justify-content:space-between"><div style="font-size:13px;font-weight:700;color:white" id="jackMapTitle">全現場マップ</div><button onclick="closeJackMap()" style="background:rgba(255,255,255,.12);color:white;width:28px;height:28px;border-radius:50%;font-size:16px;display:flex;align-items:center;justify-content:center;cursor:pointer">×</button></div>
-      <button id="jackMapNavBtn" style="display:none;background:#10b981;color:white;padding:7px;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;text-align:center">🚗 ナビ開始</button>
+      <div style="display:flex;align-items:center;justify-content:space-between">
+        <div style="font-size:13px;font-weight:700;color:white" id="jackMapTitle">全現場マップ</div>
+        <button onclick="closeJackMap()" style="background:rgba(255,255,255,.12);color:white;width:28px;height:28px;border-radius:50%;font-size:16px;display:flex;align-items:center;justify-content:center;cursor:pointer">×</button>
+      </div>
+      <div id="jackMapNavBar" style="display:none;display:flex;gap:6px;flex-wrap:wrap;margin-top:4px">
+        <button id="jackMapNavBtn" style="background:#10b981;color:white;padding:6px 12px;border-radius:8px;font-size:11px;font-weight:700;cursor:pointer;border:none">🚗 現場へナビ</button>
+        <button id="jackMapNavParkBtn" style="display:none;background:#f59e0b;color:white;padding:6px 12px;border-radius:8px;font-size:11px;font-weight:700;cursor:pointer;border:none">🅿️ 駐車場へナビ</button>
+      </div>
     </div>
     <div id="jackMapBody">
       <div id="jackMapList"></div>
       <div id="jackMapRight">
-        <div id="jackMapTabs"><button id="mapTabBtn_map" class="map-tab-btn active" onclick="showMapTab('map')">📍 地図</button><button id="mapTabBtn_conv" class="map-tab-btn" onclick="showMapTab('conv')">🏪 コンビニ</button><button id="mapTabBtn_toilet" class="map-tab-btn" onclick="showMapTab('toilet')">🚻 トイレ</button></div>
+        <div id="jackMapTabs" style="display:none;padding:6px;gap:4px;background:#f1f5f9;border-bottom:1px solid #e2e8f0;flex-shrink:0;display:none">
+          <button id="mapTabBtn_map" class="map-tab-btn active" onclick="showMapTab('map')">📍 現場地図</button>
+          <button id="mapTabBtn_park" class="map-tab-btn" onclick="showMapTab('park')">🅿️ 駐車場</button>
+          <button id="mapTabBtn_conv" class="map-tab-btn" onclick="showMapTab('conv')">🏪 コンビニ</button>
+          <button id="mapTabBtn_toilet" class="map-tab-btn" onclick="showMapTab('toilet')">🚻 トイレ</button>
+        </div>
         <iframe id="jackMapFrame" src="about:blank"></iframe>
       </div>
     </div>
@@ -2392,6 +2403,16 @@ function closeMenu(){document.getElementById('menuOverlay').classList.remove('op
 function openMyPage(){closeMenu();renderMyPage();openPanel('myPagePanel');}
 function openSelectProp(){
   var all=getAllProps();
+  // マイ物件のキャッシュクリーンアップ：現在のDATA/DBに存在しない物件を除去
+  var before=myFavProps.length;
+  myFavProps=myFavProps.filter(function(f){
+    return all.some(function(p){return p.fix_no===f.fix_no&&p.name===f.name;});
+  });
+  if(myFavProps.length!==before){
+    saveLS('jack_myfavs',myFavProps);
+    renderBody();renderMyPage();
+  }
+
   // エリア別グループ化
   var groups={},order=[];
   all.forEach(function(p){
@@ -3791,25 +3812,43 @@ window.sbOpenSub=sbOpenSub;
 // ================================================================
 var _mapAddr='',_mapName='';
 
+// ================================================================
+// 全現場マップ（住所ベース・駐車場対応・ナビ付き）
+// ================================================================
+var _mapProp=null; // 選択中の物件オブジェクト
+var _mapParkIdx=-1; // 選択中の駐車場インデックス（-1=現場本体）
+
 function openJackMap(area){
   var areaGroups={'東海':['愛知','三重','岐阜','静岡'],'関東':['埼玉','東京','神奈川','千葉','茨城','栃木','群馬']};
   var modal=document.getElementById('jackMapModal');
   var listEl=document.getElementById('jackMapList');
   var titleEl=document.getElementById('jackMapTitle');
   var tabsEl=document.getElementById('jackMapTabs');
-  var navEl=document.getElementById('jackMapNavBtn');
+  var navBar=document.getElementById('jackMapNavBar');
   var frameEl=document.getElementById('jackMapFrame');
   if(tabsEl)tabsEl.style.display='none';
-  if(navEl)navEl.style.display='none';
+  if(navBar)navBar.style.display='none';
   if(frameEl)frameEl.src='about:blank';
+  _mapProp=null; _mapParkIdx=-1;
 
   var allAreas=Object.keys(areaGroups);
 
+  function getAddr(p){
+    var a=p.address||'';
+    if(typeof a==='object')a=a.address||'';
+    return String(a).trim();
+  }
+  function getParkings(p){
+    // prop_overridesにあるparkingsを優先
+    var ov=loadLS('jack_prop_overrides',{});
+    var ck=custKey(p);
+    if(ov[ck]&&ov[ck].parkings)return ov[ck].parkings;
+    return p.parkings||[];
+  }
+
   function renderList(targetArea){
     var areas=areaGroups[targetArea]||[];
-    var props=(typeof getAllProps==='function'?getAllProps():[]).filter(function(p){
-      return areas.indexOf(p.area||'')>=0;
-    });
+    var props=getAllProps().filter(function(p){return areas.indexOf(p.area||'')>=0;});
     if(titleEl)titleEl.textContent=targetArea+'エリア（'+props.length+'件）';
     if(!listEl)return;
 
@@ -3820,19 +3859,28 @@ function openJackMap(area){
       }).join('')+'</div>';
 
     var items=props.map(function(p){
-      var addr=(p.address||'').trim()||(p.area+' '+p.name);
+      var addr=getAddr(p);
+      var pks=getParkings(p);
+      var hasAddr=!!addr;
       var sc=p.status==='契約済'?'#10b981':p.status==='販売中'?'#3b82f6':'#94a3b8';
-      return '<div class="map-prop-item" data-name="'+encodeURIComponent(p.name||'')+'" data-addr="'+encodeURIComponent(addr)+'" '
-        +'style="padding:9px 12px;border-bottom:1px solid #f1f5f9;cursor:pointer;display:flex;align-items:center;gap:8px">'
-        +'<div style="width:26px;height:26px;border-radius:50%;background:#eff6ff;display:flex;align-items:center;justify-content:center;font-size:13px;flex-shrink:0">📍</div>'
-        +'<div style="flex:1;min-width:0">'
-          +'<div style="font-size:12px;font-weight:700;color:#1e293b;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+(p.name||'')+'</div>'
-          +'<div style="font-size:10px;margin-top:1px">'
-            +'<span style="color:'+sc+';font-weight:600">'+(p.status||'')+'</span> '
-            +'<span style="color:#94a3b8">FiX '+(p.fix_no||'')+'</span>'
-            +(p.address?'<span style="color:#10b981;margin-left:4px">📍</span>':'<span style="color:#cbd5e1;margin-left:4px" title="住所未登録">－</span>')
+      var sn=(p.name||'').replace(/^(Jack|Walter)\s*/i,'');
+      return '<div class="map-prop-item" data-fixno="'+p.fix_no+'" data-name="'+encodeURIComponent(p.name||'')+'" '
+        +'style="padding:9px 12px;border-bottom:1px solid #f1f5f9;cursor:pointer;">'
+        +'<div style="display:flex;align-items:center;gap:8px">'
+          +'<div style="width:26px;height:26px;border-radius:50%;background:'+(hasAddr?'#eff6ff':'#f8fafc')+';display:flex;align-items:center;justify-content:center;font-size:13px;flex-shrink:0">'+(hasAddr?'📍':'🔲')+'</div>'
+          +'<div style="flex:1;min-width:0">'
+            +'<div style="font-size:12px;font-weight:700;color:#1e293b;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+sn+'</div>'
+            +'<div style="font-size:10px;margin-top:1px">'
+              +'<span style="color:'+sc+';font-weight:600">'+(p.status||'')+'</span> '
+              +'<span style="color:#94a3b8">FiX '+(p.fix_no||'')+'</span>'
+              +(hasAddr?'<span style="color:#10b981;margin-left:4px;font-size:9px">住所あり</span>':'<span style="color:#f59e0b;margin-left:4px;font-size:9px">住所未登録</span>')
+              +(pks.length?'<span style="color:#6366f1;margin-left:4px;font-size:9px">🅿️'+pks.length+'件</span>':'')
+            +'</div>'
+            +(hasAddr?'<div style="font-size:9px;color:#64748b;margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+addr+'</div>':'')
           +'</div>'
-        +'</div><div style="color:#cbd5e1;font-size:12px">›</div></div>';
+          +'<div style="color:#cbd5e1;font-size:12px">›</div>'
+        +'</div>'
+        +'</div>';
     }).join('')||'<div style="padding:20px;text-align:center;color:#94a3b8;font-size:12px">物件なし</div>';
 
     listEl.innerHTML=tabsHtml+items;
@@ -3841,16 +3889,53 @@ function openJackMap(area){
       if(aTab){renderList(aTab.getAttribute('data-area'));return;}
       var item=e.target.closest('.map-prop-item');
       if(!item)return;
-      _mapName=decodeURIComponent(item.getAttribute('data-name')||'');
-      _mapAddr=decodeURIComponent(item.getAttribute('data-addr')||'');
+      var fixNo=item.getAttribute('data-fixno');
+      var propName=decodeURIComponent(item.getAttribute('data-name')||'');
+      var p=getAllProps().find(function(x){return x.fix_no===fixNo&&x.name===propName;});
+      if(!p)return;
+      _mapProp=p; _mapParkIdx=-1;
       listEl.querySelectorAll('.map-prop-item').forEach(function(el){el.style.background='';});
       item.style.background='#eff6ff';
-      if(tabsEl)tabsEl.style.display='flex';
-      if(navEl){
-        navEl.style.display='block';
-        navEl.textContent='🚗 '+_mapName+' へナビ';
-        navEl.onclick=function(){window.open('https://maps.google.com/maps?q='+encodeURIComponent(_mapAddr+' '+_mapName)+'&dirflg=d','_blank');};
+      var addr=getAddr(p);
+      var pks=getParkings(p);
+      if(!addr){
+        if(tabsEl)tabsEl.style.display='none';
+        if(navBar)navBar.style.display='none';
+        if(frameEl)frameEl.src='about:blank';
+        showToast('この物件は住所が未登録です。物件詳細から住所を登録してください。','error');
+        return;
       }
+      if(tabsEl)tabsEl.style.display='flex';
+      if(navBar)navBar.style.display='flex';
+      // ナビボタン設定
+      var navBtn=document.getElementById('jackMapNavBtn');
+      var navParkBtn=document.getElementById('jackMapNavParkBtn');
+      var sn=(p.name||'').replace(/^(Jack|Walter)\s*/i,'');
+      if(navBtn){
+        navBtn.textContent='🚗 '+sn+' へナビ';
+        navBtn.onclick=function(){openNavigation(addr,p.name);};
+      }
+      // 駐車場ナビ
+      if(navParkBtn){
+        if(pks.length>0){
+          navParkBtn.style.display='';
+          navParkBtn.textContent='🅿️ 駐車場へナビ';
+          navParkBtn.onclick=function(){
+            if(pks.length===1){openNavigation(pks[0].address||addr,'駐車場: '+(pks[0].name||''));return;}
+            // 複数ある場合は選択ダイアログ
+            var choice=pks.map(function(pk,i){return (i+1)+'. '+(pk.name||'駐車場'+(i+1));}).join('\n');
+            var idx=parseInt(prompt('駐車場を選択してください:\n'+choice,'1'));
+            if(isNaN(idx)||idx<1||idx>pks.length)return;
+            var pk=pks[idx-1];
+            openNavigation(pk.address||addr,'駐車場: '+(pk.name||''));
+          };
+        } else {
+          navParkBtn.style.display='none';
+        }
+      }
+      // 駐車場タブの表示制御
+      var parkTab=document.getElementById('mapTabBtn_park');
+      if(parkTab)parkTab.style.display=pks.length>0?'':'none';
       showMapTab('map');
     };
   }
@@ -3859,29 +3944,104 @@ function openJackMap(area){
 }
 window.openJackMap=openJackMap;
 
+function openNavigation(addr,label){
+  if(!addr)return;
+  // 現在地が取得できる場合はGoogle Mapsナビ（出発地:現在地）
+  if(navigator.geolocation){
+    navigator.geolocation.getCurrentPosition(function(pos){
+      var origin=pos.coords.latitude+','+pos.coords.longitude;
+      var url='https://www.google.com/maps/dir/?api=1&origin='+encodeURIComponent(origin)+'&destination='+encodeURIComponent(addr)+'&travelmode=driving';
+      window.open(url,'_blank');
+    },function(){
+      // 位置情報エラー時は住所検索のみ
+      window.open('https://maps.google.com/maps?q='+encodeURIComponent(addr)+'&dirflg=d','_blank');
+    },{timeout:5000});
+  } else {
+    window.open('https://maps.google.com/maps?q='+encodeURIComponent(addr),'_blank');
+  }
+}
+window.openNavigation=openNavigation;
+
 function showMapTab(type){
-  if(!_mapAddr&&!_mapName)return;
+  if(!_mapProp)return;
+  var ov=loadLS('jack_prop_overrides',{});
+  var ck=custKey(_mapProp);
+  var addr=_mapProp.address||'';
+  if(typeof addr==='object')addr=addr.address||'';
+  addr=String(addr).trim();
+  if(ov[ck]&&ov[ck].address)addr=ov[ck].address;
+  if(!addr)return;
+
+  var pks=[];
+  if(ov[ck]&&ov[ck].parkings)pks=ov[ck].parkings;
+  else if(_mapProp.parkings)pks=_mapProp.parkings;
+
   document.querySelectorAll('.map-tab-btn').forEach(function(b){b.classList.remove('active');});
   var btn=document.getElementById('mapTabBtn_'+type);
   if(btn)btn.classList.add('active');
   var frame=document.getElementById('jackMapFrame');
   if(!frame)return;
-  var q=encodeURIComponent(_mapAddr+' '+_mapName);
-  var qa=encodeURIComponent(_mapAddr);
-  var urls={
-    map:'https://maps.google.com/maps?q='+q+'&output=embed',
-    conv:'https://maps.google.com/maps?q='+qa+'+コンビニ&output=embed',
-    toilet:'https://maps.google.com/maps?q='+qa+'+公衆トイレ&output=embed'
-  };
-  frame.src=urls[type]||urls.map;
+
+  var url='';
+  if(type==='map'){
+    url='https://maps.google.com/maps?q='+encodeURIComponent(addr)+'&output=embed';
+  } else if(type==='park'){
+    if(pks.length===0){
+      frame.src='about:blank';
+      frame.srcdoc='<div style="height:100%;display:flex;align-items:center;justify-content:center;font-family:sans-serif;color:#94a3b8;font-size:14px">駐車場情報が登録されていません</div>';
+      return;
+    }
+    // 複数駐車場：最初の住所ありのものを表示
+    var pkAddr=pks.map(function(pk){return pk.address||'';}).find(function(a){return a;})||addr;
+    // 複数ある場合はリスト表示後にiframeで表示
+    if(pks.length>1){
+      var listHtml='<div style="font-family:sans-serif;padding:10px;">';
+      listHtml+='<div style="font-size:13px;font-weight:700;margin-bottom:8px;color:#1e293b;">🅿️ 駐車場一覧</div>';
+      pks.forEach(function(pk,i){
+        var pkA=pk.address||'（住所未登録）';
+        listHtml+='<div onclick="showParkMap('+i+')" style="padding:8px 10px;border:1px solid #e2e8f0;border-radius:8px;margin-bottom:6px;cursor:pointer;background:#f8fafc">'
+          +'<div style="font-size:12px;font-weight:700;color:#1e293b;">'+( pk.name||'駐車場'+(i+1))+'</div>'
+          +(pk.carno?'<div style="font-size:10px;color:#6366f1;">🚘 車番: '+pk.carno+'</div>':'')
+          +'<div style="font-size:10px;color:#64748b;">📍 '+pkA+'</div>'
+          +(pkA!=='（住所未登録）'?'<div style="font-size:10px;color:#10b981;margin-top:2px;">タップで地図表示</div>':'')
+          +'</div>';
+      });
+      listHtml+='</div>';
+      frame.src='about:blank';
+      setTimeout(function(){
+        try{frame.contentDocument.open();frame.contentDocument.write(listHtml);frame.contentDocument.close();}catch(e){}
+      },100);
+      return;
+    }
+    url='https://maps.google.com/maps?q='+encodeURIComponent(pkAddr)+'&output=embed';
+  } else if(type==='conv'){
+    url='https://maps.google.com/maps?q='+encodeURIComponent(addr+' コンビニ')+'&output=embed';
+  } else if(type==='toilet'){
+    url='https://maps.google.com/maps?q='+encodeURIComponent(addr+' 公衆トイレ')+'&output=embed';
+  }
+  if(url)frame.src=url;
 }
 window.showMapTab=showMapTab;
+
+// 駐車場リストからの個別マップ表示
+window.showParkMap=function(idx){
+  if(!_mapProp)return;
+  var ov=loadLS('jack_prop_overrides',{});
+  var ck=custKey(_mapProp);
+  var pks=(ov[ck]&&ov[ck].parkings)?ov[ck].parkings:(_mapProp.parkings||[]);
+  var pk=pks[idx]; if(!pk)return;
+  var addr=pk.address||'';
+  if(!addr){showToast('この駐車場は住所が未登録です','error');return;}
+  var frame=document.getElementById('jackMapFrame');
+  if(frame)frame.src='https://maps.google.com/maps?q='+encodeURIComponent(addr)+'&output=embed';
+};
 
 function closeJackMap(){
   var modal=document.getElementById('jackMapModal');
   if(modal)modal.style.display='none';
   var frame=document.getElementById('jackMapFrame');
   if(frame)frame.src='about:blank';
+  _mapProp=null; _mapParkIdx=-1;
 }
 window.closeJackMap=closeJackMap;
 
