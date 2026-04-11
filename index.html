@@ -3746,11 +3746,26 @@ async function onAuthSuccess(){
   }
 }
 
-// Patch getAllProps to use DB when available
+// Patch getAllProps to use DB when available, filtered by DATA props
 (function(){
   var orig=window.getAllProps;
   window.getAllProps=function(){
-    if(DB_PROPS&&DB_PROPS.length>0)return DB_PROPS;
+    if(DB_PROPS&&DB_PROPS.length>0){
+      // DATAに存在するfix_noのみ返す（軽量化時のフィルター）
+      var dataProps=orig?orig():[];
+      if(dataProps.length>0){
+        var dataFixNos=new Set(dataProps.map(function(p){return String(p.fix_no);}));
+        var filtered=DB_PROPS.filter(function(p){return dataFixNos.has(String(p.fix_no));});
+        if(filtered.length>0){
+          // DBデータでDATAのmaster_segs/segmentsを補完
+          return filtered.map(function(dbp){
+            var local=dataProps.find(function(lp){return String(lp.fix_no)===String(dbp.fix_no);});
+            return local?Object.assign({},local,dbp):dbp;
+          });
+        }
+      }
+      return DB_PROPS;
+    }
     return orig?orig():[];
   };
 })();
@@ -3834,15 +3849,20 @@ function openJackMap(area){
   var allAreas=Object.keys(areaGroups);
 
   function getAddr(p){
+    // prop_overrides(LocalStorage)を優先
+    var ov=loadLS('jack_prop_overrides',{});
+    var ck=custKey(p);
+    if(ov[ck]&&ov[ck].address)return String(ov[ck].address).trim();
+    // DB_PROPS / p.address
     var a=p.address||'';
     if(typeof a==='object')a=a.address||'';
     return String(a).trim();
   }
   function getParkings(p){
-    // prop_overridesにあるparkingsを優先
+    // prop_overrides(LocalStorage)を優先
     var ov=loadLS('jack_prop_overrides',{});
     var ck=custKey(p);
-    if(ov[ck]&&ov[ck].parkings)return ov[ck].parkings;
+    if(ov[ck]&&ov[ck].parkings&&ov[ck].parkings.length)return ov[ck].parkings;
     return p.parkings||[];
   }
 
@@ -3966,15 +3986,19 @@ function showMapTab(type){
   if(!_mapProp)return;
   var ov=loadLS('jack_prop_overrides',{});
   var ck=custKey(_mapProp);
-  var addr=_mapProp.address||'';
-  if(typeof addr==='object')addr=addr.address||'';
-  addr=String(addr).trim();
-  if(ov[ck]&&ov[ck].address)addr=ov[ck].address;
+  // 住所取得（prop_overrides優先 → DB/DATA）
+  var addr='';
+  if(ov[ck]&&ov[ck].address)addr=String(ov[ck].address).trim();
+  if(!addr){
+    addr=_mapProp.address||'';
+    if(typeof addr==='object')addr=addr.address||'';
+    addr=String(addr).trim();
+  }
   if(!addr)return;
 
   var pks=[];
-  if(ov[ck]&&ov[ck].parkings)pks=ov[ck].parkings;
-  else if(_mapProp.parkings)pks=_mapProp.parkings;
+  if(ov[ck]&&ov[ck].parkings&&ov[ck].parkings.length)pks=ov[ck].parkings;
+  else if(_mapProp.parkings&&_mapProp.parkings.length)pks=_mapProp.parkings;
 
   document.querySelectorAll('.map-tab-btn').forEach(function(b){b.classList.remove('active');});
   var btn=document.getElementById('mapTabBtn_'+type);
@@ -4028,7 +4052,7 @@ window.showParkMap=function(idx){
   if(!_mapProp)return;
   var ov=loadLS('jack_prop_overrides',{});
   var ck=custKey(_mapProp);
-  var pks=(ov[ck]&&ov[ck].parkings)?ov[ck].parkings:(_mapProp.parkings||[]);
+  var pks=(ov[ck]&&ov[ck].parkings&&ov[ck].parkings.length)?ov[ck].parkings:(_mapProp.parkings||[]);
   var pk=pks[idx]; if(!pk)return;
   var addr=pk.address||'';
   if(!addr){showToast('この駐車場は住所が未登録です','error');return;}
