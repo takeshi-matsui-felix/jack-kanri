@@ -627,7 +627,13 @@ function saveLS(k,v){try{localStorage.setItem(k,JSON.stringify(v));}catch(e){}}
 
 var myFavProps  = loadLS('jack_myfavs', []);
 var VENDOR_DATA = {};  // {エリア: {物件名: {工事: 業者}}} from GAS
-var syncData    = loadLS('jack_sync', {lastSync:null,updates:[]});
+// 起動時に古い更新情報キャッシュをクリア
+var syncData    = (function(){
+  var d=loadLS('jack_sync', {lastSync:null,updates:[]});
+  // 古いupdatesデータがある場合は消去
+  if(d.updates&&d.updates.length>0){d.updates=[];saveLS('jack_sync',d);}
+  return d;
+})();
 var customGantt = loadLS('jack_custom_gantt', {});
 var myMasters   = loadLS('jack_my_masters', []);
 var propMaster  = loadLS('jack_prop_master', {});
@@ -3507,6 +3513,10 @@ function jsonpFetch(url, cbPrefix, onSuccess, onError){
 
 function doSync(){
   updateSyncBanner('同期中...',true);
+  // 古い更新情報キャッシュをクリア
+  try{localStorage.removeItem('jack_sync');}catch(e){}
+  syncData={lastSync:null,updates:[]};
+
   if(!SYNC_URL){
     var now=new Date();
     syncData={lastSync:now.toISOString(),updates:[]};saveLS('jack_sync',syncData);
@@ -3517,10 +3527,10 @@ function doSync(){
   jsonpFetch(SYNC_URL,'jackSync',
     function(j){
       var now=new Date();
-      syncData={lastSync:now.toISOString(),updates:j.updates||[]};saveLS('jack_sync',syncData);
+      // updatesは表示しない（GASからのゴミデータ対策）
+      syncData={lastSync:now.toISOString(),updates:[]};saveLS('jack_sync',syncData);
       var ts=(now.getMonth()+1)+'/'+now.getDate()+' '+now.getHours()+':'+('0'+now.getMinutes()).slice(-2);
       updateSyncBanner('最終同期: '+ts,false);
-      if(syncData.updates.length>0)showUpdatePopup(syncData.updates);
       showToast('✅ データを同期しました','success');
       // 業者データも取得
       jsonpFetch(SYNC_URL+'?type=vendors','jackVendor',
@@ -3535,14 +3545,8 @@ function doSync(){
   );
 }
 
-function showUpdatePopup(u){
-  document.getElementById('updateContent').innerHTML=u.map(function(x){
-    return '<div class="update-item"><span class="upd-icon">'+(x.type==='new'?'🆕':'✏️')+'</span>'
-      +'<div class="upd-text"><span class="'+(x.type==='new'?'upd-new':'upd-mod')+'">'+(x.type==='new'?'新規追加':'更新')+'</span> '+x.name+'（'+x.area+'）<br>'+x.msg+'</div></div>';
-  }).join('');
-  document.getElementById('updatePopup').style.display='flex';
-}
-function closeUpdatePopup(){document.getElementById('updatePopup').style.display='none';}
+function showUpdatePopup(u){/* 廃止: 無意味な更新情報を表示しない */}
+function closeUpdatePopup(){var p=document.getElementById('updatePopup');if(p)p.style.display='none';}
 function scheduleSync(){
   var check=function(){var now=new Date();if(now.getHours()>=SYNC_HOUR){var ls=syncData.lastSync?new Date(syncData.lastSync):null;if(!ls||ls.toDateString()!==now.toDateString())doSync();}};
   check();setInterval(check,5*60*1000);
@@ -4012,33 +4016,67 @@ function showMapTab(type){
     url='https://maps.google.com/maps?q='+encodeURIComponent(addr)+'&output=embed';
   } else if(type==='park'){
     if(pks.length===0){
+      var emptyHtml='<!DOCTYPE html><html><body style="margin:0;height:100vh;display:flex;align-items:center;justify-content:center;font-family:sans-serif;background:#f8fafc;color:#94a3b8;font-size:14px;text-align:center">駐車場情報が<br>登録されていません</body></html>';
       frame.src='about:blank';
-      frame.srcdoc='<div style="height:100%;display:flex;align-items:center;justify-content:center;font-family:sans-serif;color:#94a3b8;font-size:14px">駐車場情報が登録されていません</div>';
+      frame.onload=function(){try{frame.contentDocument.open();frame.contentDocument.write(emptyHtml);frame.contentDocument.close();}catch(e){}};
+      frame.src='about:blank';
       return;
     }
-    // 複数駐車場：最初の住所ありのものを表示
-    var pkAddr=pks.map(function(pk){return pk.address||'';}).find(function(a){return a;})||addr;
-    // 複数ある場合はリスト表示後にiframeで表示
-    if(pks.length>1){
-      var listHtml='<div style="font-family:sans-serif;padding:10px;">';
-      listHtml+='<div style="font-size:13px;font-weight:700;margin-bottom:8px;color:#1e293b;">🅿️ 駐車場一覧</div>';
-      pks.forEach(function(pk,i){
-        var pkA=pk.address||'（住所未登録）';
-        listHtml+='<div onclick="showParkMap('+i+')" style="padding:8px 10px;border:1px solid #e2e8f0;border-radius:8px;margin-bottom:6px;cursor:pointer;background:#f8fafc">'
-          +'<div style="font-size:12px;font-weight:700;color:#1e293b;">'+( pk.name||'駐車場'+(i+1))+'</div>'
-          +(pk.carno?'<div style="font-size:10px;color:#6366f1;">🚘 車番: '+pk.carno+'</div>':'')
-          +'<div style="font-size:10px;color:#64748b;">📍 '+pkA+'</div>'
-          +(pkA!=='（住所未登録）'?'<div style="font-size:10px;color:#10b981;margin-top:2px;">タップで地図表示</div>':'')
-          +'</div>';
-      });
-      listHtml+='</div>';
-      frame.src='about:blank';
-      setTimeout(function(){
-        try{frame.contentDocument.open();frame.contentDocument.write(listHtml);frame.contentDocument.close();}catch(e){}
-      },100);
-      return;
-    }
-    url='https://maps.google.com/maps?q='+encodeURIComponent(pkAddr)+'&output=embed';
+    // 駐車場カード + 地図の複合HTML
+    var firstAddr=pks.map(function(pk){return pk.address||'';}).find(function(a){return a;})||addr;
+    var cards=pks.map(function(pk,i){
+      var pkA=pk.address||'';
+      var hasAddr=!!pkA;
+      return '<div onclick="selectPark('+i+')" id="pk-card-'+i+'" style="'
+        +'background:white;border:2px solid #e2e8f0;border-radius:10px;padding:10px 12px;'
+        +'cursor:'+(hasAddr?'pointer':'default')+';flex-shrink:0;min-width:140px;max-width:180px;'
+        +'box-shadow:0 2px 8px rgba(0,0,0,.08);transition:border-color .15s;">'
+        +'<div style="font-size:11px;font-weight:800;color:#1e293b;margin-bottom:4px;">🅿️ '+(pk.name||'駐車場'+(i+1))+'</div>'
+        +(pk.carno?'<div style="background:#f0f9ff;border:1px solid #bae6fd;border-radius:6px;padding:4px 8px;margin-bottom:4px;text-align:center;">'
+          +'<div style="font-size:9px;color:#0369a1;font-weight:700;">🚘 車番</div>'
+          +'<div style="font-size:16px;font-weight:900;color:#0c4a6e;letter-spacing:1px;">'+pk.carno+'</div>'
+          +'</div>':'<div style="font-size:10px;color:#94a3b8;">車番未登録</div>')
+        +(hasAddr?'<div style="font-size:9px;color:#64748b;margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">📍'+pkA+'</div>'
+          +'<div style="font-size:9px;color:#10b981;margin-top:2px;font-weight:700;">タップで地図表示 →</div>'
+          :'<div style="font-size:9px;color:#f59e0b;margin-top:2px;">住所未登録</div>')
+        +'</div>';
+    }).join('');
+
+    var mapSrc=firstAddr?'https://maps.google.com/maps?q='+encodeURIComponent(firstAddr)+'&output=embed':'';
+    var parkHtml='<!DOCTYPE html><html><head><style>'
+      +'*{box-sizing:border-box;margin:0;padding:0;}'
+      +'body{font-family:sans-serif;height:100vh;display:flex;flex-direction:column;overflow:hidden;}'
+      +'#card-area{display:flex;gap:8px;padding:8px 10px;background:#f1f5f9;'
+      +'border-bottom:2px solid #e2e8f0;overflow-x:auto;-webkit-overflow-scrolling:touch;flex-shrink:0;}'
+      +'#map-frame{flex:1;border:none;width:100%;}'
+      +'</style></head><body>'
+      +'<div id="card-area">'+cards+'</div>'
+      +(mapSrc?'<iframe id="map-frame" src="'+mapSrc+'"></iframe>':'<div style="flex:1;display:flex;align-items:center;justify-content:center;color:#94a3b8;font-size:13px;background:#f8fafc;">住所を登録するとマップが表示されます</div>')
+      +'<script>'
+      +'var pks='+JSON.stringify(pks)+';'
+      +'var siteAddr='+JSON.stringify(addr)+';'
+      +'function selectPark(i){'
+      +'  var pk=pks[i]; if(!pk||!pk.address)return;'
+      +'  document.querySelectorAll("[id^=pk-card-]").forEach(function(c){c.style.borderColor="#e2e8f0";});'
+      +'  document.getElementById("pk-card-"+i).style.borderColor="#6366f1";'
+      +'  var f=document.getElementById("map-frame");'
+      +'  if(f)f.src="https://maps.google.com/maps?q="+encodeURIComponent(pk.address)+"&output=embed";'
+      +'}'
+      +'</scr'+'ipt>'
+      +'</body></html>';
+
+    frame.src='about:blank';
+    setTimeout(function(){
+      try{
+        frame.contentDocument.open();
+        frame.contentDocument.write(parkHtml);
+        frame.contentDocument.close();
+      }catch(e){
+        // クロスオリジンエラー対策: srcdocを使用
+        frame.setAttribute('srcdoc', parkHtml);
+      }
+    },80);
+    return;
   } else if(type==='conv'){
     // 現場住所を中心にコンビニを周辺検索（現場ピンも表示される）
     url='https://maps.google.com/maps?q='+encodeURIComponent(addr+' 近く コンビニ')+'&output=embed';
