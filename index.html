@@ -1464,7 +1464,7 @@ function toggleGanttEditMode(){
     geInitColorPicker();
     geRenderBars();
   } else {
-    btn.textContent='Edit'; btn.style.background='#f59e0b';
+    btn.textContent='✏️ 編集'; btn.style.background='#f59e0b';
     sb.style.display='none';
     geRenderBars();
   }
@@ -1554,17 +1554,16 @@ function geGetScrollWrap(){
 }
 function geStartDrag(e,idx,bar){
   e.preventDefault();
+  bar.setPointerCapture(e.pointerId);
   var sd=geSegs[idx].start_date||geSegs[idx].date||'';
   var wrap=geGetScrollWrap();
   var cv=document.getElementById('geCanvas');
-  var cvRect=cv?cv.getBoundingClientRect():{left:0};
-  var scrollLeft=wrap?wrap.scrollLeft:0;
-  // canvas座標系（スクロール込み）でのポインタ位置を記録
-  var startAbsX=e.clientX - cvRect.left + scrollLeft;
+  // ドラッグ開始時点のbarLeft(px)とポインタ位置(clientX)を記録
+  // cvRect.leftはscroll連動で変化するので、差分計算はclientXのみで行う
   geDragBar={
     idx:idx, bar:bar,
     startBarLeft:parseInt(bar.style.left)||0,
-    startAbsX:startAbsX,
+    startClientX:e.clientX,
     wrap:wrap
   };
   geDragStartMs=sd?new Date(sd.replace(/\//g,'-')).getTime():Date.now();
@@ -1578,14 +1577,9 @@ function geStartDrag(e,idx,bar){
 function geOnDrag(e){
   if(!geDragBar)return;
   e.preventDefault();
-  var cv=document.getElementById('geCanvas');
-  if(!cv)return;
   var wrap=geDragBar.wrap;
-  var scrollLeft=wrap?wrap.scrollLeft:0;
-  var cvRect=cv.getBoundingClientRect();
-  // canvas座標系（スクロール込み）での現在位置
-  var currentAbsX=e.clientX - cvRect.left + scrollLeft;
-  var pxMoved=currentAbsX - geDragBar.startAbsX;
+  // clientXの差分だけで計算（cvRectは使わない）
+  var pxMoved=e.clientX - geDragBar.startClientX;
   var dayShift=Math.round(pxMoved/GCW_GE);
   var newLeft=geDragBar.startBarLeft + dayShift*GCW_GE;
   if(newLeft<0)newLeft=0;
@@ -2669,12 +2663,10 @@ function renderEdSegList(){
 /* ---- drag ---- */
 function startEdDrag(e,idx,bar){
   e.preventDefault();
+  bar.setPointerCapture(e.pointerId);
   var sd=edSegs[idx].start_date||edSegs[idx].date||'';
   var wrap=document.getElementById('editorCanvasWrap');
-  var cv=document.getElementById('editorCanvas');
-  var cvRect=cv?cv.getBoundingClientRect():{left:0};
-  var scrollLeft=wrap?wrap.scrollLeft:0;
-  dragBar={idx:idx,bar:bar,wrap:wrap,startBarLeft:parseInt(bar.style.left)||0,startAbsX:e.clientX-cvRect.left+scrollLeft};
+  dragBar={idx:idx,bar:bar,wrap:wrap,startBarLeft:parseInt(bar.style.left)||0,startClientX:e.clientX};
   dragStartX=e.clientX;
   dragStartDateMs=sd?new Date(sd.replace(/\//g,'-')).getTime():Date.now();
   bar.style.cursor='grabbing';
@@ -2683,12 +2675,7 @@ function startEdDrag(e,idx,bar){
 }
 function onEdDrag(e){
   if(!dragBar)return;
-  var wrap=dragBar.wrap;
-  var cv=document.getElementById('editorCanvas');
-  var cvRect=cv?cv.getBoundingClientRect():{left:0};
-  var scrollLeft=wrap?wrap.scrollLeft:0;
-  var currentAbsX=e.clientX-cvRect.left+scrollLeft;
-  var pxMoved=currentAbsX-dragBar.startAbsX;
+  var pxMoved=e.clientX-dragBar.startClientX;
   var dayShift=Math.round(pxMoved/GCW_ED);
   var newLeft=dragBar.startBarLeft+dayShift*GCW_ED;
   if(newLeft<0)newLeft=0;
@@ -2697,6 +2684,7 @@ function onEdDrag(e){
   var newDate=new Date(newMs).toISOString().slice(0,10);
   edSegs[dragBar.idx].start_date=newDate; edSegs[dragBar.idx].date=newDate;
   // 自動スクロール
+  var wrap=dragBar.wrap;
   if(wrap){var wr=wrap.getBoundingClientRect();if(e.clientX>wr.right-60)wrap.scrollLeft+=12;else if(e.clientX<wr.left+60)wrap.scrollLeft-=12;}
 }
 function stopEdDrag(){
@@ -3340,28 +3328,22 @@ function renderMasterGantt(){
 var mBarDrag=null;
 function startMasterDrag(e,stepIdx,bar,startLeft){
   e.preventDefault();
-  var cv=document.getElementById('masterGanttCanvas');
+  bar.setPointerCapture(e.pointerId);
   var wrap=document.getElementById('masterGanttWrap');
-  var cvRect=cv?cv.getBoundingClientRect():{left:0};
-  var scrollLeft=wrap?wrap.scrollLeft:0;
-  mBarDrag={stepIdx:stepIdx,bar:bar,startLeft:startLeft,startAbsX:e.clientX-cvRect.left+scrollLeft,startOffset:editingMaster.steps[stepIdx].offset||0};
+  mBarDrag={stepIdx:stepIdx,bar:bar,startLeft:startLeft,startClientX:e.clientX,startOffset:editingMaster.steps[stepIdx].offset||0};
   bar.style.cursor='grabbing'; bar.style.zIndex='100'; bar.style.opacity='0.85';
   document.addEventListener('pointermove',onMasterBarDrag,{passive:false});
   document.addEventListener('pointerup',stopMasterBarDrag);
 }
 function onMasterBarDrag(e){
   if(!mBarDrag)return; e.preventDefault();
-  var cv=document.getElementById('masterGanttCanvas'); if(!cv)return;
-  var wrap=document.getElementById('masterGanttWrap');
-  var cvRect=cv.getBoundingClientRect();
-  var scrollLeft=wrap?wrap.scrollLeft:0;
-  var currentAbsX=e.clientX-cvRect.left+scrollLeft;
-  var pxMoved=currentAbsX-mBarDrag.startAbsX;
+  var pxMoved=e.clientX-mBarDrag.startClientX;
   var dayShift=Math.round(pxMoved/COL_W);
   editingMaster.steps[mBarDrag.stepIdx].offset=mBarDrag.startOffset+dayShift;
   var newLeft=mBarDrag.startLeft+dayShift*COL_W;
   if(newLeft>=0)mBarDrag.bar.style.left=newLeft+'px';
   // 自動スクロール
+  var wrap=document.getElementById('masterGanttWrap');
   if(wrap){var wr=wrap.getBoundingClientRect();if(e.clientX>wr.right-60)wrap.scrollLeft+=12;else if(e.clientX<wr.left+60)wrap.scrollLeft-=12;}
 }
 function stopMasterBarDrag(){
