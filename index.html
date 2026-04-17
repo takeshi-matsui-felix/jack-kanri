@@ -1484,6 +1484,9 @@ function geInitColorPicker(){
 
 function geRenderBars(){
   var multiEl=document.getElementById('detail-gantt-multi'); if(!multiEl)return;
+  // 再描画前にスクロール位置を保存（-1は初回 = TODAY位置に飛ぶ）
+  var prevWrap=multiEl.querySelector('div');
+  var savedScroll=prevWrap?prevWrap.scrollLeft:-1;
   var segs=ganttEditMode?geSegs:getActiveSegs(currentProp)||[];
   var todayDt=new Date(TODAY);
   var GCW=GCW_GE, ROW_H=20;
@@ -1533,6 +1536,15 @@ function geRenderBars(){
   });
   var totalH=numRows*ROW_H+28;
   multiEl.innerHTML='<div style="overflow-x:auto;-webkit-overflow-scrolling:touch;padding-left:90px;"><div id="geCanvas" style="position:relative;width:'+totalW+'px;height:'+totalH+'px;background:white;">'+labels+hdrBands+dayNums+todayLine+fills+rowBgs+bars+'</div></div>';
+  // スクロール位置を復元（初回はTODAY付近へ）
+  var newWrap=multiEl.querySelector('div');
+  if(newWrap){
+    if(savedScroll>=0){
+      newWrap.scrollLeft=savedScroll;
+    } else if(todayCol>0){
+      newWrap.scrollLeft=Math.max(0,(todayCol-5)*GCW);
+    }
+  }
   if(ganttEditMode){
     var cv2=document.getElementById('geCanvas'); if(!cv2)return;
     cv2.querySelectorAll('[id^=gebar]').forEach(function(bar){
@@ -2615,6 +2627,7 @@ function renderEditorCanvas(){
 
   // 組み立て（buildGanttTab multiRowと同じ構造）
   var totalH=numRows*ROW_H+28;
+  var savedScroll=wrap.scrollLeft; // 再描画前のスクロール位置を保存
   cv.innerHTML='';
   cv.style.cssText='position:relative;width:'+totalW+'px;height:'+totalH+'px;background:#1e293b;';
   // wrapのpaddingを90pxにして背景色を合わせる
@@ -2632,12 +2645,16 @@ function renderEditorCanvas(){
     });
   });
 
-  // 最初のバーにスクロール
+  // スクロール位置を復元（初回のみTODAY付近へ）
   setTimeout(function(){
-    var sd0=segs.length?(segs[0].start_date||segs[0].date||''):'';
-    var si=sd0?gDateIdx[sd0.replace(/\//g,'-')]||0:0;
-    var ti=gDateIdx[TODAY]||0;
-    wrap.scrollLeft=Math.max(0,((si||ti)-5)*GCW);
+    if(savedScroll>0){
+      wrap.scrollLeft=savedScroll;
+    } else {
+      var sd0=segs.length?(segs[0].start_date||segs[0].date||''):'';
+      var si=sd0?gDateIdx[sd0.replace(/\//g,'-')]||0:0;
+      var ti=gDateIdx[TODAY]||0;
+      wrap.scrollLeft=Math.max(0,((si||ti)-5)*GCW);
+    }
   },30);
 
   renderEdSegList();
