@@ -2313,11 +2313,14 @@ function openPropEditModal(){
 
   function renderModal(){
     var pks=window._editParkings||parkings;
-    modal.innerHTML='<div style="background:white;border-radius:14px;padding:20px;width:100%;max-width:480px;box-shadow:0 20px 60px rgba(0,0,0,.25)">'
-      +'<div style="display:flex;align-items:center;margin-bottom:16px">'
+    modal.innerHTML='<div style="background:white;border-radius:14px;width:100%;max-width:480px;box-shadow:0 20px 60px rgba(0,0,0,.25);display:flex;flex-direction:column;max-height:90vh;">'
+      // ── 固定ヘッダー
+      +'<div style="padding:16px 20px 12px;border-bottom:1px solid #e2e8f0;flex-shrink:0;display:flex;align-items:center">'
       +'<div style="font-size:14px;font-weight:800;color:#1e293b">✏️ 物件情報編集</div>'
       +'<button onclick="closePropEditModal()" style="margin-left:auto;background:#f1f5f9;border:none;border-radius:7px;padding:5px 12px;font-size:12px;cursor:pointer">✕ 閉じる</button>'
       +'</div>'
+      // ── スクロール可能なコンテンツ
+      +'<div style="overflow-y:auto;flex:1;padding:16px 20px">'
       // 基本情報
       +'<div style="font-size:11px;font-weight:800;color:#475569;margin-bottom:8px;padding-bottom:4px;border-bottom:2px solid #e2e8f0">🏠 基本情報</div>'
       +'<div style="display:flex;flex-direction:column;gap:10px;margin-bottom:16px">'
@@ -2343,9 +2346,12 @@ function openPropEditModal(){
       +'<div id="pk-list" style="margin-bottom:8px">'
       +pks.map(function(pk,i){return parkRow(pk,i);}).join('')
       +'</div>'
-      +'<button onclick="addParkRow()" style="width:100%;padding:8px;background:#f1f5f9;color:#1a56db;border:1.5px dashed #93c5fd;border-radius:8px;font-size:11px;font-weight:700;cursor:pointer;margin-bottom:16px">＋ 駐車場を追加</button>'
-      // 保存
+      +'<button onclick="addParkRow()" style="width:100%;padding:8px;background:#f1f5f9;color:#1a56db;border:1.5px dashed #93c5fd;border-radius:8px;font-size:11px;font-weight:700;cursor:pointer;margin-bottom:4px">＋ 駐車場を追加</button>'
+      +'</div>'
+      // ── 固定フッター（保存ボタン）
+      +'<div style="padding:12px 20px;border-top:1px solid #e2e8f0;flex-shrink:0;background:white;border-radius:0 0 14px 14px">'
       +'<button id="_saveBtn" onclick="savePropEdit()" style="width:100%;padding:12px;background:#1a56db;color:white;border:none;border-radius:9px;font-size:13px;font-weight:800;cursor:pointer">💾 保存する（全ユーザーに共有）</button>'
+      +'</div>'
       +'</div>';
     modal.style.display='flex';
   }
@@ -4555,6 +4561,7 @@ function renderAdminCPShell(){
   el.innerHTML='<div style="display:flex;height:100%;min-height:500px">'
     +'<div id="admLeft" style="width:150px;flex-shrink:0;background:#1e293b;display:flex;flex-direction:column;padding:6px 0">'
       +admMenuItem('users','👥','ユーザー管理')
+      +admMenuItem('props','🏠','物件管理')
       +'<div style="height:1px;background:rgba(255,255,255,.08);margin:3px 10px"></div>'
       +admMenuItem('import','📥','データ取込')
     +'</div>'
@@ -4594,6 +4601,49 @@ async function loadAdmSec(sec){
       +'<div style="font-size:12px;font-weight:700;color:#64748b;margin-bottom:8px">承認済（'+approved.length+'件）</div>'
       +approved.map(function(u){return admUserCard(u,true);}).join('')
       +'</div>';
+
+  } else if(sec==='props'){
+    // 物件一覧 + 検索 + インライン編集フォーム
+    var sb2=getSB();
+    var pr=await sb2.from('properties').select('*').order('fix_no',{ascending:true});
+    var props=pr.data||[];
+    var areaSet=[]; props.forEach(function(p){if(p.area&&areaSet.indexOf(p.area)<0)areaSet.push(p.area);});
+    var areaOpts=areaSet.map(function(a){return '<option value="'+a+'">'+a+'</option>';}).join('');
+
+    right.innerHTML='<div style="display:flex;flex-direction:column;height:100%">'
+      // ── ヘッダー＋検索バー
+      +'<div style="padding:12px 14px;background:white;border-bottom:1px solid #e2e8f0;flex-shrink:0">'
+        +'<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">'
+          +'<div style="font-size:15px;font-weight:800;color:#1e293b">🏠 物件管理 <span id="admPropCount" style="font-size:11px;color:#94a3b8;font-weight:400"></span></div>'
+          +'<button onclick="admNewProp()" style="background:#1a56db;color:white;padding:5px 14px;border-radius:7px;font-size:11px;font-weight:700;border:none;cursor:pointer">＋ 新規追加</button>'
+        +'</div>'
+        +'<div style="display:flex;gap:6px">'
+          +'<input id="admPropSearch" type="text" placeholder="物件名・FiX No.で絞込..." oninput="admFilterProps()" '
+            +'style="flex:1;padding:7px 10px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:12px">'
+          +'<select id="admPropArea" onchange="admFilterProps()" style="padding:6px 8px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:12px;color:#475569">'
+            +'<option value="">全エリア</option>'+areaOpts
+          +'</select>'
+          +'<select id="admPropStatus" onchange="admFilterProps()" style="padding:6px 8px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:12px;color:#475569">'
+            +'<option value="">全ステータス</option>'
+            +'<option value="契約済">契約済</option><option value="販売中">販売中</option>'
+            +'<option value="未公開">未公開</option><option value="買付">買付</option>'
+          +'</select>'
+        +'</div>'
+      +'</div>'
+      // ── 編集フォーム（初期非表示）
+      +'<div id="admPropFormWrap" style="display:none;background:#eff6ff;border-bottom:2px solid #bfdbfe;padding:14px;flex-shrink:0">'
+        +'<div id="admPropForm"></div>'
+      +'</div>'
+      // ── 物件リスト
+      +'<div id="admPropList" style="flex:1;overflow-y:auto;padding:10px 14px">'
+        +'<div style="text-align:center;padding:20px;color:#94a3b8;font-size:12px">読み込み中...</div>'
+      +'</div>'
+    +'</div>';
+
+    // 物件データをwindowに保持してフィルタ用に使用
+    window._admAllProps=props;
+    admFilterProps();
+    document.getElementById('admPropCount').textContent='（'+props.length+'件）';
 
   } else if(sec==='import'){
     right.innerHTML='<div style="padding:14px">'
@@ -4642,14 +4692,11 @@ function admPropRow(p){
     +'</div>';
 }
 
-// Event delegation
+// Event delegation (ユーザー管理ボタン)
 document.addEventListener('click',async function(e){
   var t=e.target;var sb=getSB();if(!sb)return;
   if(t.classList.contains('adm-approve')){await sb.from('profiles').update({approved:true}).eq('id',t.getAttribute('data-uid'));showToast('✅ 承認しました','success');loadAdmSec('users');}
   else if(t.classList.contains('adm-revoke')){if(!confirm('取り消しますか？'))return;await sb.from('profiles').update({approved:false}).eq('id',t.getAttribute('data-uid'));showToast('取り消しました','');loadAdmSec('users');}
-  else if(t.classList.contains('adm-ep')){var r=await sb.from('properties').select('*').eq('id',t.getAttribute('data-pid')).single();admOpenPropForm(r.data);}
-  else if(t.classList.contains('adm-dp')){if(!confirm('削除しますか？'))return;await sb.from('properties').delete().eq('id',t.getAttribute('data-pid'));showToast('削除しました','');loadAdmSec('props');}
-  else if(t.id==='admPropCancel'){var f=document.getElementById('admPropForm');if(f)f.style.display='none';}
 });
 
 async function admSaveField(input,field){
@@ -4666,45 +4713,146 @@ async function admSaveField(input,field){
 }
 window.admSaveField=admSaveField;
 
+// 物件リストフィルタ＆描画
+function admFilterProps(){
+  var list=document.getElementById('admPropList'); if(!list)return;
+  var props=window._admAllProps||[];
+  var q=(document.getElementById('admPropSearch')||{}).value||'';
+  var area=(document.getElementById('admPropArea')||{}).value||'';
+  var status=(document.getElementById('admPropStatus')||{}).value||'';
+  q=q.toLowerCase();
+  var filtered=props.filter(function(p){
+    var match=!q||(p.name||'').toLowerCase().indexOf(q)>=0||String(p.fix_no||'').indexOf(q)>=0;
+    var matchA=!area||(p.area||'')===area;
+    var matchS=!status||(p.status||'')===status;
+    return match&&matchA&&matchS;
+  });
+  document.getElementById('admPropCount').textContent='（'+filtered.length+'/'+props.length+'件）';
+  if(!filtered.length){list.innerHTML='<div style="text-align:center;padding:20px;color:#94a3b8;font-size:12px">該当する物件がありません</div>';return;}
+  list.innerHTML=filtered.map(function(p){return admPropCard(p);}).join('');
+}
+window.admFilterProps=admFilterProps;
+
+function admPropCard(p){
+  var st=p.status||'';
+  var stColor={'契約済':'#16a34a','販売中':'#1d4ed8','未公開':'#d97706','買付':'#7c3aed'}[st]||'#64748b';
+  var stBg={'契約済':'#dcfce7','販売中':'#dbeafe','未公開':'#fef9c3','買付':'#ede9fe'}[st]||'#f1f5f9';
+  return '<div style="background:white;border:1.5px solid #e2e8f0;border-radius:10px;margin-bottom:8px;overflow:hidden">'
+    +'<div onclick="admOpenPropEdit(\''+p.fix_no+'\',\''+encodeURIComponent(p.name)+'\')" '
+      +'style="display:flex;align-items:center;gap:10px;padding:10px 12px;cursor:pointer;transition:background .1s" '
+      +'onmouseover="this.style.background=\'#eff6ff\'" onmouseout="this.style.background=\'white\'">'
+      +'<div style="background:#1e293b;color:white;font-size:10px;font-weight:800;padding:3px 7px;border-radius:5px;flex-shrink:0;font-family:monospace">'+(p.fix_no||'-')+'</div>'
+      +'<div style="flex:1;min-width:0">'
+        +'<div style="font-size:13px;font-weight:700;color:#1e293b;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+(p.name||'')+'</div>'
+        +'<div style="font-size:10px;color:#94a3b8;margin-top:1px">'+(p.area||'')+(p.delivery_date?' ／ 引渡: '+p.delivery_date:'')+(p.confirm_done?' ／ 確認申請: '+p.confirm_done:'')+'</div>'
+      +'</div>'
+      +'<div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px;flex-shrink:0">'
+        +'<span style="font-size:10px;font-weight:700;background:'+stBg+';color:'+stColor+';padding:2px 7px;border-radius:5px">'+(st||'未設定')+'</span>'
+        +'<span style="font-size:9px;color:#94a3b8">✏️ タップで編集</span>'
+      +'</div>'
+    +'</div>'
+  +'</div>';
+}
+window.admPropCard=admPropCard;
+
+// 物件管理から物件情報編集モーダルを開く
+// → currentPropをセットして既存のopenPropEditModal()を再利用
+function admOpenPropEdit(fixNo,encName){
+  var name=decodeURIComponent(encName);
+  var all=getAllProps();
+  var found=all.find(function(x){return String(x.fix_no)===String(fixNo)&&x.name===name;});
+  if(!found&&DB_PROPS){found=DB_PROPS.find(function(x){return String(x.fix_no)===String(fixNo)&&x.name===name;});}
+  if(!found){showToast('物件データが見つかりません','error');return;}
+  currentProp=found;
+  // prop_overridesをマージ
+  var ov=loadLS('jack_prop_overrides',{});
+  var ck=custKey(found);
+  if(ov[ck])currentProp=Object.assign({},found,ov[ck]);
+  openPropEditModal();
+}
+window.admOpenPropEdit=admOpenPropEdit;
+
+function admNewProp(){
+  admOpenPropForm(null);
+}
+window.admNewProp=admNewProp;
+
 function admOpenPropForm(p){
-  var form=document.getElementById('admPropForm');if(!form)return;
-  form.style.display='';
+  var wrap=document.getElementById('admPropFormWrap');
+  var form=document.getElementById('admPropForm');
+  if(!wrap||!form){loadAdmSec('props').then(function(){setTimeout(function(){admOpenPropForm(p);},300);});return;}
+  wrap.style.display='';
+  var pid=p?p.id:null;
+  // 新規追加フォームのみ（既存物件はadmOpenPropEditで物件詳細モーダルを使う）
   var flds=[
-    {id:'pa_fix',l:'FiX No.',v:p?p.fix_no:''},
-    {id:'pa_name',l:'物件名 *',v:p?p.name:''},
-    {id:'pa_area',l:'エリア',v:p?p.area:''},
-    {id:'pa_status',l:'ステータス',v:p?p.status:''},
-    {id:'pa_tantou',l:'担当者',v:p?p.tantou:''},
-    {id:'pa_delivery',l:'引渡日',v:p?p.delivery_date:''},
-    {id:'pa_handk',l:'手組',v:p?p.hand_kumi:''},
-    {id:'pa_confirm',l:'確認申請完了',v:p?p.confirm_done:''},
-    {id:'pa_address',l:'住所',v:p?p.address:'',full:true}
+    {id:'pa_fix',    l:'FiX No.',        v:'',  half:true},
+    {id:'pa_seq',    l:'通し番号',        v:'',  half:true},
+    {id:'pa_name',   l:'物件名 ＊',       v:'',  full:true},
+    {id:'pa_area',   l:'エリア',          v:'',  half:true},
+    {id:'pa_status', l:'販売ステータス',   v:'',  half:true},
+    {id:'pa_confirm',l:'確認申請完了日',   v:'',  half:true},
+    {id:'pa_delivery',l:'引渡し日',       v:'',  half:true}
   ];
-  form.innerHTML='<div style="font-size:13px;font-weight:800;color:#1a56db;margin-bottom:12px">'+(p?'✏️ 編集: '+(p.name||''):'＋ 新規追加')+'</div>'
-    +'<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">'
+  form.innerHTML=''
+    +'<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">'
+      +'<div style="font-size:13px;font-weight:800;color:#1a56db">＋ 新規物件追加</div>'
+      +'<button onclick="admClosePropForm()" style="background:#f1f5f9;color:#64748b;border:none;border-radius:6px;padding:4px 10px;font-size:11px;cursor:pointer">✕ 閉じる</button>'
+    +'</div>'
+    +'<div style="font-size:10px;color:#64748b;margin-bottom:8px">住所・駐車場・完了検査日・完成日は保存後、物件カードから編集できます</div>'
+    +'<div style="display:grid;grid-template-columns:1fr 1fr;gap:6px">'
     +flds.map(function(f){
-      return '<div'+(f.full?' style="grid-column:1/-1"':'')+'>  <label style="font-size:10px;font-weight:700;color:#64748b;display:block;margin-bottom:3px">'+f.l+'</label>'
-        +'<input type="text" id="'+f.id+'" value="'+(f.v||'')+'" style="width:100%;padding:7px 9px;border:1.5px solid #e2e8f0;border-radius:7px;font-size:12px;box-sizing:border-box"></div>';
-    }).join('')+'</div>'
-    +'<div style="display:flex;gap:8px;margin-top:12px">'
-      +'<button onclick="admSaveProp('+(p?p.id:'null')+')" style="flex:1;padding:9px;background:#1a56db;color:white;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer">💾 保存</button>'
-      +'<button id="admPropCancel" style="padding:9px 16px;background:#f1f5f9;color:#64748b;border-radius:8px;font-size:12px;cursor:pointer">キャンセル</button>'
+      return '<div'+(f.full?' style="grid-column:1/-1"':'')+'>'
+        +'<label style="font-size:10px;font-weight:700;color:#64748b;display:block;margin-bottom:2px">'+f.l+'</label>'
+        +'<input type="text" id="'+f.id+'" value="'+(f.v||'')+'" '
+          +'style="width:100%;padding:6px 8px;border:1.5px solid #e2e8f0;border-radius:6px;font-size:11px;box-sizing:border-box">'
+      +'</div>';
+    }).join('')
+    +'</div>'
+    +'<div style="display:flex;gap:8px;margin-top:10px">'
+      +'<button onclick="admSaveProp(null)" '
+        +'style="flex:1;padding:9px;background:#1a56db;color:white;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;border:none">💾 新規追加</button>'
     +'</div>';
-  form.scrollIntoView({behavior:'smooth'});
+  wrap.scrollIntoView({behavior:'smooth',block:'start'});
 }
 window.admOpenPropForm=admOpenPropForm;
 
+function admClosePropForm(){
+  var wrap=document.getElementById('admPropFormWrap');
+  if(wrap)wrap.style.display='none';
+}
+window.admClosePropForm=admClosePropForm;
+
+async function admDeleteProp(pid){
+  var sb=getSB(); if(!sb)return;
+  var r=await sb.from('properties').delete().eq('id',pid);
+  if(r.error){showToast('削除エラー: '+r.error.message,'error');return;}
+  showToast('削除しました','');
+  admClosePropForm();
+  loadAdmSec('props');
+}
+window.admDeleteProp=admDeleteProp;
+
 async function admSaveProp(id){
-  var g=function(eid){var el=document.getElementById(eid);return el?el.value.trim():'';};
-  var prop={fix_no:g('pa_fix'),name:g('pa_name'),area:g('pa_area'),status:g('pa_status'),
-    tantou:g('pa_tantou'),delivery_date:g('pa_delivery'),hand_kumi:g('pa_handk'),
-    confirm_done:g('pa_confirm'),address:g('pa_address'),updated_at:new Date().toISOString()};
+  var g=function(eid){var el=document.getElementById(eid);return el?el.value.trim():null;};
+  // DBスキーマに存在するカラムのみ（address・inspection_date・complete_date・parkingsはスキーマ外）
+  var prop={
+    fix_no:g('pa_fix'), seq_no:g('pa_seq'), name:g('pa_name'), area:g('pa_area'),
+    hand_kumi:g('pa_handk'), status:g('pa_status'),
+    land_contract:g('pa_lc')||null, land_payment:g('pa_lp')||null,
+    confirm_submit:g('pa_cs')||null, confirm_done:g('pa_confirm')||null,
+    delivery_date:g('pa_delivery')||null, delivery_month:g('pa_delmon')||null,
+    updated_at:new Date().toISOString()
+  };
+  // null・空文字除去
+  Object.keys(prop).forEach(function(k){if(prop[k]===null||prop[k]==='')delete prop[k];});
   if(!prop.name){showToast('物件名は必須です','error');return;}
   var sb=getSB();
   var result=id?await sb.from('properties').update(prop).eq('id',id):await sb.from('properties').insert(prop);
   if(result.error){showToast('保存エラー: '+result.error.message,'error');return;}
   showToast('✅ 保存しました','success');
-  var f=document.getElementById('admPropForm');if(f)f.style.display='none';
+  // DB_PROPSキャッシュ更新
+  if(DB_PROPS&&id){var idx=DB_PROPS.findIndex(function(p){return String(p.id)===String(id);});if(idx>=0)Object.assign(DB_PROPS[idx],prop);}
+  admClosePropForm();
   loadAdmSec('props');
 }
 window.admSaveProp=admSaveProp;
