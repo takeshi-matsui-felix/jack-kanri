@@ -2592,10 +2592,9 @@ function renderMyPage(){
   var all=getAllProps();
   var html='<div style="padding:8px 12px 4px;font-size:11px;color:var(--g400)">登録物件 '+myFavProps.length+'件</div>'
     +'<div style="padding:4px 12px 8px;display:flex;gap:6px;flex-wrap:wrap">'
-    +''
     +'<button class="btn-secondary" style="font-size:11px;padding:7px 12px" onclick="openMasterPanel()">📋 マスター工程</button>'
     +'<button class="btn-secondary" style="font-size:11px;padding:7px 12px" onclick="printPage()">🖨️ 印刷</button>'
-    +'<button class="btn-secondary" style="font-size:11px;padding:7px 12px;background:#059669;color:white;border-color:#059669" onclick="printAllGantt()">📄 工程表一括PDF</button>'
+    +'<button style="font-size:11px;padding:7px 12px;background:#059669;color:white;border:none;border-radius:7px;font-weight:700;cursor:pointer" onclick="printAllGantt()">📄 工程表一括PDF</button>'
     +'</div>';
   html+=myFavProps.map(function(fav){
     var p=all.find(function(x){return x.fix_no===fav.fix_no&&x.name===fav.name;});
