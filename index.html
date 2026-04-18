@@ -573,9 +573,7 @@ var POST_COLS = [
   { key:'complete_date',   label:'完成日',         w:56, cls:'hcell-post' },
   { key:'delivery_date',   label:'引渡し日',       w:68, cls:'hcell-post' },
   { key:'delivery_month',  label:'引渡\n月',        w:42, cls:'hcell-post' },
-  { key:'status',          label:'販売\nステータス', w:60, cls:'hcell-post' },
-  { key:'bank',            label:'銀行',            w:48, cls:'hcell-post' },
-  { key:'dealer',          label:'ディーラー',      w:68, cls:'hcell-post' }
+  { key:'status',          label:'販売\nステータス', w:60, cls:'hcell-post' }
 ];
 var POST_W = POST_COLS.reduce(function(a,c){return a+c.w;},0);
 
@@ -815,12 +813,20 @@ function buildProgressSection(p){
       +'</div>';
   }).join('');
 
-  var commentsHtml=(d.comments||[]).slice(-5).reverse().map(function(c){
+  var commentsHtml=(d.comments||[]).slice(-5).reverse().map(function(c,ri){
+    // 全体配列でのインデックスを計算（slice(-5).reverseしているため）
+    var totalLen=(d.comments||[]).length;
+    var displayCount=Math.min(5,totalLen);
+    var origIdx=totalLen-displayCount+((displayCount-1)-ri);
     return '<div style="padding:6px 10px;border-bottom:1px solid var(--g50)">'
-      +'<div style="display:flex;justify-content:space-between;margin-bottom:2px">'
+      +'<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:2px">'
       +'<span style="font-size:9px;font-weight:700;color:var(--primary)">'+c.author+'</span>'
+      +'<div style="display:flex;align-items:center;gap:6px">'
       +'<span style="font-size:9px;color:var(--g400)">'+c.date+'</span>'
-      +'</div>'
+      +'<button onclick="deleteComment(\''+p.fix_no+'__'+encodeURIComponent(p.name)+'\','+origIdx+')" '
+      +'style="background:none;border:none;color:var(--g400);font-size:11px;cursor:pointer;padding:1px 4px;border-radius:4px;line-height:1" '
+      +'title="取り消し">🗑</button>'
+      +'</div></div>'
       +'<div style="font-size:11px;color:var(--g700);white-space:pre-wrap">'+c.text+'</div>'
       +'</div>';
   }).join('');
@@ -876,6 +882,36 @@ function addComment(key){
 
 window.toggleCheck=toggleCheck;
 window.addComment=addComment;
+
+function deleteComment(key,idx){
+  var parts=key.split('__');var fixNo=parts[0];var name=decodeURIComponent(parts[1]||'');
+  var p=getAllProps().find(function(x){return x.fix_no===fixNo&&x.name===name;});
+  if(!p)return;
+  var d=getProgData(p);
+  if(!d.comments||!d.comments[idx])return;
+  // 確認ダイアログ
+  var ov=document.createElement('div');
+  ov.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:9999;display:flex;align-items:center;justify-content:center;';
+  var preview=d.comments[idx].text.length>30?d.comments[idx].text.slice(0,30)+'…':d.comments[idx].text;
+  ov.innerHTML='<div style="background:white;border-radius:14px;padding:22px 24px;max-width:280px;width:90%;text-align:center">'
+    +'<div style="font-size:24px;margin-bottom:8px">🗑️</div>'
+    +'<div style="font-size:13px;font-weight:800;color:#1e293b;margin-bottom:6px">メッセージを取り消す</div>'
+    +'<div style="font-size:11px;color:#64748b;margin-bottom:16px;background:#f8fafc;border-radius:8px;padding:8px;text-align:left;white-space:pre-wrap">'+preview+'</div>'
+    +'<div style="display:flex;gap:8px">'
+    +'<button id="_delCmtCancel" style="flex:1;padding:9px;background:#f1f5f9;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;border:none">キャンセル</button>'
+    +'<button id="_delCmtOk" style="flex:1;padding:9px;background:#ef4444;color:white;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;border:none">取り消す</button>'
+    +'</div></div>';
+  document.body.appendChild(ov);
+  document.getElementById('_delCmtCancel').onclick=function(){document.body.removeChild(ov);};
+  document.getElementById('_delCmtOk').onclick=function(){
+    document.body.removeChild(ov);
+    d.comments.splice(idx,1);
+    saveProgData(p,d);
+    showToast('メッセージを取り消しました','');
+    if(currentProp&&currentProp.fix_no===fixNo)window.openDetail(currentProp);
+  };
+}
+window.deleteComment=deleteComment;
 
 // ===== VENDOR LOOKUP =====
 function normalizeForMatch(s){
@@ -1727,14 +1763,22 @@ window.shiftGanttEdit=shiftGanttEdit;
 function saveGanttEdit(){
   if(!currentProp)return;
   var ck=custKey(currentProp);
-  customGantt[ck]=geSegs.map(function(s){
+  var segsData=geSegs.map(function(s){
     var sd=s.start_date||s.date||'',cd=s.calendar_dur||s.duration||1,ed=s.end_date||'';
     if(!ed&&sd){var d=new Date(sd);d.setDate(d.getDate()+cd-1);ed=d.toISOString().slice(0,10);}
     return {col:FULL_DATE_IDX[sd]||0,date:sd,start_date:sd,end_date:ed,label:s.label,color:s.color,calendar_dur:cd,duration:cd,dur:cd,layer:s.layer||0,textColor:s.textColor||'auto'};
   });
+  customGantt[ck]=segsData;
   saveLS('jack_custom_gantt',customGantt);
   renderBody(); if(typeof renderMyPage==='function')renderMyPage();
-  showToast('工程表を保存しました','success');
+  // 管理者の場合はSupabaseにも保存（全ユーザーに共有）
+  if(currentProfile&&currentProfile.role==='admin'){
+    _saveGanttToSupabase(currentProp,segsData,function(ok){
+      showToast(ok?'✅ 工程表を保存しました（全共有）':'✅ 工程表を保存しました（ローカル）','success');
+    });
+  } else {
+    showToast('工程表を保存しました','success');
+  }
 }
 window.saveGanttEdit=saveGanttEdit;
 
@@ -2106,7 +2150,7 @@ function openDetail(p){
     +'<div class="dp-sec"><div class="dp-sec-head">📋 土地・契約情報</div>'+mkRow('土地契約日',p.land_contract)+mkRow('土地決済期日',p.land_payment)+'</div>'
     +'<div class="dp-sec"><div class="dp-sec-head">📐 設計・調査情報</div>'+mkRow('確認申請提出日',p.confirm_submit)+mkRow('確認申請完了日',p.confirm_done)+mkRow('地盤調査確定日',p.ground_survey)+'</div>'
     +'<div class="dp-sec"><div class="dp-sec-head">🏁 完了・引渡し情報</div>'+mkRow('完了検査日',p.inspection_date)+mkRow('完成日',p.complete_date)+delivRow+mkRow('引渡月',p.delivery_month)+'</div>'
-    +'<div class="dp-sec"><div class="dp-sec-head">🏦 販売情報</div><div class="dp-row"><span class="dp-label">販売ステータス</span>'+makeBadge(p.status,true)+'</div>'+mkRow('銀行',p.bank,false)+mkRow('ディーラー',p.dealer,false)+'</div>'
+    +'<div class="dp-sec"><div class="dp-sec-head">🏦 販売情報</div><div class="dp-row"><span class="dp-label">販売ステータス</span>'+makeBadge(p.status,true)+'</div>'+'</div>'
     +parkHtml
     +buildVendorSection(p)
     +'<div class="dp-sec" id="weather-sec-'+p.fix_no+'"><div class="dp-sec-head">🌤 週間天気（現場エリア）</div><div id="weather-content-'+p.fix_no+'"></div></div>';
@@ -2196,6 +2240,10 @@ function saveMasterLink(){
     if(confirm('カスタム工程表が設定されています。マスター工程を反映するにはカスタムをリセットしてください。\nリセットしますか？')){
       delete customGantt[ck];
       saveLS('jack_custom_gantt',customGantt);
+      // 管理者の場合はSupabaseのcustom_ganttもクリア
+      if(currentProfile&&currentProfile.role==='admin'){
+        _saveGanttToSupabase(p,null,function(){});
+      }
     }
   }
 
@@ -2208,10 +2256,18 @@ function saveMasterLink(){
     if(ov[ck])currentProp=Object.assign({},fresh,ov[ck]);
   }
 
+  // 管理者の場合はSupabaseにも保存（全ユーザーに共有）
+  if(currentProfile&&currentProfile.role==='admin'){
+    _saveMasterLinkToSupabase(p,masterName,function(ok){
+      showToast(ok?'マスター工程「'+(masterName||'デフォルト')+'」を紐付けました（全共有）':'マスター工程「'+(masterName||'デフォルト')+'」を紐付けました（ローカル）','success');
+    });
+  } else {
+    showToast('マスター工程「'+(masterName||'デフォルト')+'」を紐付けました','success');
+  }
+
   renderBody();
   renderMyPage();
   openDetail(currentProp);
-  showToast('マスター工程「'+(masterName||'デフォルト')+'」を紐付けました','success');
 }
 window.saveMasterLink=saveMasterLink;
 function closeMasterLinkModal(){var m=document.getElementById('_masterLinkModal');if(m)m.style.display='none';}
@@ -2887,7 +2943,7 @@ function showPeriodShift(){
 function saveEditorChanges(){
   if(!edProp)return;
   var ck=custKey(edProp);
-  customGantt[ck]=edSegs.map(function(s){
+  var segsData=edSegs.map(function(s){
     var sd=s.start_date||s.date||'';
     var cd=s.calendar_dur||s.duration||1;
     var ed=s.end_date||'';
@@ -2895,10 +2951,18 @@ function saveEditorChanges(){
     var col=FULL_DATE_IDX[sd]||0;
     return {col:col,date:sd,start_date:sd,end_date:ed,label:s.label,color:s.color,calendar_dur:cd,duration:cd,dur:cd,layer:s.layer||0,textColor:s.textColor||'auto'};
   });
+  customGantt[ck]=segsData;
   saveLS('jack_custom_gantt',customGantt);
   renderBody();
   if(typeof renderMyPage==='function')renderMyPage();
-  showToast('✅ 工程表を保存しました','success');
+  // 管理者の場合はSupabaseにも保存（全ユーザーに共有）
+  if(currentProfile&&currentProfile.role==='admin'){
+    _saveGanttToSupabase(edProp,segsData,function(ok){
+      showToast(ok?'✅ 工程表を保存しました（全共有）':'✅ 工程表を保存しました（ローカル）','success');
+    });
+  } else {
+    showToast('✅ 工程表を保存しました','success');
+  }
 }
 function resetEditorChanges(){
   if(!edProp||!confirm('カスタムをリセットして元データに戻しますか？'))return;
@@ -3757,6 +3821,54 @@ async function doRegister(){
 }
 window.doRegister=doRegister;
 
+// ===== 管理者用: 工程表・マスター紐付けをSupabaseに保存/読込 =====
+// propertiesテーブルの custom_gantt(jsonb) / prop_master(text) カラムを使用
+function _saveGanttToSupabase(p,segsData,cb){
+  var sb=getSB(); if(!sb){if(cb)cb(false);return;}
+  var payload={updated_at:new Date().toISOString()};
+  payload.custom_gantt=segsData?JSON.stringify(segsData):null;
+  sb.from('properties').update(payload).eq('fix_no',String(p.fix_no))
+    .then(function(r){
+      if(!r.error&&DB_PROPS){
+        // ローカルDB_PROPSキャッシュも更新
+        var idx=DB_PROPS.findIndex(function(dp){return String(dp.fix_no)===String(p.fix_no);});
+        if(idx>=0)DB_PROPS[idx].custom_gantt=payload.custom_gantt;
+      }
+      if(cb)cb(!r.error);
+    }).catch(function(){if(cb)cb(false);});
+}
+function _saveMasterLinkToSupabase(p,masterName,cb){
+  var sb=getSB(); if(!sb){if(cb)cb(false);return;}
+  var payload={prop_master:masterName||null,updated_at:new Date().toISOString()};
+  sb.from('properties').update(payload).eq('fix_no',String(p.fix_no))
+    .then(function(r){
+      if(!r.error&&DB_PROPS){
+        var idx=DB_PROPS.findIndex(function(dp){return String(dp.fix_no)===String(p.fix_no);});
+        if(idx>=0)DB_PROPS[idx].prop_master=masterName||null;
+      }
+      if(cb)cb(!r.error);
+    }).catch(function(){if(cb)cb(false);});
+}
+// ログイン時: DBのcustom_gantt/prop_masterをローカルに展開（全ユーザー向け）
+function _loadSharedGanttFromDB(){
+  if(!DB_PROPS||!DB_PROPS.length)return;
+  var cgChanged=false, pmChanged=false;
+  DB_PROPS.forEach(function(dbp){
+    var ck=dbp.fix_no+'__'+dbp.name;
+    if(dbp.custom_gantt){
+      try{
+        var segs=typeof dbp.custom_gantt==='string'?JSON.parse(dbp.custom_gantt):dbp.custom_gantt;
+        if(segs&&segs.length){customGantt[ck]=segs;cgChanged=true;}
+      }catch(e){}
+    }
+    if(dbp.prop_master){
+      propMaster[ck]=dbp.prop_master;pmChanged=true;
+    }
+  });
+  if(cgChanged)saveLS('jack_custom_gantt',customGantt);
+  if(pmChanged)saveLS('jack_prop_master',propMaster);
+}
+
 async function onAuthSuccess(){
   var sb=getSB();
   await new Promise(function(r){setTimeout(r,800);});
@@ -3770,6 +3882,7 @@ async function onAuthSuccess(){
   var pr=await sb.from('properties').select('*').order('fix_no');
   if(!pr.error&&pr.data&&pr.data.length>0){
     DB_PROPS=pr.data;
+    _loadSharedGanttFromDB(); // 管理者が保存した工程表・マスター紐付けを全ユーザーに展開
     if(typeof renderAll==='function')renderAll();
     showToast('DBから '+pr.data.length+'件取得','success');
   }
@@ -4495,7 +4608,7 @@ async function loadAdmSec(sec){
         +'</label>'
       +'</div>'
       +'<div style="background:#f0fdf4;border:1px solid #86efac;border-radius:8px;padding:10px 12px;font-size:11px;color:#166534">'
-        +'✅ 取込列: FiX No./通し番号/エリア/物件名/手組/土地契約日/土地決済日/確認申請/引渡し日/ステータス/銀行/ディーラー<br>'
+        +'✅ 取込列: FiX No./通し番号/エリア/物件名/手組/土地契約日/土地決済日/確認申請/引渡し日/ステータス<br>'
         +'✅ Jack/Walterで始まる行のみ取込 (集計行を自動除外)'
       +'</div>'
       +'<div id="importStatus" style="margin-top:12px;display:none"></div>'
@@ -4677,7 +4790,7 @@ function admHandleXlsx(input){
       var wb3=window.XLSX.read(e.target.result,{type:'array'});
       var COLS={fix_no:1,seq_no:2,area:3,name:4,hand_kumi:5,land_contract:7,land_payment:8,
         confirm_submit:14,confirm_done:15,inspection:231,completion:232,delivery_date:236,
-        delivery_month:237,status:242,bank:243,dealer:244};
+        delivery_month:237,status:242};
       var sb=getSB();
       var existing=await sb.from('properties').select('id,fix_no,name');
       var exMap={};
@@ -4700,7 +4813,6 @@ function admHandleXlsx(input){
           if(!fixNo||fixNo==='NaN')continue;
           var prop={fix_no:fixNo,name:nameVal,area:String(row[3]||'').trim(),
             hand_kumi:String(row[5]||'').trim(),status:String(row[242]||'').trim(),
-            bank:String(row[243]||'').trim(),dealer:String(row[244]||'').trim(),
             delivery_month:String(row[237]||'').trim(),updated_at:new Date().toISOString()};
           // Dates
           var dateIdxs={land_contract:7,land_payment:8,confirm_submit:14,confirm_done:15,delivery_date:236};
