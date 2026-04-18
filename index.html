@@ -761,7 +761,21 @@ function getProps() {
   } else if (tabDef && tabDef.areas) {
     list=(DATA.all['全物件進捗']||[]).filter(function(p){return tabDef.areas.indexOf(p.area)>=0;});
   } else { list=DATA.all['全物件進捗']||[]; }
-  if (currentStatus!=='all') list=list.filter(function(p){return p.status===currentStatus;});
+  if(currentStatus==='delayed'){
+    var today=new Date(TODAY);
+    list=list.filter(function(p){
+      var segs=getActiveSegs(p)||[];
+      return segs.some(function(s){
+        if(s.layer===1)return false;
+        var ed=s.end_date||''; if(!ed)return false;
+        var lbl=s.label||s.name||'';
+        var d=getProgData(p);
+        return !(d.checks&&d.checks[lbl])&&new Date(ed.replace(/[/]/g,'-'))<today;
+      });
+    });
+  } else if (currentStatus!=='all') {
+    list=list.filter(function(p){return p.status===currentStatus;});
+  }
   return list;
 }
 function getAllProps(){return(DATA.all['全物件進捗']||[]).concat(DATA.all['来期物件']||[]);}
@@ -818,6 +832,28 @@ function buildProgressSection(p){
     var totalLen=(d.comments||[]).length;
     var displayCount=Math.min(5,totalLen);
     var origIdx=totalLen-displayCount+((displayCount-1)-ri);
+    // テキスト内のURLを検出してリンク/画像に変換
+    function renderText(txt){
+      var imgExts=/\.(jpg|jpeg|png|gif|webp)(\?[^"'\s]*)?$/i;
+      var urlRe=/(https?:\/\/[^\s]+)/g;
+      var parts=[];var last=0;var m;
+      while((m=urlRe.exec(txt))!==null){
+        if(m.index>last)parts.push({t:'text',v:txt.slice(last,m.index)});
+        var url=m[0];
+        if(imgExts.test(url)||/drive\.google\.com\/uc\?|photos\.google\.com\/|icloud\.com\/photos/i.test(url)){
+          parts.push({t:'img',v:url});
+        } else {
+          parts.push({t:'link',v:url});
+        }
+        last=m.index+url.length;
+      }
+      if(last<txt.length)parts.push({t:'text',v:txt.slice(last)});
+      return parts.map(function(pt){
+        if(pt.t==='img')return '<a href="'+pt.v+'" target="_blank" style="display:block;margin-top:4px"><img src="'+pt.v+'" style="max-width:100%;max-height:120px;border-radius:6px;object-fit:cover;cursor:pointer" onerror="this.style.display=\'none\'"></a>';
+        if(pt.t==='link')return '<a href="'+pt.v+'" target="_blank" style="color:#1a56db;font-size:10px;word-break:break-all">'+pt.v+'</a>';
+        return '<span>'+pt.v.replace(/\n/g,'<br>')+'</span>';
+      }).join('');
+    }
     return '<div style="padding:6px 10px;border-bottom:1px solid var(--g50)">'
       +'<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:2px">'
       +'<span style="font-size:9px;font-weight:700;color:var(--primary)">'+c.author+'</span>'
@@ -827,7 +863,7 @@ function buildProgressSection(p){
       +'style="background:none;border:none;color:var(--g400);font-size:11px;cursor:pointer;padding:1px 4px;border-radius:4px;line-height:1" '
       +'title="取り消し">🗑</button>'
       +'</div></div>'
-      +'<div style="font-size:11px;color:var(--g700);white-space:pre-wrap">'+c.text+'</div>'
+      +'<div style="font-size:11px;color:var(--g700)">'+renderText(c.text)+'</div>'
       +'</div>';
   }).join('');
 
@@ -1023,19 +1059,42 @@ function toggleMode(){setMode(!isPcMode);}
 
 // ===== STATS =====
 function renderStats(){
-  var list=getProps();
+  var allList=(function(){
+    var tabDef=AREA_TABS.find(function(t){return t.id===currentArea;});
+    var list;
+    if(currentArea==='マイ物件'){var all=(DATA.all['全物件進捗']||[]).concat(DATA.all['来期物件']||[]);list=all.filter(function(p){return isFav(p);});}
+    else if(currentArea==='来期'){list=DATA.all['来期物件']||[];}
+    else if(currentArea==='完工'){list=DATA.all['完工物件']||[];}
+    else if(tabDef&&tabDef.areas){list=(DATA.all['全物件進捗']||[]).filter(function(p){return tabDef.areas.indexOf(p.area)>=0;});}
+    else{list=DATA.all['全物件進捗']||[];}
+    return list;
+  })();
   var counts={};
-  list.forEach(function(p){counts[p.status]=(counts[p.status]||0)+1;});
-  var urg=list.filter(function(p){var d=daysUntil(p.delivery_date);return d!==null&&d>=0&&d<=30;}).length;
-  var items=[['合計',list.length,'white'],['契約済',counts['契約済']||0,'#4ade80'],
+  allList.forEach(function(p){counts[p.status]=(counts[p.status]||0)+1;});
+  var urg=allList.filter(function(p){var d=daysUntil(p.delivery_date);return d!==null&&d>=0&&d<=30;}).length;
+  var today=new Date(TODAY);
+  var delayedCount=allList.filter(function(p){
+    var segs=getActiveSegs(p)||[];
+    return segs.some(function(s){
+      if(s.layer===1)return false;
+      var ed=s.end_date||''; if(!ed)return false;
+      var lbl=s.label||s.name||'';
+      var d=getProgData(p);
+      return !(d.checks&&d.checks[lbl])&&new Date(ed.replace(/[/]/g,'-'))<today;
+    });
+  }).length;
+  var items=[['合計',allList.length,'white'],['契約済',counts['契約済']||0,'#4ade80'],
     ['販売中',counts['販売中']||0,'#60a5fa'],['買付',counts['買付']||0,'#fbbf24'],['未公開',counts['未公開']||0,'#94a3b8']];
   if(urg)items.push(['⚡期限',urg,'#f87171']);
+  if(delayedCount)items.push(['🔴遅延',delayedCount,'#fca5a5']);
   var sh='';items.forEach(function(x,i){if(i>0)sh+='<div class="ss-div"></div>';sh+='<div class="ss-item"><div class="ss-num" style="color:'+x[2]+'">'+x[1]+'</div><div class="ss-label">'+x[0]+'</div></div>';});
   document.getElementById('statsStrip').innerHTML=sh;
-  var allSt=['all','契約済','販売中','買付','契約予定','未公開','販売中断'];
+  var allSt=['all','契約済','販売中','買付','契約予定','未公開','販売中断','delayed'];
+  var labels={'delayed':'🔴 遅延工程'};
   document.getElementById('statusBar').innerHTML=allSt.map(function(s){
-    var cnt=s==='all'?list.length:(counts[s]||0);
-    return '<button class="sf-chip'+(currentStatus===s?' active':'')+'" onclick="setStatus(\''+s+'\')">'+(s==='all'?'全て('+cnt+')':s+'('+cnt+')')+'</button>';
+    var cnt=s==='all'?allList.length:s==='delayed'?delayedCount:(counts[s]||0);
+    var lbl=labels[s]||s;
+    return '<button class="sf-chip'+(currentStatus===s?' active':'')+'" onclick="setStatus(\''+s+'\')">'+(s==='all'?'全て('+cnt+')':lbl+'('+cnt+')')+'</button>';
   }).join('');
 }
 
@@ -2160,7 +2219,8 @@ function openDetail(p){
     (isFav(p)
       ?'<button class="btn-danger" onclick="removeFavAction()">⭐ マイ物件から削除</button>'
       :'<button class="btn-primary" onclick="addFavAction()">⭐ マイ物件に追加</button>')
-    +'<button class="btn-secondary" onclick="printPropInfo()" style="font-size:11px;padding:8px 10px">🖨️ この物件を印刷</button>';
+    +'<button class="btn-secondary" onclick="printPropInfo()" style="font-size:11px;padding:8px 10px">🖨️ この物件を印刷</button>'
+    +'<button class="btn-secondary" onclick="showPropQR()" style="font-size:11px;padding:8px 10px">📱 QR</button>';
   openPanel('detailPanel');
 }
 
@@ -2535,6 +2595,7 @@ function renderMyPage(){
     +''
     +'<button class="btn-secondary" style="font-size:11px;padding:7px 12px" onclick="openMasterPanel()">📋 マスター工程</button>'
     +'<button class="btn-secondary" style="font-size:11px;padding:7px 12px" onclick="printPage()">🖨️ 印刷</button>'
+    +'<button class="btn-secondary" style="font-size:11px;padding:7px 12px;background:#059669;color:white;border-color:#059669" onclick="printAllGantt()">📄 工程表一括PDF</button>'
     +'</div>';
   html+=myFavProps.map(function(fav){
     var p=all.find(function(x){return x.fix_no===fav.fix_no&&x.name===fav.name;});
@@ -2542,21 +2603,89 @@ function renderMyPage(){
     var days=daysUntil(p.delivery_date);
     var ac=p.area==='愛知'?'#1a56db':p.area==='埼玉'?'#10b981':'#7c3aed';
     var ai=p.area==='愛知'?'🏙':p.area==='埼玉'?'🌿':'🏠';
-    var rc=days!==null&&days<=30?'var(--danger)':days!==null&&days<=60?'var(--warn)':'var(--g400)';
-    var rs=days!==null&&days>=0?'<span style="font-size:10px;color:'+rc+';font-weight:700">'+days+'日後</span>':'';
+    var rc=days!==null&&days<=7?'#ef4444':days!==null&&days<=30?'var(--danger)':days!==null&&days<=60?'var(--warn)':'var(--g400)';
+    var rsBg=days!==null&&days<=7?'#fee2e2':days!==null&&days<=30?'#fff5f5':days!==null&&days<=60?'#fefce8':'transparent';
+    var rsTxt=days!==null&&days<=7?'🚨':days!==null&&days<=30?'⚡':days!==null&&days<=60?'⏰':'';
+    var rs=days!==null&&days>=0
+      ?'<div style="background:'+rsBg+';border:1px solid '+rc+';border-radius:8px;padding:3px 8px;text-align:center;min-width:58px">'
+        +'<div style="font-size:16px;font-weight:900;color:'+rc+';font-family:var(--mono);line-height:1">'+days+'</div>'
+        +'<div style="font-size:8px;color:'+rc+';font-weight:700">'+rsTxt+'残り日数</div>'
+        +'</div>'
+      :(days!==null&&days<0?'<div style="background:#f1f5f9;border-radius:8px;padding:3px 8px;text-align:center;min-width:58px"><div style="font-size:10px;color:#94a3b8;font-weight:700">引渡済</div></div>':'');
     var ck=custKey(p),hasC=!!customGantt[ck],hasMaster=!!propMaster[ck];
     var tag=hasC?'<span style="background:#dbeafe;color:var(--primary);padding:1px 5px;border-radius:4px;font-size:9px;font-weight:700">✏️カスタム</span>':hasMaster?'<span style="background:#dcfce7;color:#16a34a;padding:1px 5px;border-radius:4px;font-size:9px;font-weight:700">📋マスター</span>':'';
     return '<div class="mypage-card" onclick="openDetailFromFav(\''+fav.fix_no+'\',\''+encodeURIComponent(fav.name)+'\')">'
       +'<div class="mypc-top"><div class="mypc-area" style="background:'+ac+'">'+ai+'</div>'
       +'<div class="mypc-info"><div class="mypc-name">'+p.name+'</div>'
-      +'<div class="mypc-meta">'+makeBadge(p.status)+'<span class="mypc-date">'+(p.delivery_date||'引渡日未定')+'</span>'+rs+tag+'</div></div>'
-      +'<div style="display:flex;flex-direction:column;gap:3px;align-items:flex-end">'
+      +'<div class="mypc-meta">'+makeBadge(p.status)+'<span class="mypc-date">'+(p.delivery_date||'引渡日未定')+'</span>'+tag+'</div></div>'
+      +'<div style="display:flex;flex-direction:column;gap:4px;align-items:flex-end;flex-shrink:0">'
+      +rs
       +'<button class="mypc-del" onclick="event.stopPropagation();removeFavCard(\''+fav.fix_no+'\',\''+encodeURIComponent(fav.name)+'\')">✕</button>'
       +'<button style="background:var(--primary-l);color:var(--primary);border-radius:5px;padding:3px 7px;font-size:10px;font-weight:700" onclick="event.stopPropagation();openGanttEditor(\''+fav.fix_no+'\',\''+encodeURIComponent(fav.name)+'\')">✏️編集</button>'
       +'</div></div></div>';
   }).join('');
   area.innerHTML=html;
 }
+// ⑤ 工程表一括PDF出力
+function printAllGantt(){
+  var all=getAllProps();
+  var favs=myFavProps.map(function(fav){
+    return all.find(function(x){return x.fix_no===fav.fix_no&&x.name===fav.name;});
+  }).filter(Boolean);
+  if(!favs.length){showToast('マイ物件がありません','error');return;}
+
+  var GCW=14,ROW_H=20;
+  var gStart=new Date(TODAY);gStart.setMonth(gStart.getMonth()-1);gStart.setDate(1);
+  var gEnd=new Date(TODAY);gEnd.setMonth(gEnd.getMonth()+7);gEnd.setDate(0);
+  favs.forEach(function(p){
+    var segs=getActiveSegs(p)||[];
+    segs.forEach(function(s){
+      var sd=s.start_date||s.date||'';if(sd){var dt=new Date(sd.replace(/\//g,'-'));if(dt<gStart)gStart=new Date(dt.getFullYear(),dt.getMonth(),1);}
+      var ed=s.end_date||'';if(ed){var dt=new Date(ed.replace(/\//g,'-'));if(dt>gEnd)gEnd=new Date(dt.getFullYear(),dt.getMonth()+1,0);}
+    });
+  });
+  var dates=[''];var cur=new Date(gStart);
+  while(cur<=gEnd){dates.push(cur.toISOString().slice(0,10));cur.setDate(cur.getDate()+1);}
+  var dateIdx={};dates.forEach(function(d,i){if(d)dateIdx[d]=i;});
+  var totalW=(dates.length-1)*GCW;
+  var mn={'01':'1月','02':'2月','03':'3月','04':'4月','05':'5月','06':'6月','07':'7月','08':'8月','09':'9月','10':'10月','11':'11月','12':'12月'};
+
+  function buildPropHtml(p){
+    var segs=getActiveSegs(p)||[];
+    var numRows=segs.length;
+    var totalH=numRows*ROW_H+28;
+    var months={};dates.forEach(function(d,i){if(!d)return;var m=d.substring(0,7);if(!months[m])months[m]={start:i-1,count:0};months[m].count++;});
+    var hdr='';Object.keys(months).forEach(function(m){var v=months[m],mm=m.split('-')[1];hdr+='<div style="position:absolute;left:'+(v.start*GCW)+'px;top:0;width:'+(v.count*GCW)+'px;height:14px;background:#1a56db;color:white;font-size:7px;font-weight:800;display:flex;align-items:center;justify-content:center;border-right:1px solid rgba(255,255,255,.4);overflow:hidden">'+m.split('-')[0]+'年'+(mn[mm]||mm)+'</div>';});
+    var days='';dates.forEach(function(d,i){if(!d)return;var dow=new Date(d).getDay(),day=parseInt(d.split('-')[2]),isT=d===TODAY;days+='<div style="position:absolute;left:'+((i-1)*GCW)+'px;top:14px;width:'+GCW+'px;height:14px;display:flex;align-items:center;justify-content:center;font-size:6px;font-weight:700;color:'+(isT?'#ef4444':dow===0?'#fca5a5':dow===6?'#93c5fd':'#475569')+';background:'+(isT?'rgba(239,68,68,.2)':dow===0?'rgba(255,182,193,.3)':dow===6?'rgba(173,216,230,.25)':'transparent')+';border-right:1px solid rgba(0,0,0,.05)">'+day+'</div>';});
+    var todayC=dateIdx[TODAY]||0;
+    var todayLine=todayC>0?'<div style="position:absolute;left:'+((todayC-1)*GCW)+'px;top:0;width:2px;height:'+totalH+'px;background:#ef4444;z-index:10;pointer-events:none"></div>':'';
+    var bars='';segs.forEach(function(seg,idx){
+      var sd=(seg.start_date||seg.date||'').replace(/\//g,'-');var col=dateIdx[sd];if(!col)return;
+      var cd=seg.calendar_dur||seg.duration||1;var sx=(col-1)*GCW,bw=Math.max(cd*GCW-1,GCW-1);
+      var layer=seg.layer||0,by=idx*ROW_H+28+(layer?3:0),bh=layer?ROW_H-7:ROW_H-3;
+      var color=seg.color||'#64748b';
+      bars+='<div style="position:absolute;left:'+sx+'px;top:'+by+'px;width:'+bw+'px;height:'+bh+'px;background:'+color+';color:white;font-size:6px;font-weight:800;border-radius:2px;display:flex;align-items:center;padding:0 2px;overflow:hidden;white-space:nowrap">'+(bw>14?seg.label||'':'')+'</div>';
+    });
+    var labels='';segs.forEach(function(s,ri){labels+='<div style="position:absolute;left:-88px;top:'+(ri*ROW_H+28)+'px;width:86px;height:'+ROW_H+'px;display:flex;align-items:center;justify-content:flex-end;padding-right:3px;font-size:8px;font-weight:700;color:#334155;white-space:nowrap;overflow:hidden">'+(s.label||s.name||'')+'</div>';});
+    var days2=daysUntil(p.delivery_date);
+    return '<div style="margin-bottom:20px;page-break-inside:avoid">'
+      +'<div style="font-size:11px;font-weight:800;color:#1e293b;margin-bottom:6px;padding-bottom:4px;border-bottom:2px solid #1a56db">FiX '+p.fix_no+' '+p.name+(days2!==null&&days2>=0?' ─ 残'+days2+'日':'')+(p.delivery_date?' （引渡: '+p.delivery_date+')':'')+'</div>'
+      +'<div style="overflow:visible;padding-left:90px"><div style="position:relative;width:'+totalW+'px;height:'+totalH+'px;background:white;border:1px solid #e2e8f0">'+labels+hdr+days+todayLine+bars+'</div></div></div>';
+  }
+
+  var bodyHtml=favs.map(buildPropHtml).join('');
+  var win=window.open('','_blank','width=1200,height=800');
+  if(!win){showToast('ポップアップがブロックされました。許可してください','error');return;}
+  win.document.write('<!DOCTYPE html><html><head><meta charset="UTF-8"><title>工程表一括印刷</title>'
+    +'<style>*{box-sizing:border-box;margin:0;padding:0}body{font-family:\'Noto Sans JP\',sans-serif;padding:12px;background:white}'
+    +'@media print{@page{size:A3 landscape;margin:8mm}body{padding:4mm}}'
+    +'</style></head><body>'
+    +'<div style="text-align:center;margin-bottom:16px;font-size:14px;font-weight:800;color:#1a56db">JACK 工程表一括出力 ─ '+TODAY+'</div>'
+    +bodyHtml
+    +'<script>setTimeout(function(){window.print();},800);<\/script></body></html>');
+  win.document.close();
+}
+window.printAllGantt=printAllGantt;
 function openDetailFromFav(fixNo,enc){var name=decodeURIComponent(enc);var p=getAllProps().find(function(x){return x.fix_no===fixNo&&x.name===name;});if(p)openDetail(p);}
 function removeFavCard(fixNo,enc){var name=decodeURIComponent(enc);var p=getAllProps().find(function(x){return x.fix_no===fixNo&&x.name===name;});if(p){removeFav(p);renderMyPage();renderBody();}}
 
@@ -3584,6 +3713,37 @@ function togglePropMaster(fixNo,encName,encMaster){
 
 
 // ===== PRINT =====
+function showPropQR(){
+  if(!currentProp)return;
+  var p=currentProp;
+  // 現場住所またはGoogle Maps URLをQR化
+  var ov=loadLS('jack_prop_overrides',{});
+  var ck=custKey(p);
+  var addr='';
+  if(ov[ck]&&ov[ck].address)addr=String(ov[ck].address).trim();
+  if(!addr){addr=p.address||'';if(typeof addr==='object')addr=addr.address||'';addr=String(addr).trim();}
+  var label=p.name||'物件';
+  var qrContent=addr
+    ?'https://maps.google.com/maps?q='+encodeURIComponent(addr)
+    :location.href;
+  var qrUrl='https://api.qrserver.com/v1/create-qr-code/?size=200x200&data='+encodeURIComponent(qrContent);
+  var ov2=document.createElement('div');
+  ov2.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:9999;display:flex;align-items:center;justify-content:center;';
+  ov2.innerHTML='<div style="background:white;border-radius:16px;padding:24px;text-align:center;max-width:280px;width:90%;box-shadow:0 20px 60px rgba(0,0,0,.3)">'
+    +'<div style="font-size:13px;font-weight:800;color:#1e293b;margin-bottom:4px">📱 現場QRコード</div>'
+    +'<div style="font-size:11px;color:#64748b;margin-bottom:14px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+label+'</div>'
+    +'<img src="'+qrUrl+'" style="width:200px;height:200px;border:2px solid #e2e8f0;border-radius:8px" onerror="this.parentElement.querySelector(\'.qr-err\').style.display=\'block\';this.style.display=\'none\'">'
+    +'<div class="qr-err" style="display:none;padding:12px;background:#fee2e2;border-radius:8px;font-size:11px;color:#dc2626">QR生成に失敗しました。ネット接続を確認してください。</div>'
+    +'<div style="font-size:9px;color:#94a3b8;margin-top:8px;word-break:break-all">'+(addr?addr:'アプリURL')+'</div>'
+    +'<div style="display:flex;gap:8px;margin-top:14px">'
+      +'<button onclick="this.closest(\'div[style*=fixed]\').remove()" style="flex:1;padding:9px;background:#f1f5f9;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;border:none">閉じる</button>'
+      +(addr?'<button onclick="window.open(\'https://maps.google.com/maps?q='+encodeURIComponent(addr)+'\',\'_blank\')" style="flex:1;padding:9px;background:#1a56db;color:white;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;border:none">地図を開く</button>':'')
+    +'</div>'
+    +'</div>';
+  document.body.appendChild(ov2);
+  ov2.onclick=function(e){if(e.target===ov2)ov2.remove();};
+}
+window.showPropQR=showPropQR;
 function printPage(){window.print();}
 
 // ===== SYNC =====
