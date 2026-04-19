@@ -397,7 +397,8 @@ body{display:flex;overflow:hidden;}
   <div style="background:white;border-radius:18px;padding:36px 28px;max-width:320px;width:90%;text-align:center">
     <div style="font-size:48px;margin-bottom:12px">⏳</div>
     <div style="font-size:18px;font-weight:800;color:#1e293b;margin-bottom:8px">承認待ちです</div>
-    <div style="font-size:13px;color:#64748b;line-height:1.7;margin-bottom:20px">登録申請を受け付けました。<br>管理者（松井）の承認後にご利用いただけます。</div>
+    <div style="font-size:13px;color:#64748b;line-height:1.7;margin-bottom:20px">登録申請を受け付けました。<br>管理者の承認後にご利用いただけます。<br>承認が完了したら下のボタンを押してください。</div>
+    <button onclick="retryAuth()" style="width:100%;padding:12px;background:#1a56db;color:white;border-radius:10px;font-size:13px;font-weight:700;cursor:pointer;margin-bottom:10px">✅ 承認確認・再ログイン</button>
     <button onclick="sbSignOut()" style="width:100%;padding:12px;background:#f1f5f9;color:#475569;border-radius:10px;font-size:13px;font-weight:700;cursor:pointer">ログアウト</button>
   </div>
 </div>
@@ -3784,6 +3785,9 @@ function doSync(){
       syncData={lastSync:now.toISOString(),updates:[]};saveLS('jack_sync',syncData);
       var ts=(now.getMonth()+1)+'/'+now.getDate()+' '+now.getHours()+':'+('0'+now.getMinutes()).slice(-2);
       updateSyncBanner('最終同期: '+ts,false);
+      // 画面を最新データで再描画
+      if(typeof renderAll==='function'){renderAll();}
+      else{if(typeof renderHeader==='function')renderHeader();if(typeof renderStats==='function')renderStats();if(typeof renderBody==='function')renderBody();}
       showToast('✅ データを同期しました','success');
       // 業者データも取得
       jsonpFetch(SYNC_URL+'?type=vendors','jackVendor',
@@ -4084,6 +4088,30 @@ async function sbSignOut(){
   showAuthScreen();
 }
 window.sbSignOut=sbSignOut;
+
+// 承認待ち画面から再チェック（管理者が承認後に押してもらう）
+async function retryAuth(){
+  var sb=getSB(); if(!sb){showToast('接続エラー','error');return;}
+  var btn=document.querySelector('#jackPendingOverlay button');
+  if(btn){btn.textContent='確認中...';btn.disabled=true;}
+  try{
+    // Supabaseセッションを強制リフレッシュしてから再チェック
+    await sb.auth.refreshSession();
+    var sr=await sb.auth.getSession();
+    if(sr.data&&sr.data.session&&sr.data.session.user){
+      currentUser=sr.data.session.user;
+      await onAuthSuccess();
+    } else {
+      showToast('セッションが切れています。再ログインしてください','error');
+      sbSignOut();
+    }
+  }catch(e){
+    showToast('確認に失敗しました: '+e.message,'error');
+  }finally{
+    if(btn){btn.textContent='✅ 承認確認・再ログイン';btn.disabled=false;}
+  }
+}
+window.retryAuth=retryAuth;
 
 async function initAuth(){
   var sb=getSB();
