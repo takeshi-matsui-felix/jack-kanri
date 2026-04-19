@@ -758,25 +758,47 @@ function fullColToVisX(fullCol) {
 }
 
 // ===== SEGMENT RESOLUTION =====
+// エリアマスター名を返す（東海エリア→'東海'マスター、関東エリア→'関東'マスター）
+var TOKAI_AREAS=['愛知','三重','岐阜','静岡'];
+var KANTO_AREAS=['埼玉','東京','神奈川','千葉','茨城','栃木','群馬'];
+function getAreaMasterName(p){
+  var area=p.area||'';
+  if(TOKAI_AREAS.indexOf(area)>=0)return '東海';
+  if(KANTO_AREAS.indexOf(area)>=0)return '関東';
+  return null;
+}
+
 function getActiveSegs(p) {
   // prop_overrides(LocalStorage)も追加でマージ（DB未登録物件のフォールバック）
   var ov=loadLS('jack_prop_overrides',{});
   var ck=custKey(p);
   if(ov[ck])p=Object.assign({},p,ov[ck]);
   ck=custKey(p);
+  // ① カスタム工程が最優先
   if (customGantt[ck]) return customGantt[ck];
-  // propMasterを毎回LocalStorageから読んで最新を保証
+  // ② 手動で紐付けたマスター
   var pm=loadLS('jack_prop_master',{});
   var masterName = pm[ck] || propMaster[ck];
   if (masterName) {
     var tmpl = myMasters.find(function(m){return m.name===masterName;});
-    if (tmpl) return computeMasterSegs(p.confirm_done, tmpl.steps, p.hand_kumi);
+    if (tmpl) return computeMasterSegs(normDate(p.confirm_done)||p.confirm_done, tmpl.steps, p.hand_kumi);
   }
-  // Use pre-computed master_segs but apply 手組 extension if needed
+  // ③ confirm_doneがある場合: エリア別マスターを自動適用
+  var cd=normDate(p.confirm_done)||p.confirm_done||'';
+  if(cd&&String(cd).match(/\d{4}/)){
+    var areaMaster=getAreaMasterName(p);
+    if(areaMaster){
+      var at=myMasters.find(function(m){return m.name===areaMaster;});
+      if(at)return computeMasterSegs(cd,at.steps,p.hand_kumi);
+    }
+    // ④ エリアマスター未登録でもconfirm_doneがあればデフォルトテンプレートで自動生成
+    return computeMasterSegs(cd,null,p.hand_kumi);
+  }
+  // ⑤ GASから取得済みのmaster_segs
   if (p.master_segs && p.master_segs.length) {
     var hk=p.hand_kumi;
     var isHK=hk&&(String(hk).indexOf('〇')>=0||String(hk).indexOf('手組')>=0||String(hk).trim()==='○');
-    if(isHK) return computeMasterSegs(p.confirm_done, null, hk);
+    if(isHK) return computeMasterSegs(cd||p.confirm_done, null, hk);
     return p.master_segs;
   }
   return p.segments || [];
@@ -792,9 +814,12 @@ function isRaikin(p){
   var mo=parseInt(parts[1]);
   return mo>=10;
 }
-// 完工判定
+// 完工判定: ステータス「完工」OR 引渡し日がTODAY以前
 function isKankou(p){
-  return (p.status||'').indexOf('完工')>=0||(p.sheet||'')==='完工物件';
+  if((p.status||'').indexOf('完工')>=0||(p.sheet||'')==='完工物件')return true;
+  var dd=normDate(p.delivery_date||'');
+  if(!dd)return false;
+  return dd.replace(/\//g,'-')<=TODAY;
 }
 
 function getProps() {
@@ -4116,10 +4141,20 @@ function _loadSharedGanttFromDB(){
 
 async function onAuthSuccess(){
   var sb=getSB();
-  await new Promise(function(r){setTimeout(r,800);});
+  await new Promise(function(r){setTimeout(r,500);});
+  // profilesテーブルからユーザー情報取得（RLS: auth.uid()=id が必要）
   var res=await sb.from('profiles').select('*').eq('id',currentUser.id).single();
+  if(res.error){
+    // RLSエラーの場合：管理者に連絡を促す
+    showToast('プロフィール取得エラー: '+res.error.message+' (Supabase RLSを確認してください)','error');
+    showPendingScreen();
+    return;
+  }
   currentProfile=res.data;
-  if(!currentProfile||!currentProfile.approved){showPendingScreen();return;}
+  if(!currentProfile||!currentProfile.approved){
+    showPendingScreen();
+    return;
+  }
   hideAuthScreen();
   updateSidebarUser();
   var adminBtn=document.getElementById('sbAdminBtn');
@@ -4127,9 +4162,12 @@ async function onAuthSuccess(){
   var pr=await sb.from('properties').select('*').order('fix_no');
   if(!pr.error&&pr.data&&pr.data.length>0){
     DB_PROPS=pr.data;
-    _loadSharedGanttFromDB(); // 管理者が保存した工程表・マスター紐付けを全ユーザーに展開
+    _loadSharedGanttFromDB();
     if(typeof renderAll==='function')renderAll();
-    showToast('DBから '+pr.data.length+'件取得','success');
+    showToast('✅ ログインしました（'+pr.data.length+'件取得）','success');
+  } else {
+    if(typeof renderAll==='function')renderAll();
+    showToast('✅ ログインしました','success');
   }
 }
 
@@ -4173,28 +4211,45 @@ window.sbSignOut=sbSignOut;
 // 承認待ち画面から再チェック（管理者が承認後に押してもらう）
 async function retryAuth(){
   var sb=getSB(); if(!sb){showToast('接続エラー','error');return;}
-  var btn=document.querySelector('#jackPendingOverlay button');
-  if(btn){btn.textContent='確認中...';btn.disabled=true;}
+  var btns=document.querySelectorAll('#jackPendingOverlay button');
+  btns.forEach(function(b){if(!b.onclick||b.onclick.toString().indexOf('sbSignOut')<0){b.textContent='確認中...';b.disabled=true;}});
   try{
-    // 現在のメールアドレスを控えておく
+    // まずprofileを直接再取得して承認状態を確認
+    if(currentUser){
+      var res=await sb.from('profiles').select('approved,role').eq('id',currentUser.id).single();
+      if(!res.error&&res.data&&res.data.approved){
+        // 承認済み確認 → メイン画面へ
+        currentProfile=Object.assign(currentProfile||{},res.data);
+        hideAuthScreen();
+        updateSidebarUser();
+        var adminBtn=document.getElementById('sbAdminBtn');
+        if(adminBtn&&currentProfile.role==='admin')adminBtn.style.display='';
+        var pr=await sb.from('properties').select('*').order('fix_no');
+        if(!pr.error&&pr.data&&pr.data.length>0){
+          DB_PROPS=pr.data;_loadSharedGanttFromDB();
+          if(typeof renderAll==='function')renderAll();
+        }
+        showToast('✅ ログインしました','success');
+        return;
+      }
+    }
+    // profileが取得できないかまだ未承認 → サインアウトして再ログイン
     var savedEmail=(currentUser&&currentUser.email)||'';
-    // 一旦サインアウトしてセッションを完全リセット
     await sb.auth.signOut();
     currentUser=null; currentProfile=null;
-    // ログイン画面に戻り、メールを自動入力
     showAuthScreen();
-    showAuthTab('login');
-    if(savedEmail){
+    setTimeout(function(){
+      showAuthTab('login');
       var emailEl=document.getElementById('jackLoginEmail');
-      if(emailEl)emailEl.value=savedEmail;
-      // パスワード欄にフォーカス
-      setTimeout(function(){var pw=document.getElementById('jackLoginPw');if(pw)pw.focus();},200);
-    }
-    showToast('承認されました。パスワードを入力してログインしてください','success');
+      if(emailEl&&savedEmail)emailEl.value=savedEmail;
+      var pw=document.getElementById('jackLoginPw');
+      if(pw)pw.focus();
+    },100);
+    showToast('パスワードを入力して再ログインしてください','success');
   }catch(e){
     showToast('エラー: '+e.message,'error');
   }finally{
-    if(btn){btn.textContent='✅ 承認確認・再ログイン';btn.disabled=false;}
+    btns.forEach(function(b){if(!b.onclick||b.onclick.toString().indexOf('sbSignOut')<0){b.textContent='✅ 承認確認・再ログイン';b.disabled=false;}});
   }
 }
 window.retryAuth=retryAuth;
