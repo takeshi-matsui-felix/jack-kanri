@@ -785,21 +785,12 @@ function getActiveSegs(p) {
 // ===== DATA HELPERS =====
 // 来期判定: 引渡し日が10/1以降 (期末=9/30)
 function isRaikin(p){
-  var dd=p.delivery_date||p.delivery_month||'';
-  if(!dd||/REF|#/.test(dd))return false;
-  var parts=String(dd).replace(/-/g,'/').split('/');
+  var nd=normDate(p.delivery_date||p.delivery_month||'');
+  if(!nd)return false;
+  var parts=nd.split('/');
   if(parts.length<2)return false;
-  var yr=parseInt(parts[0]),mo=parseInt(parts[1]);
-  if(isNaN(yr)||isNaN(mo))return false;
-  // 10月以降 かつ 今年または来年以降
-  var todayY=new Date(TODAY).getFullYear();
-  var todayM=new Date(TODAY).getMonth()+1; // 1-12
-  // 現在が10月以降なら来年10月以降が来期、現在が9月以前なら今年10月以降が来期
-  if(todayM>=10){
-    return (yr>todayY)||(yr===todayY&&mo>=10);
-  } else {
-    return (yr>todayY)||(yr===todayY&&mo>=10);
-  }
+  var mo=parseInt(parts[1]);
+  return mo>=10;
 }
 // 完工判定
 function isKankou(p){
@@ -853,9 +844,24 @@ function getProps() {
 }
 function getAllProps(){return(DATA.all['全物件進捗']||[]).concat(DATA.all['来期物件']||[]);}
 function getDow(d){return d?new Date(d).getDay():-1;}
+// 日付を YYYY/MM/DD に正規化（9/20/24→2024/09/20, 2024-09-20→2024/09/20）
+function normDate(raw){
+  if(!raw||/REF|#/.test(String(raw)))return '';
+  var s=String(raw).replace(/-/g,'/').split(' ')[0].trim();
+  var parts=s.split('/');
+  if(parts.length!==3)return s;
+  var a=parseInt(parts[0]),b=parseInt(parts[1]),c=parseInt(parts[2]);
+  if(isNaN(a)||isNaN(b)||isNaN(c))return s;
+  var yr,mo,dy;
+  if(a>31){yr=a;mo=b;dy=c;} // YYYY/M/D
+  else{yr=c<100?2000+c:c;mo=a;dy=b;} // M/D/YY or M/D/YYYY
+  return yr+'/'+('0'+mo).slice(-2)+'/'+('0'+dy).slice(-2);
+}
 function daysUntil(ds){
-  if(!ds||/中断|#/.test(ds))return null;
-  var d=new Date(ds.replace(/\//g,'-'));
+  if(!ds||/中断|#|REF/.test(ds))return null;
+  var nd=normDate(ds);
+  if(!nd)return null;
+  var d=new Date(nd.replace(/\//g,'-'));
   if(isNaN(d))return null;
   return Math.round((d-new Date(TODAY))/86400000);
 }
@@ -1382,7 +1388,7 @@ function renderBody(){
     // PRE-GANTT
     var px2=0;
     PRE_COLS.forEach(function(c){
-      var val=p[c.key]||'';
+      var val=normDate(p[c.key]||'');
       var el=document.createElement('div');el.className='info-cell';
       el.style.cssText='left:'+px2+'px;top:'+top+'px;width:'+c.w+'px;height:'+rowH+'px;background:'+(ri%2===0?'rgba(30,58,95,.03)':'rgba(30,58,95,.05)')+';';
       el.textContent=val;if(!val)el.style.color='var(--g200)';
@@ -1399,8 +1405,11 @@ function renderBody(){
       var el=document.createElement('div');el.className='info-cell';
       el.style.cssText='left:'+postX+'px;top:'+top+'px;width:'+c.w+'px;height:'+rowH+'px;';
       if(c.key==='status'){el.innerHTML=makeBadge(val);}
-      else{el.textContent=val;if(!val)el.style.color='var(--g200)';
-        if(c.key==='delivery_date'&&isUrgent){el.style.color='var(--danger)';el.style.fontWeight='700';}}
+      else{
+        var disp=c.key==='delivery_month'?val:normDate(val);
+        el.textContent=disp;if(!disp)el.style.color='var(--g200)';
+        if(c.key==='delivery_date'&&isUrgent){el.style.color='var(--danger)';el.style.fontWeight='700';}
+      }
       cv.appendChild(el);postX+=c.w;
     });
   });
@@ -4167,48 +4176,23 @@ async function retryAuth(){
   var btn=document.querySelector('#jackPendingOverlay button');
   if(btn){btn.textContent='確認中...';btn.disabled=true;}
   try{
-    // セッションを強制リフレッシュ
-    var rr=await sb.auth.refreshSession();
-    if(rr.error||!rr.data||!rr.data.session){
-      // リフレッシュ失敗 → 再ログインを促す
-      var p=document.getElementById('jackPendingOverlay');
-      if(p){
-        var msg=p.querySelector('.retry-msg');
-        if(!msg){msg=document.createElement('div');msg.className='retry-msg';
-          msg.style.cssText='font-size:12px;color:#dc2626;margin-top:12px;line-height:1.6;';
-          p.querySelector('div').appendChild(msg);}
-        msg.textContent='セッションが切れました。一度ログアウトして再度ログインしてください。';
-      }
-      if(btn){btn.textContent='✅ 承認確認・再ログイン';btn.disabled=false;}
-      return;
+    // 現在のメールアドレスを控えておく
+    var savedEmail=(currentUser&&currentUser.email)||'';
+    // 一旦サインアウトしてセッションを完全リセット
+    await sb.auth.signOut();
+    currentUser=null; currentProfile=null;
+    // ログイン画面に戻り、メールを自動入力
+    showAuthScreen();
+    showAuthTab('login');
+    if(savedEmail){
+      var emailEl=document.getElementById('jackLoginEmail');
+      if(emailEl)emailEl.value=savedEmail;
+      // パスワード欄にフォーカス
+      setTimeout(function(){var pw=document.getElementById('jackLoginPw');if(pw)pw.focus();},200);
     }
-    currentUser=rr.data.session.user;
-    // profileを直接取得（キャッシュなし）
-    var res=await sb.from('profiles').select('*').eq('id',currentUser.id).single();
-    currentProfile=res.data;
-    if(!currentProfile){
-      showToast('プロフィール取得失敗。しばらく待ってから再試行してください','error');
-    } else if(!currentProfile.approved){
-      showToast('まだ承認されていません。管理者に確認してください','');
-    } else {
-      // 承認済み → メイン画面へ
-      hideAuthScreen();
-      updateSidebarUser();
-      var adminBtn=document.getElementById('sbAdminBtn');
-      if(adminBtn&&currentProfile.role==='admin')adminBtn.style.display='';
-      var pr=await sb.from('properties').select('*').order('fix_no');
-      if(!pr.error&&pr.data&&pr.data.length>0){
-        DB_PROPS=pr.data;
-        _loadSharedGanttFromDB();
-        if(typeof renderAll==='function')renderAll();
-        showToast('✅ ログインしました（'+pr.data.length+'件取得）','success');
-      } else {
-        if(typeof renderAll==='function')renderAll();
-        showToast('✅ ログインしました','success');
-      }
-    }
+    showToast('承認されました。パスワードを入力してログインしてください','success');
   }catch(e){
-    showToast('確認に失敗しました: '+e.message,'error');
+    showToast('エラー: '+e.message,'error');
   }finally{
     if(btn){btn.textContent='✅ 承認確認・再ログイン';btn.disabled=false;}
   }
@@ -5259,7 +5243,28 @@ function admHandleXlsx(input){
           var dateIdxs={land_contract:7,land_payment:8,confirm_submit:14,confirm_done:15,delivery_date:236};
           Object.keys(dateIdxs).forEach(function(f){
             var raw=String(row[dateIdxs[f]]||'').trim();
-            prop[f]=raw?raw.replace(/[-]/g,'/').split(' ')[0]:'';
+            if(!raw){prop[f]='';return;}
+            // Excel日付を YYYY/MM/DD に正規化
+            // 形式: 9/20/24, 9/20/2024, 2024/9/20, 2024-09-20 など
+            var normalized='';
+            var clean=raw.replace(/[-]/g,'/').split(' ')[0];
+            var parts=clean.split('/');
+            if(parts.length===3){
+              var a=parseInt(parts[0]),b=parseInt(parts[1]),c=parseInt(parts[2]);
+              if(!isNaN(a)&&!isNaN(b)&&!isNaN(c)){
+                // M/D/YY or M/D/YYYY
+                if(a<=12&&b<=31&&(c<100||c>31)){
+                  var yr=c<100?2000+c:c;
+                  normalized=yr+'/'+('0'+a).slice(-2)+'/'+('0'+b).slice(-2);
+                // YYYY/M/D
+                } else if(a>31){
+                  normalized=a+'/'+('0'+b).slice(-2)+'/'+('0'+c).slice(-2);
+                } else {
+                  normalized=clean;
+                }
+              }
+            } else { normalized=clean; }
+            prop[f]=normalized;
           });
           var key=fixNo+'_'+nameVal;
           if(exMap[key]){await sb.from('properties').update(prop).eq('id',exMap[key]);totalUpd++;}
