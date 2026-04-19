@@ -761,8 +761,29 @@ function fullColToVisX(fullCol) {
 // エリアマスター名を返す（東海エリア→'東海'マスター、関東エリア→'関東'マスター）
 var TOKAI_AREAS=['愛知','三重','岐阜','静岡'];
 var KANTO_AREAS=['埼玉','東京','神奈川','千葉','茨城','栃木','群馬'];
-function getAreaMasterName(p){
+// 物件名から正しいエリアを判定（DBのareaが誤っている場合の補正）
+var CITY_AREA_MAP={
+  '豊橋':'愛知','豊田':'愛知','岡崎':'愛知','一宮':'愛知','春日井':'愛知','安城':'愛知','西尾':'愛知',
+  '常滑':'愛知','半田':'愛知','刈谷':'愛知','知立':'愛知','碧南':'愛知','高浜':'愛知','蒲郡':'愛知',
+  '津':'三重','四日市':'三重','桑名':'三重','鈴鹿':'三重','松阪':'三重',
+  'さいたま':'埼玉','川口':'埼玉','越谷':'埼玉','所沢':'埼玉','春日部':'埼玉','草加':'埼玉',
+  '川越':'埼玉','熊谷':'埼玉','上尾':'埼玉','朝霞':'埼玉','志木':'埼玉','富士見':'埼玉',
+  '白岡':'埼玉','蓮田':'埼玉','伊奈':'埼玉','坂戸':'埼玉',
+};
+function normalizeArea(p){
   var area=p.area||'';
+  var name=p.name||'';
+  // areaが都市名になっている場合はマップで補正
+  if(CITY_AREA_MAP[area])return CITY_AREA_MAP[area];
+  // 物件名から都市を検出して補正
+  var cities=Object.keys(CITY_AREA_MAP);
+  for(var i=0;i<cities.length;i++){
+    if(name.indexOf(cities[i])>=0)return CITY_AREA_MAP[cities[i]];
+  }
+  return area;
+}
+function getAreaMasterName(p){
+  var area=normalizeArea(p);
   if(TOKAI_AREAS.indexOf(area)>=0)return '東海';
   if(KANTO_AREAS.indexOf(area)>=0)return '関東';
   return null;
@@ -844,8 +865,8 @@ function getProps() {
       if(!list.length)list=DATA.all['完工物件']||[];
     } else { list=DATA.all['完工物件']||[]; }
   } else if (tabDef && tabDef.areas) {
-    // エリアタブ: 来期・完工を除いた今期物件のみ
-    list=all.filter(function(p){return tabDef.areas.indexOf(p.area)>=0&&!isRaikin(p)&&!isKankou(p);});
+    // エリアタブ: 来期・完工を除いた今期物件のみ（normalizeAreaで補正）
+    list=all.filter(function(p){return tabDef.areas.indexOf(normalizeArea(p))>=0&&!isRaikin(p)&&!isKankou(p);});
   } else {
     // 全物件: 来期・完工を除く
     list=all.filter(function(p){return !isRaikin(p)&&!isKankou(p);});
@@ -865,6 +886,12 @@ function getProps() {
   } else if (currentStatus!=='all') {
     list=list.filter(function(p){return p.status===currentStatus;});
   }
+  // 引渡し日の早い順にソート（未設定は末尾）
+  list.sort(function(a,b){
+    var da=normDate(a.delivery_date||'')||'9999/99/99';
+    var db=normDate(b.delivery_date||'')||'9999/99/99';
+    return da<db?-1:da>db?1:0;
+  });
   return list;
 }
 function getAllProps(){return(DATA.all['全物件進捗']||[]).concat(DATA.all['来期物件']||[]);}
@@ -1732,8 +1759,20 @@ function geRenderBars(){
       bars+='<div style="position:absolute;left:'+sx+'px;top:'+by+'px;width:'+bw+'px;height:'+bh+'px;background:'+color+';color:'+tcolor+';font-size:6px;font-weight:800;border-radius:2px;display:flex;align-items:center;padding:0 2px;overflow:hidden;white-space:nowrap;box-shadow:0 1px 2px rgba(0,0,0,.2);z-index:'+(layer===1?12:10)+';opacity:'+(isPast?'.6':'1')+';'+(isAct?'outline:2px solid rgba(255,255,0,.5);':'')+';">'+(bw>14?lbl:'')+'</div>';
     }
   });
+  // 引渡し日の赤バーを追加
+  var delivBar='';
+  if(currentProp&&currentProp.delivery_date){
+    var ddNorm=normDate(currentProp.delivery_date)||currentProp.delivery_date;
+    var ddClean=ddNorm.replace(/\//g,'-');
+    var ddCol=gDateIdx[ddClean];
+    if(ddCol!==undefined&&ddCol>0){
+      var ddX=(ddCol-1)*GCW;
+      delivBar='<div style="position:absolute;left:'+ddX+'px;top:0;width:'+(GCW*2-1)+'px;height:'+totalH+'px;background:rgba(239,68,68,.15);pointer-events:none;z-index:3"></div>'
+        +'<div style="position:absolute;left:'+ddX+'px;top:4px;width:'+(GCW*2-1)+'px;height:18px;background:#ef4444;color:white;font-size:6px;font-weight:900;border-radius:2px;display:flex;align-items:center;justify-content:center;z-index:14">引渡</div>';
+    }
+  }
   var totalH=numRows*ROW_H+28;
-  multiEl.innerHTML='<div style="overflow-x:auto;-webkit-overflow-scrolling:touch;padding-left:90px;"><div id="geCanvas" style="position:relative;width:'+totalW+'px;height:'+totalH+'px;background:white;">'+labels+hdrBands+dayNums+todayLine+fills+rowBgs+bars+'</div></div>';
+  multiEl.innerHTML='<div style="overflow-x:auto;-webkit-overflow-scrolling:touch;padding-left:90px;"><div id="geCanvas" style="position:relative;width:'+totalW+'px;height:'+totalH+'px;background:white;">'+labels+hdrBands+dayNums+todayLine+fills+rowBgs+bars+delivBar+'</div></div>';
   // スクロール位置を復元（初回はTODAY付近へ）
   var newWrap=multiEl.querySelector('div');
   if(newWrap){
@@ -2643,36 +2682,70 @@ function closeMenu(){document.getElementById('menuOverlay').classList.remove('op
 function openMyPage(){closeMenu();renderMyPage();openPanel('myPagePanel');}
 function openSelectProp(){
   var all=getAllProps();
-  // マイ物件のキャッシュクリーンアップ：現在のDATA/DBに存在しない物件を除去
+  // マイ物件のキャッシュクリーンアップ
   var before=myFavProps.length;
-  myFavProps=myFavProps.filter(function(f){
-    return all.some(function(p){return p.fix_no===f.fix_no&&p.name===f.name;});
-  });
-  if(myFavProps.length!==before){
-    saveLS('jack_myfavs',myFavProps);
-    renderBody();renderMyPage();
-  }
+  myFavProps=myFavProps.filter(function(f){return all.some(function(p){return p.fix_no===f.fix_no&&p.name===f.name;});});
+  if(myFavProps.length!==before){saveLS('jack_myfavs',myFavProps);renderBody();renderMyPage();}
 
-  // エリア別グループ化
-  var groups={},order=[];
-  all.forEach(function(p){
-    if(!groups[p.area]){groups[p.area]=[];order.push(p.area);}
-    groups[p.area].push(p);
+  // 完工を除外・引渡し日順ソート
+  var active=all.filter(function(p){return !isKankou(p);});
+  active.sort(function(a,b){
+    var da=normDate(a.delivery_date||'')||'9999/99/99';
+    var db=normDate(b.delivery_date||'')||'9999/99/99';
+    return da<db?-1:da>db?1:0;
   });
-  var html='';
-  order.forEach(function(area){
-    html+='<div style="padding:6px 12px 2px;font-size:10px;font-weight:800;color:var(--g500);background:var(--g50);border-bottom:1px solid var(--g100)">'+area+'</div>';
-    groups[area].forEach(function(p){
+
+  // タブ定義
+  var tabDefs=[
+    {id:'all',   label:'全て'},
+    {id:'東海',  label:'🏙 東海', areas:TOKAI_AREAS},
+    {id:'関東',  label:'🌿 関東', areas:KANTO_AREAS},
+    {id:'来期',  label:'📅 来期', raikin:true},
+  ];
+  var selTab='all';
+
+  function renderSelectContent(){
+    var list=active.filter(function(p){
+      var td=tabDefs.find(function(t){return t.id===selTab;});
+      if(!td||td.id==='all')return true;
+      if(td.raikin)return isRaikin(p);
+      return td.areas&&td.areas.indexOf(normalizeArea(p))>=0&&!isRaikin(p);
+    });
+    var tabHtml='<div style="display:flex;border-bottom:2px solid #e2e8f0;flex-shrink:0;background:white;position:sticky;top:0;z-index:10">'
+      +tabDefs.map(function(t){
+        var act=t.id===selTab;
+        return '<button data-stab="'+t.id+'" style="flex:1;padding:8px 4px;font-size:11px;font-weight:700;border:none;cursor:pointer;border-bottom:2px solid '+(act?'#1a56db':'transparent')+';color:'+(act?'#1a56db':'#94a3b8')+';background:white;margin-bottom:-2px">'+t.label+'</button>';
+      }).join('')+'</div>';
+
+    var itemsHtml=list.map(function(p){
       var eid='spi-'+p.fix_no+'-'+encodeURIComponent(p.name).replace(/[%]/g,'_');
       var checked=isFav(p);
-      html+='<div class="select-prop-item" id="'+eid+'" onclick="toggleFavItem(\''+p.fix_no+'\',\''+encodeURIComponent(p.name)+'\',\''+eid+'\')">'
+      var area=normalizeArea(p);
+      var areaColor=TOKAI_AREAS.indexOf(area)>=0?'#1a56db':KANTO_AREAS.indexOf(area)>=0?'#10b981':'#94a3b8';
+      return '<div class="select-prop-item" id="'+eid+'" onclick="toggleFavItem(\''+p.fix_no+'\',\''+encodeURIComponent(p.name)+'\',\''+eid+'\')">'
         +'<div class="spi-check'+(checked?' checked':'')+'">'+( checked?'✓':'')+'</div>'
-        +'<div style="flex:1"><div class="spi-name">'+p.name+'</div>'
-        +'<div style="font-size:9px;color:var(--g400)">FiX:'+p.fix_no+(p.delivery_date?' / 引渡:'+p.delivery_date:'')+'</div></div>'
+        +'<div style="flex:1;min-width:0">'
+          +'<div class="spi-name" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+p.name+'</div>'
+          +'<div style="font-size:9px;color:var(--g400);display:flex;gap:6px">'
+            +'<span style="color:'+areaColor+';font-weight:700">'+area+'</span>'
+            +'<span>FiX:'+p.fix_no+'</span>'
+            +(p.delivery_date?'<span>引渡:'+normDate(p.delivery_date)+'</span>':'')
+          +'</div>'
+        +'</div>'
         +'</div>';
-    });
-  });
-  document.getElementById('selectPropContent').innerHTML=html;
+    }).join('')||'<div style="padding:16px;text-align:center;color:var(--g400);font-size:12px">該当物件なし</div>';
+
+    var el=document.getElementById('selectPropContent');
+    if(el){
+      el.innerHTML=tabHtml+itemsHtml;
+      // タブクリック
+      el.querySelectorAll('[data-stab]').forEach(function(btn){
+        btn.addEventListener('click',function(){selTab=btn.getAttribute('data-stab');renderSelectContent();});
+      });
+    }
+  }
+
+  renderSelectContent();
   closeMenu();openPanel('selectPropPanel');
 }
 function toggleFavItem(fixNo,enc,eid){
@@ -4896,6 +4969,7 @@ function renderAdminCPShell(){
       +admMenuItem('props','🏠','物件管理')
       +'<div style="height:1px;background:rgba(255,255,255,.08);margin:3px 10px"></div>'
       +admMenuItem('import','📥','データ取込')
+      +admMenuItem('dbsetup','🔧','DB設定')
     +'</div>'
     +'<div id="admRight" style="flex:1;overflow-y:auto;background:#f8fafc"></div>'
   +'</div>';
@@ -4935,47 +5009,39 @@ async function loadAdmSec(sec){
       +'</div>';
 
   } else if(sec==='props'){
-    // 物件一覧 + 検索 + インライン編集フォーム
     var sb2=getSB();
     var pr=await sb2.from('properties').select('*').order('fix_no',{ascending:true});
     var props=pr.data||[];
-    var areaSet=[]; props.forEach(function(p){if(p.area&&areaSet.indexOf(p.area)<0)areaSet.push(p.area);});
-    var areaOpts=areaSet.map(function(a){return '<option value="'+a+'">'+a+'</option>';}).join('');
 
     right.innerHTML='<div style="display:flex;flex-direction:column;height:100%">'
-      // ── ヘッダー＋検索バー
-      +'<div style="padding:12px 14px;background:white;border-bottom:1px solid #e2e8f0;flex-shrink:0">'
-        +'<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">'
-          +'<div style="font-size:15px;font-weight:800;color:#1e293b">🏠 物件管理 <span id="admPropCount" style="font-size:11px;color:#94a3b8;font-weight:400"></span></div>'
-          +'<button onclick="admNewProp()" style="background:#1a56db;color:white;padding:5px 14px;border-radius:7px;font-size:11px;font-weight:700;border:none;cursor:pointer">＋ 新規追加</button>'
+      +'<div style="padding:10px 14px 6px;background:white;border-bottom:1px solid #e2e8f0;flex-shrink:0">'
+        +'<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">'
+          +'<div style="font-size:14px;font-weight:800;color:#1e293b">🏠 物件管理 <span id="admPropCount" style="font-size:11px;color:#94a3b8;font-weight:400"></span></div>'
+          +'<button onclick="admNewProp()" style="background:#1a56db;color:white;padding:5px 12px;border-radius:7px;font-size:11px;font-weight:700;border:none;cursor:pointer">＋ 新規追加</button>'
         +'</div>'
+        // エリアタブ
+        +'<div id="admPropAreaTabs" style="display:flex;border-bottom:2px solid #e2e8f0;margin-bottom:8px"></div>'
         +'<div style="display:flex;gap:6px">'
           +'<input id="admPropSearch" type="text" placeholder="物件名・FiX No.で絞込..." oninput="admFilterProps()" '
-            +'style="flex:1;padding:7px 10px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:12px">'
-          +'<select id="admPropArea" onchange="admFilterProps()" style="padding:6px 8px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:12px;color:#475569">'
-            +'<option value="">全エリア</option>'+areaOpts
-          +'</select>'
-          +'<select id="admPropStatus" onchange="admFilterProps()" style="padding:6px 8px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:12px;color:#475569">'
+            +'style="flex:1;padding:6px 10px;border:1.5px solid #e2e8f0;border-radius:7px;font-size:12px">'
+          +'<select id="admPropStatus" onchange="admFilterProps()" style="padding:6px 8px;border:1.5px solid #e2e8f0;border-radius:7px;font-size:12px;color:#475569">'
             +'<option value="">全ステータス</option>'
             +'<option value="契約済">契約済</option><option value="販売中">販売中</option>'
             +'<option value="未公開">未公開</option><option value="買付">買付</option>'
           +'</select>'
         +'</div>'
       +'</div>'
-      // ── 編集フォーム（初期非表示）
       +'<div id="admPropFormWrap" style="display:none;background:#eff6ff;border-bottom:2px solid #bfdbfe;padding:14px;flex-shrink:0">'
         +'<div id="admPropForm"></div>'
       +'</div>'
-      // ── 物件リスト
       +'<div id="admPropList" style="flex:1;overflow-y:auto;padding:10px 14px">'
         +'<div style="text-align:center;padding:20px;color:#94a3b8;font-size:12px">読み込み中...</div>'
       +'</div>'
     +'</div>';
 
-    // 物件データをwindowに保持してフィルタ用に使用
     window._admAllProps=props;
+    _admCurTab='all';
     admFilterProps();
-    document.getElementById('admPropCount').textContent='（'+props.length+'件）';
 
   } else if(sec==='import'){
     right.innerHTML='<div style="padding:14px">'
@@ -4995,9 +5061,41 @@ async function loadAdmSec(sec){
       +'</div>'
       +'<div id="importStatus" style="margin-top:12px;display:none"></div>'
       +'</div>';
+  } else if(sec==='dbsetup'){
+    var rlsSql='-- profiles テーブルのRLSポリシー設定\nALTER TABLE profiles ENABLE ROW LEVEL SECURITY;\n\nCREATE POLICY "users_read_own_profile" ON profiles\n  FOR SELECT USING (auth.uid() = id);\n\nCREATE POLICY "users_update_own_profile" ON profiles\n  FOR UPDATE USING (auth.uid() = id);\n\n-- 管理者は全員のprofileを読める\nCREATE POLICY "admin_read_all_profiles" ON profiles\n  FOR SELECT USING (\n    EXISTS (\n      SELECT 1 FROM profiles\n      WHERE id = auth.uid() AND role = \'admin\'\n    )\n  );\n\n-- properties テーブルのRLSポリシー\nALTER TABLE properties ENABLE ROW LEVEL SECURITY;\n\nCREATE POLICY "all_read_properties" ON properties\n  FOR SELECT USING (auth.role() = \'authenticated\');\n\nCREATE POLICY "all_write_properties" ON properties\n  FOR ALL USING (auth.role() = \'authenticated\');\n\n-- custom_gantt, prop_masterカラムの追加\nALTER TABLE properties ADD COLUMN IF NOT EXISTS custom_gantt jsonb;\nALTER TABLE properties ADD COLUMN IF NOT EXISTS prop_master text;';
+    right.innerHTML='<div style="padding:14px">'
+      +'<div style="font-size:16px;font-weight:800;color:#1e293b;margin-bottom:4px">🔧 DB設定（Supabase RLS）</div>'
+      +'<div style="font-size:11px;color:#64748b;margin-bottom:14px">ログインできない場合、SupabaseダッシュボードのSQL Editorで以下を実行してください。</div>'
+      +'<div style="background:#1e293b;border-radius:10px;padding:14px;margin-bottom:12px;position:relative">'
+        +'<pre id="rlsSqlPre" style="color:#86efac;font-size:10px;line-height:1.6;white-space:pre-wrap;word-break:break-all;margin:0;font-family:monospace">'+rlsSql+'</pre>'
+        +'<button onclick="copyRlsSql()" style="position:absolute;top:8px;right:8px;background:rgba(255,255,255,.15);color:white;border:none;border-radius:5px;padding:4px 10px;font-size:10px;cursor:pointer;font-weight:700">📋 コピー</button>'
+      +'</div>'
+      +'<div style="background:#fef9c3;border:1px solid #fde047;border-radius:8px;padding:10px 12px;font-size:11px;color:#713f12;margin-bottom:12px">'
+        +'⚠️ 既にポリシーが存在する場合はエラーになることがあります。<br>その場合はエラー行をスキップして残りを実行してください。'
+      +'</div>'
+      +'<div style="font-size:12px;font-weight:800;color:#1e293b;margin-bottom:8px">手順</div>'
+      +'<div style="font-size:11px;color:#475569;line-height:2">'
+        +'1. <a href="https://supabase.com/dashboard" target="_blank" style="color:#1a56db;font-weight:700">Supabaseダッシュボード</a> を開く<br>'
+        +'2. プロジェクトを選択 → 左メニュー「SQL Editor」をクリック<br>'
+        +'3. 上のSQLをコピーしてエディターに貼り付け → 「Run」をクリック<br>'
+        +'4. 完了後、先方にアプリを再度ログインしてもらう'
+      +'</div>'
+    +'</div>';
   }
 }
 window.loadAdmSec=loadAdmSec;
+
+function copyRlsSql(){
+  var el=document.getElementById('rlsSqlPre');
+  if(!el)return;
+  var text=el.textContent;
+  try{
+    navigator.clipboard.writeText(text).then(function(){showToast('SQLをコピーしました','success');});
+  }catch(e){
+    var ta=document.createElement('textarea');ta.value=text;document.body.appendChild(ta);ta.select();document.execCommand('copy');document.body.removeChild(ta);showToast('SQLをコピーしました','success');
+  }
+}
+window.copyRlsSql=copyRlsSql;
 
 function admUserCard(u,approved){
   return '<div style="background:white;border-radius:9px;padding:10px 12px;margin-bottom:8px;border:1px solid #e2e8f0;display:flex;align-items:center;gap:10px">'
@@ -5045,25 +5143,49 @@ async function admSaveField(input,field){
 }
 window.admSaveField=admSaveField;
 
-// 物件リストフィルタ＆描画
+// 物件リストフィルタ＆描画（エリアタブ付き）
+var _admCurTab='all';
 function admFilterProps(){
   var list=document.getElementById('admPropList'); if(!list)return;
   var props=window._admAllProps||[];
   var q=(document.getElementById('admPropSearch')||{}).value||'';
-  var area=(document.getElementById('admPropArea')||{}).value||'';
   var status=(document.getElementById('admPropStatus')||{}).value||'';
   q=q.toLowerCase();
+  // エリアタブフィルター
   var filtered=props.filter(function(p){
-    var match=!q||(p.name||'').toLowerCase().indexOf(q)>=0||String(p.fix_no||'').indexOf(q)>=0;
-    var matchA=!area||(p.area||'')===area;
+    var area=normalizeArea(p);
+    var matchTab=true;
+    if(_admCurTab==='東海')matchTab=TOKAI_AREAS.indexOf(area)>=0&&!isRaikin(p)&&!isKankou(p);
+    else if(_admCurTab==='関東')matchTab=KANTO_AREAS.indexOf(area)>=0&&!isRaikin(p)&&!isKankou(p);
+    else if(_admCurTab==='来期')matchTab=isRaikin(p);
+    else if(_admCurTab==='完工')matchTab=isKankou(p);
+    else matchTab=!isKankou(p); // 全て=完工除く
+    var matchQ=!q||(p.name||'').toLowerCase().indexOf(q)>=0||String(p.fix_no||'').indexOf(q)>=0;
     var matchS=!status||(p.status||'')===status;
-    return match&&matchA&&matchS;
+    return matchTab&&matchQ&&matchS;
+  });
+  // 引渡し日順ソート
+  filtered.sort(function(a,b){
+    var da=normDate(a.delivery_date||'')||'9999/99/99';
+    var db=normDate(b.delivery_date||'')||'9999/99/99';
+    return da<db?-1:da>db?1:0;
   });
   document.getElementById('admPropCount').textContent='（'+filtered.length+'/'+props.length+'件）';
+  // タブ再描画
+  var tabsEl=document.getElementById('admPropAreaTabs');
+  if(tabsEl){
+    var tabs=[{id:'all',l:'全て'},{id:'東海',l:'🏙東海'},{id:'関東',l:'🌿関東'},{id:'来期',l:'📅来期'},{id:'完工',l:'✅完工'}];
+    tabsEl.innerHTML=tabs.map(function(t){
+      var act=t.id===_admCurTab;
+      return '<button onclick="admSetTab(\''+t.id+'\')" style="flex:1;padding:7px 4px;font-size:11px;font-weight:700;border:none;cursor:pointer;border-bottom:2px solid '+(act?'#1a56db':'transparent')+';color:'+(act?'#1a56db':'#94a3b8')+';background:white">'+t.l+'</button>';
+    }).join('');
+  }
   if(!filtered.length){list.innerHTML='<div style="text-align:center;padding:20px;color:#94a3b8;font-size:12px">該当する物件がありません</div>';return;}
   list.innerHTML=filtered.map(function(p){return admPropCard(p);}).join('');
 }
 window.admFilterProps=admFilterProps;
+function admSetTab(t){_admCurTab=t;admFilterProps();}
+window.admSetTab=admSetTab;
 
 function admPropCard(p){
   var st=p.status||'';
