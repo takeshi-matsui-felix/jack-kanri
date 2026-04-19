@@ -519,7 +519,10 @@ body{display:flex;overflow:hidden;}
       </div>
     </div>
     <div id="jackMapBody">
-      <div id="jackMapList"></div>
+      <div id="jackMapListWrap" style="display:flex;flex-direction:column;overflow:hidden">
+        <div id="jackMapAreaTabs" style="display:flex;border-bottom:2px solid #e2e8f0;flex-shrink:0;background:white"></div>
+        <div id="jackMapList" style="flex:1;overflow-y:auto"></div>
+      </div>
       <div id="jackMapRight">
         <div id="jackMapTabs" style="display:none;padding:6px;gap:4px;background:#f1f5f9;border-bottom:1px solid #e2e8f0;flex-shrink:0;display:none">
           <button id="mapTabBtn_map" class="map-tab-btn active" onclick="showMapTab('map')">📍 現場地図</button>
@@ -529,7 +532,8 @@ body{display:flex;overflow:hidden;}
         </div>
         <iframe id="jackMapFrame" src="about:blank"></iframe>
       </div>
-    </div>
+    </div><!-- jackMapListWrap -->
+    </div><!-- jackMapBody -->
   </div>
 </div>
 <div class="slide-panel" id="jackCalendarPanel">
@@ -596,11 +600,39 @@ var EC = {
 };
 var DARK_TEXT = {'造成':1,'地盤':1,'基礎':1,'建て方':1,'造作':1,'外構':1};
 
-// Visible dates
-var VIS_DATES = DATA.dates;       // index 0='', 1='2026-03-01'
-// Full dates (from ~2024-11 to 2026-09-29)
-var FULL_DATES = DATA.full_dates || VIS_DATES;
-var VIS_START_COL = 1;            // col 1 = 2026-03-01
+// Visible dates: TODAYを基準に15日スライドで8ヶ月表示
+// 開始日: 直近の15日区切り（1日または16日）
+// 例: 今日=4/19 → 4/1起点, 今日=5/1 → 4/15起点, 今日=5/16 → 5/1起点
+(function(){
+  var todayDt=new Date(TODAY);
+  var day=todayDt.getDate();
+  // 直近の15日境界: day<=15 → 前月16日, day>=16 → 今月1日
+  var visStart;
+  if(day<=15){
+    var prev=new Date(todayDt.getFullYear(),todayDt.getMonth()-1,16);
+    visStart=prev;
+  } else {
+    visStart=new Date(todayDt.getFullYear(),todayDt.getMonth(),1);
+  }
+  // 8ヶ月後の末日まで
+  var visEnd=new Date(visStart.getFullYear(),visStart.getMonth()+8,0);
+  var dynDates=[''];
+  var cur=new Date(visStart.getTime());
+  while(cur<=visEnd){dynDates.push(cur.toISOString().slice(0,10));cur.setDate(cur.getDate()+1);}
+
+  // FULL_DATESはDATAの広い範囲を使いつつ、動的日付範囲で補完
+  var FULL_DATES_BASE = DATA.full_dates || DATA.dates;
+  // 動的範囲をFULL_DATESとしても使う（DB_PROPS物件のため広い範囲を生成）
+  var fullStart=new Date(2024,0,1); // 2024-01-01
+  var fullEnd=new Date(todayDt.getFullYear()+2,11,31); // 2年後末日
+  var dynFull=[''];
+  var cf=new Date(fullStart.getTime());
+  while(cf<=fullEnd){dynFull.push(cf.toISOString().slice(0,10));cf.setDate(cf.getDate()+1);}
+
+  window.VIS_DATES  = dynDates;
+  window.FULL_DATES = dynFull.length > FULL_DATES_BASE.length ? dynFull : FULL_DATES_BASE;
+})();
+var VIS_START_COL = 1;
 var VIS_END_COL = VIS_DATES.length - 1;
 var TODAY_VIS_COL = VIS_DATES.indexOf(TODAY);
 var VIS_START_DATE = VIS_DATES[1];
@@ -758,14 +790,16 @@ function getProps() {
   if (currentArea==='マイ物件') {
     list=all.filter(function(p){return isFav(p);});
   } else if (currentArea==='来期') {
-    // DB_PROPS使用時はdelivery_monthが来年のものを来期扱い、なければDATAの来期シートを使用
     if(DB_PROPS&&DB_PROPS.length>0){
-      var nextYear=new Date(TODAY).getFullYear()+1;
-      var curYear=new Date(TODAY).getFullYear();
+      var todayY=new Date(TODAY).getFullYear();
+      var raikinSheet=DATA.all['来期物件']||[];
+      var raikinFixNos=new Set(raikinSheet.map(function(p){return String(p.fix_no);}));
       list=all.filter(function(p){
-        var dm=p.delivery_month||'';var dd=p.delivery_date||'';
-        var yr=parseInt((dm||dd).split('/')[0]||'0');
-        return yr>=nextYear;
+        if(raikinFixNos.has(String(p.fix_no)))return true;
+        var dd=p.delivery_date||p.delivery_month||'';
+        if(!dd)return false;
+        var yr=parseInt(String(dd).split('/')[0]||'0');
+        return yr>todayY;
       });
       if(!list.length)list=DATA.all['来期物件']||[];
     } else { list=DATA.all['来期物件']||[]; }
@@ -4257,11 +4291,18 @@ function openJackMap(area){
     if(titleEl)titleEl.textContent=targetArea+'エリア（'+props.length+'件）';
     if(!listEl)return;
 
-    var tabsHtml='<div style="display:flex;border-bottom:2px solid #e2e8f0;flex-shrink:0">'
-      +allAreas.map(function(a){
+    // エリアタブを固定ヘッダーに描画
+    var fixedTabs=document.getElementById('jackMapAreaTabs');
+    if(fixedTabs){
+      fixedTabs.innerHTML=allAreas.map(function(a){
         var act=a===targetArea;
-        return '<button class="map-area-tab" data-area="'+a+'" style="flex:1;padding:8px 4px;font-size:12px;font-weight:700;cursor:pointer;border-bottom:2px solid '+(act?'#1a56db;color:#1a56db;margin-bottom:-2px':'transparent;color:#94a3b8')+'">'+a+'</button>';
-      }).join('')+'</div>';
+        return '<button class="map-area-tab" data-area="'+a+'" style="flex:1;padding:9px 4px;font-size:12px;font-weight:700;cursor:pointer;border:none;border-bottom:3px solid '+(act?'#1a56db':'transparent')+';color:'+(act?'#1a56db':'#94a3b8')+';background:white">'+a+'</button>';
+      }).join('');
+      fixedTabs.onclick=function(e){
+        var aTab=e.target.closest('.map-area-tab');
+        if(aTab){renderList(aTab.getAttribute('data-area'));}
+      };
+    }
 
     var items=props.map(function(p){
       var addr=getAddr(p);
@@ -4288,10 +4329,8 @@ function openJackMap(area){
         +'</div>';
     }).join('')||'<div style="padding:20px;text-align:center;color:#94a3b8;font-size:12px">物件なし</div>';
 
-    listEl.innerHTML=tabsHtml+items;
+    listEl.innerHTML=items||'<div style="padding:20px;text-align:center;color:#94a3b8;font-size:12px">物件なし</div>';
     listEl.onclick=function(e){
-      var aTab=e.target.closest('.map-area-tab');
-      if(aTab){renderList(aTab.getAttribute('data-area'));return;}
       var item=e.target.closest('.map-prop-item');
       if(!item)return;
       var fixNo=item.getAttribute('data-fixno');
