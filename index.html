@@ -753,15 +753,32 @@ function getActiveSegs(p) {
 // ===== DATA HELPERS =====
 function getProps() {
   var tabDef = AREA_TABS.find(function(t){return t.id===currentArea;});
+  var all=getAllProps(); // DB_PROPS優先（パッチ済み）
   var list;
   if (currentArea==='マイ物件') {
-    var all=(DATA.all['全物件進捗']||[]).concat(DATA.all['来期物件']||[]);
     list=all.filter(function(p){return isFav(p);});
-  } else if (currentArea==='来期') { list=DATA.all['来期物件']||[];
-  } else if (currentArea==='完工') { list=DATA.all['完工物件']||[];
+  } else if (currentArea==='来期') {
+    // DB_PROPS使用時はdelivery_monthが来年のものを来期扱い、なければDATAの来期シートを使用
+    if(DB_PROPS&&DB_PROPS.length>0){
+      var nextYear=new Date(TODAY).getFullYear()+1;
+      var curYear=new Date(TODAY).getFullYear();
+      list=all.filter(function(p){
+        var dm=p.delivery_month||'';var dd=p.delivery_date||'';
+        var yr=parseInt((dm||dd).split('/')[0]||'0');
+        return yr>=nextYear;
+      });
+      if(!list.length)list=DATA.all['来期物件']||[];
+    } else { list=DATA.all['来期物件']||[]; }
+  } else if (currentArea==='完工') {
+    if(DB_PROPS&&DB_PROPS.length>0){
+      list=all.filter(function(p){return (p.status||'').indexOf('完工')>=0||(p.sheet||'')==='完工物件';});
+      if(!list.length)list=DATA.all['完工物件']||[];
+    } else { list=DATA.all['完工物件']||[]; }
   } else if (tabDef && tabDef.areas) {
-    list=(DATA.all['全物件進捗']||[]).filter(function(p){return tabDef.areas.indexOf(p.area)>=0;});
-  } else { list=DATA.all['全物件進捗']||[]; }
+    list=all.filter(function(p){return tabDef.areas.indexOf(p.area)>=0;});
+  } else {
+    list=all;
+  }
   if(currentStatus==='delayed'){
     var today=new Date(TODAY);
     list=list.filter(function(p){
@@ -4056,23 +4073,27 @@ async function onAuthSuccess(){
   }
 }
 
-// Patch getAllProps to use DB when available, filtered by DATA props
+// Patch getAllProps to use DB when available
 (function(){
   var orig=window.getAllProps;
   window.getAllProps=function(){
     if(DB_PROPS&&DB_PROPS.length>0){
-      // DATAに存在するfix_noのみ返す（軽量化時のフィルター）
+      // DB_PROPSを主とし、DATAのsegments/master_segsで補完する
       var dataProps=orig?orig():[];
       if(dataProps.length>0){
-        var dataFixNos=new Set(dataProps.map(function(p){return String(p.fix_no);}));
-        var filtered=DB_PROPS.filter(function(p){return dataFixNos.has(String(p.fix_no));});
-        if(filtered.length>0){
-          // DBデータでDATAのmaster_segs/segmentsを補完
-          return filtered.map(function(dbp){
-            var local=dataProps.find(function(lp){return String(lp.fix_no)===String(dbp.fix_no);});
-            return local?Object.assign({},local,dbp):dbp;
-          });
-        }
+        var dataMap={};
+        dataProps.forEach(function(p){dataMap[String(p.fix_no)]=p;});
+        return DB_PROPS.map(function(dbp){
+          var local=dataMap[String(dbp.fix_no)];
+          if(local){
+            // DATAのガントデータ（segments/master_segs/dates）をDBデータに補完
+            var merged=Object.assign({},local,dbp);
+            if(!merged.segments&&local.segments)merged.segments=local.segments;
+            if(!merged.master_segs&&local.master_segs)merged.master_segs=local.master_segs;
+            return merged;
+          }
+          return dbp;
+        });
       }
       return DB_PROPS;
     }
@@ -4095,15 +4116,45 @@ async function retryAuth(){
   var btn=document.querySelector('#jackPendingOverlay button');
   if(btn){btn.textContent='確認中...';btn.disabled=true;}
   try{
-    // Supabaseセッションを強制リフレッシュしてから再チェック
-    await sb.auth.refreshSession();
-    var sr=await sb.auth.getSession();
-    if(sr.data&&sr.data.session&&sr.data.session.user){
-      currentUser=sr.data.session.user;
-      await onAuthSuccess();
+    // セッションを強制リフレッシュ
+    var rr=await sb.auth.refreshSession();
+    if(rr.error||!rr.data||!rr.data.session){
+      // リフレッシュ失敗 → 再ログインを促す
+      var p=document.getElementById('jackPendingOverlay');
+      if(p){
+        var msg=p.querySelector('.retry-msg');
+        if(!msg){msg=document.createElement('div');msg.className='retry-msg';
+          msg.style.cssText='font-size:12px;color:#dc2626;margin-top:12px;line-height:1.6;';
+          p.querySelector('div').appendChild(msg);}
+        msg.textContent='セッションが切れました。一度ログアウトして再度ログインしてください。';
+      }
+      if(btn){btn.textContent='✅ 承認確認・再ログイン';btn.disabled=false;}
+      return;
+    }
+    currentUser=rr.data.session.user;
+    // profileを直接取得（キャッシュなし）
+    var res=await sb.from('profiles').select('*').eq('id',currentUser.id).single();
+    currentProfile=res.data;
+    if(!currentProfile){
+      showToast('プロフィール取得失敗。しばらく待ってから再試行してください','error');
+    } else if(!currentProfile.approved){
+      showToast('まだ承認されていません。管理者に確認してください','');
     } else {
-      showToast('セッションが切れています。再ログインしてください','error');
-      sbSignOut();
+      // 承認済み → メイン画面へ
+      hideAuthScreen();
+      updateSidebarUser();
+      var adminBtn=document.getElementById('sbAdminBtn');
+      if(adminBtn&&currentProfile.role==='admin')adminBtn.style.display='';
+      var pr=await sb.from('properties').select('*').order('fix_no');
+      if(!pr.error&&pr.data&&pr.data.length>0){
+        DB_PROPS=pr.data;
+        _loadSharedGanttFromDB();
+        if(typeof renderAll==='function')renderAll();
+        showToast('✅ ログインしました（'+pr.data.length+'件取得）','success');
+      } else {
+        if(typeof renderAll==='function')renderAll();
+        showToast('✅ ログインしました','success');
+      }
     }
   }catch(e){
     showToast('確認に失敗しました: '+e.message,'error');
