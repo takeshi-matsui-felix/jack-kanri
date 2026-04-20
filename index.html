@@ -1301,6 +1301,24 @@ function renderBars(cv, p, segs, gx, top, rowH) {
   var barH = rowH === 32 ? 18 : 20;
   var barY = top + Math.floor((rowH-barH)/2);
 
+  // 引渡し日の縦ライン（薄い赤）を最初に描画
+  var ddRawPre=p.delivery_date||'';
+  if(ddRawPre&&!/REF|#/.test(ddRawPre)){
+    var ddNormPre=normDate(ddRawPre)||ddRawPre;
+    var dsPre=ddNormPre.replace(/\//g,'-');
+    var dcolPre=FULL_DATE_IDX[dsPre];
+    if(dcolPre===undefined){var kk=Object.keys(FULL_DATE_IDX);for(var kki=0;kki<kk.length;kki++){if(kk[kki]>=dsPre){dcolPre=FULL_DATE_IDX[kk[kki]];break;}}}
+    if(dcolPre!==undefined){
+      var dvX=gx+(dcolPre-FULL_VIS_OFFSET)*COL_W;
+      if(dvX>=vStartPx-2&&dvX<=vEndPx+2){
+        var dvLine=document.createElement('div');
+        dvLine.style.cssText='position:absolute;left:'+dvX+'px;top:'+top+'px;width:2px;height:'+rowH+'px;'
+          +'background:rgba(239,68,68,.35);pointer-events:none;z-index:5;';
+        cv.appendChild(dvLine);
+      }
+    }
+  }
+
   segs.forEach(function(seg){
     var lbl   = seg.label || seg.name || '';
     // Use calendar_dur (actual calendar span incl. Sundays) for bar width
@@ -1338,20 +1356,33 @@ function renderBars(cv, p, segs, gx, top, rowH) {
     cv.appendChild(bar);
   });
 
-  // IC列の引渡し → 赤バー
-  if (p.delivery_date) {
-    var ds = p.delivery_date.replace(/\//g,'-');
-    var dcol = FULL_DATE_IDX[ds];
-    if (dcol !== undefined) {
-      var icX = gx + (dcol - FULL_VIS_OFFSET) * COL_W + 1;
-      if (icX >= vStartPx && icX <= vEndPx) {
-        var icBar = document.createElement('div');
-        icBar.className='bar';
-        icBar.style.cssText='left:'+icX+'px;top:'+barY+'px;width:'+(COL_W*2-2)+'px;height:'+barH+'px;'
-          +'background:#ef4444;color:white;font-size:7px;font-weight:900;border-radius:3px;z-index:14;'
-          +'box-shadow:0 1px 4px rgba(239,68,68,.5);';
-        icBar.textContent='引渡';
-        (function(dt){icBar.onclick=function(e){e.stopPropagation();showTip(e,'IC列 引渡し: '+dt);};})(p.delivery_date);
+  // 引渡し日 → 赤バー（水平）＋ 縦ライン
+  var ddRaw=p.delivery_date||'';
+  if(ddRaw&&!/REF|#/.test(ddRaw)){
+    var ddNorm=normDate(ddRaw)||ddRaw;
+    var ds=ddNorm.replace(/\//g,'-');
+    var dcol=FULL_DATE_IDX[ds];
+    // 見つからない場合は近傍検索
+    if(dcol===undefined){
+      var keys=Object.keys(FULL_DATE_IDX);
+      for(var ki=0;ki<keys.length;ki++){if(keys[ki]>=ds){dcol=FULL_DATE_IDX[keys[ki]];break;}}
+    }
+    if(dcol!==undefined){
+      var icX=gx+(dcol-FULL_VIS_OFFSET)*COL_W;
+      if(icX>=vStartPx-COL_W*2&&icX<=vEndPx+COL_W){
+        var clampX=Math.max(icX,vStartPx);
+        // 赤い水平バー「渡し」
+        var icBar=document.createElement('div');
+        icBar.className='bar g-bar';
+        icBar.setAttribute('data-label','引渡し');
+        icBar.setAttribute('data-start',ddNorm);
+        icBar.setAttribute('data-end',ddNorm);
+        icBar.style.cssText='left:'+clampX+'px;top:'+barY+'px;width:'+(COL_W*2-1)+'px;height:'+barH+'px;'
+          +'background:#ef4444;color:white;font-size:7px;font-weight:900;border-radius:3px;z-index:16;'
+          +'display:flex;align-items:center;justify-content:center;'
+          +'box-shadow:0 1px 4px rgba(239,68,68,.6);';
+        icBar.textContent='渡し';
+        (function(dt){icBar.onclick=function(e){e.stopPropagation();showTip(e,'引渡し: '+dt);};})(ddNorm);
         cv.appendChild(icBar);
       }
     }
