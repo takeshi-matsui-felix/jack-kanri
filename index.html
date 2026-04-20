@@ -685,6 +685,39 @@ function workdaysFrom(startStr, n) {
   return days;
 }
 
+// ===== 内蔵マスターテンプレート（エリア別） =====
+// マスター工程が未登録でも自動適用するデフォルト定義
+var BUILTIN_MASTERS={
+  '東海':[
+    {name:'造成',  dur:5,  color:'#d2b48c', layer:0},
+    {name:'地盤',  dur:3,  color:'#add8e6', layer:0},
+    {name:'基礎',  dur:28, color:'#d9d9d9', layer:0},
+    {name:'建て方',dur:14, color:'#d9ead3', layer:0},
+    {name:'足場',  dur:2,  color:'#7030a0', layer:1},
+    {name:'造作',  dur:50, color:'#ffff00', layer:0},
+    {name:'UB',    dur:2,  color:'#00b050', layer:1},
+    {name:'SK',    dur:2,  color:'#00b050', layer:0},
+    {name:'解体',  dur:1,  color:'#7030a0', layer:0},
+    {name:'内装',  dur:10, color:'#ffc7ce', layer:0},
+    {name:'外構',  dur:10, color:'#d2b48c', layer:0},
+    {name:'引渡し',dur:1,  color:'#1a56db', layer:0}
+  ],
+  '関東':[
+    {name:'造成',  dur:5,  color:'#d2b48c', layer:0},
+    {name:'地盤',  dur:3,  color:'#add8e6', layer:0},
+    {name:'基礎',  dur:28, color:'#d9d9d9', layer:0},
+    {name:'建て方',dur:14, color:'#d9ead3', layer:0},
+    {name:'足場',  dur:2,  color:'#7030a0', layer:1},
+    {name:'造作',  dur:50, color:'#ffff00', layer:0},
+    {name:'UB',    dur:2,  color:'#00b050', layer:1},
+    {name:'SK',    dur:2,  color:'#00b050', layer:0},
+    {name:'解体',  dur:1,  color:'#7030a0', layer:0},
+    {name:'内装',  dur:10, color:'#ffc7ce', layer:0},
+    {name:'外構',  dur:10, color:'#d2b48c', layer:0},
+    {name:'引渡し',dur:1,  color:'#1a56db', layer:0}
+  ]
+};
+
 function computeMasterSegs(confirmDoneStr, template, handKumi) {
   if (!confirmDoneStr || !String(confirmDoneStr).match(/\d{4}/)) return [];
   // Check hand_kumi: if contains '〇' or '手組', add 30 workdays to 建て方
@@ -807,12 +840,16 @@ function getActiveSegs(p) {
   // ③ confirm_doneがある場合: エリア別マスターを自動適用
   var cd=normDate(p.confirm_done)||p.confirm_done||'';
   if(cd&&String(cd).match(/\d{4}/)){
-    var areaMaster=getAreaMasterName(p);
-    if(areaMaster){
-      var at=myMasters.find(function(m){return m.name===areaMaster;});
+    var areaMasterName=getAreaMasterName(p); // '東海' or '関東' or null
+    if(areaMasterName){
+      // まずユーザーが登録したマスターを優先
+      var at=myMasters.find(function(m){return m.name===areaMasterName;});
       if(at)return computeMasterSegs(cd,at.steps,p.hand_kumi);
+      // 未登録なら内蔵テンプレートを使用
+      var bt=BUILTIN_MASTERS[areaMasterName];
+      if(bt)return computeMasterSegs(cd,bt,p.hand_kumi);
     }
-    // ④ エリアマスター未登録でもconfirm_doneがあればデフォルトテンプレートで自動生成
+    // ④ エリア不明でもconfirm_doneがあればデフォルトで自動生成
     return computeMasterSegs(cd,null,p.hand_kumi);
   }
   // ⑤ GASから取得済みのmaster_segs
