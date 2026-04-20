@@ -3373,10 +3373,38 @@ var masterGanttSegs = []; // computed segs with stepIdx
 
 function openMasterPanel(){renderMasterPanel();openPanel('masterPanel');}
 
+function resetToBuiltinMasters(){
+  if(!confirm('既存のマイマスター全て削除し、東海・関東マスターをデフォルトで再登録します。よろしいですか？'))return;
+  // 全削除して東海・関東だけ登録
+  myMasters=[];
+  ['東海','関東'].forEach(function(name){
+    var steps=BUILTIN_MASTERS[name].map(function(s){
+      return {name:s.name,dur:s.dur,color:s.color,layer:s.layer||0,offset:0};
+    });
+    myMasters.push({name:name,steps:steps});
+  });
+  saveLS('jack_my_masters',myMasters);
+  // propMasterもクリア（エリア自動紐付けに委ねる）
+  propMaster={};
+  saveLS('jack_prop_master',propMaster);
+  showToast('✅ 東海・関東マスターをリセットしました','success');
+  renderMasterPanel();
+}
+window.resetToBuiltinMasters=resetToBuiltinMasters;
+
 function renderMasterPanel(){
   var html='<div style="padding:8px 12px;display:flex;gap:6px;flex-wrap:wrap">'
     +'<button class="btn-primary" style="font-size:11px;padding:7px 12px" onclick="startNewMaster()">＋ 新規マスター工程を作成</button>'
+    +'<button style="font-size:11px;padding:7px 12px;background:#f59e0b;color:white;border:none;border-radius:8px;font-weight:700;cursor:pointer" onclick="resetToBuiltinMasters()">🔄 東海・関東マスターをリセット</button>'
     +'</div>';
+  // 東海・関東マスターがなければ自動登録
+  ['東海','関東'].forEach(function(name){
+    if(!myMasters.find(function(m){return m.name===name;})){
+      var steps=BUILTIN_MASTERS[name].map(function(s){return {name:s.name,dur:s.dur,color:s.color,layer:s.layer||0,offset:0};});
+      myMasters.push({name:name,steps:steps});
+    }
+  });
+  saveLS('jack_my_masters',myMasters);
   html+='<div style="padding:4px 12px 4px;font-size:11px;font-weight:800;color:var(--g500)">デフォルトマスター（日曜休工・確認申請完了日起点）</div>'
     +'<div class="dp-sec" style="margin:0 8px 12px">'
     +[{n:'造成',d:5,c:'#d2b48c'},{n:'地盤',d:3,c:'#add8e6'},{n:'基礎',d:28,c:'#d9d9d9'},
@@ -5134,39 +5162,45 @@ async function loadAdmSec(sec){
       +'<div id="importStatus" style="margin-top:12px;display:none"></div>'
       +'</div>';
   } else if(sec==='dbsetup'){
-    var rlsSql='-- profiles テーブルのRLSポリシー設定\nALTER TABLE profiles ENABLE ROW LEVEL SECURITY;\n\nCREATE POLICY "users_read_own_profile" ON profiles\n  FOR SELECT USING (auth.uid() = id);\n\nCREATE POLICY "users_update_own_profile" ON profiles\n  FOR UPDATE USING (auth.uid() = id);\n\n-- 管理者は全員のprofileを読める\nCREATE POLICY "admin_read_all_profiles" ON profiles\n  FOR SELECT USING (\n    EXISTS (\n      SELECT 1 FROM profiles\n      WHERE id = auth.uid() AND role = \'admin\'\n    )\n  );\n\n-- properties テーブルのRLSポリシー\nALTER TABLE properties ENABLE ROW LEVEL SECURITY;\n\nCREATE POLICY "all_read_properties" ON properties\n  FOR SELECT USING (auth.role() = \'authenticated\');\n\nCREATE POLICY "all_write_properties" ON properties\n  FOR ALL USING (auth.role() = \'authenticated\');\n\n-- custom_gantt, prop_masterカラムの追加\nALTER TABLE properties ADD COLUMN IF NOT EXISTS custom_gantt jsonb;\nALTER TABLE properties ADD COLUMN IF NOT EXISTS prop_master text;';
+    var rlsDisableSql='-- ① まず緊急解除（ログインできない場合はこれだけ実行）\nALTER TABLE profiles DISABLE ROW LEVEL SECURITY;\nALTER TABLE properties DISABLE ROW LEVEL SECURITY;';
+    var rlsFixSql='-- ② ポリシーリセット後に正しく設定し直す場合\n-- 既存ポリシーを全削除\nDO $$ DECLARE r RECORD;\nBEGIN\n  FOR r IN SELECT policyname FROM pg_policies WHERE tablename=\'profiles\'\n  LOOP\n    EXECUTE \'DROP POLICY IF EXISTS "\' || r.policyname || \'" ON profiles\';\n  END LOOP;\n  FOR r IN SELECT policyname FROM pg_policies WHERE tablename=\'properties\'\n  LOOP\n    EXECUTE \'DROP POLICY IF EXISTS "\' || r.policyname || \'" ON properties\';\n  END LOOP;\nEND $$;\n\n-- profiles: 全認証済みユーザーが読み書き可能\nALTER TABLE profiles ENABLE ROW LEVEL SECURITY;\nCREATE POLICY "profiles_all" ON profiles\n  FOR ALL TO authenticated USING (true) WITH CHECK (true);\n\n-- properties: 全認証済みユーザーが読み書き可能\nALTER TABLE properties ENABLE ROW LEVEL SECURITY;\nCREATE POLICY "properties_all" ON properties\n  FOR ALL TO authenticated USING (true) WITH CHECK (true);\n\n-- カラム追加\nALTER TABLE properties ADD COLUMN IF NOT EXISTS custom_gantt jsonb;\nALTER TABLE properties ADD COLUMN IF NOT EXISTS prop_master text;';
     right.innerHTML='<div style="padding:14px">'
-      +'<div style="font-size:16px;font-weight:800;color:#1e293b;margin-bottom:4px">🔧 DB設定（Supabase RLS）</div>'
-      +'<div style="font-size:11px;color:#64748b;margin-bottom:14px">ログインできない場合、SupabaseダッシュボードのSQL Editorで以下を実行してください。</div>'
-      +'<div style="background:#1e293b;border-radius:10px;padding:14px;margin-bottom:12px;position:relative">'
-        +'<pre id="rlsSqlPre" style="color:#86efac;font-size:10px;line-height:1.6;white-space:pre-wrap;word-break:break-all;margin:0;font-family:monospace">'+rlsSql+'</pre>'
-        +'<button onclick="copyRlsSql()" style="position:absolute;top:8px;right:8px;background:rgba(255,255,255,.15);color:white;border:none;border-radius:5px;padding:4px 10px;font-size:10px;cursor:pointer;font-weight:700">📋 コピー</button>'
+      +'<div style="font-size:16px;font-weight:800;color:#ef4444;margin-bottom:4px">🚨 緊急：ログインできない場合</div>'
+      +'<div style="background:#fef2f2;border:2px solid #ef4444;border-radius:8px;padding:12px;margin-bottom:14px">'
+        +'<div style="font-size:12px;font-weight:700;color:#dc2626;margin-bottom:6px">① まずこのSQLをSupabaseのSQL Editorで実行してください</div>'
+        +'<div style="background:#1e293b;border-radius:6px;padding:10px;position:relative">'
+          +'<pre id="rlsDisablePre" style="color:#fca5a5;font-size:10px;line-height:1.6;white-space:pre-wrap;margin:0;font-family:monospace">'+rlsDisableSql+'</pre>'
+          +'<button onclick="copyText(\'rlsDisablePre\')" style="position:absolute;top:6px;right:6px;background:rgba(255,255,255,.15);color:white;border:none;border-radius:4px;padding:3px 8px;font-size:10px;cursor:pointer;font-weight:700">📋 コピー</button>'
+        +'</div>'
       +'</div>'
-      +'<div style="background:#fef9c3;border:1px solid #fde047;border-radius:8px;padding:10px 12px;font-size:11px;color:#713f12;margin-bottom:12px">'
-        +'⚠️ 既にポリシーが存在する場合はエラーになることがあります。<br>その場合はエラー行をスキップして残りを実行してください。'
+      +'<div style="font-size:14px;font-weight:800;color:#1e293b;margin-bottom:4px">🔧 正しいRLS設定（② 上の緊急解除後に実行）</div>'
+      +'<div style="font-size:11px;color:#64748b;margin-bottom:10px">ログイン復旧後、改めてこちらも実行してください。</div>'
+      +'<div style="background:#1e293b;border-radius:8px;padding:12px;position:relative;margin-bottom:12px">'
+        +'<pre id="rlsFixPre" style="color:#86efac;font-size:10px;line-height:1.6;white-space:pre-wrap;margin:0;font-family:monospace">'+rlsFixSql+'</pre>'
+        +'<button onclick="copyText(\'rlsFixPre\')" style="position:absolute;top:6px;right:6px;background:rgba(255,255,255,.15);color:white;border:none;border-radius:4px;padding:3px 8px;font-size:10px;cursor:pointer;font-weight:700">📋 コピー</button>'
       +'</div>'
-      +'<div style="font-size:12px;font-weight:800;color:#1e293b;margin-bottom:8px">手順</div>'
       +'<div style="font-size:11px;color:#475569;line-height:2">'
-        +'1. <a href="https://supabase.com/dashboard" target="_blank" style="color:#1a56db;font-weight:700">Supabaseダッシュボード</a> を開く<br>'
-        +'2. プロジェクトを選択 → 左メニュー「SQL Editor」をクリック<br>'
-        +'3. 上のSQLをコピーしてエディターに貼り付け → 「Run」をクリック<br>'
-        +'4. 完了後、先方にアプリを再度ログインしてもらう'
+        +'<a href="https://supabase.com/dashboard" target="_blank" style="color:#1a56db;font-weight:700">→ Supabaseダッシュボードを開く</a><br>'
+        +'左メニュー「SQL Editor」→ SQLを貼り付けて「Run」'
       +'</div>'
     +'</div>';
   }
 }
 window.loadAdmSec=loadAdmSec;
 
-function copyRlsSql(){
-  var el=document.getElementById('rlsSqlPre');
+function copyText(elId){
+  var el=document.getElementById(elId);
   if(!el)return;
   var text=el.textContent;
   try{
-    navigator.clipboard.writeText(text).then(function(){showToast('SQLをコピーしました','success');});
+    navigator.clipboard.writeText(text).then(function(){showToast('コピーしました','success');});
   }catch(e){
-    var ta=document.createElement('textarea');ta.value=text;document.body.appendChild(ta);ta.select();document.execCommand('copy');document.body.removeChild(ta);showToast('SQLをコピーしました','success');
+    var ta=document.createElement('textarea');ta.value=text;document.body.appendChild(ta);ta.select();document.execCommand('copy');document.body.removeChild(ta);showToast('コピーしました','success');
   }
 }
+window.copyText=copyText;
+// 後方互換
+function copyRlsSql(){copyText('rlsSqlPre');}
 window.copyRlsSql=copyRlsSql;
 
 function admUserCard(u,approved){
