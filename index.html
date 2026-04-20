@@ -826,20 +826,32 @@ function getActiveSegs(p) {
 }
 
 // ===== DATA HELPERS =====
-// 来期判定: 引渡し日が10/1以降 (期末=9/30)
+// 来期判定: 引渡し日が「今期末（9/30）以降の10/1〜」
+// 期末は毎年9/30。今期 = TODAY が属する期（10/1〜翌9/30）
+// 来期 = 次の期（翌10/1以降）
 function isRaikin(p){
   var nd=normDate(p.delivery_date||p.delivery_month||'');
-  if(!nd)return false;
+  if(!nd||/REF|#/.test(nd))return false;
   var parts=nd.split('/');
-  if(parts.length<2)return false;
-  var mo=parseInt(parts[1]);
-  return mo>=10;
+  if(parts.length<3)return false;
+  var yr=parseInt(parts[0]),mo=parseInt(parts[1]);
+  if(isNaN(yr)||isNaN(mo))return false;
+  // 今期の終わり = 今年の9/30（TODAYが10月以降なら翌年9/30）
+  var todayDt=new Date(TODAY);
+  var todayY=todayDt.getFullYear();
+  var todayM=todayDt.getMonth()+1; // 1-12
+  // 現在の期末年度
+  var termEndYear=todayM>=10?todayY+1:todayY;
+  // 来期開始日 = termEndYear/10/01
+  var raikinStart=new Date(termEndYear,9,1); // 10月1日
+  var delivDate=new Date(yr,mo-1,1);
+  return delivDate>=raikinStart;
 }
-// 完工判定: ステータス「完工」OR 引渡し日がTODAY以前
+// 完工判定: 引渡し日がTODAY以前（ステータスは参照しない）
+// ※ Excelのシートフィールドは使わない
 function isKankou(p){
-  if((p.status||'').indexOf('完工')>=0||(p.sheet||'')==='完工物件')return true;
   var dd=normDate(p.delivery_date||'');
-  if(!dd)return false;
+  if(!dd||/REF|#/.test(dd))return false;
   return dd.replace(/\//g,'-')<=TODAY;
 }
 
@@ -850,25 +862,18 @@ function getProps() {
   if (currentArea==='マイ物件') {
     list=all.filter(function(p){return isFav(p);});
   } else if (currentArea==='来期') {
-    // 来期 = 引渡し日10/1以降
-    list=all.filter(function(p){return isRaikin(p);});
-    // DATAの来期シートfixNoも追加（DB_PROPSにないものを補完）
-    if(DB_PROPS&&DB_PROPS.length>0){
-      var dbFixNos=new Set(list.map(function(p){return String(p.fix_no);}));
-      (DATA.all['来期物件']||[]).forEach(function(p){
-        if(!dbFixNos.has(String(p.fix_no)))list.push(p);
-      });
-    } else { list=DATA.all['来期物件']||[]; }
+    // 来期 = 来期開始日（翌期10/1）以降の引渡し日
+    list=all.filter(function(p){return isRaikin(p)&&!isKankou(p);});
   } else if (currentArea==='完工') {
-    if(DB_PROPS&&DB_PROPS.length>0){
-      list=all.filter(function(p){return isKankou(p);});
-      if(!list.length)list=DATA.all['完工物件']||[];
-    } else { list=DATA.all['完工物件']||[]; }
+    // 完工 = 引渡し日がTODAY以前
+    list=all.filter(function(p){return isKankou(p);});
   } else if (tabDef && tabDef.areas) {
-    // エリアタブ: 来期・完工を除いた今期物件のみ（normalizeAreaで補正）
-    list=all.filter(function(p){return tabDef.areas.indexOf(normalizeArea(p))>=0&&!isRaikin(p)&&!isKankou(p);});
+    // エリアタブ: 来期・完工を除いた今期物件のみ
+    list=all.filter(function(p){
+      return tabDef.areas.indexOf(normalizeArea(p))>=0&&!isRaikin(p)&&!isKankou(p);
+    });
   } else {
-    // 全物件: 来期・完工を除く
+    // 全物件: 来期・完工を除く今期物件
     list=all.filter(function(p){return !isRaikin(p)&&!isKankou(p);});
   }
   if(currentStatus==='delayed'){
@@ -2687,17 +2692,16 @@ function openSelectProp(){
   myFavProps=myFavProps.filter(function(f){return all.some(function(p){return p.fix_no===f.fix_no&&p.name===f.name;});});
   if(myFavProps.length!==before){saveLS('jack_myfavs',myFavProps);renderBody();renderMyPage();}
 
-  // 完工を除外・引渡し日順ソート
-  var active=all.filter(function(p){return !isKankou(p);});
+  // 完工・来期を除く今期物件 + 来期を別タブで表示
+  var active=all.filter(function(p){return !isKankou(p);}); // 完工のみ除く（来期はタブで絞込）
   active.sort(function(a,b){
     var da=normDate(a.delivery_date||'')||'9999/99/99';
     var db=normDate(b.delivery_date||'')||'9999/99/99';
     return da<db?-1:da>db?1:0;
   });
 
-  // タブ定義
   var tabDefs=[
-    {id:'all',   label:'全て'},
+    {id:'all',   label:'全て（今期）'},
     {id:'東海',  label:'🏙 東海', areas:TOKAI_AREAS},
     {id:'関東',  label:'🌿 関東', areas:KANTO_AREAS},
     {id:'来期',  label:'📅 来期', raikin:true},
@@ -2707,9 +2711,9 @@ function openSelectProp(){
   function renderSelectContent(){
     var list=active.filter(function(p){
       var td=tabDefs.find(function(t){return t.id===selTab;});
-      if(!td||td.id==='all')return true;
-      if(td.raikin)return isRaikin(p);
-      return td.areas&&td.areas.indexOf(normalizeArea(p))>=0&&!isRaikin(p);
+      if(!td||td.id==='all')return !isRaikin(p)&&!isKankou(p); // 全て=今期のみ
+      if(td.raikin)return isRaikin(p)&&!isKankou(p);
+      return td.areas&&td.areas.indexOf(normalizeArea(p))>=0&&!isRaikin(p)&&!isKankou(p);
     });
     var tabHtml='<div style="display:flex;border-bottom:2px solid #e2e8f0;flex-shrink:0;background:white;position:sticky;top:0;z-index:10">'
       +tabDefs.map(function(t){
@@ -5157,9 +5161,9 @@ function admFilterProps(){
     var matchTab=true;
     if(_admCurTab==='東海')matchTab=TOKAI_AREAS.indexOf(area)>=0&&!isRaikin(p)&&!isKankou(p);
     else if(_admCurTab==='関東')matchTab=KANTO_AREAS.indexOf(area)>=0&&!isRaikin(p)&&!isKankou(p);
-    else if(_admCurTab==='来期')matchTab=isRaikin(p);
+    else if(_admCurTab==='来期')matchTab=isRaikin(p)&&!isKankou(p);
     else if(_admCurTab==='完工')matchTab=isKankou(p);
-    else matchTab=!isKankou(p); // 全て=完工除く
+    else matchTab=!isRaikin(p)&&!isKankou(p); // 全て=今期のみ
     var matchQ=!q||(p.name||'').toLowerCase().indexOf(q)>=0||String(p.fix_no||'').indexOf(q)>=0;
     var matchS=!status||(p.status||'')===status;
     return matchTab&&matchQ&&matchS;
@@ -5398,7 +5402,8 @@ function admHandleXlsx(input){
       var exMap={};
       (existing.data||[]).forEach(function(p){exMap[String(p.fix_no)+'_'+p.name]=p.id;});
       var totalNew=0,totalUpd=0;
-      var sheets=['全物件進捗','来期物件','完工物件'];
+      // 完工物件シートは今後読まない（完工判定は引渡し日ロジックで自動）
+      var sheets=['全物件進捗','来期物件'];
       for(var si=0;si<sheets.length;si++){
         var sn=sheets[si];
         if(!wb3.Sheets[sn])continue;
