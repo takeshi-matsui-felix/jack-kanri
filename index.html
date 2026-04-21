@@ -859,72 +859,6 @@ var BUILTIN_MASTERS={
   ]
 };
 
-function computeMasterSegs(confirmDoneStr, template, handKumi) {
-  if (!confirmDoneStr || !String(confirmDoneStr).match(/\d{4}/)) return [];
-  // Check hand_kumi: if contains '〇' or '手組', add 30 workdays to 建て方
-  var isHandKumi = handKumi && (String(handKumi).indexOf('〇')>=0 || String(handKumi).indexOf('手組')>=0 || String(handKumi).trim()==='○');
-  var tmpl = template || [
-    {name:'造成',  dur:5,  color:'#d2b48c', layer:0},
-    {name:'地盤',  dur:3,  color:'#add8e6', layer:0},
-    {name:'基礎',  dur:28, color:'#d9d9d9', layer:0},
-    {name:'建て方',dur:14, color:'#d9ead3', layer:0},
-    {name:'足場',  dur:2,  color:'#7030a0', layer:1},
-    {name:'造作',  dur:50, color:'#ffff00', layer:0},
-    {name:'UB',    dur:2,  color:'#00b050', layer:1},
-    {name:'SK',    dur:2,  color:'#00b050', layer:0},
-    {name:'解体',  dur:1,  color:'#7030a0', layer:0},
-    {name:'内装',  dur:10, color:'#ffc7ce', layer:0},
-    {name:'外構',  dur:10, color:'#d2b48c', layer:0},
-    {name:'引渡し',dur:1,  color:'#1a56db', layer:0}
-  ];
-  var cd = String(confirmDoneStr).replace(/\//g,'-').split(' ')[0];
-  var segs = [];
-  var prevEnd = cd;
-
-  for (var ti=0; ti<tmpl.length; ti++) {
-    var step = tmpl[ti];
-    var dur = step.dur || step.days || 1;
-    // 手組物件: 建て方を+30稼働日
-    if(isHandKumi && (step.name==='建て方'||step.name==='建体')){dur=dur+30;}
-    // Apply offset (from master editor drag)
-    var startFrom = prevEnd;
-    if (step.offset) {
-      var sfDt = new Date(prevEnd);
-      sfDt.setDate(sfDt.getDate() + step.offset);
-      startFrom = sfDt.toISOString().slice(0,10);
-    }
-    var days = workdaysFrom(startFrom, dur);
-    if (!days.length) continue;
-    var startStr = days[0].toISOString().slice(0,10);
-    var endStr   = days[days.length-1].toISOString().slice(0,10);
-    // Map to full_dates col
-    var col = FULL_DATE_IDX[startStr];
-    if (col === undefined) {
-      // find nearest
-      for (var fi=0; fi<FULL_DATES.length; fi++) {
-        if (FULL_DATES[fi] >= startStr) { col=fi; break; }
-      }
-      if (col === undefined) col = 0;
-    }
-    segs.push({
-      label:step.name, name:step.name,
-      dur: dur, duration: dur,
-      color: step.color || EC[step.name] || '#64748b',
-      layer: step.layer || 0,
-      col: col,          // col in FULL_DATES
-      start_date: startStr, end_date: endStr,
-      date: startStr
-    });
-    // For layer=1 (child steps), prevEnd stays at parent's last workday
-    // For normal: advance to last workday of this step
-    if ((step.layer || 0) !== 1) {
-      prevEnd = endStr;
-    }
-    // Special: 足場 is inside 建て方, UB is inside 造作
-    // They don't advance prevEnd (already handled by staying at parent end)
-  }
-  return segs;
-}
 
 // Full_dates col → visible canvas X (may be negative if before visible range)
 function fullColToVisX(fullCol) {
@@ -1973,6 +1907,7 @@ function geRenderBars(){
       bars+='<div style="position:absolute;left:'+sx+'px;top:'+by+'px;width:'+bw+'px;height:'+bh+'px;background:'+color+';color:'+tcolor+';font-size:6px;font-weight:800;border-radius:2px;display:flex;align-items:center;padding:0 2px;overflow:hidden;white-space:nowrap;box-shadow:0 1px 2px rgba(0,0,0,.2);z-index:'+(layer===1?12:10)+';opacity:'+(isPast?'.6':'1')+';'+(isAct?'outline:2px solid rgba(255,255,0,.5);':'')+';">'+(bw>14?lbl:'')+'</div>';
     }
   });
+  var totalH=numRows*ROW_H+28; // ← totalHを先に定義
   // 引渡し日の赤バーを追加
   var delivBar='';
   if(currentProp&&currentProp.delivery_date){
@@ -1985,8 +1920,7 @@ function geRenderBars(){
         +'<div style="position:absolute;left:'+ddX+'px;top:4px;width:'+(GCW*2-1)+'px;height:18px;background:#ef4444;color:white;font-size:6px;font-weight:900;border-radius:2px;display:flex;align-items:center;justify-content:center;z-index:14">引渡</div>';
     }
   }
-  var totalH=numRows*ROW_H+28;
-  multiEl.innerHTML='<div style="overflow-x:auto;-webkit-overflow-scrolling:touch;padding-left:90px;"><div id="geCanvas" style="position:relative;width:'+totalW+'px;height:'+totalH+'px;background:white;">'+labels+hdrBands+dayNums+todayLine+fills+rowBgs+bars+delivBar+'</div></div>';
+  multiEl.innerHTML='<div style="overflow-x:auto;-webkit-overflow-scrolling:touch;padding-left:90px;"><div id="geCanvas" style="position:relative;width:'+totalW+'px;height:'+totalH+'px;background:white;overflow:hidden;">'+labels+hdrBands+dayNums+todayLine+fills+rowBgs+bars+delivBar+'</div></div>';
   // スクロール位置を復元（初回はTODAY付近へ）
   var newWrap=multiEl.querySelector('div');
   if(newWrap){
@@ -3353,10 +3287,60 @@ function onEdDrag(e){
   var wrap=dragBar.wrap;
   if(wrap){var wr=wrap.getBoundingClientRect();if(e.clientX>wr.right-60)wrap.scrollLeft+=12;else if(e.clientX<wr.left+60)wrap.scrollLeft-=12;}
 }
+// edSegs用の基礎アンカー（物件詳細ガント編集）
+function edApplyKisoAnchor(movedIdx){
+  var movedSeg=edSegs[movedIdx];
+  if(!movedSeg)return;
+  var nm=movedSeg.name||movedSeg.label||'';
+  if(nm!=='基礎')return;
+  var kisoEnd=movedSeg.end_date||movedSeg.start_date||'';
+  if(!kisoEnd)return;
+  var prevEnd2=kisoEnd;
+  for(var i2=movedIdx+1;i2<edSegs.length;i2++){
+    var s2=edSegs[i2];
+    var sn2=s2.name||s2.label||'';
+    if(sn2==='造成'||sn2==='地盤')continue;
+    var layer2=s2.layer||0;
+    var dur2=s2.dur||s2.duration||s2.calendar_dur||1;
+    var startFrom2;
+    if(layer2===1){
+      var ps3=null;
+      for(var pi3=i2-1;pi3>=0;pi3--){if((edSegs[pi3].layer||0)===0){ps3=edSegs[pi3];break;}}
+      startFrom2=ps3?nextWorkday(ps3.start_date):nextWorkday(prevEnd2);
+    } else {
+      startFrom2=nextWorkday(prevEnd2);
+    }
+    var sfDt3=new Date(startFrom2.replace(/[/]/g,'-'));
+    while(sfDt3.getDay()===0)sfDt3.setDate(sfDt3.getDate()+1);
+    var allDays3=[sfDt3]; var cur4=new Date(sfDt3.getTime());
+    while(allDays3.length<dur2){cur4.setDate(cur4.getDate()+1);if(cur4.getDay()!==0)allDays3.push(new Date(cur4.getTime()));}
+    var ns=allDays3[0].toISOString().slice(0,10);
+    var ne=allDays3[allDays3.length-1].toISOString().slice(0,10);
+    s2.start_date=ns; s2.date=ns; s2.end_date=ne;
+    s2.calendar_dur=calendarDur(ns,ne); s2.duration=s2.calendar_dur;
+    if(layer2===0)prevEnd2=ne;
+  }
+}
+
 function stopEdDrag(){
+  var dIdx=dragBar?dragBar.idx:-1;
   if(dragBar){dragBar.bar.style.cursor='grab';dragBar=null;}
   document.removeEventListener('pointermove',onEdDrag);
   document.removeEventListener('pointerup',stopEdDrag);
+  // 基礎を動かしたら後工程追随
+  if(dIdx>=0){
+    // end_dateを再計算
+    var ds3=edSegs[dIdx];
+    if(ds3&&ds3.start_date){
+      var dDur3=ds3.calendar_dur||ds3.duration||1;
+      var dD3=new Date(ds3.start_date.replace(/[/]/g,'-'));
+      while(dD3.getDay()===0)dD3.setDate(dD3.getDate()+1);
+      var dDays3=[dD3]; var dCur3=new Date(dD3.getTime());
+      while(dDays3.length<dDur3){dCur3.setDate(dCur3.getDate()+1);if(dCur3.getDay()!==0)dDays3.push(new Date(dCur3.getTime()));}
+      ds3.end_date=dDays3[dDays3.length-1].toISOString().slice(0,10);
+    }
+    edApplyKisoAnchor(dIdx);
+  }
   renderEditorCanvas();
 }
 
@@ -3377,9 +3361,23 @@ function onEdResize(e){
   if(bar)bar.style.width=Math.max(nd*GCW_ED-1,GCW_ED-1)+'px';
 }
 function stopEdResize(){
+  var rIdx=resBar?resBar.idx:-1;
   resBar=null;
   document.removeEventListener('pointermove',onEdResize);
   document.removeEventListener('pointerup',stopEdResize);
+  // 基礎をリサイズしたら後工程追随
+  if(rIdx>=0){
+    var rs2=edSegs[rIdx];
+    if(rs2&&rs2.start_date){
+      var rDur2=rs2.calendar_dur||rs2.duration||1;
+      var rD2=new Date(rs2.start_date.replace(/[/]/g,'-'));
+      while(rD2.getDay()===0)rD2.setDate(rD2.getDate()+1);
+      var rDays2=[rD2]; var rCur2=new Date(rD2.getTime());
+      while(rDays2.length<rDur2){rCur2.setDate(rCur2.getDate()+1);if(rCur2.getDay()!==0)rDays2.push(new Date(rCur2.getTime()));}
+      rs2.end_date=rDays2[rDays2.length-1].toISOString().slice(0,10);
+    }
+    edApplyKisoAnchor(rIdx);
+  }
   renderEditorCanvas();
 }
 
