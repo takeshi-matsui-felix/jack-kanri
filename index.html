@@ -708,115 +708,72 @@ function calendarDur(startStr, endStr){
   return Math.round((e-s)/86400000)+1;
 }
 
-// デフォルト工程テンプレート
-// start_offset: 確認申請完了日の翌稼働日（着工日）からの稼働日オフセット
-// layer: 0=親工程（独立）, 1=子工程（直近の親に乗る）
-// parent: 子工程が乗る親工程名
+// ===== 工程テンプレート定義 =====
+// layer: 0=親工程（順次連鎖）, 1=子工程（直近親に並行乗り）
+// child_offset: 子工程は直近layer=0工程のstart_dateからchild_offset稼働日後に開始
 var DEFAULT_TMPL=[
-  {name:'造成',    dur:5,  color:'#d2b48c', layer:0, start_offset:0},
-  {name:'地盤',    dur:3,  color:'#add8e6', layer:0, start_offset:5},
-  {name:'基礎',    dur:28, color:'#d9d9d9', layer:0, start_offset:8},
-  {name:'建て方',  dur:14, color:'#d9ead3', layer:0, start_offset:36, parent:'基礎'},
-  {name:'足場',    dur:2,  color:'#7030a0', layer:1, start_offset:1, parent:'建て方'},
-  {name:'造作',    dur:50, color:'#ffff00', layer:0, start_offset:50, parent:'基礎'},
-  {name:'UB',      dur:2,  color:'#00b050', layer:1, start_offset:24, parent:'造作'},
-  {name:'SK',      dur:2,  color:'#00b050', layer:0, start_offset:100, parent:'基礎'},
-  {name:'解体',    dur:1,  color:'#7030a0', layer:0, start_offset:102, parent:'基礎'},
-  {name:'内装',    dur:10, color:'#ffc7ce', layer:0, start_offset:103, parent:'基礎'},
-  {name:'外構',    dur:10, color:'#d2b48c', layer:0, start_offset:113, parent:'基礎'},
-  {name:'引渡し',  dur:1,  color:'#1a56db', layer:0, start_offset:123, parent:'基礎'}
+  {name:'造成',    dur:5,  color:'#d2b48c', layer:0},
+  {name:'地盤',    dur:3,  color:'#add8e6', layer:0},
+  {name:'基礎',    dur:28, color:'#d9d9d9', layer:0},           // ★大親
+  {name:'建て方',  dur:14, color:'#d9ead3', layer:0},           // 基礎完了翌日から
+  {name:'足場',    dur:2,  color:'#7030a0', layer:1, child_offset:1},  // 建て方2日目から並行
+  {name:'造作',    dur:50, color:'#ffff00', layer:0},           // 建て方完了翌日から
+  {name:'UB',      dur:2,  color:'#00b050', layer:1, child_offset:24}, // 造作25日目から並行
+  {name:'SK',      dur:2,  color:'#00b050', layer:0},           // 造作完了翌日から
+  {name:'解体',    dur:1,  color:'#7030a0', layer:0},           // SK完了翌日から
+  {name:'内装',    dur:10, color:'#ffc7ce', layer:0},           // 解体完了翌日から
+  {name:'外構',    dur:10, color:'#d2b48c', layer:0},           // 内装完了翌日から
+  {name:'引渡し',  dur:1,  color:'#1a56db', layer:0}            // 外構完了翌日から
 ];
-
-// 稼働日をn日進める（日曜スキップ、startStrを0日目として含まない）
-function addWorkdaysFrom(startStr, n){
-  if(n===0)return startStr;
-  var d=new Date(startStr.replace(/[/]/g,'-'));
-  var count=0;
-  while(count<n){
-    d.setDate(d.getDate()+1);
-    if(d.getDay()!==0)count++;
-  }
-  return d.toISOString().slice(0,10);
-}
-
-// startStrから dur 稼働日分の終了日（日曜スキップ、startStrを1日目として含む）
-function endOfWorkdays(startStr, dur){
-  var d=new Date(startStr.replace(/[/]/g,'-'));
-  // startStrが日曜なら翌日へ
-  while(d.getDay()===0)d.setDate(d.getDate()+1);
-  var count=1;
-  while(count<dur){
-    d.setDate(d.getDate()+1);
-    if(d.getDay()!==0)count++;
-  }
-  return d.toISOString().slice(0,10);
-}
 
 function computeMasterSegs(confirmDoneStr, template, handKumi) {
   if (!confirmDoneStr || !String(confirmDoneStr).match(/\d{4}/)) return [];
-  var isHandKumi = !!(handKumi && (String(handKumi).indexOf('〇')>=0 || String(handKumi).indexOf('手組')>=0 || String(handKumi).trim()==='○'));
+  var isHandKumi = !!(handKumi && (
+    String(handKumi).indexOf('〇')>=0 ||
+    String(handKumi).indexOf('手組')>=0 ||
+    String(handKumi).trim()==='○'));
+
   var builtins=window.BUILTIN_MASTERS||{};
   var tmpl = template || builtins['東海'] || DEFAULT_TMPL;
 
+  // confirm_done を正規化
   var rawCd=String(confirmDoneStr);
   var cd=(typeof normDate==='function'?normDate(rawCd):rawCd)||rawCd;
   cd=cd.replace(/\//g,'-').split(' ')[0];
   if(!cd.match(/^\d{4}-\d{2}-\d{2}$/))return [];
 
-  // 着工日 = confirm_done の翌稼働日（日曜スキップ）
-  var kikoDay=nextWorkday(cd);
-
-  // 基礎の開始日を計算（大親：全工程の基準）
-  // start_offsetがある場合はkikoDayから稼働日オフセット
-  var kisoOffset=0;
-  var kisoStep=tmpl.find(function(s){return (s.name||s.label||'')===('基礎');});
-  if(kisoStep&&kisoStep.start_offset!==undefined)kisoOffset=kisoStep.start_offset;
-  var kisoStart=addWorkdaysFrom(kikoDay, kisoOffset);
-
-  // 各工程の開始日を計算
-  // - start_offsetあり: 着工日(kikoDay)から稼働日オフセット
-  // - start_offsetなし（旧形式）: 順次連鎖（後方互換）
   var segs=[];
-  var seqPrevEnd=cd; // 順次モード用
+  var prevEnd=cd;         // 直前layer=0工程の最終稼働日（次の親工程の起点）
+  var lastParentStart=''; // 直前layer=0工程の開始日（子工程の起点）
 
   for(var ti=0;ti<tmpl.length;ti++){
     var step=tmpl[ti];
     var nm=step.name||step.label||'';
     var dur=step.dur||step.days||1;
     if(isHandKumi&&(nm==='建て方'||nm==='建体'))dur=dur+30;
-    var layer=step.layer||0;
 
+    var layer=step.layer||0;
     var startDate;
-    if(step.start_offset!==undefined){
-      if(layer===1){
-        // 子工程：直近の親工程の開始日からstart_offset稼働日後
-        var parentNm=step.parent||'';
-        var parentSeg=null;
-        for(var pi=segs.length-1;pi>=0;pi--){
-          if((segs[pi].layer||0)===0&&(segs[pi].name||segs[pi].label||'')===parentNm){parentSeg=segs[pi];break;}
-          if(!parentNm&&(segs[pi].layer||0)===0){parentSeg=segs[pi];break;}
-        }
-        if(parentSeg){
-          startDate=addWorkdaysFrom(parentSeg.start_date, step.start_offset);
-        } else {
-          startDate=addWorkdaysFrom(kikoDay, step.start_offset);
-        }
-      } else {
-        // 親工程：着工日からstart_offset稼働日後（独立）
-        startDate=addWorkdaysFrom(kikoDay, step.start_offset);
-      }
+
+    if(layer===1){
+      // ── 子工程：直近親工程のstart_dateから child_offset 稼働日後に開始
+      var cOffset=step.child_offset||0;
+      var base=lastParentStart||prevEnd;
+      startDate=addWorkdaysFrom(base, cOffset);
     } else {
-      // 旧形式（start_offset未設定）：順次連鎖
-      startDate=nextWorkday(seqPrevEnd);
+      // ── 親工程：前の親工程の翌稼働日から開始
+      startDate=addWorkdaysFrom(prevEnd, 1);
     }
 
     // 日曜スキップ
     var sd=new Date(startDate.replace(/[/]/g,'-'));
     while(sd.getDay()===0)sd.setDate(sd.getDate()+1);
     startDate=sd.toISOString().slice(0,10);
+
+    // endStr を稼働日durで計算
     var endStr=endOfWorkdays(startDate, dur);
 
-    // FULL_DATE_IDXでcolを求める
+    // FULL_DATE_IDX でcolを求める
     var col=FULL_DATE_IDX[startDate];
     if(col===undefined){
       var fkeys=Object.keys(FULL_DATE_IDX);
@@ -829,12 +786,14 @@ function computeMasterSegs(confirmDoneStr, template, handKumi) {
       dur:dur, duration:dur, calendar_dur:calendarDur(startDate,endStr),
       color:step.color||EC[nm]||'#64748b',
       layer:layer, col:col,
-      start_date:startDate, end_date:endStr, date:startDate,
-      parent:step.parent||null
+      start_date:startDate, end_date:endStr, date:startDate
     });
 
-    // 順次モード用（旧形式互換）
-    if(layer===0&&step.start_offset===undefined)seqPrevEnd=endStr;
+    // layer=0のみ prevEnd と lastParentStart を更新
+    if(layer===0){
+      prevEnd=endStr;
+      lastParentStart=startDate;
+    }
   }
   return segs;
 }
@@ -842,32 +801,32 @@ function computeMasterSegs(confirmDoneStr, template, handKumi) {
 // ===== 内蔵マスターテンプレート（エリア別） =====
 var BUILTIN_MASTERS={
   '東海':[
-    {name:'造成',    dur:5,  color:'#d2b48c', layer:0, start_offset:0},
-    {name:'地盤',    dur:3,  color:'#add8e6', layer:0, start_offset:5},
-    {name:'基礎',    dur:28, color:'#d9d9d9', layer:0, start_offset:8},
-    {name:'建て方',  dur:14, color:'#d9ead3', layer:0, start_offset:36, parent:'基礎'},
-    {name:'足場',    dur:2,  color:'#7030a0', layer:1, start_offset:1,  parent:'建て方'},
-    {name:'造作',    dur:50, color:'#ffff00', layer:0, start_offset:50, parent:'基礎'},
-    {name:'UB',      dur:2,  color:'#00b050', layer:1, start_offset:24, parent:'造作'},
-    {name:'SK',      dur:2,  color:'#00b050', layer:0, start_offset:100,parent:'基礎'},
-    {name:'解体',    dur:1,  color:'#7030a0', layer:0, start_offset:102,parent:'基礎'},
-    {name:'内装',    dur:10, color:'#ffc7ce', layer:0, start_offset:103,parent:'基礎'},
-    {name:'外構',    dur:10, color:'#d2b48c', layer:0, start_offset:113,parent:'基礎'},
-    {name:'引渡し',  dur:1,  color:'#1a56db', layer:0, start_offset:123,parent:'基礎'}
+    {name:'造成',    dur:5,  color:'#d2b48c', layer:0},
+    {name:'地盤',    dur:3,  color:'#add8e6', layer:0},
+    {name:'基礎',    dur:28, color:'#d9d9d9', layer:0},
+    {name:'建て方',  dur:14, color:'#d9ead3', layer:0},
+    {name:'足場',    dur:2,  color:'#7030a0', layer:1, child_offset:1},
+    {name:'造作',    dur:50, color:'#ffff00', layer:0},
+    {name:'UB',      dur:2,  color:'#00b050', layer:1, child_offset:24},
+    {name:'SK',      dur:2,  color:'#00b050', layer:0},
+    {name:'解体',    dur:1,  color:'#7030a0', layer:0},
+    {name:'内装',    dur:10, color:'#ffc7ce', layer:0},
+    {name:'外構',    dur:10, color:'#d2b48c', layer:0},
+    {name:'引渡し',  dur:1,  color:'#1a56db', layer:0}
   ],
   '関東':[
-    {name:'造成',    dur:5,  color:'#d2b48c', layer:0, start_offset:0},
-    {name:'地盤',    dur:3,  color:'#add8e6', layer:0, start_offset:5},
-    {name:'基礎',    dur:28, color:'#d9d9d9', layer:0, start_offset:8},
-    {name:'建て方',  dur:14, color:'#d9ead3', layer:0, start_offset:36, parent:'基礎'},
-    {name:'足場',    dur:2,  color:'#7030a0', layer:1, start_offset:1,  parent:'建て方'},
-    {name:'造作',    dur:50, color:'#ffff00', layer:0, start_offset:50, parent:'基礎'},
-    {name:'UB',      dur:2,  color:'#00b050', layer:1, start_offset:24, parent:'造作'},
-    {name:'SK',      dur:2,  color:'#00b050', layer:0, start_offset:100,parent:'基礎'},
-    {name:'解体',    dur:1,  color:'#7030a0', layer:0, start_offset:102,parent:'基礎'},
-    {name:'内装',    dur:10, color:'#ffc7ce', layer:0, start_offset:103,parent:'基礎'},
-    {name:'外構',    dur:10, color:'#d2b48c', layer:0, start_offset:113,parent:'基礎'},
-    {name:'引渡し',  dur:1,  color:'#1a56db', layer:0, start_offset:123,parent:'基礎'}
+    {name:'造成',    dur:5,  color:'#d2b48c', layer:0},
+    {name:'地盤',    dur:3,  color:'#add8e6', layer:0},
+    {name:'基礎',    dur:28, color:'#d9d9d9', layer:0},
+    {name:'建て方',  dur:14, color:'#d9ead3', layer:0},
+    {name:'足場',    dur:2,  color:'#7030a0', layer:1, child_offset:1},
+    {name:'造作',    dur:50, color:'#ffff00', layer:0},
+    {name:'UB',      dur:2,  color:'#00b050', layer:1, child_offset:24},
+    {name:'SK',      dur:2,  color:'#00b050', layer:0},
+    {name:'解体',    dur:1,  color:'#7030a0', layer:0},
+    {name:'内装',    dur:10, color:'#ffc7ce', layer:0},
+    {name:'外構',    dur:10, color:'#d2b48c', layer:0},
+    {name:'引渡し',  dur:1,  color:'#1a56db', layer:0}
   ]
 };
 window.BUILTIN_MASTERS=BUILTIN_MASTERS;
@@ -1999,41 +1958,36 @@ function geOnDrag(e){
     else if(e.clientX < wr.left+60) wrap.scrollLeft -= 12;
   }
 }
-// 基礎を動かしたら後工程（造成・地盤を除く）を追随させる
-// start_offsetがある場合：基礎の新start_dateから再計算
-// start_offsetがない場合：順次連鎖で再計算
+// 基礎を動かしたら後工程（造成・地盤を除く）を順次再計算
 function geApplyKisoAnchor(movedIdx){
   var movedSeg=geSegs[movedIdx];
-  if(!movedSeg)return;
-  var nm=movedSeg.name||movedSeg.label||'';
-  if(nm!=='基礎')return;
-  var kisoStart=movedSeg.start_date||'';
-  if(!kisoStart)return;
-  // 基礎以外の工程を再計算（造成・地盤は除く）
-  for(var i=0;i<geSegs.length;i++){
+  if(!movedSeg||(movedSeg.name||movedSeg.label||'')!=='基礎')return;
+  var prevEnd=movedSeg.end_date||movedSeg.start_date||'';
+  var lastParentStart=movedSeg.start_date||'';
+  if(!prevEnd)return;
+  for(var i=movedIdx+1;i<geSegs.length;i++){
     var s=geSegs[i];
     var sn=s.name||s.label||'';
-    if(sn==='基礎'||sn==='造成'||sn==='地盤')continue;
-    var so=s.start_offset;
-    if(so===undefined)continue; // start_offsetなし→スキップ
-    // 子工程は親の新start_dateを基準に計算
-    var baseDate=kisoStart; // 基礎の新start_date基準
-    if((s.layer||0)===1&&s.parent&&s.parent!=='基礎'){
-      // 親工程を探して基準にする
-      var pg=geSegs.find(function(g){return (g.name||g.label||'')===s.parent;});
-      if(pg)baseDate=pg.start_date;
+    if(sn==='造成'||sn==='地盤')continue;
+    var layer=s.layer||0;
+    var dur=s.dur||s.duration||s.calendar_dur||1;
+    var startDate;
+    if(layer===1){
+      var co=s.child_offset||0;
+      startDate=addWorkdaysFrom(lastParentStart, co);
+    } else {
+      startDate=addWorkdaysFrom(prevEnd, 1);
     }
-    var newStart=addWorkdaysFrom(baseDate,so);
-    var sd2=new Date(newStart.replace(/[/]/g,'-'));
+    var sd2=new Date(startDate.replace(/[/]/g,'-'));
     while(sd2.getDay()===0)sd2.setDate(sd2.getDate()+1);
-    newStart=sd2.toISOString().slice(0,10);
-    var dur2=s.dur||s.duration||s.calendar_dur||1;
-    var newEnd=endOfWorkdays(newStart,dur2);
-    s.start_date=newStart; s.date=newStart; s.end_date=newEnd;
-    s.calendar_dur=calendarDur(newStart,newEnd);
-    var nc=FULL_DATE_IDX[newStart];
-    if(nc===undefined){var fks=Object.keys(FULL_DATE_IDX);for(var fki=0;fki<fks.length;fki++){if(fks[fki]>=newStart){nc=FULL_DATE_IDX[fks[fki]];break;}}}
+    startDate=sd2.toISOString().slice(0,10);
+    var endStr2=endOfWorkdays(startDate,dur);
+    s.start_date=startDate; s.date=startDate; s.end_date=endStr2;
+    s.calendar_dur=calendarDur(startDate,endStr2);
+    var nc=FULL_DATE_IDX[startDate];
+    if(nc===undefined){var fks=Object.keys(FULL_DATE_IDX);for(var fki=0;fki<fks.length;fki++){if(fks[fki]>=startDate){nc=FULL_DATE_IDX[fks[fki]];break;}}}
     if(nc!==undefined)s.col=nc;
+    if(layer===0){prevEnd=endStr2; lastParentStart=startDate;}
   }
 }
 
@@ -3288,30 +3242,30 @@ function onEdDrag(e){
 // edSegs用の基礎アンカー（物件詳細ガント編集）
 function edApplyKisoAnchor(movedIdx){
   var movedSeg=edSegs[movedIdx];
-  if(!movedSeg)return;
-  var nm=movedSeg.name||movedSeg.label||'';
-  if(nm!=='基礎')return;
-  var kisoStart=movedSeg.start_date||'';
-  if(!kisoStart)return;
-  for(var i=0;i<edSegs.length;i++){
+  if(!movedSeg||(movedSeg.name||movedSeg.label||'')!=='基礎')return;
+  var prevEnd=movedSeg.end_date||movedSeg.start_date||'';
+  var lastParentStart=movedSeg.start_date||'';
+  if(!prevEnd)return;
+  for(var i=movedIdx+1;i<edSegs.length;i++){
     var s=edSegs[i];
     var sn=s.name||s.label||'';
-    if(sn==='基礎'||sn==='造成'||sn==='地盤')continue;
-    var so=s.start_offset;
-    if(so===undefined)continue;
-    var baseDate=kisoStart;
-    if((s.layer||0)===1&&s.parent&&s.parent!=='基礎'){
-      var pg=edSegs.find(function(g){return (g.name||g.label||'')===s.parent;});
-      if(pg)baseDate=pg.start_date;
+    if(sn==='造成'||sn==='地盤')continue;
+    var layer=s.layer||0;
+    var dur=s.dur||s.duration||s.calendar_dur||1;
+    var startDate;
+    if(layer===1){
+      var co=s.child_offset||0;
+      startDate=addWorkdaysFrom(lastParentStart, co);
+    } else {
+      startDate=addWorkdaysFrom(prevEnd, 1);
     }
-    var newStart=addWorkdaysFrom(baseDate,so);
-    var sd2=new Date(newStart.replace(/[/]/g,'-'));
+    var sd2=new Date(startDate.replace(/[/]/g,'-'));
     while(sd2.getDay()===0)sd2.setDate(sd2.getDate()+1);
-    newStart=sd2.toISOString().slice(0,10);
-    var dur2=s.dur||s.duration||s.calendar_dur||1;
-    var newEnd=endOfWorkdays(newStart,dur2);
-    s.start_date=newStart; s.date=newStart; s.end_date=newEnd;
-    s.calendar_dur=calendarDur(newStart,newEnd); s.duration=s.calendar_dur;
+    startDate=sd2.toISOString().slice(0,10);
+    var endStr2=endOfWorkdays(startDate,dur);
+    s.start_date=startDate; s.date=startDate; s.end_date=endStr2;
+    s.calendar_dur=calendarDur(startDate,endStr2); s.duration=s.calendar_dur;
+    if(layer===0){prevEnd=endStr2; lastParentStart=startDate;}
   }
 }
 
