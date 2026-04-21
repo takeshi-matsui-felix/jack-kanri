@@ -708,97 +708,74 @@ function calendarDur(startStr, endStr){
   return Math.round((e-s)/86400000)+1;
 }
 
+// デフォルト工程テンプレート（BUILTIN_MASTERS未定義時のフォールバック）
+var DEFAULT_TMPL=[
+  {name:'造成',  dur:5,  color:'#d2b48c', layer:0},
+  {name:'地盤',  dur:3,  color:'#add8e6', layer:0},
+  {name:'基礎',  dur:28, color:'#d9d9d9', layer:0},
+  {name:'建て方',dur:14, color:'#d9ead3', layer:0},
+  {name:'足場',  dur:2,  color:'#7030a0', layer:1},
+  {name:'造作',  dur:50, color:'#ffff00', layer:0},
+  {name:'UB',    dur:2,  color:'#00b050', layer:1},
+  {name:'SK',    dur:2,  color:'#00b050', layer:0},
+  {name:'解体',  dur:1,  color:'#7030a0', layer:0},
+  {name:'内装',  dur:10, color:'#ffc7ce', layer:0},
+  {name:'外構',  dur:10, color:'#d2b48c', layer:0},
+  {name:'引渡し',dur:1,  color:'#1a56db', layer:0}
+];
+
 function computeMasterSegs(confirmDoneStr, template, handKumi) {
   if (!confirmDoneStr || !String(confirmDoneStr).match(/\d{4}/)) return [];
-  var isHandKumi = handKumi && (String(handKumi).indexOf('〇')>=0 || String(handKumi).indexOf('手組')>=0 || String(handKumi).trim()==='○');
-  var tmpl = template || BUILTIN_MASTERS['東海'] || [
-    {name:'造成',  dur:5,  color:'#d2b48c', layer:0},
-    {name:'地盤',  dur:3,  color:'#add8e6', layer:0},
-    {name:'基礎',  dur:28, color:'#d9d9d9', layer:0},
-    {name:'建て方',dur:14, color:'#d9ead3', layer:0},
-    {name:'足場',  dur:2,  color:'#7030a0', layer:1},
-    {name:'造作',  dur:50, color:'#ffff00', layer:0},
-    {name:'UB',    dur:2,  color:'#00b050', layer:1},
-    {name:'SK',    dur:2,  color:'#00b050', layer:0},
-    {name:'解体',  dur:1,  color:'#7030a0', layer:0},
-    {name:'内装',  dur:10, color:'#ffc7ce', layer:0},
-    {name:'外構',  dur:10, color:'#d2b48c', layer:0},
-    {name:'引渡し',dur:1,  color:'#1a56db', layer:0}
-  ];
+  var isHandKumi = !!(handKumi && (String(handKumi).indexOf('〇')>=0 || String(handKumi).indexOf('手組')>=0 || String(handKumi).trim()==='○'));
+  // BUILTIN_MASTERSはこの関数より後で定義されるため、window経由で参照
+  var builtins=window.BUILTIN_MASTERS||{};
+  var tmpl = template || builtins['東海'] || DEFAULT_TMPL;
 
-  // 確認申請完了日の正規化（normDateが使えればnormDate、なければそのまま）
   var rawCd=String(confirmDoneStr);
   var cd=(typeof normDate==='function'?normDate(rawCd):rawCd)||rawCd;
   cd=cd.replace(/\//g,'-').split(' ')[0];
+  if(!cd.match(/^\d{4}-\d{2}-\d{2}$/))return [];
 
   var segs=[];
-  // 着工日 = 確認申請完了日の翌稼働日
-  var prevEnd=cd; // 各工程の「前の工程の最終稼働日」
-  // 基礎のstart_dateを記録（要件③のアンカー）
-  var kisoStart=null;
+  var prevEnd=cd; // 前工程の最終日（layer=0のみ更新）
 
   for(var ti=0;ti<tmpl.length;ti++){
     var step=tmpl[ti];
     var nm=step.name||step.label||'';
     var dur=step.dur||step.days||1;
     if(isHandKumi&&(nm==='建て方'||nm==='建体'))dur=dur+30;
-
     var layer=step.layer||0;
-    var startFrom;
 
+    // 開始日を計算
+    var startFrom;
     if(layer===1){
-      // 子工程（足場・UB等）：親の「开始翌日」からではなく、親内の固定オフセット
-      // 足場 → 建て方2日目から、UB → 造作内の適切な位置
-      // offsetが設定されていれば使う、なければ親の開始翌日
-      var parentEnd=prevEnd; // layer=1の間はprevEndは親の終わりを指す
-      var offset=step.offset||0;
-      if(offset>0){
-        // 親工程の開始日を探す（直前のlayer=0工程）
-        var parentSeg=null;
-        for(var pi=segs.length-1;pi>=0;pi--){if((segs[pi].layer||0)===0){parentSeg=segs[pi];break;}}
-        if(parentSeg){
-          startFrom=addWorkdays(parentSeg.start_date, offset);
-        } else {
-          startFrom=nextWorkday(parentEnd);
-        }
-      } else {
-        // offset未設定の子工程：親の2日目（翌稼働日）から
-        var ps2=null;
-        for(var pi2=segs.length-1;pi2>=0;pi2--){if((segs[pi2].layer||0)===0){ps2=segs[pi2];break;}}
-        startFrom=ps2?nextWorkday(ps2.start_date):nextWorkday(parentEnd);
-      }
+      // 子工程：直前のlayer=0工程の2日目（翌稼働日）から
+      var parentSeg=null;
+      for(var pi=segs.length-1;pi>=0;pi--){if((segs[pi].layer||0)===0){parentSeg=segs[pi];break;}}
+      startFrom=parentSeg?parentSeg.start_date:prevEnd;
     } else {
       // 通常工程：前工程終了の翌稼働日から
-      if(step.offset){
-        // 明示的なオフセット（日数）
-        startFrom=addWorkdays(prevEnd, step.offset);
-      } else {
-        startFrom=nextWorkday(prevEnd);
-      }
+      startFrom=prevEnd;
     }
 
-    // dur稼働日分計算
-    var workDays=workdaysFrom(startFrom, dur);
-    // workdaysFromはstartFromの翌日から始めるため、startFromを0日目として含める
-    // startFromが稼働日ならそれを開始日に
-    var startDate;
-    var sfDt=new Date(startFrom.replace(/[/]/g,'-'));
-    if(sfDt.getDay()===0){
-      // 日曜なら翌日へ
-      sfDt.setDate(sfDt.getDate()+1);
-      startFrom=sfDt.toISOString().slice(0,10);
-    }
-    // startFromを含めた稼働日リストを作成
-    var allDays=[sfDt];
-    var cur2=new Date(sfDt.getTime());
+    // startFromの翌稼働日が実際の開始日
+    var d=new Date(startFrom.replace(/[/]/g,'-'));
+    // 翌日へ進める
+    d.setDate(d.getDate()+1);
+    // 日曜ならさらに進める
+    while(d.getDay()===0)d.setDate(d.getDate()+1);
+
+    // dur稼働日分を列挙（日曜スキップ）
+    var allDays=[new Date(d.getTime())];
+    var cur2=new Date(d.getTime());
     while(allDays.length<dur){
       cur2.setDate(cur2.getDate()+1);
       if(cur2.getDay()!==0)allDays.push(new Date(cur2.getTime()));
     }
-    startDate=allDays[0].toISOString().slice(0,10);
+    var startDate=allDays[0].toISOString().slice(0,10);
     var endStr=allDays[allDays.length-1].toISOString().slice(0,10);
 
-    // FULL_DATE_IDX でcolを求める
+    // FULL_DATE_IDXでcolを求める
     var col=FULL_DATE_IDX[startDate];
     if(col===undefined){
       var fkeys=Object.keys(FULL_DATE_IDX);
@@ -806,19 +783,14 @@ function computeMasterSegs(confirmDoneStr, template, handKumi) {
       if(col===undefined)col=0;
     }
 
-    var calDurVal=calendarDur(startDate,endStr);
     segs.push({
       label:nm, name:nm,
-      dur:dur, duration:dur, calendar_dur:calDurVal,
+      dur:dur, duration:dur,
+      calendar_dur:calendarDur(startDate,endStr),
       color:step.color||EC[nm]||'#64748b',
-      layer:layer,
-      col:col,
-      start_date:startDate, end_date:endStr,
-      date:startDate
+      layer:layer, col:col,
+      start_date:startDate, end_date:endStr, date:startDate
     });
-
-    // 基礎のstart_dateを記録
-    if(nm==='基礎'&&!kisoStart)kisoStart=startDate;
 
     // layer=0のみprevEndを更新
     if(layer===0)prevEnd=endStr;
@@ -827,7 +799,6 @@ function computeMasterSegs(confirmDoneStr, template, handKumi) {
 }
 
 // ===== 内蔵マスターテンプレート（エリア別） =====
-// マスター工程が未登録でも自動適用するデフォルト定義
 var BUILTIN_MASTERS={
   '東海':[
     {name:'造成',  dur:5,  color:'#d2b48c', layer:0},
@@ -858,6 +829,7 @@ var BUILTIN_MASTERS={
     {name:'引渡し',dur:1,  color:'#1a56db', layer:0}
   ]
 };
+window.BUILTIN_MASTERS=BUILTIN_MASTERS;
 
 
 // Full_dates col → visible canvas X (may be negative if before visible range)
@@ -898,36 +870,30 @@ function getAreaMasterName(p){
 }
 
 function getActiveSegs(p) {
-  // prop_overrides(LocalStorage)も追加でマージ（DB未登録物件のフォールバック）
+  try{
   var ov=loadLS('jack_prop_overrides',{});
   var ck=custKey(p);
   if(ov[ck])p=Object.assign({},p,ov[ck]);
   ck=custKey(p);
-  // ① カスタム工程が最優先
   if (customGantt[ck]) return customGantt[ck];
-  // ② 手動で紐付けたマスター
   var pm=loadLS('jack_prop_master',{});
   var masterName = pm[ck] || propMaster[ck];
   if (masterName) {
     var tmpl = myMasters.find(function(m){return m.name===masterName;});
     if (tmpl) return computeMasterSegs(normDate(p.confirm_done)||p.confirm_done, tmpl.steps, p.hand_kumi);
   }
-  // ③ confirm_doneがある場合: エリア別マスターを自動適用
   var cd=normDate(p.confirm_done)||p.confirm_done||'';
   if(cd&&String(cd).match(/\d{4}/)){
-    var areaMasterName=getAreaMasterName(p); // '東海' or '関東' or null
+    var areaMasterName=getAreaMasterName(p);
     if(areaMasterName){
-      // まずユーザーが登録したマスターを優先
       var at=myMasters.find(function(m){return m.name===areaMasterName;});
       if(at)return computeMasterSegs(cd,at.steps,p.hand_kumi);
-      // 未登録なら内蔵テンプレートを使用
-      var bt=BUILTIN_MASTERS[areaMasterName];
+      var builtins=window.BUILTIN_MASTERS||{};
+      var bt=builtins[areaMasterName];
       if(bt)return computeMasterSegs(cd,bt,p.hand_kumi);
     }
-    // ④ エリア不明でもconfirm_doneがあればデフォルトで自動生成
     return computeMasterSegs(cd,null,p.hand_kumi);
   }
-  // ⑤ GASから取得済みのmaster_segs
   if (p.master_segs && p.master_segs.length) {
     var hk=p.hand_kumi;
     var isHK=hk&&(String(hk).indexOf('〇')>=0||String(hk).indexOf('手組')>=0||String(hk).trim()==='○');
@@ -935,6 +901,7 @@ function getActiveSegs(p) {
     return p.master_segs;
   }
   return p.segments || [];
+  }catch(e){console.warn('getActiveSegs error:',e);return p.segments||[];}
 }
 
 // ===== DATA HELPERS =====
