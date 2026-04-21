@@ -884,14 +884,12 @@ function getActiveSegs(p) {
   }
   var cd=normDate(p.confirm_done)||p.confirm_done||'';
   if(cd&&String(cd).match(/\d{4}/)){
-    var areaMasterName=getAreaMasterName(p);
-    if(areaMasterName){
-      var at=myMasters.find(function(m){return m.name===areaMasterName;});
-      if(at)return computeMasterSegs(cd,at.steps,p.hand_kumi);
-      var builtins=window.BUILTIN_MASTERS||{};
-      var bt=builtins[areaMasterName];
-      if(bt)return computeMasterSegs(cd,bt,p.hand_kumi);
+    // ③ confirm_doneがある場合: 登録済みマスターの最初のものを自動適用（共通マスター）
+    if(myMasters.length>0){
+      var firstMaster=myMasters[0];
+      if(firstMaster&&firstMaster.steps)return computeMasterSegs(cd,firstMaster.steps,p.hand_kumi);
     }
+    // マスター未登録 → デフォルトテンプレートで生成
     return computeMasterSegs(cd,null,p.hand_kumi);
   }
   if (p.master_segs && p.master_segs.length) {
@@ -3531,37 +3529,24 @@ var masterGanttSegs = []; // computed segs with stepIdx
 function openMasterPanel(){renderMasterPanel();openPanel('masterPanel');}
 
 function resetToBuiltinMasters(){
-  if(!confirm('既存のマイマスター全て削除し、東海・関東マスターをデフォルトで再登録します。よろしいですか？'))return;
-  // 全削除して東海・関東だけ登録
+  if(!confirm('全てのマスター工程・紐付け・カスタム工程を削除します。\nよろしいですか？'))return;
   myMasters=[];
-  ['東海','関東'].forEach(function(name){
-    var steps=BUILTIN_MASTERS[name].map(function(s){
-      return {name:s.name,dur:s.dur,color:s.color,layer:s.layer||0,offset:0};
-    });
-    myMasters.push({name:name,steps:steps});
-  });
   saveLS('jack_my_masters',myMasters);
-  // propMasterもクリア（エリア自動紐付けに委ねる）
   propMaster={};
   saveLS('jack_prop_master',propMaster);
-  showToast('✅ 東海・関東マスターをリセットしました','success');
+  customGantt={};
+  saveLS('jack_custom_gantt',customGantt);
+  showToast('✅ 全マスター工程・紐付けを削除しました','success');
   renderMasterPanel();
+  renderBody();
 }
 window.resetToBuiltinMasters=resetToBuiltinMasters;
 
 function renderMasterPanel(){
   var html='<div style="padding:8px 12px;display:flex;gap:6px;flex-wrap:wrap">'
     +'<button class="btn-primary" style="font-size:11px;padding:7px 12px" onclick="startNewMaster()">＋ 新規マスター工程を作成</button>'
-    +'<button style="font-size:11px;padding:7px 12px;background:#f59e0b;color:white;border:none;border-radius:8px;font-weight:700;cursor:pointer" onclick="resetToBuiltinMasters()">🔄 東海・関東マスターをリセット</button>'
+    +'<button style="font-size:11px;padding:7px 12px;background:#ef4444;color:white;border:none;border-radius:8px;font-weight:700;cursor:pointer" onclick="resetToBuiltinMasters()">🗑 全削除・リセット</button>'
     +'</div>';
-  // 東海・関東マスターがなければ自動登録
-  ['東海','関東'].forEach(function(name){
-    if(!myMasters.find(function(m){return m.name===name;})){
-      var steps=BUILTIN_MASTERS[name].map(function(s){return {name:s.name,dur:s.dur,color:s.color,layer:s.layer||0,offset:0};});
-      myMasters.push({name:name,steps:steps});
-    }
-  });
-  saveLS('jack_my_masters',myMasters);
   html+='<div style="padding:4px 12px 4px;font-size:11px;font-weight:800;color:var(--g500)">デフォルトマスター（日曜休工・確認申請完了日起点）</div>'
     +'<div class="dp-sec" style="margin:0 8px 12px">'
     +[{n:'造成',d:5,c:'#d2b48c'},{n:'地盤',d:3,c:'#add8e6'},{n:'基礎',d:28,c:'#d9d9d9'},
