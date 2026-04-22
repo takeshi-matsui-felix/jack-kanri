@@ -157,7 +157,7 @@ input,textarea,select{font-family:var(--font)}
 .proc-dot{width:18px;height:18px;border-radius:50%;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:8px;font-weight:800;color:white;z-index:1;position:relative}
 .pd-done{background:var(--success)}.pd-now{background:var(--primary)}.pd-pend{background:var(--g300)}
 .proc-info{flex:1}.proc-name{font-size:11px;font-weight:700;color:var(--g700)}.proc-date{font-size:9px;color:var(--g400);font-family:var(--mono)}
-.panel-action-bar{position:absolute;bottom:0;left:0;right:0;padding:8px 12px;background:white;border-top:1px solid var(--g200);display:flex;gap:7px}
+.panel-action-bar{position:absolute;bottom:0;left:0;right:0;padding:8px 12px;background:white;border-top:1px solid var(--g200);display:flex;gap:7px;z-index:50;box-shadow:0 -2px 8px rgba(0,0,0,.08);}
 .btn-primary{flex:1;background:var(--primary);color:white;border-radius:8px;padding:10px;font-size:12px;font-weight:700;display:flex;align-items:center;justify-content:center;gap:4px;transition:background .15s}
 .btn-secondary{background:var(--g100);color:var(--g700);border-radius:8px;padding:10px 12px;font-size:12px;font-weight:600;display:flex;align-items:center;justify-content:center;gap:4px}
 .btn-danger{background:#fee2e2;color:var(--danger);border-radius:8px;padding:10px 12px;font-size:12px;font-weight:600}
@@ -3804,22 +3804,49 @@ function renderMasterStepList(){
     });
     item.appendChild(colorWrap);
 
-    // 3行目: layer + 挿入ボタン
+    // 3行目: layer + child_offset + 挿入ボタン
     var row3=document.createElement('div');
-    row3.style.cssText='display:flex;align-items:center;gap:4px;';
+    row3.style.cssText='display:flex;align-items:center;gap:4px;flex-wrap:wrap;';
 
     var layerEl=document.createElement('select');
-    layerEl.style.cssText='flex:1;font-size:9px;padding:2px 4px;border:1px solid #334155;border-radius:5px;background:#1e293b;color:white;';
+    layerEl.style.cssText='font-size:9px;padding:2px 4px;border:1px solid #334155;border-radius:5px;background:#1e293b;color:white;';
     ['通常','子工程'].forEach(function(opt,v){
       var o=document.createElement('option'); o.value=v; o.textContent=opt;
       if((s.layer||0)===v)o.selected=true;
       layerEl.appendChild(o);
     });
-    (function(ii){layerEl.addEventListener('change',function(){updateMasterStep(ii,'layer',parseInt(this.value));renderMasterGantt();});})(i);
+
+    // child_offset入力欄（子工程の場合のみ表示）
+    var offsetWrap=document.createElement('div');
+    offsetWrap.style.cssText='display:flex;align-items:center;gap:2px;'+(s.layer===1?'':'display:none;');
+    var offsetLbl=document.createElement('span');
+    offsetLbl.textContent='親の'; offsetLbl.style.cssText='font-size:9px;color:rgba(255,255,255,.5);';
+    var offsetEl=document.createElement('input');
+    offsetEl.type='number'; offsetEl.min=0; offsetEl.max=300;
+    offsetEl.value=(s.child_offset!==undefined)?s.child_offset:1;
+    offsetEl.style.cssText='width:36px;padding:2px 3px;border:1px solid #334155;border-radius:4px;font-size:9px;background:#1e293b;color:#fbbf24;text-align:center;';
+    var offsetLbl2=document.createElement('span');
+    offsetLbl2.textContent='日目から'; offsetLbl2.style.cssText='font-size:9px;color:rgba(255,255,255,.5);';
+    offsetWrap.appendChild(offsetLbl); offsetWrap.appendChild(offsetEl); offsetWrap.appendChild(offsetLbl2);
+
+    (function(ii,ow,oe){
+      layerEl.addEventListener('change',function(){
+        var v=parseInt(this.value);
+        updateMasterStep(ii,'layer',v);
+        ow.style.display=v===1?'flex':'none';
+        renderMasterGantt();
+      });
+      oe.addEventListener('change',function(){
+        updateMasterStep(ii,'child_offset',parseInt(this.value)||1);
+        renderMasterGantt();
+      });
+    })(i, offsetWrap, offsetEl);
+
     row3.appendChild(layerEl);
+    row3.appendChild(offsetWrap);
 
     var insBtn=document.createElement('button');
-    insBtn.textContent='↓挿入'; insBtn.style.cssText='font-size:9px;color:white;font-weight:700;padding:2px 6px;border-radius:4px;background:#475569;cursor:pointer;border:none;flex-shrink:0;';
+    insBtn.textContent='↓挿入'; insBtn.style.cssText='font-size:9px;color:white;font-weight:700;padding:2px 6px;border-radius:4px;background:#475569;cursor:pointer;border:none;flex-shrink:0;margin-left:auto;';
     (function(ii){insBtn.addEventListener('click',function(){insertMasterStep(ii);});})(i);
     row3.appendChild(insBtn);
     item.appendChild(row3);
