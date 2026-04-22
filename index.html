@@ -3542,30 +3542,60 @@ function resetToBuiltinMasters(){
 }
 window.resetToBuiltinMasters=resetToBuiltinMasters;
 
+// 全物件にデフォルトマスター（myMasters[0]）を紐付け
+async function applyMasterToAll(){
+  if(myMasters.length===0){showToast('マスター工程がありません','error');return;}
+  var masterName=myMasters[0].name;
+  if(!confirm('全物件に「'+masterName+'」を紐付けます。\n既存の紐付けも上書きします。よろしいですか？'))return;
+  var allProps=getAllProps();
+  var btn=document.querySelector('[onclick="applyMasterToAll()"]');
+  if(btn){btn.textContent='紐付け中...';btn.disabled=true;}
+  try{
+    // localStorageに全件紐付け
+    allProps.forEach(function(p){propMaster[custKey(p)]=masterName;});
+    saveLS('jack_prop_master',propMaster);
+    // 管理者はSupabaseにも保存
+    var sb=getSB();
+    if(sb&&currentProfile&&currentProfile.role==='admin'){
+      var batch=allProps.map(function(p){return {fix_no:p.fix_no,name:p.name,prop_master:masterName};});
+      // Supabaseに一括upsert（50件ずつ）
+      for(var i=0;i<batch.length;i+=50){
+        var chunk=batch.slice(i,i+50);
+        for(var j=0;j<chunk.length;j++){
+          var pp=chunk[j];
+          await sb.from('properties').update({prop_master:masterName}).eq('fix_no',pp.fix_no).eq('name',pp.name);
+        }
+      }
+      showToast('✅ 全'+allProps.length+'件に「'+masterName+'」を紐付けました（DB保存済み）','success');
+    } else {
+      showToast('✅ 全'+allProps.length+'件に「'+masterName+'」を紐付けました（ローカル保存）','success');
+    }
+    renderBody();
+    renderMasterPanel();
+  }catch(e){
+    showToast('エラー: '+e.message,'error');
+  }finally{
+    if(btn){btn.textContent='🔗 全物件に紐付け';btn.disabled=false;}
+  }
+}
+window.applyMasterToAll=applyMasterToAll;
+
 function renderMasterPanel(){
+  var defaultMaster=myMasters.length>0?myMasters[0]:null;
   var html='<div style="padding:8px 12px;display:flex;gap:6px;flex-wrap:wrap">'
     +'<button class="btn-primary" style="font-size:11px;padding:7px 12px" onclick="startNewMaster()">＋ 新規マスター工程を作成</button>'
+    +(defaultMaster?'<button style="font-size:11px;padding:7px 12px;background:#10b981;color:white;border:none;border-radius:8px;font-weight:700;cursor:pointer" onclick="applyMasterToAll()">🔗 全物件に紐付け</button>':'')
     +'<button style="font-size:11px;padding:7px 12px;background:#ef4444;color:white;border:none;border-radius:8px;font-weight:700;cursor:pointer" onclick="resetToBuiltinMasters()">🗑 全削除・リセット</button>'
     +'</div>';
-  html+='<div style="padding:4px 12px 4px;font-size:11px;font-weight:800;color:var(--g500)">デフォルトマスター（日曜休工・確認申請完了日起点）</div>'
-    +'<div class="dp-sec" style="margin:0 8px 12px">'
-    +[{n:'造成',d:5,c:'#d2b48c'},{n:'地盤',d:3,c:'#add8e6'},{n:'基礎',d:28,c:'#d9d9d9'},
-      {n:'建て方',d:14,c:'#d9ead3'},{n:'足場',d:2,c:'#7030a0',note:'建て方2日目'},
-      {n:'造作',d:50,c:'#ffff00'},{n:'UB',d:2,c:'#00b050',note:'造作24日目'},
-      {n:'SK',d:2,c:'#00b050'},{n:'解体',d:1,c:'#7030a0'},
-      {n:'内装',d:10,c:'#ffc7ce'},{n:'外構',d:10,c:'#d2b48c'},{n:'引渡し',d:1,c:'#1a56db'}
-    ].map(function(s){
-      return '<div style="display:flex;align-items:center;padding:6px 12px;border-bottom:1px solid var(--g50);gap:7px">'
-        +'<div style="width:12px;height:12px;background:'+s.c+';border-radius:2px;flex-shrink:0"></div>'
-        +'<div style="flex:1;font-size:11px;font-weight:700;color:var(--g800)">'+s.n
-        +(s.note?'<span style="font-size:9px;color:var(--g400);margin-left:5px">'+s.note+'</span>':'')+'</div>'
-        +'<div style="font-size:10px;font-family:var(--mono);color:var(--g500)">'+s.d+'日</div></div>';
-    }).join('')+'</div>';
+  if(defaultMaster){
+    html+='<div style="padding:4px 12px;font-size:10px;color:var(--g400)">⭐ デフォルトマスター（最初のマスター）: <b style="color:var(--primary)">'+defaultMaster.name+'</b> が全物件に自動適用されます</div>';
+  }
   if(myMasters.length>0){
     html+='<div style="padding:4px 12px 4px;font-size:11px;font-weight:800;color:var(--g500)">マイマスター ('+myMasters.length+'件)</div>';
     myMasters.forEach(function(m,mi){
-      html+='<div class="dp-sec" style="margin:0 8px 8px">'
-        +'<div class="dp-sec-head">⭐ '+m.name
+      var isDefault=mi===0;
+      html+='<div class="dp-sec" style="margin:0 8px 8px'+(isDefault?';border:2px solid var(--primary)':'')+'">'
+        +'<div class="dp-sec-head">'+(isDefault?'⭐ ':'')+'<b>'+(isDefault?'[デフォルト] ':'')+m.name+'</b>'
         +'<div style="margin-left:auto;display:flex;gap:4px">'
         +'<button style="font-size:10px;background:#fef9c3;color:#854d0e;padding:3px 7px;border-radius:5px;font-weight:700" onclick="renameMaster('+mi+')">✏️ 名称変更</button>'
         +'<button style="font-size:10px;background:var(--primary-l);color:var(--primary);padding:3px 7px;border-radius:5px;font-weight:700" onclick="startEditMaster('+mi+')">📋 工程編集</button>'
@@ -3574,10 +3604,12 @@ function renderMasterPanel(){
         +m.steps.map(function(s){
           return '<div style="display:flex;align-items:center;padding:6px 12px;border-bottom:1px solid var(--g50);gap:7px">'
             +'<div style="width:12px;height:12px;background:'+(s.color||'#64748b')+';border-radius:2px;flex-shrink:0"></div>'
-            +'<div style="flex:1;font-size:11px;font-weight:600;color:var(--g700)">'+s.name+'</div>'
+            +'<div style="flex:1;font-size:11px;font-weight:600;color:var(--g700)">'+s.name+(s.layer===1?'<span style="font-size:9px;color:var(--g400);margin-left:5px">子工程</span>':'')+'</div>'
             +'<div style="font-size:10px;font-family:var(--mono);color:var(--g500)">'+(s.dur||s.days||1)+'日</div></div>';
         }).join('')+'</div>';
     });
+  } else {
+    html+='<div style="padding:20px;text-align:center;color:var(--g400);font-size:12px">マスター工程がありません。<br>「＋ 新規マスター工程を作成」から作成してください。</div>';
   }
   document.getElementById('masterPanelContent').innerHTML=html;
 }
