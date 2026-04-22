@@ -755,9 +755,13 @@ function computeMasterSegs(confirmDoneStr, template, handKumi) {
   cd=cd.replace(/\//g,'-').split(' ')[0];
   if(!cd.match(/^\d{4}-\d{2}-\d{2}$/))return [];
 
+  // ① 着工日 = confirm_done の翌稼働日（日曜スキップ）
+  var kikoDay=nextWorkday(cd);
+
   var segs=[];
-  var prevEnd=cd;         // 直前layer=0工程の最終稼働日（次の親工程の起点）
-  var lastParentStart=''; // 直前layer=0工程の開始日（子工程の起点）
+  // 親工程の連鎖用：直前layer=0工程の終了日（着工日の前日扱い）
+  var prevEnd=cd;          // addWorkdaysFrom(prevEnd,1)で翌稼働日を得る
+  var lastParentStart=kikoDay; // 直前layer=0工程の開始日（子工程の起点）
 
   for(var ti=0;ti<tmpl.length;ti++){
     var step=tmpl[ti];
@@ -769,12 +773,12 @@ function computeMasterSegs(confirmDoneStr, template, handKumi) {
     var startDate;
 
     if(layer===1){
-      // ── 子工程：直近親工程のstart_dateから child_offset 稼働日後に開始
-      var cOffset=step.child_offset||0;
-      var base=lastParentStart||prevEnd;
-      startDate=addWorkdaysFrom(base, cOffset);
+      // ── 子工程：直近親工程のstart_dateから child_offset 稼働日後
+      // child_offset未設定は1（親の2日目）をデフォルトとする
+      var cOffset=(step.child_offset!==undefined)?step.child_offset:1;
+      startDate=addWorkdaysFrom(lastParentStart, cOffset);
     } else {
-      // ── 親工程：前の親工程の翌稼働日から開始
+      // ── 親工程：前の親工程の翌稼働日から（prevEndの翌稼働日）
       startDate=addWorkdaysFrom(prevEnd, 1);
     }
 
@@ -783,7 +787,7 @@ function computeMasterSegs(confirmDoneStr, template, handKumi) {
     while(sd.getDay()===0)sd.setDate(sd.getDate()+1);
     startDate=sd.toISOString().slice(0,10);
 
-    // endStr を稼働日durで計算
+    // endStr を稼働日durで計算（startDateを1日目とする）
     var endStr=endOfWorkdays(startDate, dur);
 
     // FULL_DATE_IDX でcolを求める
@@ -799,10 +803,11 @@ function computeMasterSegs(confirmDoneStr, template, handKumi) {
       dur:dur, duration:dur, calendar_dur:calendarDur(startDate,endStr),
       color:step.color||EC[nm]||'#64748b',
       layer:layer, col:col,
-      start_date:startDate, end_date:endStr, date:startDate
+      start_date:startDate, end_date:endStr, date:startDate,
+      child_offset:(layer===1)?((step.child_offset!==undefined)?step.child_offset:1):undefined
     });
 
-    // layer=0のみ prevEnd と lastParentStart を更新
+    // layer=0のみ更新
     if(layer===0){
       prevEnd=endStr;
       lastParentStart=startDate;
@@ -1982,6 +1987,10 @@ function geOnDrag(e){
 function geApplyKisoAnchor(movedIdx){
   var movedSeg=geSegs[movedIdx];
   if(!movedSeg||(movedSeg.name||movedSeg.label||'')!=='基礎')return;
+  if(movedSeg.start_date){
+    movedSeg.end_date=endOfWorkdays(movedSeg.start_date, movedSeg.dur||movedSeg.duration||movedSeg.calendar_dur||28);
+    movedSeg.calendar_dur=calendarDur(movedSeg.start_date,movedSeg.end_date);
+  }
   var prevEnd=movedSeg.end_date||movedSeg.start_date||'';
   var lastParentStart=movedSeg.start_date||'';
   if(!prevEnd)return;
@@ -1993,7 +2002,7 @@ function geApplyKisoAnchor(movedIdx){
     var dur=s.dur||s.duration||s.calendar_dur||1;
     var startDate;
     if(layer===1){
-      var co=s.child_offset||0;
+      var co=(s.child_offset!==undefined)?s.child_offset:1;
       startDate=addWorkdaysFrom(lastParentStart, co);
     } else {
       startDate=addWorkdaysFrom(prevEnd, 1);
@@ -3263,9 +3272,15 @@ function onEdDrag(e){
 function edApplyKisoAnchor(movedIdx){
   var movedSeg=edSegs[movedIdx];
   if(!movedSeg||(movedSeg.name||movedSeg.label||'')!=='基礎')return;
+  // 基礎のend_dateを正確に再計算
+  if(movedSeg.start_date){
+    movedSeg.end_date=endOfWorkdays(movedSeg.start_date, movedSeg.dur||movedSeg.duration||movedSeg.calendar_dur||28);
+    movedSeg.calendar_dur=calendarDur(movedSeg.start_date,movedSeg.end_date);
+  }
   var prevEnd=movedSeg.end_date||movedSeg.start_date||'';
   var lastParentStart=movedSeg.start_date||'';
   if(!prevEnd)return;
+
   for(var i=movedIdx+1;i<edSegs.length;i++){
     var s=edSegs[i];
     var sn=s.name||s.label||'';
@@ -3274,15 +3289,18 @@ function edApplyKisoAnchor(movedIdx){
     var dur=s.dur||s.duration||s.calendar_dur||1;
     var startDate;
     if(layer===1){
-      var co=s.child_offset||0;
+      // 子工程：直近親のstart_dateからchild_offset稼働日後
+      var co=(s.child_offset!==undefined)?s.child_offset:1;
       startDate=addWorkdaysFrom(lastParentStart, co);
     } else {
+      // 親工程：前親の翌稼働日
       startDate=addWorkdaysFrom(prevEnd, 1);
     }
+    // 日曜スキップ
     var sd2=new Date(startDate.replace(/[/]/g,'-'));
     while(sd2.getDay()===0)sd2.setDate(sd2.getDate()+1);
     startDate=sd2.toISOString().slice(0,10);
-    var endStr2=endOfWorkdays(startDate,dur);
+    var endStr2=endOfWorkdays(startDate, dur);
     s.start_date=startDate; s.date=startDate; s.end_date=endStr2;
     s.calendar_dur=calendarDur(startDate,endStr2); s.duration=s.calendar_dur;
     if(layer===0){prevEnd=endStr2; lastParentStart=startDate;}
@@ -3413,7 +3431,16 @@ function openGanttEditor(fixNo,enc){
       if(ed&&sd){return Math.round((new Date(ed)-new Date(sd))/86400000)+1;}
       return s.duration||s.dur||1;
     })();
-    return {label:s.label||s.name||'',start_date:sd,date:sd,end_date:ed,calendar_dur:calDur,duration:calDur,color:s.color||EC[s.label||s.name||'']||'#64748b',layer:s.layer||0,textColor:s.textColor||s.text_color||'auto'};
+    var dur=s.dur||s.duration||calDur;
+    return {
+      label:s.label||s.name||'', name:s.name||s.label||'',
+      start_date:sd, date:sd, end_date:ed,
+      calendar_dur:calDur, duration:dur, dur:dur,
+      color:s.color||EC[s.label||s.name||'']||'#64748b',
+      layer:s.layer||0,
+      textColor:s.textColor||s.text_color||'auto',
+      child_offset:s.child_offset  // 子工程のオフセットを引き継ぐ
+    };
   });
 
   var sn=p.name.replace(/^(Jack|Walter)\s*/i,'');
