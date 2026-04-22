@@ -693,6 +693,19 @@ function addWorkdays(startStr, n) {
   return days[days.length-1].toISOString().slice(0,10);
 }
 
+// startStrを0日目として n 稼働日後（addWorkdaysのエイリアス）
+function addWorkdaysFrom(startStr, n){
+  if(n===0)return startStr;
+  return addWorkdays(startStr, n);
+}
+
+// startDateを1日目として dur 稼働日分の終了日
+function endOfWorkdays(startStr, dur){
+  if(dur<=1)return startStr;
+  // startStrを含めてdur日、つまりstartStrから(dur-1)日後の稼働日
+  return addWorkdays(startStr, dur-1);
+}
+
 // prevEnd の翌稼働日（日曜スキップ）
 function nextWorkday(dateStr){
   var d=new Date(dateStr.replace(/[/]/g,'-'));
@@ -875,31 +888,40 @@ function getActiveSegs(p) {
   var ck=custKey(p);
   if(ov[ck])p=Object.assign({},p,ov[ck]);
   ck=custKey(p);
+
+  // ① カスタム工程が最優先
   if (customGantt[ck]) return customGantt[ck];
+
+  // confirm_doneを正規化
+  var cd=normDate(p.confirm_done)||p.confirm_done||'';
+  var hasCd=!!(cd&&String(cd).match(/\d{4}/));
+
+  // ② 手動紐付けマスター
   var pm=loadLS('jack_prop_master',{});
   var masterName = pm[ck] || propMaster[ck];
-  if (masterName) {
+  if (masterName && hasCd) {
     var tmpl = myMasters.find(function(m){return m.name===masterName;});
-    if (tmpl) return computeMasterSegs(normDate(p.confirm_done)||p.confirm_done, tmpl.steps, p.hand_kumi);
+    if (tmpl && tmpl.steps) return computeMasterSegs(cd, tmpl.steps, p.hand_kumi);
   }
-  var cd=normDate(p.confirm_done)||p.confirm_done||'';
-  if(cd&&String(cd).match(/\d{4}/)){
-    // ③ confirm_doneがある場合: 登録済みマスターの最初のものを自動適用（共通マスター）
-    if(myMasters.length>0){
-      var firstMaster=myMasters[0];
-      if(firstMaster&&firstMaster.steps)return computeMasterSegs(cd,firstMaster.steps,p.hand_kumi);
+
+  // ③ confirm_doneがある場合: myMasters[0]（共通デフォルトマスター）を自動適用
+  if(hasCd){
+    if(myMasters.length>0 && myMasters[0].steps){
+      return computeMasterSegs(cd, myMasters[0].steps, p.hand_kumi);
     }
-    // マスター未登録 → デフォルトテンプレートで生成
-    return computeMasterSegs(cd,null,p.hand_kumi);
+    // マスター未登録 → DEFAULT_TMPLで生成
+    return computeMasterSegs(cd, null, p.hand_kumi);
   }
+
+  // ④ confirm_doneなし → GAS取得データを使用
   if (p.master_segs && p.master_segs.length) {
     var hk=p.hand_kumi;
     var isHK=hk&&(String(hk).indexOf('〇')>=0||String(hk).indexOf('手組')>=0||String(hk).trim()==='○');
-    if(isHK) return computeMasterSegs(cd||p.confirm_done, null, hk);
+    if(isHK && cd) return computeMasterSegs(cd, null, hk);
     return p.master_segs;
   }
   return p.segments || [];
-  }catch(e){console.warn('getActiveSegs error:',e);return p.segments||[];}
+  }catch(e){console.warn('getActiveSegs error:',e,p);return (p&&p.segments)||[];}
 }
 
 // ===== DATA HELPERS =====
