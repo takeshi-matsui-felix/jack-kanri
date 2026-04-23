@@ -560,7 +560,7 @@ var FREEZE_COLS = [
   { key:'fix_no',    label:'FiX\n№',    w:36 },
   { key:'seq_no',    label:'通し\n番号', w:30 },
   { key:'area',      label:'エリア',    w:30 },
-  { key:'name',      label:'物件名',    w:118},
+  { key:'name',      label:'物件名',    w:150},
   { key:'hand_kumi', label:'手組',      w:22 }
 ];
 var FREEZE_W = FREEZE_COLS.reduce(function(a,c){return a+c.w;},0);
@@ -749,19 +749,14 @@ function computeMasterSegs(confirmDoneStr, template, handKumi) {
   var builtins=window.BUILTIN_MASTERS||{};
   var tmpl = template || builtins['東海'] || DEFAULT_TMPL;
 
-  // confirm_done を正規化
   var rawCd=String(confirmDoneStr);
   var cd=(typeof normDate==='function'?normDate(rawCd):rawCd)||rawCd;
   cd=cd.replace(/\//g,'-').split(' ')[0];
   if(!cd.match(/^\d{4}-\d{2}-\d{2}$/))return [];
 
-  // ① 着工日 = confirm_done の翌稼働日（日曜スキップ）
-  var kikoDay=nextWorkday(cd);
-
+  // 着工日 = confirm_done の翌稼働日
+  var prevEnd=cd;
   var segs=[];
-  // 親工程の連鎖用：直前layer=0工程の終了日（着工日の前日扱い）
-  var prevEnd=cd;          // addWorkdaysFrom(prevEnd,1)で翌稼働日を得る
-  var lastParentStart=kikoDay; // 直前layer=0工程の開始日（子工程の起点）
 
   for(var ti=0;ti<tmpl.length;ti++){
     var step=tmpl[ti];
@@ -769,28 +764,16 @@ function computeMasterSegs(confirmDoneStr, template, handKumi) {
     var dur=step.dur||step.days||1;
     if(isHandKumi&&(nm==='建て方'||nm==='建体'))dur=dur+30;
 
-    var layer=step.layer||0;
-    var startDate;
-
-    if(layer===1){
-      // ── 子工程：直近親工程のstart_dateから child_offset 稼働日後
-      // child_offset未設定は1（親の2日目）をデフォルトとする
-      var cOffset=(step.child_offset!==undefined)?step.child_offset:1;
-      startDate=addWorkdaysFrom(lastParentStart, cOffset);
-    } else {
-      // ── 親工程：前の親工程の翌稼働日から（prevEndの翌稼働日）
-      startDate=addWorkdaysFrom(prevEnd, 1);
-    }
+    // 全工程：前工程終了の翌稼働日から開始（layer/child_offsetは無視）
+    var startDate=addWorkdaysFrom(prevEnd, 1);
 
     // 日曜スキップ
     var sd=new Date(startDate.replace(/[/]/g,'-'));
     while(sd.getDay()===0)sd.setDate(sd.getDate()+1);
     startDate=sd.toISOString().slice(0,10);
 
-    // endStr を稼働日durで計算（startDateを1日目とする）
     var endStr=endOfWorkdays(startDate, dur);
 
-    // FULL_DATE_IDX でcolを求める
     var col=FULL_DATE_IDX[startDate];
     if(col===undefined){
       var fkeys=Object.keys(FULL_DATE_IDX);
@@ -802,16 +785,11 @@ function computeMasterSegs(confirmDoneStr, template, handKumi) {
       label:nm, name:nm,
       dur:dur, duration:dur, calendar_dur:calendarDur(startDate,endStr),
       color:step.color||EC[nm]||'#64748b',
-      layer:layer, col:col,
-      start_date:startDate, end_date:endStr, date:startDate,
-      child_offset:(layer===1)?((step.child_offset!==undefined)?step.child_offset:1):undefined
+      layer:0, col:col,
+      start_date:startDate, end_date:endStr, date:startDate
     });
 
-    // layer=0のみ更新
-    if(layer===0){
-      prevEnd=endStr;
-      lastParentStart=startDate;
-    }
+    prevEnd=endStr;
   }
   return segs;
 }
@@ -1327,11 +1305,23 @@ function renderStats(){
   document.getElementById('statsStrip').innerHTML=sh;
   var allSt=['all','契約済','販売中','買付','契約予定','未公開','販売中断','delayed'];
   var labels={'delayed':'🔴 遅延工程'};
+  // 駐車場バッジカウント
+  var hasPark=0,noPark=0;
+  allList.forEach(function(p){
+    var ov=loadLS('jack_prop_overrides',{});
+    var ck=custKey(p);
+    var pks=(ov[ck]&&ov[ck].parkings&&ov[ck].parkings.length)?ov[ck].parkings:(p.parkings||[]);
+    var todayStr=TODAY;
+    var active=pks.filter(function(pk){return !pk.contract_end||pk.contract_end>=todayStr;});
+    if(active.length>0)hasPark++;else noPark++;
+  });
   document.getElementById('statusBar').innerHTML=allSt.map(function(s){
     var cnt=s==='all'?allList.length:s==='delayed'?delayedCount:(counts[s]||0);
     var lbl=labels[s]||s;
     return '<button class="sf-chip'+(currentStatus===s?' active':'')+'" onclick="setStatus(\''+s+'\')">'+(s==='all'?'全て('+cnt+')':lbl+'('+cnt+')')+'</button>';
-  }).join('');
+  }).join('')
+  +'<span style="margin-left:6px;font-size:10px;background:#6366f1;color:white;padding:3px 8px;border-radius:10px;font-weight:700">🅿️'+hasPark+'</span>'
+  +'<span style="margin-left:4px;font-size:10px;background:#f1f5f9;color:#94a3b8;padding:3px 8px;border-radius:10px;font-weight:700">🔲未'+noPark+'</span>';
 }
 
 // ===== RENDER HEADER =====
@@ -1423,10 +1413,8 @@ function renderBars(cv, p, segs, gx, top, rowH) {
     }
   }
 
-  segs.forEach(function(seg){
+  segs.forEach(function(seg, si){
     var lbl   = seg.label || seg.name || '';
-    // Use calendar_dur (actual calendar span incl. Sundays) for bar width
-    // Fall back to duration/dur for custom segments without calendar_dur
     var calDur = seg.calendar_dur || seg.duration || seg.dur || 1;
     var layer = seg.layer || 0;
     var col   = typeof seg.col==='number' ? seg.col : 0;
@@ -1434,7 +1422,6 @@ function renderBars(cv, p, segs, gx, top, rowH) {
     var tcOverride = seg.textColor;
     var tcolor = tcOverride && tcOverride !== 'auto' ? tcOverride : (DARK_TEXT[lbl] ? '#3a2a10' : 'white');
 
-    // fullCol → canvas px
     var sPx = gx + (col - FULL_VIS_OFFSET) * COL_W;
     var ePx = sPx + calDur * COL_W - 2;
 
@@ -1444,16 +1431,32 @@ function renderBars(cv, p, segs, gx, top, rowH) {
     var rw   = rePx - rsPx;
     if (rw < 2) return;
 
-    var isPartLeft = sPx < vStartPx;
-    var bh    = layer===1 ? Math.floor(barH*0.65) : barH;
-    var by    = layer===1 ? (top + Math.floor((rowH-bh)/2) - 3) : barY;
-    var zIdx  = layer===1 ? 12 : 10;
+    // 重なり検出：前のバーと時間的に重なる場合は縦位置をずらす
+    var slotH = Math.floor(barH / 2); // 半分の高さでずらす
+    var slot = 0;
+    for(var sj=0;sj<si;sj++){
+      var ps=segs[sj];
+      var pcol=typeof ps.col==='number'?ps.col:0;
+      var psPx=gx+(pcol-FULL_VIS_OFFSET)*COL_W;
+      var pDur=ps.calendar_dur||ps.duration||ps.dur||1;
+      var pePx=psPx+pDur*COL_W-2;
+      if(psPx<=ePx&&pePx>=sPx){slot++;} // 重なっている
+    }
+    // slotが増えすぎたら行内に収める（最大3スロット）
+    slot=slot%3;
 
+    var bh = Math.max(Math.floor(barH*(slot>0?0.75:1)),8);
+    var by = barY + slot*Math.floor(barH/3);
+    // 行内に収まるよう制限
+    if(by+bh>top+rowH-1)by=top+rowH-1-bh;
+    var zIdx = 10 + slot;
+
+    var isPartLeft = sPx < vStartPx;
     var bar = document.createElement('div');
     bar.className='bar';
     bar.style.cssText='left:'+rsPx+'px;top:'+by+'px;width:'+rw+'px;height:'+bh+'px;'
-      +'background:'+color+';color:'+tcolor+';font-size:'+(layer===1?'6':'7')+'px;font-weight:800;'
-      +'border-radius:'+(layer===1?'2':'3')+'px;z-index:'+zIdx+';'
+      +'background:'+color+';color:'+tcolor+';font-size:7px;font-weight:800;'
+      +'border-radius:3px;z-index:'+zIdx+';opacity:'+(slot>0?'0.92':'1')+';'
       +(isPartLeft?'border-left:2px dashed rgba(255,255,255,.6);':'');
     if (rw>14) bar.textContent=lbl;
     (function(l,dt){bar.onclick=function(e){e.stopPropagation();showTip(e,l+': '+(dt||''));};})(lbl,seg.date||seg.start_date||'');
@@ -2710,6 +2713,14 @@ function openPropEditModal(){
       +'<div style="display:flex;flex-direction:column;gap:4px">'
       +'<label style="font-size:10px;color:#64748b">住所</label>'
       +'<input id="pk-addr-'+i+'" type="text" value="'+(pk.address||'')+'" placeholder="例: 愛知県常滑市新開町2-1" style="'+iStyle+'"></div>'
+      +'<div style="display:flex;gap:8px">'
+      +'<div style="flex:1;display:flex;flex-direction:column;gap:4px">'
+      +'<label style="font-size:10px;color:#64748b">契約開始日</label>'
+      +'<input id="pk-start-'+i+'" type="date" value="'+(pk.contract_start||'')+'" style="'+iStyle+'"></div>'
+      +'<div style="flex:1;display:flex;flex-direction:column;gap:4px">'
+      +'<label style="font-size:10px;color:#64748b">契約終了日</label>'
+      +'<input id="pk-end-'+i+'" type="date" value="'+(pk.contract_end||'')+'" style="'+iStyle+'"></div>'
+      +'</div>'
       +'</div>';
   }
 
@@ -2794,9 +2805,13 @@ function _syncParkingsFromDOM(){
     var n=document.getElementById('pk-name-'+i);
     var c=document.getElementById('pk-carno-'+i);
     var a=document.getElementById('pk-addr-'+i);
+    var s=document.getElementById('pk-start-'+i);
+    var e=document.getElementById('pk-end-'+i);
     if(n)pks[i].name=n.value;
     if(c)pks[i].carno=c.value;
     if(a)pks[i].address=a.value;
+    if(s)pks[i].contract_start=s.value;
+    if(e)pks[i].contract_end=e.value;
   });
 }
 
@@ -3804,47 +3819,9 @@ function renderMasterStepList(){
     });
     item.appendChild(colorWrap);
 
-    // 3行目: layer + child_offset + 挿入ボタン
+    // 3行目: 挿入ボタンのみ（子工程・child_offset廃止）
     var row3=document.createElement('div');
-    row3.style.cssText='display:flex;align-items:center;gap:4px;flex-wrap:wrap;';
-
-    var layerEl=document.createElement('select');
-    layerEl.style.cssText='font-size:9px;padding:2px 4px;border:1px solid #334155;border-radius:5px;background:#1e293b;color:white;';
-    ['通常','子工程'].forEach(function(opt,v){
-      var o=document.createElement('option'); o.value=v; o.textContent=opt;
-      if((s.layer||0)===v)o.selected=true;
-      layerEl.appendChild(o);
-    });
-
-    // child_offset入力欄（子工程の場合のみ表示）
-    var offsetWrap=document.createElement('div');
-    offsetWrap.style.cssText='display:flex;align-items:center;gap:2px;'+(s.layer===1?'':'display:none;');
-    var offsetLbl=document.createElement('span');
-    offsetLbl.textContent='親の'; offsetLbl.style.cssText='font-size:9px;color:rgba(255,255,255,.5);';
-    var offsetEl=document.createElement('input');
-    offsetEl.type='number'; offsetEl.min=0; offsetEl.max=300;
-    offsetEl.value=(s.child_offset!==undefined)?s.child_offset:1;
-    offsetEl.style.cssText='width:36px;padding:2px 3px;border:1px solid #334155;border-radius:4px;font-size:9px;background:#1e293b;color:#fbbf24;text-align:center;';
-    var offsetLbl2=document.createElement('span');
-    offsetLbl2.textContent='日目から'; offsetLbl2.style.cssText='font-size:9px;color:rgba(255,255,255,.5);';
-    offsetWrap.appendChild(offsetLbl); offsetWrap.appendChild(offsetEl); offsetWrap.appendChild(offsetLbl2);
-
-    (function(ii,ow,oe){
-      layerEl.addEventListener('change',function(){
-        var v=parseInt(this.value);
-        updateMasterStep(ii,'layer',v);
-        ow.style.display=v===1?'flex':'none';
-        renderMasterGantt();
-      });
-      oe.addEventListener('change',function(){
-        updateMasterStep(ii,'child_offset',parseInt(this.value)||1);
-        renderMasterGantt();
-      });
-    })(i, offsetWrap, offsetEl);
-
-    row3.appendChild(layerEl);
-    row3.appendChild(offsetWrap);
-
+    row3.style.cssText='display:flex;align-items:center;gap:4px;';
     var insBtn=document.createElement('button');
     insBtn.textContent='↓挿入'; insBtn.style.cssText='font-size:9px;color:white;font-weight:700;padding:2px 6px;border-radius:4px;background:#475569;cursor:pointer;border:none;flex-shrink:0;margin-left:auto;';
     (function(ii){insBtn.addEventListener('click',function(){insertMasterStep(ii);});})(i);
@@ -4789,6 +4766,18 @@ function openJackMap(area){
       var hasAddr=!!addr;
       var sc=p.status==='契約済'?'#10b981':p.status==='販売中'?'#3b82f6':'#94a3b8';
       var sn=(p.name||'').replace(/^(Jack|Walter)\s*/i,'');
+      // 期限切れでないアクティブな駐車場のみカウント
+      var todayStr=TODAY;
+      var activePks=pks.filter(function(pk){
+        if(!pk.contract_end)return true; // 期限なし→常に表示
+        return pk.contract_end>=todayStr;
+      });
+      var parkBadge='';
+      if(activePks.length){
+        var firstEnd=activePks[0].contract_end;
+        var endDisp=firstEnd?firstEnd.replace(/-/g,'/'):'';
+        parkBadge='<span style="color:#6366f1;margin-left:4px;font-size:9px">🅿️'+activePks.length+'件'+(endDisp?' ～'+endDisp:'')+'</span>';
+      }
       return '<div class="map-prop-item" data-fixno="'+p.fix_no+'" data-name="'+encodeURIComponent(p.name||'')+'" '
         +'style="padding:9px 12px;border-bottom:1px solid #f1f5f9;cursor:pointer;">'
         +'<div style="display:flex;align-items:center;gap:8px">'
@@ -4799,7 +4788,7 @@ function openJackMap(area){
               +'<span style="color:'+sc+';font-weight:600">'+(p.status||'')+'</span> '
               +'<span style="color:#94a3b8">FiX '+(p.fix_no||'')+'</span>'
               +(hasAddr?'<span style="color:#10b981;margin-left:4px;font-size:9px">住所あり</span>':'<span style="color:#f59e0b;margin-left:4px;font-size:9px">住所未登録</span>')
-              +(pks.length?'<span style="color:#6366f1;margin-left:4px;font-size:9px">🅿️'+pks.length+'件</span>':'')
+              +parkBadge
             +'</div>'
             +(hasAddr?'<div style="font-size:9px;color:#64748b;margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+addr+'</div>':'')
           +'</div>'
