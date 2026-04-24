@@ -2032,8 +2032,9 @@ function geStopDrag(){
     geDragBar.bar.style.opacity='';
     geDragBar.bar.style.boxShadow='';
     geDragBar=null;
-    // 基礎を動かした場合は後工程追随
-    geApplyKisoAnchor(dragIdx);
+    // 基礎を動かした場合のみ後工程追随
+    var dragName=(geSegs[dragIdx]&&(geSegs[dragIdx].name||geSegs[dragIdx].label))||'';
+    if(dragName==='基礎')geApplyKisoAnchor(dragIdx);
   }
   document.removeEventListener('pointermove',geOnDrag);
   document.removeEventListener('pointerup',geStopDrag);
@@ -2058,19 +2059,18 @@ function geStopResize(){
   geResBar=null;
   document.removeEventListener('pointermove',geOnResize);
   document.removeEventListener('pointerup',geStopResize);
-  // 基礎をリサイズした場合も後工程追随
+  // 基礎をリサイズした場合のみ後工程追随
   if(resIdx>=0){
-    // end_dateを再計算してからアンカー適用
-    var rs=geSegs[resIdx];
-    if(rs&&rs.start_date){
-      var rDur=rs.calendar_dur||rs.duration||1;
-      var rD=new Date(rs.start_date.replace(/[/]/g,'-'));
-      var rDays=[]; var rCur=new Date(rD.getTime());
-      rDays.push(rCur);
-      while(rDays.length<rDur){rCur=new Date(rCur.getTime());rCur.setDate(rCur.getDate()+1);if(rCur.getDay()!==0)rDays.push(new Date(rCur.getTime()));}
-      rs.end_date=rDays[rDays.length-1].toISOString().slice(0,10);
+    var resName=(geSegs[resIdx]&&(geSegs[resIdx].name||geSegs[resIdx].label))||'';
+    if(resName==='基礎'){
+      var rs=geSegs[resIdx];
+      if(rs&&rs.start_date){
+        rs.end_date=endOfWorkdays(rs.start_date, rs.calendar_dur||rs.duration||28);
+        rs.calendar_dur=calendarDur(rs.start_date,rs.end_date);
+      }
+      geApplyKisoAnchor(resIdx);
     }
-    geApplyKisoAnchor(resIdx);
+    // 基礎以外は追随しない
   }
   geRenderBars();
 }
@@ -3328,19 +3328,18 @@ function stopEdDrag(){
   if(dragBar){dragBar.bar.style.cursor='grab';dragBar=null;}
   document.removeEventListener('pointermove',onEdDrag);
   document.removeEventListener('pointerup',stopEdDrag);
-  // 基礎を動かしたら後工程追随
+  // 基礎を動かした場合のみ後工程追随
   if(dIdx>=0){
-    // end_dateを再計算
-    var ds3=edSegs[dIdx];
-    if(ds3&&ds3.start_date){
-      var dDur3=ds3.calendar_dur||ds3.duration||1;
-      var dD3=new Date(ds3.start_date.replace(/[/]/g,'-'));
-      while(dD3.getDay()===0)dD3.setDate(dD3.getDate()+1);
-      var dDays3=[dD3]; var dCur3=new Date(dD3.getTime());
-      while(dDays3.length<dDur3){dCur3.setDate(dCur3.getDate()+1);if(dCur3.getDay()!==0)dDays3.push(new Date(dCur3.getTime()));}
-      ds3.end_date=dDays3[dDays3.length-1].toISOString().slice(0,10);
+    var movedName=(edSegs[dIdx]&&(edSegs[dIdx].name||edSegs[dIdx].label))||'';
+    if(movedName==='基礎'){
+      var ds3=edSegs[dIdx];
+      if(ds3&&ds3.start_date){
+        ds3.end_date=endOfWorkdays(ds3.start_date, ds3.dur||ds3.calendar_dur||28);
+        ds3.calendar_dur=calendarDur(ds3.start_date,ds3.end_date);
+      }
+      edApplyKisoAnchor(dIdx);
     }
-    edApplyKisoAnchor(dIdx);
+    // 基礎以外は追随しない（そのままの位置）
   }
   renderEditorCanvas();
 }
@@ -3366,18 +3365,18 @@ function stopEdResize(){
   resBar=null;
   document.removeEventListener('pointermove',onEdResize);
   document.removeEventListener('pointerup',stopEdResize);
-  // 基礎をリサイズしたら後工程追随
+  // 基礎をリサイズした場合のみ後工程追随
   if(rIdx>=0){
-    var rs2=edSegs[rIdx];
-    if(rs2&&rs2.start_date){
-      var rDur2=rs2.calendar_dur||rs2.duration||1;
-      var rD2=new Date(rs2.start_date.replace(/[/]/g,'-'));
-      while(rD2.getDay()===0)rD2.setDate(rD2.getDate()+1);
-      var rDays2=[rD2]; var rCur2=new Date(rD2.getTime());
-      while(rDays2.length<rDur2){rCur2.setDate(rCur2.getDate()+1);if(rCur2.getDay()!==0)rDays2.push(new Date(rCur2.getTime()));}
-      rs2.end_date=rDays2[rDays2.length-1].toISOString().slice(0,10);
+    var resName=(edSegs[rIdx]&&(edSegs[rIdx].name||edSegs[rIdx].label))||'';
+    if(resName==='基礎'){
+      var rs2=edSegs[rIdx];
+      if(rs2&&rs2.start_date){
+        rs2.end_date=endOfWorkdays(rs2.start_date, rs2.calendar_dur||rs2.duration||28);
+        rs2.calendar_dur=calendarDur(rs2.start_date,rs2.end_date);
+      }
+      edApplyKisoAnchor(rIdx);
     }
-    edApplyKisoAnchor(rIdx);
+    // 基礎以外は追随しない
   }
   renderEditorCanvas();
 }
@@ -3432,19 +3431,33 @@ function renderEditorSelector(){openGanttEditorMenu();}
 
 function openGanttEditor(fixNo,enc){
   var name=decodeURIComponent(enc);
-  var p=getAllProps().find(function(x){return x.fix_no===fixNo&&x.name===name;}); if(!p)return;
+  var p=getAllProps().find(function(x){return String(x.fix_no)===String(fixNo)&&x.name===name;}); if(!p)return;
   edProp=p;
 
-  // 物件詳細と同じgetActiveSegs
-  var srcSegs=getActiveSegs(p)||[];
-  if(!srcSegs.length)srcSegs=computeMasterSegs(p.confirm_done)||[];
+  // ★ 古いキャッシュを使わず、常にマスター工程から新鮮な工程表を生成
+  // customGantt・propMaster・prop_overridesの当該物件分は無視して生成
+  var cd=normDate(p.confirm_done||'')||p.confirm_done||'';
+  var srcSegs=[];
+  if(cd&&cd.match&&cd.match(/\d{4}/)){
+    // myMasters[0]（共通デフォルトマスター）を直接使用
+    var masterSteps=(myMasters.length>0&&myMasters[0].steps&&myMasters[0].steps.length)
+      ?myMasters[0].steps:null;
+    srcSegs=computeMasterSegs(cd,masterSteps,p.hand_kumi)||[];
+  }
+  // confirm_doneなし → カスタム工程またはGASデータを使用
+  if(!srcSegs.length){
+    var ck2=custKey(p);
+    if(customGantt[ck2]&&customGantt[ck2].length)srcSegs=customGantt[ck2];
+    else if(p.master_segs&&p.master_segs.length)srcSegs=p.master_segs;
+    else if(p.segments&&p.segments.length)srcSegs=p.segments;
+  }
 
-  // start_date / calendar_dur ベースでコピー
+  // edSegsにコピー（child_offset不要・layerは0統一）
   edSegs=srcSegs.map(function(s){
     var sd=(s.start_date||s.date||'').replace(/\//g,'-');
     var ed=(s.end_date||'').replace(/\//g,'-');
     var calDur=s.calendar_dur||(function(){
-      if(ed&&sd){return Math.round((new Date(ed)-new Date(sd))/86400000)+1;}
+      if(ed&&sd)return Math.round((new Date(ed)-new Date(sd))/86400000)+1;
       return s.duration||s.dur||1;
     })();
     var dur=s.dur||s.duration||calDur;
@@ -3453,21 +3466,19 @@ function openGanttEditor(fixNo,enc){
       start_date:sd, date:sd, end_date:ed,
       calendar_dur:calDur, duration:dur, dur:dur,
       color:s.color||EC[s.label||s.name||'']||'#64748b',
-      layer:s.layer||0,
-      textColor:s.textColor||s.text_color||'auto',
-      child_offset:s.child_offset  // 子工程のオフセットを引き継ぐ
+      layer:0,  // 全て通常工程
+      textColor:'auto'
     };
   });
 
   var sn=p.name.replace(/^(Jack|Walter)\s*/i,'');
   var subEl=document.getElementById('gedSubTitle');
-  if(subEl)subEl.textContent=sn+(p.delivery_date?' ／ 引渡:'+p.delivery_date:'');
+  if(subEl)subEl.textContent=sn+(p.delivery_date?' ／ 引渡:'+normDate(p.delivery_date):'');
 
   document.getElementById('gedEmpty').style.display='none';
   var gg=document.getElementById('gedGantt');
   gg.style.cssText='display:flex;flex:1;flex-direction:column;overflow:hidden;';
 
-  // 開始日フォームを今日に初期化
   var dateInput=document.getElementById('newBarDate');
   if(dateInput)dateInput.value=TODAY;
 
@@ -3733,22 +3744,25 @@ function buildMasterEditorDates(){
 // Compute master gantt: sequential workday scheduling with step offsets
 // offset = manual day offset applied to this step's start (positive = later)
 function computeMasterEditorSegs(steps){
-  // Find a good baseline: 14 days from masterEdDates start
   var baseDateStr=masterEdDates[15]||masterEdDates[1];
-  var prevEndStr=baseDateStr;
   var segs=[];
 
   for(var ti=0;ti<steps.length;ti++){
     var step=steps[ti];
     var dur=step.dur||step.days||1;
+    // offset は baseDateStr からのカレンダー日数（各バー独立・他に影響しない）
     var offset=step.offset||0;
-    // Apply offset by shifting prevEnd
-    var startFrom=prevEndStr;
+    var startFrom=baseDateStr;
     if(offset!==0){
-      var sf=new Date(prevEndStr);
+      var sf=new Date(baseDateStr.replace(/[/]/g,'-'));
       sf.setDate(sf.getDate()+offset);
       startFrom=sf.toISOString().slice(0,10);
     }
+    // 日曜スキップ
+    var sfDt=new Date(startFrom.replace(/[/]/g,'-'));
+    while(sfDt.getDay()===0)sfDt.setDate(sfDt.getDate()+1);
+    startFrom=sfDt.toISOString().slice(0,10);
+
     var days=workdaysFrom(startFrom,dur);
     if(!days.length)continue;
     var sd=days[0].toISOString().slice(0,10);
@@ -3758,15 +3772,14 @@ function computeMasterEditorSegs(steps){
     if(col<0){for(var fi2=1;fi2<masterEdDates.length;fi2++){if(masterEdDates[fi2]>=sd){col=fi2;break;}}}
     if(col<0)col=1;
     segs.push({
-      name:step.name,label:step.name,
-      dur:dur,calendar_dur:calDur,
+      name:step.name, label:step.name,
+      dur:dur, calendar_dur:calDur,
       color:step.color||EC[step.name]||'#64748b',
-      layer:step.layer||0,
-      col:col,start_date:sd,end_date:ed,
+      layer:0, col:col,
+      start_date:sd, end_date:ed,
       stepIdx:ti, offset:offset
     });
-    // Only non-child steps advance the cursor
-    if((step.layer||0)===0) prevEndStr=ed;
+    // ★連鎖しない：prevEndStr を更新しない
   }
   masterGanttSegs=segs;
   return segs;
