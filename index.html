@@ -672,7 +672,7 @@ var propMaster  = loadLS('jack_prop_master', {});
 function isFav(p){return myFavProps.some(function(f){return f.fix_no===p.fix_no&&f.name===p.name;});}
 function addFav(p){if(!isFav(p)){myFavProps.push({fix_no:p.fix_no,name:p.name,area:p.area});saveLS('jack_myfavs',myFavProps);}}
 function removeFav(p){myFavProps=myFavProps.filter(function(f){return!(f.fix_no===p.fix_no&&f.name===p.name);});saveLS('jack_myfavs',myFavProps);}
-function custKey(p){return p.fix_no+'__'+p.name;}
+function custKey(p){return String(p.fix_no||'')+'__'+(p.name||'');}
 
 // ===== MASTER SCHEDULE =====
 // 日曜スキップで n 稼働日を返す（startStr の翌日から）
@@ -876,35 +876,30 @@ function getActiveSegs(p) {
   if (customGantt[ck]) return customGantt[ck];
 
   // confirm_doneを正規化
-  var cd=normDate(p.confirm_done)||p.confirm_done||'';
-  var hasCd=!!(cd&&String(cd).match(/\d{4}/));
+  var cd=normDate(p.confirm_done||'')||p.confirm_done||'';
+  if(!cd)cd=normDate(p.confirm_done||'')||'';
+  var hasCd=!!(cd&&cd.match&&cd.match(/\d{4}/));
 
-  // ② 手動紐付けマスター
+  // ② 手動紐付けマスター（ローカル優先）
   var pm=loadLS('jack_prop_master',{});
-  var masterName = pm[ck] || propMaster[ck];
-  if (masterName && hasCd) {
-    var tmpl = myMasters.find(function(m){return m.name===masterName;});
-    if (tmpl && tmpl.steps) return computeMasterSegs(cd, tmpl.steps, p.hand_kumi);
+  var masterName=pm[ck]||propMaster[ck]||'';
+  if(masterName&&hasCd){
+    var mt=myMasters.find(function(m){return m.name===masterName;});
+    if(mt&&mt.steps&&mt.steps.length)return computeMasterSegs(cd,mt.steps,p.hand_kumi);
   }
 
-  // ③ confirm_doneがある場合: myMasters[0]（共通デフォルトマスター）を自動適用
-  if(hasCd){
-    if(myMasters.length>0 && myMasters[0].steps){
-      return computeMasterSegs(cd, myMasters[0].steps, p.hand_kumi);
-    }
-    // マスター未登録 → DEFAULT_TMPLで生成
-    return computeMasterSegs(cd, null, p.hand_kumi);
+  // ③ confirm_doneがあればmyMasters[0]を自動適用
+  if(hasCd&&myMasters.length>0&&myMasters[0].steps&&myMasters[0].steps.length){
+    return computeMasterSegs(cd,myMasters[0].steps,p.hand_kumi);
   }
 
-  // ④ confirm_doneなし → GAS取得データを使用
-  if (p.master_segs && p.master_segs.length) {
-    var hk=p.hand_kumi;
-    var isHK=hk&&(String(hk).indexOf('〇')>=0||String(hk).indexOf('手組')>=0||String(hk).trim()==='○');
-    if(isHK && cd) return computeMasterSegs(cd, null, hk);
-    return p.master_segs;
-  }
-  return p.segments || [];
-  }catch(e){console.warn('getActiveSegs error:',e,p);return (p&&p.segments)||[];}
+  // ④ confirm_doneのみでデフォルト生成
+  if(hasCd)return computeMasterSegs(cd,null,p.hand_kumi);
+
+  // ⑤ GAS取得データにフォールバック
+  if(p.master_segs&&p.master_segs.length)return p.master_segs;
+  return p.segments||[];
+  }catch(e){console.warn('getActiveSegs err:',e);return (p&&p.segments)||[];}
 }
 
 // ===== DATA HELPERS =====
@@ -1555,8 +1550,14 @@ function renderBody(){
         var nd=document.createElement('div');
         nd.style.cssText='font-size:10px;font-weight:700;color:var(--g800);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:'+(c.w-6)+'px;font-family:var(--font)';
         nd.textContent=val;
+        // 駐車場バッジ
+        var pOv=loadLS('jack_prop_overrides',{});var pCk=custKey(p);
+        var pks=(pOv[pCk]&&pOv[pCk].parkings&&pOv[pCk].parkings.length)?pOv[pCk].parkings:(p.parkings||[]);
+        var todayStr2=TODAY;
+        var activePks2=pks.filter(function(pk){return !pk.contract_end||pk.contract_end>=todayStr2;});
+        var parkBadge2=activePks2.length?'<span style="font-size:8px;background:#6366f1;color:white;padding:0 3px;border-radius:3px;margin-left:2px">🅿️</span>':'';
         var md=document.createElement('div');md.style.cssText='display:flex;align-items:center;gap:3px;margin-top:1px';
-        md.innerHTML=makeBadge(p.status)+(isUrgent?'<span class="urg-pill">⚡'+days+'日</span>':'')+(fav?'<span style="font-size:9px">⭐</span>':'');
+        md.innerHTML=makeBadge(p.status)+(isUrgent?'<span class="urg-pill">⚡'+days+'日</span>':'')+(fav?'<span style="font-size:9px">⭐</span>':'')+parkBadge2;
         cell.appendChild(nd);cell.appendChild(md);
       } else { cell.textContent=val;if(!val)cell.style.color='var(--g300)'; }
       fr.appendChild(cell);
@@ -4914,8 +4915,17 @@ function showMapTab(type){
     var cards=pks.map(function(pk,i){
       var pkA=pk.address||'';
       var hasAddr=!!pkA;
+      var todayStr3=TODAY;
+      var isExpired=pk.contract_end&&pk.contract_end<todayStr3;
+      var periodStr='';
+      if(pk.contract_start||pk.contract_end){
+        var cs=pk.contract_start?pk.contract_start.replace(/-/g,'/'):'';
+        var ce=pk.contract_end?pk.contract_end.replace(/-/g,'/'):'';
+        periodStr='<div style="font-size:8px;color:'+(isExpired?'#ef4444':'#6366f1')+';margin-top:2px;font-weight:700;">'
+          +(cs?cs:'')+(cs&&ce?'～':'')+(ce?ce:'')+(isExpired?' ⚠️期限切れ':'')+'</div>';
+      }
       return '<div onclick="selectPark('+i+')" id="pk-card-'+i+'" style="'
-        +'background:white;border:2px solid #e2e8f0;border-radius:10px;padding:10px 12px;'
+        +'background:'+(isExpired?'#fef2f2':'white')+';border:2px solid '+(isExpired?'#fca5a5':'#e2e8f0')+';border-radius:10px;padding:10px 12px;'
         +'cursor:'+(hasAddr?'pointer':'default')+';flex-shrink:0;min-width:140px;max-width:180px;'
         +'box-shadow:0 2px 8px rgba(0,0,0,.08);transition:border-color .15s;">'
         +'<div style="font-size:11px;font-weight:800;color:#1e293b;margin-bottom:4px;">🅿️ '+(pk.name||'駐車場'+(i+1))+'</div>'
@@ -4923,6 +4933,7 @@ function showMapTab(type){
           +'<div style="font-size:9px;color:#0369a1;font-weight:700;">🚘 車番</div>'
           +'<div style="font-size:16px;font-weight:900;color:#0c4a6e;letter-spacing:1px;">'+pk.carno+'</div>'
           +'</div>':'<div style="font-size:10px;color:#94a3b8;">車番未登録</div>')
+        +periodStr
         +(hasAddr?'<div style="font-size:9px;color:#64748b;margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">📍'+pkA+'</div>'
           +'<div style="font-size:9px;color:#10b981;margin-top:2px;font-weight:700;">タップで地図表示 →</div>'
           :'<div style="font-size:9px;color:#f59e0b;margin-top:2px;">住所未登録</div>')
