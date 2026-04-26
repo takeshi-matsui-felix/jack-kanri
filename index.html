@@ -2901,14 +2901,15 @@ function savePropEdit(){
     land_payment:  getDateVal('pe-land_payment'),
     confirm_submit:getDateVal('pe-confirm_submit'),
     confirm_done:  getDateVal('pe-confirm_done'),
-    delivery_date: getDateVal('pe-delivery_date')
+    delivery_date: getDateVal('pe-delivery_date'),
+    address:       getStrVal('pe-address') || null   // ★ 住所もDB保存（全ユーザー共有）
   };
   // nullを除去（未入力は上書きしない）
   Object.keys(dbUpdates).forEach(function(k){if(dbUpdates[k]===null)delete dbUpdates[k];});
 
-  // address・parkings・inspection_date・complete_dateはLocalStorageに保存（DBスキーマ外）
+  // parkings・inspection_date・complete_dateはLocalStorageに保存（DBスキーマ外）
   var localExtra={
-    address:       getStrVal('pe-address'),
+    address:       getStrVal('pe-address'),   // ローカルにも保持（オフライン用）
     inspection_date:getDateVal('pe-inspection_date'),
     complete_date: getDateVal('pe-complete_date'),
     parkings:      JSON.parse(JSON.stringify(window._editParkings||[]))
@@ -4689,21 +4690,32 @@ function _saveMasterLinkToSupabase(p,masterName,cb){
 // ログイン時: DBのcustom_gantt/prop_masterをローカルに展開（全ユーザー向け）
 function _loadSharedGanttFromDB(){
   if(!DB_PROPS||!DB_PROPS.length)return;
-  var cgChanged=false, pmChanged=false;
+  var cgChanged=false, pmChanged=false, ovChanged=false;
+  var ov=loadLS('jack_prop_overrides',{});
   DB_PROPS.forEach(function(dbp){
-    var ck=dbp.fix_no+'__'+dbp.name;
+    var ck=String(dbp.fix_no||'')+'__'+(dbp.name||'');
+    // custom_gantt
     if(dbp.custom_gantt){
       try{
         var segs=typeof dbp.custom_gantt==='string'?JSON.parse(dbp.custom_gantt):dbp.custom_gantt;
         if(segs&&segs.length){customGantt[ck]=segs;cgChanged=true;}
       }catch(e){}
     }
+    // prop_master
     if(dbp.prop_master){
       propMaster[ck]=dbp.prop_master;pmChanged=true;
+    }
+    // address（DBに住所があればprop_overridesに展開）
+    if(dbp.address){
+      if(!ov[ck])ov[ck]={};
+      if(!ov[ck].address){  // ローカルに既に設定がある場合はローカル優先
+        ov[ck].address=dbp.address;ovChanged=true;
+      }
     }
   });
   if(cgChanged)saveLS('jack_custom_gantt',customGantt);
   if(pmChanged)saveLS('jack_prop_master',propMaster);
+  if(ovChanged)saveLS('jack_prop_overrides',ov);
 }
 
 async function onAuthSuccess(){
@@ -5579,7 +5591,8 @@ async function loadAdmSec(sec){
       +'</div>';
   } else if(sec==='dbsetup'){
     var rlsDisableSql='-- ① まず緊急解除（ログインできない場合はこれだけ実行）\nALTER TABLE profiles DISABLE ROW LEVEL SECURITY;\nALTER TABLE properties DISABLE ROW LEVEL SECURITY;';
-    var rlsFixSql='-- ② ポリシーリセット後に正しく設定し直す場合\n-- 既存ポリシーを全削除\nDO $$ DECLARE r RECORD;\nBEGIN\n  FOR r IN SELECT policyname FROM pg_policies WHERE tablename=\'profiles\'\n  LOOP\n    EXECUTE \'DROP POLICY IF EXISTS "\' || r.policyname || \'" ON profiles\';\n  END LOOP;\n  FOR r IN SELECT policyname FROM pg_policies WHERE tablename=\'properties\'\n  LOOP\n    EXECUTE \'DROP POLICY IF EXISTS "\' || r.policyname || \'" ON properties\';\n  END LOOP;\nEND $$;\n\n-- profiles: 全認証済みユーザーが読み書き可能\nALTER TABLE profiles ENABLE ROW LEVEL SECURITY;\nCREATE POLICY "profiles_all" ON profiles\n  FOR ALL TO authenticated USING (true) WITH CHECK (true);\n\n-- properties: 全認証済みユーザーが読み書き可能\nALTER TABLE properties ENABLE ROW LEVEL SECURITY;\nCREATE POLICY "properties_all" ON properties\n  FOR ALL TO authenticated USING (true) WITH CHECK (true);\n\n-- カラム追加\nALTER TABLE properties ADD COLUMN IF NOT EXISTS custom_gantt jsonb;\nALTER TABLE properties ADD COLUMN IF NOT EXISTS prop_master text;';
+    var rlsFixSql='-- ② ポリシーリセット後に正しく設定し直す場合\n-- 既存ポリシーを全削除\nDO $$ DECLARE r RECORD;\nBEGIN\n  FOR r IN SELECT policyname FROM pg_policies WHERE tablename=\'profiles\'\n  LOOP\n    EXECUTE \'DROP POLICY IF EXISTS "\' || r.policyname || \'" ON profiles\';\n  END LOOP;\n  FOR r IN SELECT policyname FROM pg_policies WHERE tablename=\'properties\'\n  LOOP\n    EXECUTE \'DROP POLICY IF EXISTS "\' || r.policyname || \'" ON properties\';\n  END LOOP;\nEND $$;\n\n-- profiles: 全認証済みユーザーが読み書き可能\nALTER TABLE profiles ENABLE ROW LEVEL SECURITY;\nCREATE POLICY "profiles_all" ON profiles\n  FOR ALL TO authenticated USING (true) WITH CHECK (true);\n\n-- properties: 全認証済みユーザーが読み書き可能\nALTER TABLE properties ENABLE ROW LEVEL SECURITY;\nCREATE POLICY "properties_all" ON properties\n  FOR ALL TO authenticated USING (true) WITH CHECK (true);\n\n-- カラム追加\nALTER TABLE properties ADD COLUMN IF NOT EXISTS custom_gantt jsonb;\nALTER TABLE properties ADD COLUMN IF NOT EXISTS prop_master text;
+ALTER TABLE properties ADD COLUMN IF NOT EXISTS address text;';
     right.innerHTML='<div style="padding:14px">'
       +'<div style="font-size:16px;font-weight:800;color:#ef4444;margin-bottom:4px">🚨 緊急：ログインできない場合</div>'
       +'<div style="background:#fef2f2;border:2px solid #ef4444;border-radius:8px;padding:12px;margin-bottom:14px">'
