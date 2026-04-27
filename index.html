@@ -4455,30 +4455,41 @@ function scheduleSync(){
 // ===== SETTINGS =====
 function openSettings(){
   closeMenu();
-  var last=syncData.lastSync?new Date(syncData.lastSync).toLocaleString('ja-JP'):'未同期';
-  document.getElementById('settingsContent').innerHTML=
-    '<div class="dp-sec" style="margin:10px"><div class="dp-sec-head">🔄 同期設定</div>'
+  var last=syncData&&syncData.lastSync?new Date(syncData.lastSync).toLocaleString('ja-JP'):'未同期';
+  var isAdmin=currentProfile&&currentProfile.role==='admin';
+  var html='';
+  // ── 同期設定
+  html+='<div class="dp-sec" style="margin:10px">'
+    +'<div class="dp-sec-head" style="color:#334155">🔄 同期設定</div>'
     +'<div class="dp-row"><span class="dp-label">最終同期</span><span class="dp-val">'+last+'</span></div>'
-    +'<div class="dp-row"><span class="dp-label">同期URL</span><span class="dp-val">'+(SYNC_URL||'未設定(GAS URL)')+'</span></div>'
-    +'<div style="padding:8px 12px"><button class="btn-primary" style="width:100%" onclick="doSync()">🔄 今すぐ同期</button></div></div>'
-    +'<div class="dp-sec" style="margin:10px"><div class="dp-sec-head">📋 エリアタブ構成</div>'
-    +'<div style="padding:10px 12px;font-size:11px;color:var(--g600);line-height:1.8">'
-    +'東海タブ → 愛知・三重・岐阜・静岡<br>関東タブ → 埼玉・東京・神奈川 他<br>※AREA_TABS配列に追記で拡張可能</div></div>'
-    +'<div class="dp-sec" style="margin:10px"><div class="dp-sec-head">🗑️ キャッシュ・データリセット</div>'
-    +'<div style="padding:10px 12px;font-size:11px;color:var(--g600);line-height:1.8">'
-    +'別のPCや別ブラウザで古い表示のときはこちらをクリックしてください。<br>'
-    +'<span style="color:#dc2626;font-weight:700">※ 工程キャッシュのみクリアが通常の操作です</span></div>'
+    +'<div class="dp-row"><span class="dp-label">同期URL</span><span class="dp-val" style="font-size:9px;word-break:break-all">'+(SYNC_URL||'未設定')+'</span></div>'
+    +'<div style="padding:8px 12px"><button class="btn-primary" style="width:100%" onclick="doSync();closePanel(\'settingsPanel\')">🔄 今すぐ同期</button></div></div>';
+  // ── キャッシュリセット（常に表示）
+  html+='<div class="dp-sec" style="margin:10px;border:2px solid #fcd34d;border-radius:10px">'
+    +'<div class="dp-sec-head" style="background:#fef9c3;color:#92400e;border-radius:8px 8px 0 0">🗑️ キャッシュ・データリセット</div>'
+    +'<div style="padding:10px 12px;font-size:11px;color:#475569;line-height:1.8">'
+    +'別PC・別ブラウザで古い表示が出るときにお使いください。<br>'
+    +'<span style="color:#dc2626;font-weight:700">※ 通常は「工程キャッシュのみ」をご利用ください</span></div>'
     +'<div style="padding:0 12px 12px;display:flex;flex-direction:column;gap:8px">'
-    +'<button onclick="clearGanttCacheOnly()" style="width:100%;padding:11px;background:#fef3c7;color:#92400e;border:1.5px solid #fcd34d;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer">🔄 工程キャッシュのみクリアして再起動（推奨）</button>'
-    +'<button onclick="clearAllCache()" style="width:100%;padding:11px;background:#fee2e2;color:#dc2626;border:1.5px solid #fca5a5;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer">⚠️ すべてリセット（完全初期化・マスター設定も消える）</button>'
-    +'</div></div>'
-    +'<div class="dp-sec" style="margin:10px"><div class="dp-sec-head">❓ マスター工程について</div>'
-    +'<div style="padding:10px 12px;font-size:11px;color:var(--g600);line-height:1.8">'
-    +'✅ このアプリは確認申請完了日から日曜休工ロジックで<br>工程表を自動生成します。<br>'
-    +'スプレッドシートに依存せず、アプリ内で独立して計算しています。<br>'
-    +'GASコードと同じロジック（日曜日のみスキップ）を実装済みです。</div></div>';
+    +'<button onclick="clearGanttCacheOnly()" style="width:100%;padding:13px;background:#fef3c7;color:#92400e;border:2px solid #fcd34d;border-radius:10px;font-size:13px;font-weight:800;cursor:pointer">🔄 工程キャッシュのみクリア（推奨）</button>'
+    +'<button onclick="clearAllCache()" style="width:100%;padding:13px;background:#fee2e2;color:#dc2626;border:2px solid #fca5a5;border-radius:10px;font-size:13px;font-weight:800;cursor:pointer">⚠️ すべてリセット（マスター設定も消える）</button>'
+    +'</div></div>';
+  // ── エリア構成
+  html+='<div class="dp-sec" style="margin:10px">'
+    +'<div class="dp-sec-head" style="color:#334155">📋 エリアタブ構成</div>'
+    +'<div style="padding:10px 12px;font-size:11px;color:#475569;line-height:1.8">'
+    +'東海タブ → 愛知・三重・岐阜・静岡<br>関東タブ → 埼玉・東京・神奈川 他</div></div>';
+  // ── 管理者向けDB設定
+  if(isAdmin){
+    html+='<div class="dp-sec" style="margin:10px">'
+      +'<div class="dp-sec-head" style="color:#334155">🔧 Supabase DB設定</div>'
+      +'<div style="padding:8px 12px"><button onclick="closePanel(\'settingsPanel\');openAdminCP();setTimeout(function(){loadAdmSec(\'dbsetup\');},300)" class="btn-primary" style="width:100%;background:#7c3aed">🔧 DB設定を開く</button></div></div>';
+  }
+  html+='<div style="height:40px"></div>';
+  document.getElementById('settingsContent').innerHTML=html;
   openPanel('settingsPanel');
 }
+window.openSettings=openSettings;
 
 // ===== キャッシュクリア =====
 function clearGanttCacheOnly(){
@@ -4920,23 +4931,51 @@ function openJackMap(area){
     return p.parkings||[];
   }
 
-  function renderList(targetArea){
+  function renderList(targetArea, searchQ){
+    searchQ=(searchQ||'').toLowerCase().trim();
     var areas=areaGroups[targetArea]||[];
-    var props=getAllProps().filter(function(p){return areas.indexOf(p.area||'')>=0;});
+    // 完工除外 + エリア正規化でフィルタ
+    var props=getAllProps().filter(function(p){
+      if(isKankou(p))return false;
+      var area=normalizeArea(p);
+      return areas.indexOf(area)>=0;
+    });
+    // 検索フィルタ
+    if(searchQ){
+      props=props.filter(function(p){
+        var sn=(p.name||'').toLowerCase();
+        var fx=String(p.fix_no||'');
+        return sn.indexOf(searchQ)>=0||fx.indexOf(searchQ)>=0;
+      });
+    }
     if(titleEl)titleEl.textContent=targetArea+'エリア（'+props.length+'件）';
     if(!listEl)return;
 
     // エリアタブを固定ヘッダーに描画
     var fixedTabs=document.getElementById('jackMapAreaTabs');
     if(fixedTabs){
-      fixedTabs.innerHTML=allAreas.map(function(a){
-        var act=a===targetArea;
-        return '<button class="map-area-tab" data-area="'+a+'" style="flex:1;padding:9px 4px;font-size:12px;font-weight:700;cursor:pointer;border:none;border-bottom:3px solid '+(act?'#1a56db':'transparent')+';color:'+(act?'#1a56db':'#94a3b8')+';background:white">'+a+'</button>';
-      }).join('');
+      // 検索バーを含むヘッダー
+      fixedTabs.innerHTML=
+        '<div style="display:flex;border-bottom:2px solid #e2e8f0;background:white">'
+        +allAreas.map(function(a){
+          var act=a===targetArea;
+          return '<button class="map-area-tab" data-area="'+a+'" style="flex:1;padding:9px 4px;font-size:12px;font-weight:700;cursor:pointer;border:none;border-bottom:3px solid '+(act?'#1a56db':'transparent')+';color:'+(act?'#1a56db':'#94a3b8')+';background:white;margin-bottom:-2px">'+a+'</button>';
+        }).join('')
+        +'</div>'
+        +'<div style="padding:6px 10px;background:white;border-bottom:1px solid #e2e8f0">'
+        +'<input id="jackMapSearch" type="text" placeholder="物件名・FiX Noで検索…" value="'+(searchQ||'')+'" '
+        +'style="width:100%;padding:7px 10px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:12px;box-sizing:border-box">'
+        +'</div>';
       fixedTabs.onclick=function(e){
         var aTab=e.target.closest('.map-area-tab');
-        if(aTab){renderList(aTab.getAttribute('data-area'));}
+        if(aTab){renderList(aTab.getAttribute('data-area'),'');}
       };
+      // 検索バーのイベント
+      var searchEl=document.getElementById('jackMapSearch');
+      if(searchEl){
+        searchEl.oninput=function(){renderList(targetArea,this.value);};
+        searchEl.onclick=function(e){e.stopPropagation();};
+      }
     }
 
     var items=props.map(function(p){
@@ -4945,12 +4984,8 @@ function openJackMap(area){
       var hasAddr=!!addr;
       var sc=p.status==='契約済'?'#10b981':p.status==='販売中'?'#3b82f6':'#94a3b8';
       var sn=(p.name||'').replace(/^(Jack|Walter)\s*/i,'');
-      // 期限切れでないアクティブな駐車場のみカウント
       var todayStr=TODAY;
-      var activePks=pks.filter(function(pk){
-        if(!pk.contract_end)return true; // 期限なし→常に表示
-        return pk.contract_end>=todayStr;
-      });
+      var activePks=pks.filter(function(pk){return !pk.contract_end||pk.contract_end>=todayStr;});
       var parkBadge='';
       if(activePks.length){
         var firstEnd=activePks[0].contract_end;
@@ -4972,11 +5007,10 @@ function openJackMap(area){
             +(hasAddr?'<div style="font-size:9px;color:#64748b;margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+addr+'</div>':'')
           +'</div>'
           +'<div style="color:#cbd5e1;font-size:12px">›</div>'
-        +'</div>'
-        +'</div>';
-    }).join('')||'<div style="padding:20px;text-align:center;color:#94a3b8;font-size:12px">物件なし</div>';
+        +'</div></div>';
+    }).join('')||'<div style="padding:20px;text-align:center;color:#94a3b8;font-size:12px">'+(searchQ?'検索結果なし':'物件なし')+'</div>';
 
-    listEl.innerHTML=items||'<div style="padding:20px;text-align:center;color:#94a3b8;font-size:12px">物件なし</div>';
+    listEl.innerHTML=items;
     listEl.onclick=function(e){
       var item=e.target.closest('.map-prop-item');
       if(!item)return;
@@ -5799,7 +5833,8 @@ function admOpenPropForm(p){
     {id:'pa_area',   l:'エリア',          v:'',  half:true},
     {id:'pa_status', l:'販売ステータス',   v:'',  half:true},
     {id:'pa_confirm',l:'確認申請完了日',   v:'',  half:true},
-    {id:'pa_delivery',l:'引渡し日',       v:'',  half:true}
+    {id:'pa_delivery',l:'引渡し日',       v:'',  half:true},
+    {id:'pa_address',l:'現場住所',        v:'',  full:true}
   ];
   form.innerHTML=''
     +'<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">'
@@ -5842,23 +5877,21 @@ window.admDeleteProp=admDeleteProp;
 
 async function admSaveProp(id){
   var g=function(eid){var el=document.getElementById(eid);return el?el.value.trim():null;};
-  // DBスキーマに存在するカラムのみ（address・inspection_date・complete_date・parkingsはスキーマ外）
   var prop={
     fix_no:g('pa_fix'), seq_no:g('pa_seq'), name:g('pa_name'), area:g('pa_area'),
     hand_kumi:g('pa_handk'), status:g('pa_status'),
     land_contract:g('pa_lc')||null, land_payment:g('pa_lp')||null,
     confirm_submit:g('pa_cs')||null, confirm_done:g('pa_confirm')||null,
     delivery_date:g('pa_delivery')||null, delivery_month:g('pa_delmon')||null,
+    address:g('pa_address')||null,  // ★住所もDB保存
     updated_at:new Date().toISOString()
   };
-  // null・空文字除去
   Object.keys(prop).forEach(function(k){if(prop[k]===null||prop[k]==='')delete prop[k];});
   if(!prop.name){showToast('物件名は必須です','error');return;}
   var sb=getSB();
   var result=id?await sb.from('properties').update(prop).eq('id',id):await sb.from('properties').insert(prop);
   if(result.error){showToast('保存エラー: '+result.error.message,'error');return;}
   showToast('✅ 保存しました','success');
-  // DB_PROPSキャッシュ更新
   if(DB_PROPS&&id){var idx=DB_PROPS.findIndex(function(p){return String(p.id)===String(id);});if(idx>=0)Object.assign(DB_PROPS[idx],prop);}
   admClosePropForm();
   loadAdmSec('props');
