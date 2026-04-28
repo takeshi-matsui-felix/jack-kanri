@@ -4951,52 +4951,59 @@ function openJackMap(area){
     return p.parkings||[];
   }
 
-  function renderList(targetArea, searchQ){
+  var _currentMapArea=area;
+  var _currentSearch='';
+
+  function renderHeader(targetArea){
+    _currentMapArea=targetArea;
+    var fixedTabs=document.getElementById('jackMapAreaTabs');
+    if(!fixedTabs)return;
+    fixedTabs.innerHTML=
+      '<div style="display:flex;border-bottom:2px solid #e2e8f0;background:white">'
+      +allAreas.map(function(a){
+        var act=a===targetArea;
+        return '<button class="map-area-tab" data-area="'+a+'" style="flex:1;padding:9px 4px;font-size:12px;font-weight:700;cursor:pointer;border:none;border-bottom:3px solid '+(act?'#1a56db':'transparent')+';color:'+(act?'#1a56db':'#94a3b8')+';background:white;margin-bottom:-2px">'+a+'</button>';
+      }).join('')
+      +'</div>'
+      +'<div style="padding:6px 10px;background:white;border-bottom:1px solid #e2e8f0">'
+      +'<input id="jackMapSearch" type="text" placeholder="物件名・FiX Noで検索…" '
+      +'style="width:100%;padding:7px 10px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:12px;box-sizing:border-box">'
+      +'</div>';
+    // タブクリック
+    fixedTabs.querySelector('div').addEventListener('click',function(e){
+      var aTab=e.target.closest('.map-area-tab');
+      if(aTab){
+        _currentSearch='';
+        renderHeader(aTab.getAttribute('data-area'));
+        renderItems(_currentMapArea,'');
+      }
+    });
+    // 検索バー：入力時はリストのみ更新（フォーカスを失わない）
+    var searchEl=document.getElementById('jackMapSearch');
+    if(searchEl){
+      searchEl.value=_currentSearch;
+      searchEl.addEventListener('input',function(){
+        _currentSearch=this.value;
+        renderItems(_currentMapArea,_currentSearch);
+      });
+      searchEl.addEventListener('click',function(e){e.stopPropagation();});
+    }
+  }
+
+  function renderItems(targetArea, searchQ){
     searchQ=(searchQ||'').toLowerCase().trim();
     var areas=areaGroups[targetArea]||[];
-    // 完工除外 + エリア正規化でフィルタ
     var props=getAllProps().filter(function(p){
       if(isKankou(p))return false;
-      var area=normalizeArea(p);
-      return areas.indexOf(area)>=0;
+      return areas.indexOf(normalizeArea(p))>=0;
     });
-    // 検索フィルタ
     if(searchQ){
       props=props.filter(function(p){
-        var sn=(p.name||'').toLowerCase();
-        var fx=String(p.fix_no||'');
-        return sn.indexOf(searchQ)>=0||fx.indexOf(searchQ)>=0;
+        return (p.name||'').toLowerCase().indexOf(searchQ)>=0||String(p.fix_no||'').indexOf(searchQ)>=0;
       });
     }
     if(titleEl)titleEl.textContent=targetArea+'エリア（'+props.length+'件）';
     if(!listEl)return;
-
-    // エリアタブを固定ヘッダーに描画
-    var fixedTabs=document.getElementById('jackMapAreaTabs');
-    if(fixedTabs){
-      // 検索バーを含むヘッダー
-      fixedTabs.innerHTML=
-        '<div style="display:flex;border-bottom:2px solid #e2e8f0;background:white">'
-        +allAreas.map(function(a){
-          var act=a===targetArea;
-          return '<button class="map-area-tab" data-area="'+a+'" style="flex:1;padding:9px 4px;font-size:12px;font-weight:700;cursor:pointer;border:none;border-bottom:3px solid '+(act?'#1a56db':'transparent')+';color:'+(act?'#1a56db':'#94a3b8')+';background:white;margin-bottom:-2px">'+a+'</button>';
-        }).join('')
-        +'</div>'
-        +'<div style="padding:6px 10px;background:white;border-bottom:1px solid #e2e8f0">'
-        +'<input id="jackMapSearch" type="text" placeholder="物件名・FiX Noで検索…" value="'+(searchQ||'')+'" '
-        +'style="width:100%;padding:7px 10px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:12px;box-sizing:border-box">'
-        +'</div>';
-      fixedTabs.onclick=function(e){
-        var aTab=e.target.closest('.map-area-tab');
-        if(aTab){renderList(aTab.getAttribute('data-area'),'');}
-      };
-      // 検索バーのイベント
-      var searchEl=document.getElementById('jackMapSearch');
-      if(searchEl){
-        searchEl.oninput=function(){renderList(targetArea,this.value);};
-        searchEl.onclick=function(e){e.stopPropagation();};
-      }
-    }
 
     var items=props.map(function(p){
       var addr=getAddr(p);
@@ -5006,31 +5013,24 @@ function openJackMap(area){
       var sn=(p.name||'').replace(/^(Jack|Walter)\s*/i,'');
       var todayStr=TODAY;
       var activePks=pks.filter(function(pk){return !pk.contract_end||pk.contract_end>=todayStr;});
-      var parkBadge='';
-      if(activePks.length){
-        var firstEnd=activePks[0].contract_end;
-        var endDisp=firstEnd?firstEnd.replace(/-/g,'/'):'';
-        parkBadge='<span style="color:#6366f1;margin-left:4px;font-size:9px">🅿️'+activePks.length+'件'+(endDisp?' ～'+endDisp:'')+'</span>';
-      }
-      return '<div class="map-prop-item" data-fixno="'+p.fix_no+'" data-name="'+encodeURIComponent(p.name||'')+'" '
-        +'style="padding:9px 12px;border-bottom:1px solid #f1f5f9;cursor:pointer;">'
+      var parkBadge=activePks.length?'<span style="color:#6366f1;margin-left:4px;font-size:9px">🅿️'+activePks.length+'件'+(activePks[0].contract_end?' ～'+activePks[0].contract_end.replace(/-/g,'/'):'')+'</span>':'';
+      return '<div class="map-prop-item" data-fixno="'+p.fix_no+'" data-name="'+encodeURIComponent(p.name||'')+'" style="padding:9px 12px;border-bottom:1px solid #f1f5f9;cursor:pointer;">'
         +'<div style="display:flex;align-items:center;gap:8px">'
           +'<div style="width:26px;height:26px;border-radius:50%;background:'+(hasAddr?'#eff6ff':'#f8fafc')+';display:flex;align-items:center;justify-content:center;font-size:13px;flex-shrink:0">'+(hasAddr?'📍':'🔲')+'</div>'
           +'<div style="flex:1;min-width:0">'
             +'<div style="font-size:12px;font-weight:700;color:#1e293b;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+sn+'</div>'
-            +'<div style="font-size:10px;margin-top:1px">'
-              +'<span style="color:'+sc+';font-weight:600">'+(p.status||'')+'</span> '
-              +'<span style="color:#94a3b8">FiX '+(p.fix_no||'')+'</span>'
-              +(hasAddr?'<span style="color:#10b981;margin-left:4px;font-size:9px">住所あり</span>':'<span style="color:#f59e0b;margin-left:4px;font-size:9px">住所未登録</span>')
-              +parkBadge
-            +'</div>'
+            +'<div style="font-size:10px;margin-top:1px"><span style="color:'+sc+';font-weight:600">'+(p.status||'')+'</span> <span style="color:#94a3b8">FiX '+(p.fix_no||'')+'</span>'+(hasAddr?'<span style="color:#10b981;margin-left:4px;font-size:9px">住所あり</span>':'<span style="color:#f59e0b;margin-left:4px;font-size:9px">住所未登録</span>')+parkBadge+'</div>'
             +(hasAddr?'<div style="font-size:9px;color:#64748b;margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+addr+'</div>':'')
           +'</div>'
           +'<div style="color:#cbd5e1;font-size:12px">›</div>'
         +'</div></div>';
     }).join('')||'<div style="padding:20px;text-align:center;color:#94a3b8;font-size:12px">'+(searchQ?'検索結果なし':'物件なし')+'</div>';
-
     listEl.innerHTML=items;
+  }
+
+  function renderList(targetArea, searchQ){
+    renderHeader(targetArea);
+    renderItems(targetArea, searchQ||'');
     listEl.onclick=function(e){
       var item=e.target.closest('.map-prop-item');
       if(!item)return;
@@ -5291,9 +5291,17 @@ window.openMyCalendar=openMyCalendar;
 // 物件名クリックで工種ポップアップ
 function showSegPopup(favEnc){
   var favName=decodeURIComponent(favEnc);
-  var fav=myFavProps.find(function(f){return f.name===favName;})||{name:favName};
+  // myFavPropsのデータだけでなく、DB_PROPSから完全なデータを取得する
+  var fav=null;
+  // まずgetAllPropsから検索（confirm_done等DBデータを持っている）
+  if(typeof getAllProps==='function'){
+    fav=getAllProps().find(function(p){return p.name===favName;});
+  }
+  // なければmyFavPropsから
+  if(!fav)fav=myFavProps.find(function(f){return f.name===favName;})||{name:favName};
+
   var segs=(typeof getActiveSegs==='function')?getActiveSegs(fav):[];
-  if(!segs)segs=fav.segments||[];
+  if(!segs||!segs.length)segs=fav.segments||fav.master_segs||[];
   var validSegs=segs.filter(function(s){return !s.layer&&(s.start_date||s.date)&&s.end_date;});
 
   var ov=document.getElementById('_calSegOv');
