@@ -5587,6 +5587,7 @@ function renderAdminCPShell(){
       +admMenuItem('props','🏠','物件管理')
       +'<div style="height:1px;background:rgba(255,255,255,.08);margin:3px 10px"></div>'
       +admMenuItem('import','📥','データ取込')
+      +admMenuItem('vendors','👷','全業者選定一覧')
       +admMenuItem('dbsetup','🔧','DB設定')
     +'</div>'
     +'<div id="admRight" style="flex:1;overflow-y:auto;background:#f8fafc"></div>'
@@ -5679,6 +5680,24 @@ async function loadAdmSec(sec){
       +'</div>'
       +'<div id="importStatus" style="margin-top:12px;display:none"></div>'
       +'</div>';
+  } else if(sec==='vendors'){
+    right.innerHTML='<div style="padding:14px">'
+      +'<div style="font-size:16px;font-weight:800;color:#1e293b;margin-bottom:4px">👷 全業者選定一覧</div>'
+      +'<div style="font-size:11px;color:#64748b;margin-bottom:16px">「全業者選定一覧.xlsx」をアップロード → 東海・関東の業者一覧を読み取り専用で表示</div>'
+      // アップロードエリア
+      +'<div style="background:white;border-radius:10px;padding:20px;border:2px dashed #cbd5e1;text-align:center;margin-bottom:14px">'
+        +'<div style="font-size:36px;margin-bottom:8px">👷</div>'
+        +'<div style="font-size:13px;font-weight:700;color:#1e293b;margin-bottom:12px">全業者選定一覧.xlsx</div>'
+        +'<label style="background:#059669;color:white;padding:9px 24px;border-radius:9px;font-size:13px;font-weight:700;cursor:pointer;display:inline-block">'
+          +'ファイルを選択してアップロード'
+          +'<input type="file" id="vendorXlsxInput" accept=".xlsx,.xls" onchange="admHandleVendorXlsx(this)" style="display:none">'
+        +'</label>'
+      +'</div>'
+      // 結果表示エリア
+      +'<div id="vendorResult"></div>'
+    +'</div>';
+    // 既存データがあれば再表示
+    if(window._vendorData){admRenderVendorTables(window._vendorData);}
   } else if(sec==='dbsetup'){
     var rlsDisableSql='-- ① まず緊急解除（ログインできない場合はこれだけ実行）\nALTER TABLE profiles DISABLE ROW LEVEL SECURITY;\nALTER TABLE properties DISABLE ROW LEVEL SECURITY;';
     var rlsFixSql='-- ② ポリシーリセット後に正しく設定し直す場合\n-- 既存ポリシーを全削除\nDO $$ DECLARE r RECORD;\nBEGIN\n  FOR r IN SELECT policyname FROM pg_policies WHERE tablename=\'profiles\'\n  LOOP\n    EXECUTE \'DROP POLICY IF EXISTS "\' || r.policyname || \'" ON profiles\';\n  END LOOP;\n  FOR r IN SELECT policyname FROM pg_policies WHERE tablename=\'properties\'\n  LOOP\n    EXECUTE \'DROP POLICY IF EXISTS "\' || r.policyname || \'" ON properties\';\n  END LOOP;\nEND $$;\n\n-- profiles: 全認証済みユーザーが読み書き可能\nALTER TABLE profiles ENABLE ROW LEVEL SECURITY;\nCREATE POLICY "profiles_all" ON profiles\n  FOR ALL TO authenticated USING (true) WITH CHECK (true);\n\n-- properties: 全認証済みユーザーが読み書き可能\nALTER TABLE properties ENABLE ROW LEVEL SECURITY;\nCREATE POLICY "properties_all" ON properties\n  FOR ALL TO authenticated USING (true) WITH CHECK (true);\n\n-- カラム追加\nALTER TABLE properties ADD COLUMN IF NOT EXISTS custom_gantt jsonb;\nALTER TABLE properties ADD COLUMN IF NOT EXISTS prop_master text;\nALTER TABLE properties ADD COLUMN IF NOT EXISTS address text;';
@@ -5704,7 +5723,93 @@ async function loadAdmSec(sec){
     +'</div>';
   }
 }
-window.loadAdmSec=loadAdmSec;
+// ===== 全業者選定一覧 =====
+function admHandleVendorXlsx(input){
+  var file=input.files[0]; if(!file)return;
+  var statusEl=document.getElementById('vendorResult');
+  if(statusEl)statusEl.innerHTML='<div style="padding:12px;color:#64748b;font-size:12px">読み込み中...</div>';
+  var reader=new FileReader();
+  reader.onload=function(e){
+    try{
+      var data=new Uint8Array(e.target.result);
+      var wb=XLSX.read(data,{type:'array',raw:false});
+      var result={};
+      var targetSheets=['全業者選定（東海）','全業者選定（関東）'];
+      targetSheets.forEach(function(sheetName){
+        var ws=wb.Sheets[sheetName];
+        if(!ws){
+          // 部分一致でシートを探す
+          var found=wb.SheetNames.find(function(n){return n.indexOf('東海')>=0||n.indexOf('関東')>=0||n.indexOf('業者')>=0;});
+          if(found&&found.indexOf(sheetName.indexOf('東海')>=0?'東海':'関東')>=0)ws=wb.Sheets[found];
+        }
+        if(!ws)return;
+        var rows=XLSX.utils.sheet_to_json(ws,{header:1,defval:'',raw:false});
+        if(rows.length<2)return;
+        result[sheetName]=rows;
+      });
+      // シート名が違う場合も対応
+      if(Object.keys(result).length===0){
+        wb.SheetNames.forEach(function(name){
+          if(name.indexOf('業者')>=0||name.indexOf('選定')>=0){
+            var ws=wb.Sheets[name];
+            var rows=XLSX.utils.sheet_to_json(ws,{header:1,defval:'',raw:false});
+            if(rows.length>=2)result[name]=rows;
+          }
+        });
+      }
+      if(Object.keys(result).length===0){
+        if(statusEl)statusEl.innerHTML='<div style="background:#fee2e2;border:1px solid #fca5a5;border-radius:8px;padding:12px;font-size:12px;color:#dc2626">'
+          +'❌ 対象シートが見つかりません。<br>シート名に「業者」「東海」「関東」が含まれるExcelをお試しください。<br>'
+          +'検出シート: '+wb.SheetNames.join(', ')+'</div>';
+        return;
+      }
+      window._vendorData=result;
+      admRenderVendorTables(result);
+      showToast('✅ 業者一覧を読み込みました','success');
+    }catch(ex){
+      if(statusEl)statusEl.innerHTML='<div style="background:#fee2e2;border:1px solid #fca5a5;border-radius:8px;padding:12px;font-size:12px;color:#dc2626">❌ 読み込みエラー: '+ex.message+'</div>';
+    }
+  };
+  reader.readAsArrayBuffer(file);
+}
+window.admHandleVendorXlsx=admHandleVendorXlsx;
+
+function admRenderVendorTables(data){
+  var el=document.getElementById('vendorResult');
+  if(!el)return;
+  var html='';
+  Object.keys(data).forEach(function(sheetName){
+    var rows=data[sheetName];
+    if(!rows||!rows.length)return;
+    var header=rows[0];
+    var dataRows=rows.slice(1).filter(function(r){return r.some(function(c){return String(c||'').trim();});});
+    var isTokai=sheetName.indexOf('東海')>=0;
+    var tabColor=isTokai?'#1a56db':'#10b981';
+    html+='<div style="margin-bottom:20px">'
+      +'<div style="background:'+tabColor+';color:white;padding:10px 14px;border-radius:10px 10px 0 0;font-size:13px;font-weight:800;">'
+        +(isTokai?'🏙':'🌿')+' '+sheetName+' <span style="font-size:11px;font-weight:400;opacity:.8">('+dataRows.length+'件)</span>'
+      +'</div>'
+      +'<div style="overflow-x:auto;border:1px solid #e2e8f0;border-top:none;border-radius:0 0 10px 10px;max-height:500px;overflow-y:auto">'
+      +'<table style="width:100%;border-collapse:collapse;font-size:11px;min-width:600px">'
+      +'<thead style="position:sticky;top:0;background:'+tabColor+'20;z-index:1">'
+      +'<tr>'+header.map(function(h,i){
+        return '<th style="padding:7px 10px;text-align:left;font-weight:700;color:#1e293b;border-bottom:2px solid '+tabColor+';white-space:nowrap;font-size:10px">'+String(h||'')+'</th>';
+      }).join('')+'</tr></thead>'
+      +'<tbody>';
+    dataRows.forEach(function(row,ri){
+      html+='<tr style="background:'+(ri%2===0?'white':'#f8fafc')+';border-bottom:1px solid #f1f5f9" '
+        +'onmouseover="this.style.background=\'#eff6ff\'" onmouseout="this.style.background=\''+(ri%2===0?'white':'#f8fafc')+'\'">'
+        +row.map(function(cell,ci){
+          var v=String(cell||'').trim();
+          return '<td style="padding:6px 10px;color:'+(v?'#1e293b':'#cbd5e1')+';white-space:nowrap;max-width:200px;overflow:hidden;text-overflow:ellipsis" title="'+v+'">'+(v||'—')+'</td>';
+        }).join('')
+        +'</tr>';
+    });
+    html+='</tbody></table></div></div>';
+  });
+  el.innerHTML=html||'<div style="padding:12px;color:#64748b;font-size:12px">データなし</div>';
+}
+window.admRenderVendorTables=admRenderVendorTables;
 
 function copyText(elId){
   var el=document.getElementById(elId);
