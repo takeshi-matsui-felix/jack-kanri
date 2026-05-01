@@ -423,6 +423,9 @@ body{display:flex;overflow:hidden;}
       <div class="sb-item" onclick="openJackMap('関東')"><span class="sb-icon">📍</span><span class="sb-label">関東エリア</span></div>
     </div>
     <div class="sb-divider"></div>
+    <div class="sb-section">業者選定</div>
+    <div class="sb-item" onclick="openVendorList()"><span class="sb-icon">👷</span><span class="sb-label">全業者選定一覧</span></div>
+    <div class="sb-divider"></div>
     <div class="sb-section">工程管理</div>
     <div class="sb-item" onclick="openMasterPanel()"><span class="sb-icon">📐</span><span class="sb-label">マスター工程</span></div>
     <div class="sb-divider"></div>
@@ -502,6 +505,17 @@ body{display:flex;overflow:hidden;}
   <div id="masterColorPicker" style="display:none"></div>
 </div>
 <div class="slide-panel" id="settingsPanel"><div class="panel-header"><button class="panel-back" onclick="closePanel('settingsPanel')">← 戻る</button><div style="flex:1"><div class="panel-title">⚙️ 設定</div></div></div><div class="panel-scroll" id="settingsContent"></div></div>
+
+<div class="slide-panel" id="vendorPanel">
+  <div class="panel-header">
+    <button class="panel-back" onclick="closePanel('vendorPanel')">← 戻る</button>
+    <div style="flex:1"><div class="panel-title">👷 全業者選定一覧</div></div>
+  </div>
+  <div style="flex:1;display:flex;flex-direction:column;overflow:hidden">
+    <div id="vendorAreaTabs" style="display:flex;border-bottom:2px solid #e2e8f0;background:white;flex-shrink:0"></div>
+    <div id="vendorTableWrap" style="flex:1;overflow-y:auto"></div>
+  </div>
+</div>
 <div class="menu-overlay" id="menuOverlay" onclick="closeMenu()"></div>
 <div class="side-menu" id="sideMenu"><div class="menu-head"><div class="menu-user">🏗️ 現場担当者</div><div class="menu-role">JACK 現場管理アプリ</div></div><div class="menu-body"><div class="menu-section">マイ物件</div><div class="menu-item" onclick="openMyPage()"><span class="mi-icon">⭐</span>マイ物件を見る</div><div class="menu-item" onclick="openSelectProp()"><span class="mi-icon">✅</span>担当物件を選択</div><div class="menu-item" onclick="closeMenu();openMasterPanel()"><span class="mi-icon">📋</span>マスター工程</div><div class="menu-divider"></div><div class="menu-section">表示</div><div class="menu-item" onclick="closeMenu();setMode(false)"><span class="mi-icon">📱</span>スマホ表示</div><div class="menu-item" onclick="closeMenu();setMode(true)"><span class="mi-icon">🖥️</span>PC横長表示</div><div class="menu-divider"></div><div class="menu-section">その他</div><div class="menu-item" onclick="closeMenu();doSync()"><span class="mi-icon">🔄</span>今すぐ同期</div><div class="menu-item" onclick="openSettings()"><span class="mi-icon">⚙️</span>設定</div><div class="menu-item" onclick="closeMenu();printPage()"><span class="mi-icon">🖨️</span>印刷</div></div></div>
 <div class="popup-overlay" id="updatePopup" style="display:none"><div class="popup-box"><div class="popup-head">🔔 データ更新情報</div><div class="popup-body" id="updateContent"></div><div class="popup-footer"><button class="popup-close" onclick="closeUpdatePopup()">閉じる</button></div></div></div>
@@ -4838,6 +4852,7 @@ async function retryAuth(){
         var pr=await sb.from('properties').select('*').order('fix_no');
         if(!pr.error&&pr.data&&pr.data.length>0){
           DB_PROPS=pr.data;_loadSharedGanttFromDB();
+          if(typeof _loadVendorsFromDB==='function')_loadVendorsFromDB();
           if(typeof renderAll==='function')renderAll();
         }
         showToast('✅ ログインしました','success');
@@ -5698,9 +5713,26 @@ async function loadAdmSec(sec){
     +'</div>';
     // 既存データがあれば再表示
     if(window._vendorData){admRenderVendorTables(window._vendorData);}
+  } else if(sec==='vendors'){
+    right.innerHTML='<div style="padding:14px">'
+      +'<div style="font-size:15px;font-weight:800;color:#1e293b;margin-bottom:4px">👷 全業者選定一覧</div>'
+      +'<div style="font-size:11px;color:#64748b;margin-bottom:14px">「全業者選定一覧.xlsx」をアップロード → Supabaseに保存 → 各ユーザーのアプリに反映</div>'
+      +'<div style="background:white;border-radius:10px;padding:20px;border:2px dashed #cbd5e1;text-align:center;margin-bottom:14px">'
+        +'<div style="font-size:36px;margin-bottom:8px">👷</div>'
+        +'<div style="font-size:13px;font-weight:700;color:#1e293b;margin-bottom:12px">全業者選定一覧.xlsx</div>'
+        +'<label style="background:#059669;color:white;padding:10px 24px;border-radius:9px;font-size:13px;font-weight:700;cursor:pointer;display:inline-block">'
+          +'ファイルを選択してアップロード'
+          +'<input type="file" id="vendorXlsxInput" accept=".xlsx,.xls" onchange="admHandleVendorXlsx(this)" style="display:none">'
+        +'</label>'
+      +'</div>'
+      +'<div id="vendorResult"></div>'
+    +'</div>';
+    if(window._VENDOR_LIST_DATA&&Object.keys(window._VENDOR_LIST_DATA).length){
+      admRenderVendorTables(window._VENDOR_LIST_DATA);
+    }
   } else if(sec==='dbsetup'){
     var rlsDisableSql='-- ① まず緊急解除（ログインできない場合はこれだけ実行）\nALTER TABLE profiles DISABLE ROW LEVEL SECURITY;\nALTER TABLE properties DISABLE ROW LEVEL SECURITY;';
-    var rlsFixSql='-- ② ポリシーリセット後に正しく設定し直す場合\n-- 既存ポリシーを全削除\nDO $$ DECLARE r RECORD;\nBEGIN\n  FOR r IN SELECT policyname FROM pg_policies WHERE tablename=\'profiles\'\n  LOOP\n    EXECUTE \'DROP POLICY IF EXISTS "\' || r.policyname || \'" ON profiles\';\n  END LOOP;\n  FOR r IN SELECT policyname FROM pg_policies WHERE tablename=\'properties\'\n  LOOP\n    EXECUTE \'DROP POLICY IF EXISTS "\' || r.policyname || \'" ON properties\';\n  END LOOP;\nEND $$;\n\n-- profiles: 全認証済みユーザーが読み書き可能\nALTER TABLE profiles ENABLE ROW LEVEL SECURITY;\nCREATE POLICY "profiles_all" ON profiles\n  FOR ALL TO authenticated USING (true) WITH CHECK (true);\n\n-- properties: 全認証済みユーザーが読み書き可能\nALTER TABLE properties ENABLE ROW LEVEL SECURITY;\nCREATE POLICY "properties_all" ON properties\n  FOR ALL TO authenticated USING (true) WITH CHECK (true);\n\n-- カラム追加\nALTER TABLE properties ADD COLUMN IF NOT EXISTS custom_gantt jsonb;\nALTER TABLE properties ADD COLUMN IF NOT EXISTS prop_master text;\nALTER TABLE properties ADD COLUMN IF NOT EXISTS address text;';
+    var rlsFixSql='-- ② ポリシーリセット後に正しく設定し直す場合\n-- 既存ポリシーを全削除\nDO $$ DECLARE r RECORD;\nBEGIN\n  FOR r IN SELECT policyname FROM pg_policies WHERE tablename=\'profiles\'\n  LOOP\n    EXECUTE \'DROP POLICY IF EXISTS "\' || r.policyname || \'" ON profiles\';\n  END LOOP;\n  FOR r IN SELECT policyname FROM pg_policies WHERE tablename=\'properties\'\n  LOOP\n    EXECUTE \'DROP POLICY IF EXISTS "\' || r.policyname || \'" ON properties\';\n  END LOOP;\nEND $$;\n\n-- profiles: 全認証済みユーザーが読み書き可能\nALTER TABLE profiles ENABLE ROW LEVEL SECURITY;\nCREATE POLICY "profiles_all" ON profiles\n  FOR ALL TO authenticated USING (true) WITH CHECK (true);\n\n-- properties: 全認証済みユーザーが読み書き可能\nALTER TABLE properties ENABLE ROW LEVEL SECURITY;\nCREATE POLICY "properties_all" ON properties\n  FOR ALL TO authenticated USING (true) WITH CHECK (true);\n\n-- カラム追加\nALTER TABLE properties ADD COLUMN IF NOT EXISTS custom_gantt jsonb;\nALTER TABLE properties ADD COLUMN IF NOT EXISTS prop_master text;\n-- 全業者選定一覧テーブル\nCREATE TABLE IF NOT EXISTS vendors (\n  id bigint generated by default as identity primary key,\n  area text,\n  created_at timestamptz default now()\n);\nALTER TABLE vendors ENABLE ROW LEVEL SECURITY;\nALTER TABLE properties ADD COLUMN IF NOT EXISTS address text;';
     right.innerHTML='<div style="padding:14px">'
       +'<div style="font-size:16px;font-weight:800;color:#ef4444;margin-bottom:4px">🚨 緊急：ログインできない場合</div>'
       +'<div style="background:#fef2f2;border:2px solid #ef4444;border-radius:8px;padding:12px;margin-bottom:14px">'
@@ -6073,6 +6105,174 @@ async function admSaveProp(id){
   loadAdmSec('props');
 }
 window.admSaveProp=admSaveProp;
+
+// ===== 全業者選定一覧 =====
+window._VENDOR_LIST_DATA={};
+window._VENDOR_LIST_TAB='';
+
+// Supabaseからvendors読み込み
+async function _loadVendorsFromDB(){
+  var sb=getSB();if(!sb)return;
+  try{
+    var r=await sb.from('vendors').select('*').order('id');
+    if(r.error){console.warn('vendors:',r.error.message);return;}
+    var rows=r.data||[];
+    var grp={};
+    rows.forEach(function(row){
+      var a=row.area||'東海（全体）';
+      if(!grp[a])grp[a]=[];
+      grp[a].push(row);
+    });
+    window._VENDOR_LIST_DATA=grp;
+  }catch(e){console.warn('vendors err:',e);}
+}
+
+// Supabaseにvendors一括保存（全削除→再INSERT）
+async function _saveVendorsToDB(allRows){
+  var sb=getSB();if(!sb)return false;
+  try{
+    var delR=await sb.from('vendors').delete().gte('id',0);
+    if(delR.error){
+      showToast('vendorsテーブル未作成。DB設定のSQLを実行してください','error');
+      return false;
+    }
+    for(var i=0;i<allRows.length;i+=50){
+      var ins=await sb.from('vendors').insert(allRows.slice(i,i+50));
+      if(ins.error){showToast('保存エラー: '+ins.error.message,'error');return false;}
+    }
+    return true;
+  }catch(e){showToast('保存エラー: '+e.message,'error');return false;}
+}
+
+// サイドバー：全業者選定一覧パネルを開く
+function openVendorList(){
+  openPanel('vendorPanel');
+  if(Object.keys(window._VENDOR_LIST_DATA).length){
+    _renderVendorPanel();
+  } else {
+    var wrap=document.getElementById('vendorTableWrap');
+    if(wrap)wrap.innerHTML='<div style="padding:24px;text-align:center;color:#94a3b8;font-size:12px"><div style="font-size:32px;margin-bottom:8px">👷</div>読み込み中…</div>';
+    _loadVendorsFromDB().then(function(){
+      if(Object.keys(window._VENDOR_LIST_DATA).length)_renderVendorPanel();
+      else{var w=document.getElementById('vendorTableWrap');if(w)w.innerHTML='<div style="padding:24px;text-align:center;color:#94a3b8;font-size:12px"><div style="font-size:32px;margin-bottom:8px">👷</div>業者データがありません。<br>管理者CP → 全業者選定からXLSXを読み込んでください。</div>';}
+    });
+  }
+}
+window.openVendorList=openVendorList;
+
+function _renderVendorPanel(){
+  var data=window._VENDOR_LIST_DATA;
+  var areas=Object.keys(data);
+  if(!areas.length)return;
+  if(!window._VENDOR_LIST_TAB||!data[window._VENDOR_LIST_TAB])window._VENDOR_LIST_TAB=areas[0];
+  // タブ描画
+  var tabsEl=document.getElementById('vendorAreaTabs');
+  if(tabsEl){
+    tabsEl.innerHTML=areas.map(function(a){
+      var act=a===window._VENDOR_LIST_TAB;
+      var ico=a.indexOf('東海')>=0?'🏙':'🌿';
+      return '<button onclick="vendorSetTab(\''+encodeURIComponent(a)+'\')" style="flex:1;padding:9px 4px;font-size:11px;font-weight:700;border:none;cursor:pointer;border-bottom:3px solid '+(act?'#1a56db':'transparent')+';color:'+(act?'#1a56db':'#94a3b8')+';background:white">'+ico+' '+a+'</button>';
+    }).join('');
+  }
+  // テーブル描画
+  var wrap=document.getElementById('vendorTableWrap');
+  if(!wrap)return;
+  var rows=data[window._VENDOR_LIST_TAB]||[];
+  if(!rows.length){wrap.innerHTML='<div style="padding:24px;text-align:center;color:#94a3b8;font-size:12px">データなし</div>';return;}
+  var colSet={};
+  rows.forEach(function(r){Object.keys(r).forEach(function(k){if(k!=='id'&&k!=='area'&&k!=='created_at')colSet[k]=1;});});
+  var cols=Object.keys(colSet);
+  var isTokai=window._VENDOR_LIST_TAB.indexOf('東海')>=0;
+  var hColor=isTokai?'#1a56db':'#10b981';
+  wrap.innerHTML='<div style="overflow-x:auto">'
+    +'<table style="width:100%;border-collapse:collapse;font-size:10px;min-width:500px">'
+    +'<thead style="position:sticky;top:0;z-index:2"><tr style="background:'+hColor+'">'
+    +cols.map(function(c){return '<th style="padding:6px 8px;text-align:left;color:white;font-weight:700;white-space:nowrap;border-right:1px solid rgba(255,255,255,.2)">'+c+'</th>';}).join('')
+    +'</tr></thead><tbody>'
+    +rows.map(function(row,ri){
+      return '<tr style="background:'+(ri%2===0?'white':'#f8fafc')+';border-bottom:1px solid #f1f5f9">'
+        +cols.map(function(c){var v=String(row[c]||'').trim();return '<td style="padding:5px 8px;color:'+(v?'#1e293b':'#cbd5e1')+';white-space:nowrap;max-width:180px;overflow:hidden;text-overflow:ellipsis" title="'+v+'">'+(v||'—')+'</td>';}).join('')
+        +'</tr>';
+    }).join('')
+    +'</tbody></table></div>';
+}
+
+function vendorSetTab(encArea){
+  window._VENDOR_LIST_TAB=decodeURIComponent(encArea);
+  _renderVendorPanel();
+}
+window.vendorSetTab=vendorSetTab;
+
+// 管理者CP: XLSX取込→Supabase保存
+function admHandleVendorXlsx(input){
+  var file=input.files[0];if(!file)return;
+  var statusEl=document.getElementById('vendorResult');
+  if(statusEl)statusEl.innerHTML='<div style="padding:12px;color:#64748b;font-size:12px">📖 読み込み中...</div>';
+  var reader=new FileReader();
+  reader.onload=function(e){
+    var allRows=[];
+    var resultData={};
+    try{
+      var data=new Uint8Array(e.target.result);
+      var wb=XLSX.read(data,{type:'array',raw:false});
+      wb.SheetNames.forEach(function(sheetName){
+        if(sheetName.indexOf('業者')<0&&sheetName.indexOf('選定')<0&&sheetName.indexOf('東海')<0&&sheetName.indexOf('関東')<0)return;
+        var ws=wb.Sheets[sheetName];
+        var jsonRows=XLSX.utils.sheet_to_json(ws,{header:1,defval:'',raw:false});
+        if(jsonRows.length<2)return;
+        var headers=jsonRows[0].map(function(h){return String(h||'').trim();}).filter(Boolean);
+        if(!headers.length)return;
+        var area=sheetName.indexOf('東海')>=0?'東海（全体）':sheetName.indexOf('関東')>=0?'関東（全体）':sheetName;
+        var dataRows=jsonRows.slice(1).filter(function(r){return r.some(function(c){return String(c||'').trim();});});
+        resultData[area]=dataRows.map(function(r){
+          var obj={area:area};
+          headers.forEach(function(h,hi){obj[h]=String(r[hi]||'').trim();});
+          return obj;
+        });
+        allRows=allRows.concat(resultData[area]);
+      });
+      if(!allRows.length){
+        if(statusEl)statusEl.innerHTML='<div style="background:#fee2e2;border-radius:8px;padding:12px;font-size:12px;color:#dc2626">❌ 対象シートなし。検出シート: '+wb.SheetNames.join(', ')+'</div>';
+        return;
+      }
+      _saveVendorsToDB(allRows).then(function(ok){
+        if(ok){
+          window._VENDOR_LIST_DATA=resultData;
+          showToast('✅ 業者一覧をSupabaseに保存しました（'+allRows.length+'件）','success');
+          admRenderVendorTables(resultData);
+        }
+      });
+    }catch(ex){
+      if(statusEl)statusEl.innerHTML='<div style="background:#fee2e2;border-radius:8px;padding:12px;font-size:12px;color:#dc2626">❌ 読み込みエラー: '+ex.message+'</div>';
+    }
+  };
+  reader.readAsArrayBuffer(file);
+}
+window.admHandleVendorXlsx=admHandleVendorXlsx;
+
+function admRenderVendorTables(data){
+  var el=document.getElementById('vendorResult');if(!el)return;
+  var html='';
+  Object.keys(data).forEach(function(sheetName){
+    var rows=data[sheetName];if(!rows||!rows.length)return;
+    var cols=Object.keys(rows[0]).filter(function(k){return k!=='id'&&k!=='area'&&k!=='created_at';});
+    var isTokai=sheetName.indexOf('東海')>=0;
+    var tc=isTokai?'#1a56db':'#10b981';
+    html+='<div style="margin-bottom:16px">'
+      +'<div style="background:'+tc+';color:white;padding:9px 14px;border-radius:10px 10px 0 0;font-size:12px;font-weight:800">'+(isTokai?'🏙':'🌿')+' '+sheetName+' <span style="opacity:.8;font-size:10px">('+rows.length+'件)</span></div>'
+      +'<div style="overflow-x:auto;border:1px solid #e2e8f0;border-top:none;border-radius:0 0 10px 10px;max-height:350px;overflow-y:auto">'
+      +'<table style="width:100%;border-collapse:collapse;font-size:10px;min-width:400px"><thead style="position:sticky;top:0;background:'+tc+'15"><tr>'
+      +cols.map(function(c){return '<th style="padding:5px 8px;text-align:left;font-weight:700;color:#1e293b;border-bottom:2px solid '+tc+';white-space:nowrap">'+c+'</th>';}).join('')
+      +'</tr></thead><tbody>'
+      +rows.map(function(row,ri){
+        return '<tr style="background:'+(ri%2===0?'white':'#f8fafc')+'">'
+          +cols.map(function(c){var v=String(row[c]||'').trim();return '<td style="padding:4px 8px;white-space:nowrap;color:'+(v?'#1e293b':'#cbd5e1')+'">'+(v||'—')+'</td>';}).join('')+'</tr>';
+      }).join('')
+      +'</tbody></table></div></div>';
+  });
+  el.innerHTML=html||'<div style="padding:12px;color:#94a3b8;font-size:12px">データなし</div>';
+}
+window.admRenderVendorTables=admRenderVendorTables;
 
 // 住所Excel一括取込
 function handleAddrXlsx(input){
