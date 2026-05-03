@@ -6295,7 +6295,12 @@ function _renderVendorTable(){
       return '<div style="display:flex;height:28px;background:'+bg+';border-bottom:1px solid #f1f5f9;">'
         +filteredScrollCols.map(function(c){
           var v=String(row[c]||'').trim();
-          return '<div style="min-width:'+COL_W+'px;max-width:'+COL_W+'px;display:flex;align-items:center;padding:0 8px;font-size:10px;color:'+(v?'#334155':'#cbd5e1')+';border-right:1px solid #f1f5f9;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;" title="'+v+'">'+(v||'—')+'</div>';
+          // 検索中は一致しないセルを空白表示
+          var show=!q||(v.toLowerCase().indexOf(q)>=0);
+          var disp=show?(v||'—'):'';
+          var color=show&&v?'#334155':'#cbd5e1';
+          var bg=show&&v&&q?'#fef9c3':''; // 一致セルを薄黄色ハイライト
+          return '<div style="min-width:'+COL_W+'px;max-width:'+COL_W+'px;display:flex;align-items:center;padding:0 8px;font-size:10px;font-weight:'+(show&&v&&q?'700':'400')+';color:'+color+';background:'+bg+';border-right:1px solid #f1f5f9;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;" title="'+v+'">' +disp+'</div>';
         }).join('')
         +'</div>';
     }).join('')
