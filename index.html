@@ -6167,11 +6167,8 @@ function openVendorList(){
   openPanel('vendorPanel');
   // 検索状態リセット
   window._vendorSearchQ='';
-  window._vendorSelectedName='';
-  var lbl=document.getElementById('vendorSearchLabel');
-  if(lbl){lbl.textContent='業者名で絞り込み…';lbl.style.color='#94a3b8';lbl.style.fontWeight='400';}
   var si=document.getElementById('vendorSearchInput');
-  if(si){si.style.borderColor='#e2e8f0';}
+  if(si){si.value='';si.style.borderColor='#e2e8f0';}
   if(Object.keys(window._VENDOR_LIST_DATA).length){
     _renderVendorPanel();
   } else {
@@ -6192,7 +6189,7 @@ window._vendorSearchQ='';
 
 function _vendorSearchFilter(){
   var si=document.getElementById('vendorSearchInput');
-  window._vendorSearchQ=(si?si.value:'').trim();
+  window._vendorSearchQ=(si?si.value:'').trim().toLowerCase();
   _renderVendorTable();
 }
 window._vendorSearchFilter=_vendorSearchFilter;
