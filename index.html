@@ -6260,7 +6260,7 @@ function _renderVendorTable(){
     +'<div id="vendorFreezeBody" style="flex:1;overflow:hidden;">'
     +filtered.map(function(row,ri){
       var v=String(row[freezeCol]||'').trim();
-      var isHiliRow=ri===freezeRowIdx;
+      var isHiliRow=false;
       var bg=isHiliRow?'#fff3cd':(ri%2===0?'white':'#f8fafc');
       var fw=isHiliRow?'800':'600';
       var border=isHiliRow?'2px solid #f59e0b':'1px solid #f1f5f9';
@@ -6279,7 +6279,7 @@ function _renderVendorTable(){
     +'</div>'
     // データ行
     +filtered.map(function(row,ri){
-      var isHiliRow=ri===freezeRowIdx;
+      var isHiliRow=false;
       var bg=isHiliRow?'#fff3cd':(ri%2===0?'white':'#f8fafc');
       var border=isHiliRow?'2px solid #f59e0b':'1px solid #f1f5f9';
       return '<div style="display:flex;height:28px;background:'+bg+';border-bottom:'+border+';">'
