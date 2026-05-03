@@ -6184,93 +6184,23 @@ window.openVendorList=openVendorList;
 
 // 検索フィルター
 window._vendorSearchQ='';
-// 業者名ボタン絞り込み
+// 業者名テキスト入力フィルター
 window._vendorSearchQ='';
-window._vendorSelectedName='';
 
-function _openVendorNamePicker(){
-  var data=window._VENDOR_LIST_DATA;
-  var rows=data[window._VENDOR_LIST_TAB]||[];
-  if(!rows.length)return;
-  // 全列からユニークな業者名を収集（空・重複除外）
-  var nameSet={};
-  var cols=Object.keys(rows[0]||{}).filter(function(k){return k!=='area'&&k!=='id'&&k!=='created_at'&&k!=='col_order';});
-  rows.forEach(function(row){
-    cols.forEach(function(c){
-      var v=String(row[c]||'').trim();
-      if(v&&v!=='—')nameSet[v]=1;
-    });
-  });
-  var names=Object.keys(nameSet).sort();
-  if(!names.length)return;
-  // ピッカーモーダル表示
-  var overlay=document.createElement('div');
-  overlay.id='vendorPickerOverlay';
-  overlay.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:9990;display:flex;align-items:flex-end';
-  var box=document.createElement('div');
-  box.style.cssText='background:white;width:100%;max-height:65vh;border-radius:16px 16px 0 0;overflow:hidden;display:flex;flex-direction:column;';
-  // DOM構築（innerHTML内のクォート問題を回避）
-  var scrollDiv=document.createElement('div');
-  scrollDiv.style.cssText='overflow-y:auto;padding-bottom:16px';
-  // 閉じるボタン付きヘッダー
-  var headDiv=document.createElement('div');
-  headDiv.style.cssText='padding:12px 14px 8px;font-size:13px;font-weight:700;color:#1e293b;border-bottom:1px solid #f1f5f9;display:flex;align-items:center;justify-content:space-between';
-  headDiv.textContent='業者名で絞り込み';
-  var closeBtn=document.createElement('button');
-  closeBtn.style.cssText='font-size:16px;color:#94a3b8;background:none;border:none;cursor:pointer';
-  closeBtn.textContent='✕';
-  closeBtn.onclick=function(){overlay.remove();};
-  headDiv.appendChild(closeBtn);
-  // 解除ボタン
-  var resetBtnEl=document.createElement('button');
-  resetBtnEl.style.cssText='display:block;margin:8px 12px 4px;padding:6px 12px;background:#f1f5f9;border:none;border-radius:8px;font-size:11px;font-weight:700;color:#64748b;cursor:pointer;text-align:left;width:calc(100% - 24px)';
-  resetBtnEl.textContent='✕ 絞り込み解除';
-  resetBtnEl.onclick=function(){_clearVendorFilter();};
-  scrollDiv.appendChild(resetBtnEl);
-  // 業者名ボタン一覧
-  names.forEach(function(n){
-    var act=n===window._vendorSelectedName;
-    var btn=document.createElement('button');
-    btn.style.cssText='display:block;width:calc(100% - 24px);margin:2px 12px;padding:9px 12px;text-align:left;border:1.5px solid '+(act?'#1a56db':'#e2e8f0')+';border-radius:8px;font-size:12px;font-weight:'+(act?'700':'500')+';color:'+(act?'#1a56db':'#334155')+';background:'+(act?'#eff6ff':'white')+';cursor:pointer';
-    btn.textContent=n;
-    btn.onclick=function(){_selectVendorName(n);};
-    scrollDiv.appendChild(btn);
-  });
-  box.appendChild(headDiv);
-  box.appendChild(scrollDiv);
-  overlay.appendChild(box);
-  overlay.onclick=function(e){if(e.target===overlay)overlay.remove();};
-  document.body.appendChild(overlay);
-}
-window._openVendorNamePicker=_openVendorNamePicker;
-
-function _selectVendorName(name){
-  window._vendorSelectedName=name;
-  window._vendorSearchQ=name.toLowerCase();
-  var lbl=document.getElementById('vendorSearchLabel');
-  if(lbl){lbl.textContent=name;lbl.style.color='#1a56db';lbl.style.fontWeight='700';}
+function _vendorSearchFilter(){
   var si=document.getElementById('vendorSearchInput');
-  if(si){si.style.borderColor='#1a56db';}
-  var ov=document.getElementById('vendorPickerOverlay');if(ov)ov.remove();
+  window._vendorSearchQ=(si?si.value:'').trim();
   _renderVendorTable();
 }
-window._selectVendorName=_selectVendorName;
+window._vendorSearchFilter=_vendorSearchFilter;
 
 function _clearVendorFilter(){
-  window._vendorSelectedName='';
-  window._vendorSearchQ='';
-  var lbl=document.getElementById('vendorSearchLabel');
-  if(lbl){lbl.textContent='業者名で絞り込み…';lbl.style.color='#94a3b8';lbl.style.fontWeight='400';}
   var si=document.getElementById('vendorSearchInput');
-  if(si){si.style.borderColor='#e2e8f0';}
-  var ov=document.getElementById('vendorPickerOverlay');if(ov)ov.remove();
+  if(si)si.value='';
+  window._vendorSearchQ='';
   _renderVendorTable();
 }
 window._clearVendorFilter=_clearVendorFilter;
-
-// 後方互換（旧コードから呼ばれる場合）
-function _vendorSearchFilter(){}
-window._vendorSearchFilter=_vendorSearchFilter;
 
 function _renderVendorPanel(){
   var data=window._VENDOR_LIST_DATA;
@@ -6323,11 +6253,12 @@ function _renderVendorTable(){
   var isTokai=window._VENDOR_LIST_TAB.indexOf('東海')>=0;
   var hColor=isTokai?'#1a56db':'#10b981';
 
-  // 検索フィルター
-  var q=window._vendorSearchQ||'';
-  var filtered=q?rows.filter(function(row){
-    return cols.some(function(c){return String(row[c]||'').toLowerCase().indexOf(q)>=0;});
-  }):rows;
+  // 業者名フィルター：入力値を含む列だけ表示（行は全件）
+  var q=(window._vendorSearchQ||'').trim().toLowerCase();
+  var filteredScrollCols=q?scrollCols.filter(function(c){
+    if(c.toLowerCase().indexOf(q)>=0)return true;
+    return rows.some(function(row){return String(row[c]||'').toLowerCase().indexOf(q)>=0;});
+  }):scrollCols;
 
   // テーブルビルド（スクロール固定レイアウト）
   // 固定A列 + スクロール列の分離テーブル方式
@@ -6342,7 +6273,7 @@ function _renderVendorTable(){
     +'<div style="flex-shrink:0;height:28px;background:'+hColor+';display:flex;align-items:center;padding:0 8px;font-size:10px;font-weight:700;color:white;border-bottom:2px solid rgba(255,255,255,.3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'
     +freezeCol+'</div>'
     +'<div id="vendorFreezeBody" style="flex:1;overflow:hidden;">'
-    +filtered.map(function(row,ri){
+    +rows.map(function(row,ri){
       var v=String(row[freezeCol]||'').trim();
       var bg=ri%2===0?'white':'#f8fafc';
       return '<div style="height:28px;display:flex;align-items:center;padding:0 8px;font-size:10px;font-weight:600;color:#1e293b;background:'+bg+';border-bottom:1px solid #f1f5f9;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:'+FREEZE_W+'px;" title="'+v+'">'+(v||'—')+'</div>';
@@ -6351,18 +6282,18 @@ function _renderVendorTable(){
 
   // スクロール列HTML
   var scrollHtml='<div style="flex:1;overflow:auto;-webkit-overflow-scrolling:touch;" id="vendorScrollArea" onscroll="document.getElementById(\'vendorFreezeBody\').scrollTop=this.scrollTop">'
-    +'<div style="min-width:'+(scrollCols.length*COL_W)+'px">'
+    +'<div style="min-width:'+(filteredScrollCols.length*COL_W)+'px">'
     // ヘッダー行
     +'<div style="display:flex;height:28px;background:'+hColor+';position:sticky;top:0;z-index:5;">'
-    +scrollCols.map(function(c){
+    +filteredScrollCols.map(function(c){
       return '<div style="min-width:'+COL_W+'px;max-width:'+COL_W+'px;display:flex;align-items:center;padding:0 8px;font-size:10px;font-weight:700;color:white;border-right:1px solid rgba(255,255,255,.2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">'+c+'</div>';
     }).join('')
     +'</div>'
     // データ行
-    +filtered.map(function(row,ri){
+    +rows.map(function(row,ri){
       var bg=ri%2===0?'white':'#f8fafc';
       return '<div style="display:flex;height:28px;background:'+bg+';border-bottom:1px solid #f1f5f9;">'
-        +scrollCols.map(function(c){
+        +filteredScrollCols.map(function(c){
           var v=String(row[c]||'').trim();
           return '<div style="min-width:'+COL_W+'px;max-width:'+COL_W+'px;display:flex;align-items:center;padding:0 8px;font-size:10px;color:'+(v?'#334155':'#cbd5e1')+';border-right:1px solid #f1f5f9;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;" title="'+v+'">'+(v||'—')+'</div>';
         }).join('')
@@ -6370,7 +6301,7 @@ function _renderVendorTable(){
     }).join('')
     +'</div></div>';
 
-  var countMsg=q?'（'+filtered.length+'/'+rows.length+'件）':'（'+rows.length+'件）';
+  var countMsg=q?'（'+filteredScrollCols.length+'/'+scrollCols.length+'物件）':'（'+rows.length+'件）';
   wrap.innerHTML='<div style="padding:4px 10px;font-size:10px;color:#94a3b8;background:#f8fafc;border-bottom:1px solid #e2e8f0;flex-shrink:0">'+window._VENDOR_LIST_TAB+' '+countMsg+'</div>'
     +'<div style="display:flex;flex:1;overflow:hidden;min-height:0;">'+freezeHtml+scrollHtml+'</div>';
 }
