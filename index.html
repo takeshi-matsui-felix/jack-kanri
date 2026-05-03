@@ -4853,9 +4853,11 @@ async function onAuthSuccess(){
         var dataMap={};
         dataProps.forEach(function(p){dataMap[String(p.fix_no)]=p;});
         return DB_PROPS.map(function(dbp){
+          // JSONBカラムが文字列で来た場合はパース
+          if(typeof dbp.parkings==='string'){try{dbp.parkings=JSON.parse(dbp.parkings);}catch(e){dbp.parkings=[];}}
+          if(typeof dbp.custom_gantt==='string'){try{dbp.custom_gantt=JSON.parse(dbp.custom_gantt);}catch(e){dbp.custom_gantt=null;}}
           var local=dataMap[String(dbp.fix_no)];
           if(local){
-            // DATAのガントデータ（segments/master_segs/dates）をDBデータに補完
             var merged=Object.assign({},local,dbp);
             if(!merged.segments&&local.segments)merged.segments=local.segments;
             if(!merged.master_segs&&local.master_segs)merged.master_segs=local.master_segs;
@@ -4864,7 +4866,11 @@ async function onAuthSuccess(){
           return dbp;
         });
       }
-      return DB_PROPS;
+      return DB_PROPS.map(function(dbp){
+        if(typeof dbp.parkings==='string'){try{dbp.parkings=JSON.parse(dbp.parkings);}catch(e){dbp.parkings=[];}}
+        if(typeof dbp.custom_gantt==='string'){try{dbp.custom_gantt=JSON.parse(dbp.custom_gantt);}catch(e){dbp.custom_gantt=null;}}
+        return dbp;
+      });
     }
     return orig?orig():[];
   };
@@ -6294,12 +6300,9 @@ function _renderVendorTable(){
   var isTokai=window._VENDOR_LIST_TAB.indexOf('東海')>=0;
   var hColor=isTokai?'#1a56db':'#10b981';
 
-  // 業者名フィルター：入力値を含む列だけ表示（行は全件）
+  // 業者名フィルター：全列表示・一致セルを黄色ハイライト
   var q=(window._vendorSearchQ||'').trim().toLowerCase();
-  var filteredScrollCols=q?scrollCols.filter(function(c){
-    if(c.toLowerCase().indexOf(q)>=0)return true;
-    return rows.some(function(row){return String(row[c]||'').toLowerCase().indexOf(q)>=0;});
-  }):scrollCols;
+  var filteredScrollCols=scrollCols; // 常に全列表示
 
   // テーブルビルド（スクロール固定レイアウト）
   // 固定A列 + スクロール列の分離テーブル方式
@@ -6336,18 +6339,17 @@ function _renderVendorTable(){
       return '<div style="display:flex;height:28px;background:'+bg+';border-bottom:1px solid #f1f5f9;">'
         +filteredScrollCols.map(function(c){
           var v=String(row[c]||'').trim();
-          // 検索中は一致しないセルを空白表示
-          var show=!q||(v.toLowerCase().indexOf(q)>=0);
-          var disp=show?(v||'—'):'';
-          var color=show&&v?'#334155':'#cbd5e1';
-          var bg=show&&v&&q?'#fef9c3':''; // 一致セルを薄黄色ハイライト
-          return '<div style="min-width:'+VCOL_W+'px;max-width:'+VCOL_W+'px;display:flex;align-items:center;padding:0 8px;font-size:10px;font-weight:'+(show&&v&&q?'700':'400')+';color:'+color+';background:'+bg+';border-right:1px solid #f1f5f9;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;" title="'+v+'">' +disp+'</div>';
+          var hit=q&&v&&v.toLowerCase().indexOf(q)>=0;
+          var bg=hit?'#fef08a':''; // 一致セルのみ黄色
+          var fw=hit?'700':'400';
+          var color=v?'#334155':'#cbd5e1';
+          return '<div style="min-width:'+VCOL_W+'px;max-width:'+VCOL_W+'px;display:flex;align-items:center;padding:0 8px;font-size:10px;font-weight:'+fw+';color:'+color+';background:'+bg+';border-right:1px solid #f1f5f9;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;" title="'+v+'">'+(v||'—')+'</div>';
         }).join('')
         +'</div>';
     }).join('')
     +'</div></div>';
 
-  var countMsg=q?'（'+filteredScrollCols.length+'/'+scrollCols.length+'物件）':'（'+rows.length+'件）';
+  var countMsg='（'+rows.length+'件）'+(q?' 🔍'+q:'');
   wrap.innerHTML='<div style="padding:4px 10px;font-size:10px;color:#94a3b8;background:#f8fafc;border-bottom:1px solid #e2e8f0;flex-shrink:0">'+window._VENDOR_LIST_TAB+' '+countMsg+'</div>'
     +'<div style="display:flex;flex:1;overflow:hidden;min-height:0;">'+freezeHtml+scrollHtml+'</div>';
 }
