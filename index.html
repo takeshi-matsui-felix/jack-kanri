@@ -2922,30 +2922,29 @@ function savePropEdit(){
     land_payment:  getDateVal('pe-land_payment'),
     confirm_submit:getDateVal('pe-confirm_submit'),
     confirm_done:  getDateVal('pe-confirm_done'),
-    delivery_date: getDateVal('pe-delivery_date')
-    // address は DB設定で「ALTER TABLE properties ADD COLUMN IF NOT EXISTS address text;」
-    // 実行後に有効化。現在はローカルのみ保存
+    delivery_date: getDateVal('pe-delivery_date'),
+    address:       getStrVal('pe-address')
   };
   // nullを除去（未入力は上書きしない）
   Object.keys(dbUpdates).forEach(function(k){if(dbUpdates[k]===null)delete dbUpdates[k];});
 
-  // parkings・inspection_date・complete_dateはLocalStorageに保存（DBスキーマ外）
-  var localExtra={
-    address:       getStrVal('pe-address'),   // ローカルにも保持（オフライン用）
-    inspection_date:getDateVal('pe-inspection_date'),
-    complete_date: getDateVal('pe-complete_date'),
-    parkings:      JSON.parse(JSON.stringify(window._editParkings||[]))
-  };
-  Object.keys(localExtra).forEach(function(k){if(localExtra[k]===null)delete localExtra[k];});
+  // parkings・inspection_date・complete_dateもSupabaseに保存
+  var parkingsVal=JSON.parse(JSON.stringify(window._editParkings||[]));
+  if(parkingsVal.length)dbUpdates.parkings=parkingsVal;
+  var insDate=getDateVal('pe-inspection_date');
+  var compDate=getDateVal('pe-complete_date');
+  if(insDate)dbUpdates.inspection_date=insDate;
+  if(compDate)dbUpdates.complete_date=compDate;
 
-  var allUpdates=Object.assign({},dbUpdates,localExtra);
+  var localExtra={};  // ローカルフォールバック用（オフライン時）
+  var allUpdates=Object.assign({},dbUpdates);
 
   function applyLocally(){
     Object.assign(currentProp,allUpdates);
     getAllProps().forEach(function(pp){if(pp.fix_no===p.fix_no&&pp.name===p.name)Object.assign(pp,allUpdates);});
-    // LocalStorageにも追記（フォールバック用）
+    // LocalStorageにもフォールバック保存
     var ov=loadLS('jack_prop_overrides',{});
-    ov[custKey(p)]=Object.assign(ov[custKey(p)]||{},localExtra);
+    ov[custKey(p)]=Object.assign(ov[custKey(p)]||{},allUpdates);
     saveLS('jack_prop_overrides',ov);
   }
 
@@ -4277,8 +4276,49 @@ function saveMasterEditorChanges(){
   saveLS('jack_my_masters',myMasters);
   renderBody(); renderMyPage(); renderMasterPanel();
   closePanel('masterEditorPanel');
-  showToast('✅ マスター工程「'+saved.name+'」を保存しました','success');
+  // Supabaseにも保存（全ユーザーに共有）
+  _saveMasterToSupabase(saved, function(ok){
+    showToast(ok?'✅ マスター工程「'+saved.name+'」を保存しました（全共有）':'✅ マスター工程「'+saved.name+'」を保存しました（ローカル）','success');
+  });
 }
+
+// マスター工程をSupabaseのmastersテーブルに保存（name単位でupsert）
+function _saveMasterToSupabase(master, cb){
+  var sb=getSB(); if(!sb){if(cb)cb(false);return;}
+  var payload={name:master.name, steps:JSON.stringify(master.steps), updated_at:new Date().toISOString()};
+  // nameで既存レコードを検索してupsert
+  sb.from('masters').select('id').eq('name',master.name).single()
+    .then(function(r){
+      if(r.data&&r.data.id){
+        return sb.from('masters').update(payload).eq('id',r.data.id);
+      } else {
+        return sb.from('masters').insert(payload);
+      }
+    })
+    .then(function(r){if(cb)cb(!r.error);})
+    .catch(function(){if(cb)cb(false);});
+}
+window._saveMasterToSupabase=_saveMasterToSupabase;
+
+// Supabaseからmastersテーブルを読み込んでLocalStorageと同期
+async function _loadMastersFromDB(){
+  var sb=getSB(); if(!sb)return;
+  try{
+    var r=await sb.from('masters').select('*').order('id');
+    if(r.error||!r.data||!r.data.length)return;
+    var loaded=r.data.map(function(row){
+      return {name:row.name, steps: typeof row.steps==='string'?JSON.parse(row.steps):row.steps||[]};
+    });
+    // ローカルと統合（DBを優先。ローカルのみのものは保持）
+    var localNames=myMasters.map(function(m){return m.name;});
+    loaded.forEach(function(m){
+      var li=localNames.indexOf(m.name);
+      if(li>=0)myMasters[li]=m; else myMasters.push(m);
+    });
+    saveLS('jack_my_masters',myMasters);
+  }catch(e){console.warn('masters load err:',e);}
+}
+window._loadMastersFromDB=_loadMastersFromDB;
 
 function renameMaster(idx){
   var m=myMasters[idx]; if(!m)return;
@@ -4859,6 +4899,7 @@ async function retryAuth(){
         if(!pr.error&&pr.data&&pr.data.length>0){
           DB_PROPS=pr.data;_loadSharedGanttFromDB();
           if(typeof _loadVendorsFromDB==='function')_loadVendorsFromDB();
+          if(typeof _loadMastersFromDB==='function')_loadMastersFromDB();
           if(typeof renderAll==='function')renderAll();
         }
         showToast('✅ ログインしました','success');
@@ -5738,7 +5779,7 @@ async function loadAdmSec(sec){
     }
   } else if(sec==='dbsetup'){
     var rlsDisableSql='-- ① まず緊急解除（ログインできない場合はこれだけ実行）\nALTER TABLE profiles DISABLE ROW LEVEL SECURITY;\nALTER TABLE properties DISABLE ROW LEVEL SECURITY;';
-    var rlsFixSql='-- ② ポリシーリセット後に正しく設定し直す場合\n-- 既存ポリシーを全削除\nDO $$ DECLARE r RECORD;\nBEGIN\n  FOR r IN SELECT policyname FROM pg_policies WHERE tablename=\'profiles\'\n  LOOP\n    EXECUTE \'DROP POLICY IF EXISTS "\' || r.policyname || \'" ON profiles\';\n  END LOOP;\n  FOR r IN SELECT policyname FROM pg_policies WHERE tablename=\'properties\'\n  LOOP\n    EXECUTE \'DROP POLICY IF EXISTS "\' || r.policyname || \'" ON properties\';\n  END LOOP;\nEND $$;\n\n-- profiles: 全認証済みユーザーが読み書き可能\nALTER TABLE profiles ENABLE ROW LEVEL SECURITY;\nCREATE POLICY "profiles_all" ON profiles\n  FOR ALL TO authenticated USING (true) WITH CHECK (true);\n\n-- properties: 全認証済みユーザーが読み書き可能\nALTER TABLE properties ENABLE ROW LEVEL SECURITY;\nCREATE POLICY "properties_all" ON properties\n  FOR ALL TO authenticated USING (true) WITH CHECK (true);\n\n-- カラム追加\nALTER TABLE properties ADD COLUMN IF NOT EXISTS custom_gantt jsonb;\nALTER TABLE properties ADD COLUMN IF NOT EXISTS prop_master text;\n-- 全業者選定一覧テーブル\nCREATE TABLE IF NOT EXISTS vendors (\n  id bigint generated by default as identity primary key,\n  area text,\n  data jsonb,\n  created_at timestamptz default now()\n);\nALTER TABLE vendors ADD COLUMN IF NOT EXISTS data jsonb;\nALTER TABLE vendors ENABLE ROW LEVEL SECURITY;\nALTER TABLE properties ADD COLUMN IF NOT EXISTS address text;';
+    var rlsFixSql='-- テーブル・カラム追加（何度実行しても安全）\nALTER TABLE properties ADD COLUMN IF NOT EXISTS custom_gantt jsonb;\nALTER TABLE properties ADD COLUMN IF NOT EXISTS prop_master text;\nALTER TABLE properties ADD COLUMN IF NOT EXISTS address text;\nALTER TABLE properties ADD COLUMN IF NOT EXISTS parkings jsonb;\nALTER TABLE properties ADD COLUMN IF NOT EXISTS inspection_date text;\nALTER TABLE properties ADD COLUMN IF NOT EXISTS complete_date text;\n\n-- vendorsテーブル\nCREATE TABLE IF NOT EXISTS vendors (\n  id bigint generated by default as identity primary key,\n  area text,\n  data jsonb,\n  col_order text,\n  created_at timestamptz default now()\n);\n\n-- mastersテーブル\nCREATE TABLE IF NOT EXISTS masters (\n  id bigint generated by default as identity primary key,\n  name text not null,\n  steps jsonb,\n  created_at timestamptz default now(),\n  updated_at timestamptz default now()\n);\n\n-- RLSポリシー（DROP→CREATEで何度実行しても安全）\nDROP POLICY IF EXISTS "profiles_all" ON profiles;\nDROP POLICY IF EXISTS "properties_all" ON properties;\nDROP POLICY IF EXISTS "vendors_all" ON vendors;\nDROP POLICY IF EXISTS "masters_all" ON masters;\n\nALTER TABLE profiles ENABLE ROW LEVEL SECURITY;\nALTER TABLE properties ENABLE ROW LEVEL SECURITY;\nALTER TABLE vendors ENABLE ROW LEVEL SECURITY;\nALTER TABLE masters ENABLE ROW LEVEL SECURITY;\n\nCREATE POLICY "profiles_all" ON profiles FOR ALL TO authenticated USING (true) WITH CHECK (true);\nCREATE POLICY "properties_all" ON properties FOR ALL TO authenticated USING (true) WITH CHECK (true);\nCREATE POLICY "vendors_all" ON vendors FOR ALL TO authenticated USING (true) WITH CHECK (true);\nCREATE POLICY "masters_all" ON masters FOR ALL TO authenticated USING (true) WITH CHECK (true);';
     right.innerHTML='<div style="padding:14px">'
       +'<div style="font-size:16px;font-weight:800;color:#ef4444;margin-bottom:4px">🚨 緊急：ログインできない場合</div>'
       +'<div style="background:#fef2f2;border:2px solid #ef4444;border-radius:8px;padding:12px;margin-bottom:14px">'
@@ -6263,7 +6304,7 @@ function _renderVendorTable(){
   // テーブルビルド（スクロール固定レイアウト）
   // 固定A列 + スクロール列の分離テーブル方式
   var FREEZE_W=120;
-  var COL_W=110;
+  var VCOL_W=110;
 
   // 共通wrapperスタイル
   var wrapStyle='position:relative;display:flex;height:100%;overflow:hidden;';
@@ -6282,11 +6323,11 @@ function _renderVendorTable(){
 
   // スクロール列HTML
   var scrollHtml='<div style="flex:1;overflow:auto;-webkit-overflow-scrolling:touch;" id="vendorScrollArea" onscroll="document.getElementById(\'vendorFreezeBody\').scrollTop=this.scrollTop">'
-    +'<div style="min-width:'+(filteredScrollCols.length*COL_W)+'px">'
+    +'<div style="min-width:'+(filteredScrollCols.length*VCOL_W)+'px">'
     // ヘッダー行
     +'<div style="display:flex;height:28px;background:'+hColor+';position:sticky;top:0;z-index:5;">'
     +filteredScrollCols.map(function(c){
-      return '<div style="min-width:'+COL_W+'px;max-width:'+COL_W+'px;display:flex;align-items:center;padding:0 8px;font-size:10px;font-weight:700;color:white;border-right:1px solid rgba(255,255,255,.2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">'+c+'</div>';
+      return '<div style="min-width:'+VCOL_W+'px;max-width:'+VCOL_W+'px;display:flex;align-items:center;padding:0 8px;font-size:10px;font-weight:700;color:white;border-right:1px solid rgba(255,255,255,.2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">'+c+'</div>';
     }).join('')
     +'</div>'
     // データ行
@@ -6300,7 +6341,7 @@ function _renderVendorTable(){
           var disp=show?(v||'—'):'';
           var color=show&&v?'#334155':'#cbd5e1';
           var bg=show&&v&&q?'#fef9c3':''; // 一致セルを薄黄色ハイライト
-          return '<div style="min-width:'+COL_W+'px;max-width:'+COL_W+'px;display:flex;align-items:center;padding:0 8px;font-size:10px;font-weight:'+(show&&v&&q?'700':'400')+';color:'+color+';background:'+bg+';border-right:1px solid #f1f5f9;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;" title="'+v+'">' +disp+'</div>';
+          return '<div style="min-width:'+VCOL_W+'px;max-width:'+VCOL_W+'px;display:flex;align-items:center;padding:0 8px;font-size:10px;font-weight:'+(show&&v&&q?'700':'400')+';color:'+color+';background:'+bg+';border-right:1px solid #f1f5f9;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;" title="'+v+'">' +disp+'</div>';
         }).join('')
         +'</div>';
     }).join('')
