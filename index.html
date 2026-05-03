@@ -10,7 +10,7 @@
 
 :root {
   --primary:#1a56db;--primary-d:#1044b5;--primary-l:#dbeafe;
-  --accent:#f59e0b;--success:#10b981;--danger:#ef4444;--warn:#f59e0b;
+  --accent:;--success:#10b981;--danger:#ef4444;--warn:;
   --g50:#f8fafc;--g100:#f1f5f9;--g200:#e2e8f0;--g300:#cbd5e1;
   --g400:#94a3b8;--g500:#64748b;--g700:#334155;--g800:#1e293b;
   --font:'Noto Sans JP',sans-serif;--mono:'DM Mono',monospace;
@@ -535,7 +535,7 @@ body{display:flex;overflow:hidden;}
       </div>
       <div id="jackMapNavBar" style="display:none;display:flex;gap:6px;flex-wrap:wrap;margin-top:4px">
         <button id="jackMapNavBtn" style="background:#10b981;color:white;padding:6px 12px;border-radius:8px;font-size:11px;font-weight:700;cursor:pointer;border:none">🚗 現場へナビ</button>
-        <button id="jackMapNavParkBtn" style="display:none;background:#f59e0b;color:white;padding:6px 12px;border-radius:8px;font-size:11px;font-weight:700;cursor:pointer;border:none">🅿️ 駐車場へナビ</button>
+        <button id="jackMapNavParkBtn" style="display:none;background:;color:white;padding:6px 12px;border-radius:8px;font-size:11px;font-weight:700;cursor:pointer;border:none">🅿️ 駐車場へナビ</button>
       </div>
     </div>
     <div id="jackMapBody">
@@ -1333,7 +1333,7 @@ function fetchWeather(p, containerId){
 function showToast(msg,type){
   var t=document.getElementById('toast');if(!t)return;
   t.textContent=msg;
-  t.style.background=type==='error'?'#ef4444':type==='success'?'#10b981':type==='warn'?'#f59e0b':'#1e293b';
+  t.style.background=type==='error'?'#ef4444':type==='success'?'#10b981':type==='warn'?'':'#1e293b';
   t.classList.add('show');
   setTimeout(function(){t.classList.remove('show');},2600);
 }
@@ -1852,7 +1852,7 @@ function buildGanttTab(p){
     +'<div id="detail-gantt-print-btn" style="display:none">'
     +'<button onclick="printDetailGantt()" style="background:#10b981;color:white;padding:3px 10px;border-radius:5px;font-size:10px;font-weight:700">🖨️ 印刷</button>'
     +'</div>'
-    +'<button id="detail-gantt-edit-btn" onclick="toggleGanttEditMode()" style="display:none;background:#f59e0b;color:white;padding:3px 10px;border-radius:5px;font-size:10px;font-weight:700;margin-left:auto">✏️ 編集</button>'
+    +'<button id="detail-gantt-edit-btn" onclick="toggleGanttEditMode()" style="display:none;background:;color:white;padding:3px 10px;border-radius:5px;font-size:10px;font-weight:700;margin-left:auto">✏️ 編集</button>'
     +'</div>';
 
   return '<div class="dp-sec" id="detail-gantt-sec">'
@@ -1911,7 +1911,7 @@ function toggleGanttEditMode(){
     geInitColorPicker();
     geRenderBars();
   } else {
-    btn.textContent='✏️ 編集'; btn.style.background='#f59e0b';
+    btn.textContent='✏️ 編集'; btn.style.background='';
     sb.style.display='none';
     geRenderBars();
   }
@@ -2606,7 +2606,7 @@ function openDetail(p){
   // 管理者のみ編集ボタン表示
   var isAdmin=(typeof currentProfile!=='undefined'&&currentProfile&&currentProfile.role==='admin');
   var editBtn=isAdmin
-    ?'<button onclick="openPropEditModal()" style="margin-left:auto;background:#f59e0b;color:white;padding:4px 12px;border-radius:6px;font-size:10px;font-weight:700;border:none;cursor:pointer">✏️ 物件情報を編集</button>'
+    ?'<button onclick="openPropEditModal()" style="margin-left:auto;background:;color:white;padding:4px 12px;border-radius:6px;font-size:10px;font-weight:700;border:none;cursor:pointer">✏️ 物件情報を編集</button>'
     :'';
 
   // 住所表示
@@ -4066,7 +4066,7 @@ function changeMasterStepColor(idx,el){
   if(!picker)return;
   // Build swatches if empty
   if(picker.children.length===0){
-    ['#d2b48c','#add8e6','#d9d9d9','#d9ead3','#7030a0','#ffff00','#00b050','#f59e0b',
+    ['#d2b48c','#add8e6','#d9d9d9','#d9ead3','#7030a0','#ffff00','#00b050','',
      '#ef4444','#ec4899','#84cc16','#1a56db','#64748b','#f97316','#6366f1','#10b981'].forEach(function(c){
       var sw=document.createElement('div');
       sw.style.cssText='width:24px;height:24px;border-radius:50%;background:'+c+';cursor:pointer;border:2px solid transparent;flex-shrink:0;';
@@ -4604,7 +4604,7 @@ window.onload=function(){
   // Color picker
   var cp=document.getElementById('colorPicker');
   if(cp){
-    var colors=['#d2b48c','#add8e6','#d9d9d9','#d9ead3','#7030a0','#ffff00','#00b050','#f59e0b','#ef4444','#ec4899','#84cc16','#1a56db','#64748b'];
+    var colors=['#d2b48c','#add8e6','#d9d9d9','#d9ead3','#7030a0','#ffff00','#00b050','','#ef4444','#ec4899','#84cc16','#1a56db','#64748b'];
     colors.forEach(function(c,i){
       var sw=document.createElement('div');sw.className='color-swatch';
       sw.style.cssText='width:22px;height:22px;border-radius:50%;background:'+c+';cursor:pointer;border:2px solid '+(i===0?'var(--g700)':'transparent')+';flex-shrink:0;';
@@ -5040,7 +5040,7 @@ function openJackMap(area){
           +'<div style="width:26px;height:26px;border-radius:50%;background:'+(hasAddr?'#eff6ff':'#f8fafc')+';display:flex;align-items:center;justify-content:center;font-size:13px;flex-shrink:0">'+(hasAddr?'📍':'🔲')+'</div>'
           +'<div style="flex:1;min-width:0">'
             +'<div style="font-size:12px;font-weight:700;color:#1e293b;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+sn+'</div>'
-            +'<div style="font-size:10px;margin-top:1px"><span style="color:'+sc+';font-weight:600">'+(p.status||'')+'</span> <span style="color:#94a3b8">FiX '+(p.fix_no||'')+'</span>'+(hasAddr?'<span style="color:#10b981;margin-left:4px;font-size:9px">住所あり</span>':'<span style="color:#f59e0b;margin-left:4px;font-size:9px">住所未登録</span>')+parkBadge+'</div>'
+            +'<div style="font-size:10px;margin-top:1px"><span style="color:'+sc+';font-weight:600">'+(p.status||'')+'</span> <span style="color:#94a3b8">FiX '+(p.fix_no||'')+'</span>'+(hasAddr?'<span style="color:#10b981;margin-left:4px;font-size:9px">住所あり</span>':'<span style="color:;margin-left:4px;font-size:9px">住所未登録</span>')+parkBadge+'</div>'
             +(hasAddr?'<div style="font-size:9px;color:#64748b;margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+addr+'</div>':'')
           +'</div>'
           +'<div style="color:#cbd5e1;font-size:12px">›</div>'
@@ -5189,7 +5189,7 @@ function showMapTab(type){
         +periodStr
         +(hasAddr?'<div style="font-size:9px;color:#64748b;margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">📍'+pkA+'</div>'
           +'<div style="font-size:9px;color:#10b981;margin-top:2px;font-weight:700;">タップで地図表示 →</div>'
-          :'<div style="font-size:9px;color:#f59e0b;margin-top:2px;">住所未登録</div>')
+          :'<div style="font-size:9px;color:;margin-top:2px;">住所未登録</div>')
         +'</div>';
     }).join('');
 
@@ -5871,7 +5871,7 @@ function admUserCard(u,approved){
   return '<div style="background:white;border-radius:9px;padding:10px 12px;margin-bottom:8px;border:1px solid #e2e8f0;display:flex;align-items:center;gap:10px">'
     +'<div style="width:36px;height:36px;border-radius:50%;background:#3b82f6;color:white;font-size:14px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0">'+(u.name||'?').charAt(0)+'</div>'
     +'<div style="flex:1;min-width:0">'
-      +'<div style="font-size:13px;font-weight:700;color:#1e293b">'+(u.name||'')+' <span style="font-size:10px;color:'+(u.role==='admin'?'#f59e0b':'#64748b')+'">'+( u.role==='admin'?'👑管理者':'担当者')+'</span></div>'
+      +'<div style="font-size:13px;font-weight:700;color:#1e293b">'+(u.name||'')+' <span style="font-size:10px;color:'+(u.role==='admin'?'':'#64748b')+'">'+( u.role==='admin'?'👑管理者':'担当者')+'</span></div>'
       +'<div style="font-size:11px;color:#94a3b8">'+(u.email||'')+'</div>'
       +'<div style="font-size:10px;color:#94a3b8">'+(u.company||'')+' / '+(u.phone||'')+'</div>'
     +'</div>'
@@ -6261,9 +6261,9 @@ function _renderVendorTable(){
     +filtered.map(function(row,ri){
       var v=String(row[freezeCol]||'').trim();
       var isHiliRow=false;
-      var bg=isHiliRow?'#fff3cd':(ri%2===0?'white':'#f8fafc');
+      var bg=isHiliRow?'white':(ri%2===0?'white':'#f8fafc');
       var fw=isHiliRow?'800':'600';
-      var border=isHiliRow?'2px solid #f59e0b':'1px solid #f1f5f9';
+      var border=isHiliRow?'2px solid #e2e8f0':'1px solid #f1f5f9';
       return '<div style="height:28px;display:flex;align-items:center;padding:0 8px;font-size:10px;font-weight:'+fw+';color:#1e293b;background:'+bg+';border-bottom:'+border+';white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:'+FREEZE_W+'px;" title="'+v+'">'+(v||'—')+'</div>';
     }).join('')
     +'</div></div>';
@@ -6281,7 +6281,7 @@ function _renderVendorTable(){
     +filtered.map(function(row,ri){
       var isHiliRow=false;
       var bg=isHiliRow?'#fff3cd':(ri%2===0?'white':'#f8fafc');
-      var border=isHiliRow?'2px solid #f59e0b':'1px solid #f1f5f9';
+      var border=isHiliRow?'2px solid ':'1px solid #f1f5f9';
       return '<div style="display:flex;height:28px;background:'+bg+';border-bottom:'+border+';">'
         +scrollCols.map(function(c){
           var v=String(row[c]||'').trim();
@@ -6564,7 +6564,7 @@ window.admHandleXlsx=admHandleXlsx;
 document.addEventListener('DOMContentLoaded',function(){
   var cp=document.getElementById('colorPicker');
   if(cp&&cp.children.length===0){
-    ['#d2b48c','#add8e6','#d9d9d9','#d9ead3','#7030a0','#ffff00','#00b050','#f59e0b',
+    ['#d2b48c','#add8e6','#d9d9d9','#d9ead3','#7030a0','#ffff00','#00b050','',
      '#ef4444','#ec4899','#84cc16','#1a56db','#64748b','#f97316','#6366f1'].forEach(function(c,i){
       var sw=document.createElement('div');sw.className='color-swatch';
       sw.style.cssText='width:22px;height:22px;border-radius:50%;background:'+c+';cursor:pointer;border:2px solid '+(i===0?'var(--g700)':'transparent')+';flex-shrink:0;';
