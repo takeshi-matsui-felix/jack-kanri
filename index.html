@@ -514,9 +514,7 @@ body{display:flex;overflow:hidden;}
   <div style="flex:1;display:flex;flex-direction:column;overflow:hidden">
     <div id="vendorAreaTabs" style="display:flex;border-bottom:2px solid #e2e8f0;background:white;flex-shrink:0"></div>
     <div style="padding:6px 10px;background:white;border-bottom:1px solid #e2e8f0;flex-shrink:0">
-      <input id="vendorSearchInput" type="text" placeholder="物件名・業者名で検索…"
-        oninput="_vendorSearchFilter()"
-        style="width:100%;padding:7px 10px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:12px;box-sizing:border-box;outline:none">
+      <div id="vendorSearchInput" onclick="_openVendorNamePicker()" style="width:100%;padding:7px 10px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:12px;box-sizing:border-box;background:white;cursor:pointer;color:#94a3b8;display:flex;align-items:center;justify-content:space-between"><span id="vendorSearchLabel">業者名で絞り込み…</span><span style="font-size:10px;color:#cbd5e1">▼</span></div>
     </div>
     <div id="vendorTableWrap" style="flex:1;overflow:hidden;display:flex;flex-direction:column;min-height:0"></div>
   </div>
@@ -6125,16 +6123,18 @@ async function _loadVendorsFromDB(){
     rows.forEach(function(row){
       var a=row.area||'東海（全体）';
       if(!grp[a])grp[a]=[];
-      // data列（JSONB）を展開してareaを付加
+      // data列（JSONB）を展開してareaとcol_orderを付加
+      // col_orderをdata内に持たせることで_renderVendorTableで列順復元可能にする
       var obj=Object.assign({},row.data||{},{area:a});
+      if(row.col_order){obj.col_order=row.col_order;}
       grp[a].push(obj);
     });
     window._VENDOR_LIST_DATA=grp;
   }catch(e){console.warn('vendors err:',e);}
 }
 
-// Supabaseにvendors一括保存（全削除→再INSERT、data列にJSON保存）
-async function _saveVendorsToDB(allRows){
+// Supabaseにvendors一括保存（全削除→再INSERT、data列にJSON保存、col_orderで列順保存）
+async function _saveVendorsToDB(allRows, colOrderMap){
   var sb=getSB();if(!sb)return false;
   try{
     // 既存データ削除
@@ -6143,12 +6143,13 @@ async function _saveVendorsToDB(allRows){
       showToast('vendorsテーブル未作成。DB設定のSQLを実行してください','error');
       return false;
     }
-    // data列にJSONとして保存（列名を動的に扱わない）
+    // data列にJSONとして保存（col_orderに列順も保存）
     var insertRows=allRows.map(function(row){
       var area=row.area||'';
       var rowData=Object.assign({},row);
       delete rowData.area;
-      return {area:area, data:rowData};
+      var colOrder=(colOrderMap&&colOrderMap[area])?JSON.stringify(colOrderMap[area]):null;
+      return {area:area, data:rowData, col_order:colOrder};
     });
     for(var i=0;i<insertRows.length;i+=50){
       var ins=await sb.from('vendors').insert(insertRows.slice(i,i+50));
@@ -6161,9 +6162,13 @@ async function _saveVendorsToDB(allRows){
 // サイドバー：全業者選定一覧パネルを開く
 function openVendorList(){
   openPanel('vendorPanel');
-  // 検索窓リセット
-  var si=document.getElementById('vendorSearchInput');if(si)si.value='';
+  // 検索状態リセット
   window._vendorSearchQ='';
+  window._vendorSelectedName='';
+  var lbl=document.getElementById('vendorSearchLabel');
+  if(lbl){lbl.textContent='業者名で絞り込み…';lbl.style.color='#94a3b8';lbl.style.fontWeight='400';}
+  var si=document.getElementById('vendorSearchInput');
+  if(si){si.style.borderColor='#e2e8f0';}
   if(Object.keys(window._VENDOR_LIST_DATA).length){
     _renderVendorPanel();
   } else {
@@ -6179,11 +6184,70 @@ window.openVendorList=openVendorList;
 
 // 検索フィルター
 window._vendorSearchQ='';
-function _vendorSearchFilter(){
+// 業者名ボタン絞り込み
+window._vendorSearchQ='';
+window._vendorSelectedName='';
+
+function _openVendorNamePicker(){
+  var data=window._VENDOR_LIST_DATA;
+  var rows=data[window._VENDOR_LIST_TAB]||[];
+  if(!rows.length)return;
+  // 全列からユニークな業者名を収集（空・重複除外）
+  var nameSet={};
+  var cols=Object.keys(rows[0]||{}).filter(function(k){return k!=='area'&&k!=='id'&&k!=='created_at'&&k!=='col_order';});
+  rows.forEach(function(row){
+    cols.forEach(function(c){
+      var v=String(row[c]||'').trim();
+      if(v&&v!=='—')nameSet[v]=1;
+    });
+  });
+  var names=Object.keys(nameSet).sort();
+  if(!names.length)return;
+  // ピッカーモーダル表示
+  var overlay=document.createElement('div');
+  overlay.id='vendorPickerOverlay';
+  overlay.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:9990;display:flex;align-items:flex-end';
+  var box=document.createElement('div');
+  box.style.cssText='background:white;width:100%;max-height:65vh;border-radius:16px 16px 0 0;overflow:hidden;display:flex;flex-direction:column;';
+  var head='<div style="padding:12px 14px 8px;font-size:13px;font-weight:700;color:#1e293b;border-bottom:1px solid #f1f5f9;display:flex;align-items:center;justify-content:space-between">業者名で絞り込み<button onclick="document.getElementById('vendorPickerOverlay').remove()" style="font-size:16px;color:#94a3b8;background:none;border:none;cursor:pointer">✕</button></div>';
+  var resetBtn='<button onclick="_clearVendorFilter()" style="margin:8px 12px 4px;padding:6px 12px;background:#f1f5f9;border:none;border-radius:8px;font-size:11px;font-weight:700;color:#64748b;cursor:pointer;text-align:left">✕ 絞り込み解除</button>';
+  var btns=names.map(function(n){
+    var act=n===window._vendorSelectedName;
+    return '<button onclick="_selectVendorName(''+n.replace(/'/g,"\'")+'')" style="display:block;width:calc(100% - 24px);margin:2px 12px;padding:9px 12px;text-align:left;border:1.5px solid '+(act?'#1a56db':'#e2e8f0')+';border-radius:8px;font-size:12px;font-weight:'+(act?'700':'500')+';color:'+(act?'#1a56db':'#334155')+';background:'+(act?'#eff6ff':'white')+';cursor:pointer">'+n+'</button>';
+  }).join('');
+  box.innerHTML=head+'<div style="overflow-y:auto;padding-bottom:16px">'+resetBtn+btns+'</div>';
+  overlay.appendChild(box);
+  overlay.onclick=function(e){if(e.target===overlay)overlay.remove();};
+  document.body.appendChild(overlay);
+}
+window._openVendorNamePicker=_openVendorNamePicker;
+
+function _selectVendorName(name){
+  window._vendorSelectedName=name;
+  window._vendorSearchQ=name.toLowerCase();
+  var lbl=document.getElementById('vendorSearchLabel');
+  if(lbl){lbl.textContent=name;lbl.style.color='#1a56db';lbl.style.fontWeight='700';}
   var si=document.getElementById('vendorSearchInput');
-  window._vendorSearchQ=(si?si.value:'').toLowerCase().trim();
+  if(si){si.style.borderColor='#1a56db';}
+  var ov=document.getElementById('vendorPickerOverlay');if(ov)ov.remove();
   _renderVendorTable();
 }
+window._selectVendorName=_selectVendorName;
+
+function _clearVendorFilter(){
+  window._vendorSelectedName='';
+  window._vendorSearchQ='';
+  var lbl=document.getElementById('vendorSearchLabel');
+  if(lbl){lbl.textContent='業者名で絞り込み…';lbl.style.color='#94a3b8';lbl.style.fontWeight='400';}
+  var si=document.getElementById('vendorSearchInput');
+  if(si){si.style.borderColor='#e2e8f0';}
+  var ov=document.getElementById('vendorPickerOverlay');if(ov)ov.remove();
+  _renderVendorTable();
+}
+window._clearVendorFilter=_clearVendorFilter;
+
+// 後方互換（旧コードから呼ばれる場合）
+function _vendorSearchFilter(){}
 window._vendorSearchFilter=_vendorSearchFilter;
 
 function _renderVendorPanel(){
@@ -6210,13 +6274,27 @@ function _renderVendorTable(){
   var rows=data[window._VENDOR_LIST_TAB]||[];
   if(!rows.length){wrap.innerHTML='<div style="padding:24px;text-align:center;color:#94a3b8;font-size:12px">データなし</div>';return;}
 
-  // 列一覧（area/id/created_at除外）
+  // 列一覧（area/id/created_at/col_order除外）
+  // col_orderがあれば列順を復元
+  var savedOrder=null;
+  if(rows[0]&&rows[0].col_order){
+    try{savedOrder=JSON.parse(rows[0].col_order);}catch(x){}
+  }
   var colSet={};
-  rows.forEach(function(r){Object.keys(r).forEach(function(k){if(k!=='id'&&k!=='area'&&k!=='created_at')colSet[k]=1;});});
-  var cols=Object.keys(colSet);
+  rows.forEach(function(r){Object.keys(r).forEach(function(k){if(k!=='id'&&k!=='area'&&k!=='created_at'&&k!=='col_order')colSet[k]=1;});});
+  var colsRaw=Object.keys(colSet);
+  // col_orderで並び替え（保存済み順序を優先、未知の列は末尾に追加）
+  var cols;
+  if(savedOrder&&savedOrder.length){
+    var orderSet=savedOrder.filter(function(c){return colsRaw.indexOf(c)>=0;});
+    var extra=colsRaw.filter(function(c){return orderSet.indexOf(c)<0;});
+    cols=orderSet.concat(extra);
+  } else {
+    cols=colsRaw;
+  }
   if(!cols.length){wrap.innerHTML='<div style="padding:24px;text-align:center;color:#94a3b8;font-size:12px">列データなし</div>';return;}
 
-  // A列（最初の列）= 物件名列として固定
+  // A列（最初の列）= 工事項目列として固定
   var freezeCol=cols[0];
   var scrollCols=cols.slice(1);
 
@@ -6229,26 +6307,10 @@ function _renderVendorTable(){
     return cols.some(function(c){return String(row[c]||'').toLowerCase().indexOf(q)>=0;});
   }):rows;
 
-  // 「引渡し」を含む行を動的に検索（愛知=7行目/関東=8行目をデフォルト）
-  var freezeRowIdx=-1;
-  filtered.forEach(function(row,ri){
-    var firstVal=String(row[freezeCol]||'').trim();
-    if(firstVal.indexOf('引渡')>=0||firstVal.indexOf('引き渡し')>=0){freezeRowIdx=ri;}
-  });
-  if(freezeRowIdx<0){freezeRowIdx=isTokai?6:7;} // fallback
-
   // テーブルビルド（スクロール固定レイアウト）
   // 固定A列 + スクロール列の分離テーブル方式
   var FREEZE_W=120;
   var COL_W=110;
-
-  function cellStyle(isHead,isFreeze,isHiliRow,isHiliCol,val){
-    var bg=isHead?hColor:(isHiliRow?'#fff9e6':(isHiliCol?hColor+'18':'transparent'));
-    var color=isHead?'white':(val?'#1e293b':'#cbd5e1');
-    var fw=isHead||isFreeze?'700':'500';
-    var bdr=isHead?'1px solid rgba(255,255,255,.2)':'1px solid #f1f5f9';
-    return 'padding:5px 8px;white-space:nowrap;background:'+bg+';color:'+color+';font-weight:'+fw+';border-bottom:'+bdr+';border-right:'+bdr+';font-size:10px;overflow:hidden;text-overflow:ellipsis;max-width:'+(isFreeze?FREEZE_W:COL_W)+'px;';
-  }
 
   // 共通wrapperスタイル
   var wrapStyle='position:relative;display:flex;height:100%;overflow:hidden;';
@@ -6260,11 +6322,8 @@ function _renderVendorTable(){
     +'<div id="vendorFreezeBody" style="flex:1;overflow:hidden;">'
     +filtered.map(function(row,ri){
       var v=String(row[freezeCol]||'').trim();
-      var isHiliRow=ri===freezeRowIdx;
-      var bg=isHiliRow?'#fff3cd':(ri%2===0?'white':'#f8fafc');
-      var fw=isHiliRow?'800':'600';
-      var border=isHiliRow?'2px solid #f59e0b':'1px solid #f1f5f9';
-      return '<div style="height:28px;display:flex;align-items:center;padding:0 8px;font-size:10px;font-weight:'+fw+';color:#1e293b;background:'+bg+';border-bottom:'+border+';white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:'+FREEZE_W+'px;" title="'+v+'">'+(v||'—')+'</div>';
+      var bg=ri%2===0?'white':'#f8fafc';
+      return '<div style="height:28px;display:flex;align-items:center;padding:0 8px;font-size:10px;font-weight:600;color:#1e293b;background:'+bg+';border-bottom:1px solid #f1f5f9;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:'+FREEZE_W+'px;" title="'+v+'">'+(v||'—')+'</div>';
     }).join('')
     +'</div></div>';
 
@@ -6279,10 +6338,8 @@ function _renderVendorTable(){
     +'</div>'
     // データ行
     +filtered.map(function(row,ri){
-      var isHiliRow=ri===freezeRowIdx;
-      var bg=isHiliRow?'#fff3cd':(ri%2===0?'white':'#f8fafc');
-      var border=isHiliRow?'2px solid #f59e0b':'1px solid #f1f5f9';
-      return '<div style="display:flex;height:28px;background:'+bg+';border-bottom:'+border+';">'
+      var bg=ri%2===0?'white':'#f8fafc';
+      return '<div style="display:flex;height:28px;background:'+bg+';border-bottom:1px solid #f1f5f9;">'
         +scrollCols.map(function(c){
           var v=String(row[c]||'').trim();
           return '<div style="min-width:'+COL_W+'px;max-width:'+COL_W+'px;display:flex;align-items:center;padding:0 8px;font-size:10px;color:'+(v?'#334155':'#cbd5e1')+';border-right:1px solid #f1f5f9;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;" title="'+v+'">'+(v||'—')+'</div>';
@@ -6292,7 +6349,7 @@ function _renderVendorTable(){
     +'</div></div>';
 
   var countMsg=q?'（'+filtered.length+'/'+rows.length+'件）':'（'+rows.length+'件）';
-  wrap.innerHTML='<div style="padding:4px 10px;font-size:10px;color:#94a3b8;background:#f8fafc;border-bottom:1px solid #e2e8f0;flex-shrink:0">'+window._VENDOR_LIST_TAB+' '+countMsg+'　⭐=引渡し固定行</div>'
+  wrap.innerHTML='<div style="padding:4px 10px;font-size:10px;color:#94a3b8;background:#f8fafc;border-bottom:1px solid #e2e8f0;flex-shrink:0">'+window._VENDOR_LIST_TAB+' '+countMsg+'</div>'
     +'<div style="display:flex;flex:1;overflow:hidden;min-height:0;">'+freezeHtml+scrollHtml+'</div>';
 }
 window._renderVendorTable=_renderVendorTable;
@@ -6312,6 +6369,7 @@ function admHandleVendorXlsx(input){
   reader.onload=function(e){
     var allRows=[];
     var resultData={};
+    var colOrderMap={}; // エリアごとの列順を保存
     try{
       var data=new Uint8Array(e.target.result);
       var wb=XLSX.read(data,{type:'array',raw:false});
@@ -6332,6 +6390,8 @@ function admHandleVendorXlsx(input){
         });
         if(!headerMap.length)return;
         var area=sheetName.indexOf('東海')>=0?'東海（全体）':sheetName.indexOf('関東')>=0?'関東（全体）':sheetName;
+        // ★ col_order: XLSXの列順をそのまま保存（F5リロード後も列順を復元するため）
+        colOrderMap[area]=headerMap.map(function(hm){return hm.name;});
         var dataRows=jsonRows.slice(1).filter(function(r){return r.some(function(c){return String(c||'').trim();});});
         resultData[area]=dataRows.map(function(r){
           var obj={area:area};
@@ -6345,7 +6405,7 @@ function admHandleVendorXlsx(input){
         if(statusEl)statusEl.innerHTML='<div style="background:#fee2e2;border-radius:8px;padding:12px;font-size:12px;color:#dc2626">❌ 対象シートなし。検出シート: '+wb.SheetNames.join(', ')+'</div>';
         return;
       }
-      _saveVendorsToDB(allRows).then(function(ok){
+      _saveVendorsToDB(allRows, colOrderMap).then(function(ok){
         if(ok){
           window._VENDOR_LIST_DATA=resultData;
           showToast('✅ 業者一覧をSupabaseに保存しました（'+allRows.length+'件）','success');
