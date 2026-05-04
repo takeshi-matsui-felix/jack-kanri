@@ -1479,12 +1479,20 @@ function setMode(pc){
   isPcMode=pc;
   localStorage.setItem('jack_mode', pc?'pc':'sp');
   document.documentElement.style.setProperty('--row-h',(pc?32:40)+'px');
-  document.getElementById('app').className=pc?'pc-mode':'mobile-mode';
-  document.getElementById('modeToggleBtn').textContent=pc?'📱':'🖥️';
-  // スマホモード時：管理者CPメニュー項目を非表示
+  var appEl=document.getElementById('app');
+  if(appEl) appEl.className=pc?'pc-mode':'mobile-mode';
+  var toggleBtn=document.getElementById('modeToggleBtn');
+  if(toggleBtn) toggleBtn.textContent=pc?'📱':'🖥️';
+  // sp-hide要素（管理者CP・マスター工程）の表示制御
   document.querySelectorAll('.sp-hide').forEach(function(el){
     el.style.display=pc?'':'none';
   });
+  // 管理者CPボタン：PCモード＆管理者ロールの時だけ表示
+  var adminBtn=document.getElementById('sbAdminBtn');
+  if(adminBtn){
+    var isAdmin=typeof currentProfile!=='undefined'&&currentProfile&&currentProfile.role==='admin';
+    adminBtn.style.display=(pc&&isAdmin)?'':'none';
+  }
   renderBody();
   if(!pc) spSetupAccordion();
 }
@@ -4877,8 +4885,7 @@ window.onload=function(){
     });
   }
   document.getElementById('todayBadge').textContent=TODAY.replace(/-/g,'/');
-  document.getElementById('app').className=isPcMode?'pc-mode':'mobile-mode';
-  document.getElementById('modeToggleBtn').textContent=isPcMode?'📱':'🖥️';
+  setMode(isPcMode);
   renderHeader();renderStats();renderBody();initScrollSync();scrollToToday();
   if(syncData.lastSync){
     var l=new Date(syncData.lastSync);
@@ -5051,12 +5058,13 @@ async function onAuthSuccess(){
   hideAuthScreen();
   updateSidebarUser();
   var adminBtn=document.getElementById('sbAdminBtn');
-  if(adminBtn&&currentProfile.role==='admin')adminBtn.style.display='';
+  if(adminBtn&&currentProfile.role==='admin'&&isPcMode)adminBtn.style.display='';
   var pr=await sb.from('properties').select('*').order('fix_no');
   if(!pr.error&&pr.data&&pr.data.length>0){
     DB_PROPS=pr.data;
     _loadSharedGanttFromDB();
     if(typeof renderAll==='function')renderAll();
+    setMode(isPcMode);
     showToast('✅ ログインしました（'+pr.data.length+'件取得）','success');
   } else {
     if(typeof renderAll==='function')renderAll();
@@ -5122,7 +5130,7 @@ async function retryAuth(){
         hideAuthScreen();
         updateSidebarUser();
         var adminBtn=document.getElementById('sbAdminBtn');
-        if(adminBtn&&currentProfile.role==='admin')adminBtn.style.display='';
+        if(adminBtn&&currentProfile.role==='admin'&&isPcMode)adminBtn.style.display='';
         var pr=await sb.from('properties').select('*').order('fix_no');
         if(!pr.error&&pr.data&&pr.data.length>0){
           DB_PROPS=pr.data;_loadSharedGanttFromDB();
