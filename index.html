@@ -6,6 +6,7 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="JACK">
 <meta name="theme-color" content="#1a3a7c">
+<link rel="manifest" href="data:application/json;base64,eyJuYW1lIjogIkpBQ0sg54++5aC0566h55CGIiwgInNob3J0X25hbWUiOiAiSkFDSyIsICJkZXNjcmlwdGlvbiI6ICLmlrDnr4lBUCDnj77loLTnrqHnkIbjgqLjg5fjg6oiLCAic3RhcnRfdXJsIjogIi4iLCAiZGlzcGxheSI6ICJzdGFuZGFsb25lIiwgImJhY2tncm91bmRfY29sb3IiOiAiIzBmMTcyYSIsICJ0aGVtZV9jb2xvciI6ICIjMWEzYTdjIiwgIm9yaWVudGF0aW9uIjogInBvcnRyYWl0IiwgImljb25zIjogW3sic3JjIjogImRhdGE6aW1hZ2Uvc3ZnK3htbCw8c3ZnIHhtbG5zPSdodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2Zycgdmlld0JveD0nMCAwIDE5MiAxOTInPjxyZWN0IHdpZHRoPScxOTInIGhlaWdodD0nMTkyJyByeD0nMzInIGZpbGw9JyUyMzFhM2E3YycvPjx0ZXh0IHk9JzE1MCcgZm9udC1zaXplPScxNDAnIHg9JzE2Jz7wn4+XPC90ZXh0Pjwvc3ZnPiIsICJzaXplcyI6ICIxOTJ4MTkyIiwgInR5cGUiOiAiaW1hZ2Uvc3ZnK3htbCJ9LCB7InNyYyI6ICJkYXRhOmltYWdlL3N2Zyt4bWwsPHN2ZyB4bWxucz0naHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmcnIHZpZXdCb3g9JzAgMCA1MTIgNTEyJz48cmVjdCB3aWR0aD0nNTEyJyBoZWlnaHQ9JzUxMicgcng9JzgwJyBmaWxsPSclMjMxYTNhN2MnLz48dGV4dCB5PSc0MDAnIGZvbnQtc2l6ZT0nMzgwJyB4PSc0MCc+8J+PlzwvdGV4dD48L3N2Zz4iLCAic2l6ZXMiOiAiNTEyeDUxMiIsICJ0eXBlIjogImltYWdlL3N2Zyt4bWwifV19">
 <link rel="apple-touch-icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='20' fill='%231a3a7c'/><text y='.9em' font-size='80' x='10'>🏗</text></svg>">
 <meta name="theme-color" content="#1a56db">
 <title>JACK 現場管理</title>
@@ -22,7 +23,7 @@
   --font:'Noto Sans JP',sans-serif;--mono:'DM Mono',monospace;
   --col-w:18px; /* reduced from 22px */
   --row-h:40px;
-  --freeze-w:236px;
+  --freeze-w:220px;
 }
 *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
 html,body{height:100%;font-family:var(--font);background:#0f172a;overflow:hidden}
@@ -791,28 +792,15 @@ var SYNC_URL = 'https://script.google.com/a/macros/mizken.jp/s/AKfycbw6aIG24NPG-
 // Full range (incl. past) uses DATA.full_dates
 
 var FREEZE_COLS = [
-  { key:'fix_no',    label:'FiX\n№',    w:36 },
-  { key:'seq_no',    label:'通し\n番号', w:30 },
-  { key:'area',      label:'エリア',    w:30 },
-  { key:'name',      label:'物件名',    w:150},
-  { key:'hand_kumi', label:'手組',      w:22 }
-];
-// スマホモード用（物件名のみ）
-var SP_FREEZE_COLS = [
   { key:'name', label:'物件名', w:220 }
 ];
+var SP_FREEZE_COLS = FREEZE_COLS; // PC・スマホ共通
 var FREEZE_W = FREEZE_COLS.reduce(function(a,c){return a+c.w;},0);
 
 var PRE_COLS = [
-  { key:'land_contract',  label:'土地\n契約日',    w:58, cls:'hcell-dark'   },
-  { key:'land_payment',   label:'土地\n決済期日',  w:58, cls:'hcell-dark'   },
-  { key:'confirm_submit', label:'確認申請\n提出日', w:60, cls:'hcell-darker' },
-  { key:'confirm_done',   label:'確認申請\n完了日', w:60, cls:'hcell-darker' }
-];
-// スマホモード用（確認申請完了日のみ）
-var SP_PRE_COLS = [
   { key:'confirm_done', label:'確認申請\n完了日', w:60, cls:'hcell-darker' }
 ];
+var SP_PRE_COLS = PRE_COLS; // PC・スマホ共通
 var PRE_W = PRE_COLS.reduce(function(a,c){return a+c.w;},0);
 
 var POST_COLS = [
@@ -1570,6 +1558,8 @@ function setMode(pc){
   isPcMode=pc;
   localStorage.setItem('jack_mode', pc?'pc':'sp');
   document.documentElement.style.setProperty('--row-h',(pc?32:40)+'px');
+  var fw=FREEZE_COLS.reduce(function(a,c){return a+c.w;},0);
+  document.documentElement.style.setProperty('--freeze-w',fw+'px');
 
   // body.sp-modeクラスで全CSS制御
   if(pc){ document.body.classList.remove('sp-mode'); }
@@ -5493,6 +5483,11 @@ function openJackMap(area){
     listEl.onclick=function(e){
       var item=e.target.closest('.map-prop-item');
       if(!item)return;
+      // スマホ時：物件選択で左リストを折りたたんでマップ全画面表示
+      if(!isPcMode){
+        var lw=document.getElementById('jackMapListWrap');
+        if(lw){lw.style.width='0';lw.style.overflow='hidden';lw.style.transition='width .25s ease';lw.style.flexShrink='0';}
+      }
       var fixNo=item.getAttribute('data-fixno');
       var propName=decodeURIComponent(item.getAttribute('data-name')||'');
       var p=getAllProps().find(function(x){return x.fix_no===fixNo&&x.name===propName;});
@@ -5750,6 +5745,11 @@ window.openMyCalendar=openMyCalendar;
 // 物件名クリックで工種ポップアップ
 function showSegPopup(favEnc){
   var favName=decodeURIComponent(favEnc);
+  // スマホモード時：物件選択で左パネルを折りたたんで右カレンダーを全画面に
+  if(!isPcMode){
+    var lp=document.getElementById('calLeftPanel');
+    if(lp){ lp.style.width='0'; lp.style.overflow='hidden'; }
+  }
   // myFavPropsのデータだけでなく、DB_PROPSから完全なデータを取得する
   var fav=null;
   // まずgetAllPropsから検索（confirm_done等DBデータを持っている）
@@ -5968,7 +5968,7 @@ function renderCalendar(){
   +'</div>';
 
   el.innerHTML='<div style="display:flex;height:100%;overflow:hidden;">'
-    +'<div style="width:160px;flex-shrink:0;background:#1e293b;overflow-y:auto;display:flex;flex-direction:column;">'+leftHtml+'</div>'
+    +'<div id="calLeftPanel" style="width:160px;flex-shrink:0;background:#1e293b;overflow-y:auto;display:flex;flex-direction:column;transition:width .25s ease;">'+leftHtml+'</div>'
     +rightHtml
   +'</div>';
 
