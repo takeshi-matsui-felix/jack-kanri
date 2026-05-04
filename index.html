@@ -357,6 +357,127 @@ body{display:flex;overflow:hidden;}
   @page{size:A3 landscape;margin:6mm;}
 }
 
+
+/* ============================================================
+   スマホモード (mobile-mode) スタイル
+   ============================================================ */
+
+/* 底面タブバー */
+#sp-tabbar{
+  display:none;
+  position:fixed;bottom:0;left:0;right:0;
+  height:58px;
+  background:var(--primary);
+  box-shadow:0 -2px 12px rgba(0,0,0,.25);
+  z-index:8000;
+  padding-bottom:env(safe-area-inset-bottom,0px);
+}
+.mobile-mode #sp-tabbar{ display:flex; }
+.sp-tab{
+  flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;
+  gap:3px;cursor:pointer;padding:6px 0;
+  color:rgba(255,255,255,.6);
+  border:none;background:none;
+  transition:color .15s;
+  -webkit-tap-highlight-color:transparent;
+}
+.sp-tab.active{ color:white; }
+.sp-tab-icon{ font-size:20px;line-height:1; }
+.sp-tab-label{ font-size:10px;font-weight:700; }
+
+/* スマホ時：底面タブバー分の余白 */
+.mobile-mode #app{ padding-bottom:58px; }
+
+/* スマホ時：ヘッダーの☰ボタン・印刷ボタン非表示 */
+.mobile-mode .print-btn,
+.mobile-mode .th-icon-btn[onclick="openMenu()"]{ display:none !important; }
+
+/* スマホ時：管理者CP・マスター工程ボタンを非表示 */
+.mobile-mode .sp-hide{ display:none !important; }
+
+/* スマホ時：工程表の編集ボタン非表示 */
+.mobile-mode #detail-gantt-edit-btn{ display:none !important; }
+.mobile-mode button[onclick="toggleGanttEditMode()"]{ display:none !important; }
+
+/* スマホ時：タップ領域拡大 */
+.mobile-mode .sf-chip{
+  padding:8px 12px !important;
+  font-size:12px !important;
+  min-height:36px;
+}
+.mobile-mode .btn-primary,
+.mobile-mode .btn-secondary,
+.mobile-mode .btn-danger{
+  padding:12px 16px !important;
+  font-size:13px !important;
+  min-height:44px;
+  border-radius:10px !important;
+}
+
+/* スマホ時：物件カードのタップ領域拡大 */
+.mobile-mode .fr-row{
+  min-height:48px !important;
+}
+
+/* スマホ時：フォントサイズ底上げ */
+.mobile-mode .dp-label{ font-size:12px !important; }
+.mobile-mode .dp-val{ font-size:12px !important; }
+.mobile-mode .dp-sec-head{ font-size:13px !important; }
+.mobile-mode .proc-name{ font-size:12px !important; }
+.mobile-mode .proc-date{ font-size:11px !important; }
+
+/* スマホ時：物件詳細セクションをアコーディオン風に */
+.mobile-mode .dp-sec{
+  border-radius:10px !important;
+  margin:6px 8px !important;
+  overflow:hidden;
+}
+.mobile-mode .dp-sec-head{
+  padding:12px 14px !important;
+  cursor:pointer;
+  display:flex;align-items:center;justify-content:space-between;
+}
+.mobile-mode .dp-sec-head::after{
+  content:'▼';
+  font-size:10px;
+  color:rgba(255,255,255,.6);
+  transition:transform .2s;
+  flex-shrink:0;
+  margin-left:8px;
+}
+.mobile-mode .dp-sec.sp-collapsed .dp-sec-head::after{
+  transform:rotate(-90deg);
+}
+.mobile-mode .dp-sec.sp-collapsed > *:not(.dp-sec-head){
+  display:none !important;
+}
+
+/* スマホ時：各種入力フォームの高さ拡大 */
+.mobile-mode input[type="text"],
+.mobile-mode input[type="date"],
+.mobile-mode select,
+.mobile-mode textarea{
+  min-height:44px !important;
+  font-size:14px !important;
+  padding:10px 12px !important;
+}
+
+/* スマホ時：syncバナーを少し大きく */
+.mobile-mode .sync-banner{
+  font-size:11px !important;
+  padding:5px 12px !important;
+}
+
+/* スマホ時：stats-stripの文字 */
+.mobile-mode .ss-num{ font-size:16px !important; }
+.mobile-mode .ss-label{ font-size:10px !important; }
+
+/* ============================================================
+   PC横長モード (pc-mode) スタイル
+   ============================================================ */
+.pc-mode{ max-width:100vw; }
+.pc-mode #sp-tabbar{ display:none !important; }
+.pc-mode #app{ padding-bottom:0 !important; }
 </style>
 </head><body>
 <div id="jackAuthOverlay" style="display:flex">
@@ -433,7 +554,7 @@ body{display:flex;overflow:hidden;}
     <div class="sb-item" onclick="doSync()"><span class="sb-icon">🔄</span><span class="sb-label">今すぐ同期</span></div>
     <div class="sb-item" onclick="openSettings()"><span class="sb-icon">⚙️</span><span class="sb-label">設定</span></div>
     <div class="sb-item" onclick="printPage()"><span class="sb-icon">🖨️</span><span class="sb-label">印刷</span></div>
-    <div class="sb-item" id="sbAdminBtn" style="display:none" onclick="openAdminCP()"><span class="sb-icon">🏢</span><span class="sb-label">管理者CP</span></div>
+    <div class="sb-item sp-hide" id="sbAdminBtn" style="display:none" onclick="openAdminCP()"><span class="sb-icon">🏢</span><span class="sb-label">管理者CP</span></div>
   </div>
   <div class="sb-foot">
     <div class="sb-avatar" id="sbAvatar">?</div>
@@ -523,9 +644,18 @@ body{display:flex;overflow:hidden;}
   </div>
 </div>
 <div class="menu-overlay" id="menuOverlay" onclick="closeMenu()"></div>
-<div class="side-menu" id="sideMenu"><div class="menu-head"><div class="menu-user">🏗️ 現場担当者</div><div class="menu-role">JACK 現場管理アプリ</div></div><div class="menu-body"><div class="menu-section">マイ物件</div><div class="menu-item" onclick="openMyPage()"><span class="mi-icon">⭐</span>マイ物件を見る</div><div class="menu-item" onclick="openSelectProp()"><span class="mi-icon">✅</span>担当物件を選択</div><div class="menu-item" onclick="closeMenu();openMasterPanel()"><span class="mi-icon">📋</span>マスター工程</div><div class="menu-divider"></div><div class="menu-section">表示</div><div class="menu-item" onclick="closeMenu();setMode(false)"><span class="mi-icon">📱</span>スマホ表示</div><div class="menu-item" onclick="closeMenu();setMode(true)"><span class="mi-icon">🖥️</span>PC横長表示</div><div class="menu-divider"></div><div class="menu-section">その他</div><div class="menu-item" onclick="closeMenu();doSync()"><span class="mi-icon">🔄</span>今すぐ同期</div><div class="menu-item" onclick="openSettings()"><span class="mi-icon">⚙️</span>設定</div><div class="menu-item" onclick="closeMenu();printPage()"><span class="mi-icon">🖨️</span>印刷</div></div></div>
+<div class="side-menu" id="sideMenu"><div class="menu-head"><div class="menu-user">🏗️ 現場担当者</div><div class="menu-role">JACK 現場管理アプリ</div></div><div class="menu-body"><div class="menu-section">マイ物件</div><div class="menu-item" onclick="openMyPage()"><span class="mi-icon">⭐</span>マイ物件を見る</div><div class="menu-item" onclick="openSelectProp()"><span class="mi-icon">✅</span>担当物件を選択</div><div class="menu-item sp-hide" onclick="closeMenu();openMasterPanel()"><span class="mi-icon">📋</span>マスター工程</div><div class="menu-divider"></div><div class="menu-section">表示</div><div class="menu-item" onclick="closeMenu();setMode(false)"><span class="mi-icon">📱</span>スマホ表示</div><div class="menu-item" onclick="closeMenu();setMode(true)"><span class="mi-icon">🖥️</span>PC横長表示</div><div class="menu-divider"></div><div class="menu-section">その他</div><div class="menu-item" onclick="closeMenu();doSync()"><span class="mi-icon">🔄</span>今すぐ同期</div><div class="menu-item" onclick="openSettings()"><span class="mi-icon">⚙️</span>設定</div><div class="menu-item" onclick="closeMenu();printPage()"><span class="mi-icon">🖨️</span>印刷</div></div></div>
 <div class="popup-overlay" id="updatePopup" style="display:none"><div class="popup-box"><div class="popup-head">🔔 データ更新情報</div><div class="popup-body" id="updateContent"></div><div class="popup-footer"><button class="popup-close" onclick="closeUpdatePopup()">閉じる</button></div></div></div>
 <div class="tooltip" id="tooltip"></div><div class="toast" id="toast"></div>
+
+<!-- スマホ底面タブバー -->
+<div id="sp-tabbar">
+  <button class="sp-tab active" id="sp-tab-home" onclick="spTabHome()"><span class="sp-tab-icon">🏠</span><span class="sp-tab-label">ホーム</span></button>
+  <button class="sp-tab" id="sp-tab-my" onclick="spTabMy()"><span class="sp-tab-icon">⭐</span><span class="sp-tab-label">マイ物件</span></button>
+  <button class="sp-tab" id="sp-tab-all" onclick="spTabAll()"><span class="sp-tab-icon">📋</span><span class="sp-tab-label">全物件</span></button>
+  <button class="sp-tab" id="sp-tab-sync" onclick="doSync()"><span class="sp-tab-icon">🔄</span><span class="sp-tab-label">同期</span></button>
+</div>
+
 </div>
 <div id="jackMapModal" onclick="if(event.target.id==='jackMapModal')closeJackMap()" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:9998;align-items:center;justify-content:center">
   <div id="jackMapBox">
@@ -672,7 +802,12 @@ var TOTAL_SCROLL_W = PRE_W + GANTT_W + POST_W;
 var currentArea = 'マイ物件';
 var currentStatus = 'all';
 var currentProp = null;
-var isPcMode = window.innerWidth > 1100;
+var isPcMode = (function(){
+  var saved=localStorage.getItem('jack_mode');
+  if(saved==='pc') return true;
+  if(saved==='sp') return false;
+  return window.innerWidth > 768; // 未設定時：768px以下なら自動スマホモード
+})();
 
 function loadLS(k,d){try{var v=localStorage.getItem(k);return v?JSON.parse(v):d;}catch(e){return d;}}
 function saveLS(k,v){try{localStorage.setItem(k,JSON.stringify(v));}catch(e){}}
@@ -1342,11 +1477,76 @@ function showToast(msg,type){
 // ===== MODE =====
 function setMode(pc){
   isPcMode=pc;
+  localStorage.setItem('jack_mode', pc?'pc':'sp');
   document.documentElement.style.setProperty('--row-h',(pc?32:40)+'px');
   document.getElementById('app').className=pc?'pc-mode':'mobile-mode';
   document.getElementById('modeToggleBtn').textContent=pc?'📱':'🖥️';
+  // スマホモード時：管理者CPメニュー項目を非表示
+  document.querySelectorAll('.sp-hide').forEach(function(el){
+    el.style.display=pc?'':'none';
+  });
+  renderBody();
+  if(!pc) spSetupAccordion();
+}
+
+// 底面タブバー操作
+function spTabHome(){
+  spSetActiveTab('sp-tab-home');
+  // メインリスト画面に戻る（全パネルを閉じる）
+  var panels=['detailPanel','myPagePanel','selectPropPanel','masterPanel',
+    'masterEditorPanel','settingsPanel','vendorPanel','jackCalendarPanel','jackAdminCPPanel'];
+  panels.forEach(function(id){
+    var el=document.getElementById(id);
+    if(el)el.classList.remove('open');
+  });
+}
+function spTabMy(){
+  spSetActiveTab('sp-tab-my');
+  openMyPage();
+}
+function spTabAll(){
+  spSetActiveTab('sp-tab-all');
+  // 全物件一覧タブ
+  var panels=['detailPanel','myPagePanel','selectPropPanel','masterPanel',
+    'masterEditorPanel','settingsPanel','vendorPanel','jackCalendarPanel','jackAdminCPPanel'];
+  panels.forEach(function(id){
+    var el=document.getElementById(id);
+    if(el)el.classList.remove('open');
+  });
+  // エリアタブ・ステータスをリセットして全件表示
+  if(typeof setStatus==='function') setStatus('all');
   renderBody();
 }
+function spSetActiveTab(id){
+  document.querySelectorAll('.sp-tab').forEach(function(t){t.classList.remove('active');});
+  var el=document.getElementById(id);
+  if(el) el.classList.add('active');
+}
+window.spTabHome=spTabHome;
+window.spTabMy=spTabMy;
+window.spTabAll=spTabAll;
+window.spSetActiveTab=spSetActiveTab;
+
+// 物件詳細アコーディオン（スマホモード時）
+function spSetupAccordion(){
+  if(isPcMode) return;
+  setTimeout(function(){
+    document.querySelectorAll('.mobile-mode .dp-sec').forEach(function(sec){
+      var head=sec.querySelector('.dp-sec-head');
+      if(!head || head._spAcc) return;
+      head._spAcc=true;
+      // 工程表セクションはデフォルト展開、それ以外は折りたたむ
+      var isGantt=sec.id==='detail-gantt-sec';
+      if(!isGantt) sec.classList.add('sp-collapsed');
+      head.addEventListener('click',function(e){
+        // ボタンのクリックは伝播させない
+        if(e.target.tagName==='BUTTON') return;
+        sec.classList.toggle('sp-collapsed');
+      });
+    });
+  },100);
+}
+window.spSetupAccordion=spSetupAccordion;
 function toggleMode(){setMode(!isPcMode);}
 
 // ===== STATS =====
@@ -2662,6 +2862,8 @@ function openDetail(p){
     +'<button class="btn-secondary" onclick="printPropInfo()" style="font-size:11px;padding:8px 10px">🖨️ この物件を印刷</button>'
     +'<button class="btn-secondary" onclick="showPropQR()" style="font-size:11px;padding:8px 10px">📱 QR</button>';
   openPanel('detailPanel');
+  if(!isPcMode && typeof spSetupAccordion==='function') spSetupAccordion();
+  if(!isPcMode) spSetActiveTab('sp-tab-home');
   }catch(e){console.error('openDetail error:',e);showToast('物件詳細エラー: '+e.message,'error');}
 }
 
@@ -4927,6 +5129,7 @@ async function retryAuth(){
           if(typeof _loadVendorsFromDB==='function')_loadVendorsFromDB();
           if(typeof _loadMastersFromDB==='function')_loadMastersFromDB();
           if(typeof renderAll==='function')renderAll();
+          setMode(isPcMode);
         }
         showToast('✅ ログインしました','success');
         return;
