@@ -2578,6 +2578,7 @@ function printPropInfo(){
 
 // ===== DETAIL PANEL =====
 function openDetail(p){
+  try{
   currentProp=p;
   // LocalStorageのオーバーライドをマージ
   var ov=loadLS('jack_prop_overrides',{});
@@ -2611,8 +2612,9 @@ function openDetail(p){
     :'';
 
   // 住所表示
-  var addrVal=p.address||(typeof p.address==='object'?p.address.address||'':'');;
+  var addrVal=p.address||'';
   if(typeof addrVal==='object')addrVal=addrVal.address||'';
+  if(typeof addrVal!=='string')addrVal='';
 
   // 駐車場表示（SupabaseのJSONBがstringで来る場合を考慮）
   var parkings=p.parkings||[];
@@ -2660,6 +2662,7 @@ function openDetail(p){
     +'<button class="btn-secondary" onclick="printPropInfo()" style="font-size:11px;padding:8px 10px">🖨️ この物件を印刷</button>'
     +'<button class="btn-secondary" onclick="showPropQR()" style="font-size:11px;padding:8px 10px">📱 QR</button>';
   openPanel('detailPanel');
+  }catch(e){console.error('openDetail error:',e);showToast('物件詳細エラー: '+e.message,'error');}
 }
 
 // ===== マスター工程紐付けセクション（物件詳細内） =====
