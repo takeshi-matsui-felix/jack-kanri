@@ -655,6 +655,28 @@ body.sp-mode button[onclick="toggleGanttEditMode()"]{ display:none !important; }
   <button class="sp-tab" id="sp-tab-my" onclick="spTabMy()"><span class="sp-tab-icon">⭐</span><span class="sp-tab-label">マイ物件</span></button>
   <button class="sp-tab" id="sp-tab-all" onclick="spTabAll()"><span class="sp-tab-icon">📋</span><span class="sp-tab-label">全物件</span></button>
   <button class="sp-tab" id="sp-tab-sync" onclick="doSync()"><span class="sp-tab-icon">🔄</span><span class="sp-tab-label">同期</span></button>
+  <button class="sp-tab" id="sp-tab-more" onclick="spTabMore()"><span class="sp-tab-icon">☰</span><span class="sp-tab-label">メニュー</span></button>
+</div>
+
+<!-- スマホ用ボトムシートメニュー -->
+<div id="sp-more-overlay" onclick="spCloseMore()" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:8500"></div>
+<div id="sp-more-sheet" style="display:none;position:fixed;bottom:58px;left:0;right:0;background:white;border-radius:16px 16px 0 0;z-index:8600;padding:8px 0 16px;box-shadow:0 -4px 24px rgba(0,0,0,.2)">
+  <div style="width:36px;height:4px;background:#e2e8f0;border-radius:2px;margin:8px auto 12px"></div>
+  <div onclick="spMoreItem(function(){openMyCalendar();})" style="display:flex;align-items:center;gap:14px;padding:14px 20px;cursor:pointer;font-size:14px;color:#1e293b;font-weight:500">
+    <span style="font-size:22px">📅</span>工事カレンダー
+  </div>
+  <div onclick="spMoreItem(function(){openJackMap('東海');})" style="display:flex;align-items:center;gap:14px;padding:14px 20px;cursor:pointer;font-size:14px;color:#1e293b;font-weight:500">
+    <span style="font-size:22px">🗺️</span>全現場マップ（東海）
+  </div>
+  <div onclick="spMoreItem(function(){openJackMap('関東');})" style="display:flex;align-items:center;gap:14px;padding:14px 20px;cursor:pointer;font-size:14px;color:#1e293b;font-weight:500">
+    <span style="font-size:22px">📍</span>全現場マップ（関東）
+  </div>
+  <div onclick="spMoreItem(function(){openVendorList();})" style="display:flex;align-items:center;gap:14px;padding:14px 20px;cursor:pointer;font-size:14px;color:#1e293b;font-weight:500">
+    <span style="font-size:22px">👷</span>全業者選定一覧
+  </div>
+  <div onclick="spMoreItem(function(){openSettings();})" style="display:flex;align-items:center;gap:14px;padding:14px 20px;cursor:pointer;font-size:14px;color:#1e293b;font-weight:500">
+    <span style="font-size:22px">⚙️</span>設定
+  </div>
 </div>
 
 </div>
@@ -1552,6 +1574,39 @@ window.spTabHome=spTabHome;
 window.spTabMy=spTabMy;
 window.spTabAll=spTabAll;
 window.spSetActiveTab=spSetActiveTab;
+
+// ボトムシートメニュー
+function spTabMore(){
+  spSetActiveTab('sp-tab-more');
+  var overlay=document.getElementById('sp-more-overlay');
+  var sheet=document.getElementById('sp-more-sheet');
+  if(overlay) overlay.style.display='block';
+  if(sheet){
+    sheet.style.display='block';
+    sheet.style.transform='translateY(100%)';
+    sheet.style.transition='transform .25s ease';
+    setTimeout(function(){sheet.style.transform='translateY(0)';},10);
+  }
+}
+function spCloseMore(){
+  var overlay=document.getElementById('sp-more-overlay');
+  var sheet=document.getElementById('sp-more-sheet');
+  if(sheet){
+    sheet.style.transform='translateY(100%)';
+    setTimeout(function(){
+      if(overlay) overlay.style.display='none';
+      if(sheet) sheet.style.display='none';
+    },250);
+  }
+  spSetActiveTab('sp-tab-home');
+}
+function spMoreItem(fn){
+  spCloseMore();
+  setTimeout(fn, 280);
+}
+window.spTabMore=spTabMore;
+window.spCloseMore=spCloseMore;
+window.spMoreItem=spMoreItem;
 
 // 物件詳細アコーディオン（スマホモード時）
 function spSetupAccordion(){
