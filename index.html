@@ -20,6 +20,7 @@
 }
 *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
 html,body{height:100%;font-family:var(--font);background:#0f172a;overflow:hidden}
+body{display:flex;flex-direction:row;}
 button{font-family:var(--font);cursor:pointer;border:none;background:none}
 input,textarea,select{font-family:var(--font)}
 
@@ -372,7 +373,7 @@ body{display:flex;overflow:hidden;}
   z-index:8000;
   padding-bottom:env(safe-area-inset-bottom,0px);
 }
-.mobile-mode #sp-tabbar{ display:flex; }
+body.sp-mode #sp-tabbar{ display:flex; }
 .sp-tab{
   flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;
   gap:3px;cursor:pointer;padding:6px 0;
@@ -386,18 +387,18 @@ body{display:flex;overflow:hidden;}
 .sp-tab-label{ font-size:10px;font-weight:700; }
 
 /* スマホ時：底面タブバー分の余白 */
-.mobile-mode #app{ padding-bottom:58px; }
+body.sp-mode #app{ padding-bottom:58px; }
 
 /* スマホ時：ヘッダーの☰ボタン・印刷ボタン非表示 */
-.mobile-mode .print-btn,
-.mobile-mode .th-icon-btn[onclick="openMenu()"]{ display:none !important; }
+body.sp-mode .print-btn,
+body.sp-mode .th-icon-btn[onclick="openMenu()"]{ display:none !important; }
 
 /* スマホ時：管理者CP・マスター工程ボタンを非表示 */
-.mobile-mode .sp-hide{ display:none !important; }
+body.sp-mode .sp-hide{ display:none !important; }
 
 /* スマホ時：工程表の編集ボタン非表示 */
-.mobile-mode #detail-gantt-edit-btn{ display:none !important; }
-.mobile-mode button[onclick="toggleGanttEditMode()"]{ display:none !important; }
+body.sp-mode #detail-gantt-edit-btn{ display:none !important; }
+body.sp-mode button[onclick="toggleGanttEditMode()"]{ display:none !important; }
 
 /* スマホ時：タップ領域拡大 */
 .mobile-mode .sf-chip{
@@ -1479,20 +1480,37 @@ function setMode(pc){
   isPcMode=pc;
   localStorage.setItem('jack_mode', pc?'pc':'sp');
   document.documentElement.style.setProperty('--row-h',(pc?32:40)+'px');
+
+  // body.sp-modeクラスで全CSS制御
+  if(pc){ document.body.classList.remove('sp-mode'); }
+  else  { document.body.classList.add('sp-mode'); }
+
+  // サイドバーの表示/非表示（PCのみ表示）
+  var sb=document.getElementById('jackSidebar');
+  if(sb) sb.style.display=pc?'':'none';
+
+  // jackMainWrapの幅調整
+  var mw=document.getElementById('jackMainWrap');
+  if(mw) mw.style.flex='1';
+
   var appEl=document.getElementById('app');
   if(appEl) appEl.className=pc?'pc-mode':'mobile-mode';
+
   var toggleBtn=document.getElementById('modeToggleBtn');
   if(toggleBtn) toggleBtn.textContent=pc?'📱':'🖥️';
+
   // sp-hide要素（管理者CP・マスター工程）の表示制御
   document.querySelectorAll('.sp-hide').forEach(function(el){
     el.style.display=pc?'':'none';
   });
+
   // 管理者CPボタン：PCモード＆管理者ロールの時だけ表示
   var adminBtn=document.getElementById('sbAdminBtn');
   if(adminBtn){
     var isAdmin=typeof currentProfile!=='undefined'&&currentProfile&&currentProfile.role==='admin';
     adminBtn.style.display=(pc&&isAdmin)?'':'none';
   }
+
   renderBody();
   if(!pc) spSetupAccordion();
 }
