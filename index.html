@@ -2614,8 +2614,10 @@ function openDetail(p){
   var addrVal=p.address||(typeof p.address==='object'?p.address.address||'':'');;
   if(typeof addrVal==='object')addrVal=addrVal.address||'';
 
-  // 駐車場表示
+  // 駐車場表示（SupabaseのJSONBがstringで来る場合を考慮）
   var parkings=p.parkings||[];
+  if(typeof parkings==='string'){try{parkings=JSON.parse(parkings);}catch(e){parkings=[];}}
+  if(!Array.isArray(parkings))parkings=[];
   var parkHtml='';
   if(parkings.length){
     parkHtml='<div class="dp-sec"><div class="dp-sec-head">🚗 駐車場情報</div>'
@@ -2776,6 +2778,8 @@ function openPropEditModal(){
   var ck=custKey(p);
   var cur=Object.assign({},p,ov[ck]||{});
   var parkings=cur.parkings||[];
+  if(typeof parkings==='string'){try{parkings=JSON.parse(parkings);}catch(e){parkings=[];}}
+  if(!Array.isArray(parkings))parkings=[];
 
   // モーダル作成
   var modal=document.getElementById('_propEditModal');
@@ -3898,6 +3902,13 @@ function computeMasterEditorSegs(steps){
     while(sfDt.getDay()===0)sfDt.setDate(sfDt.getDate()+1);
     startDate=sfDt.toISOString().slice(0,10);
 
+    // step.offset: ドラッグで付いた日数ずれを加算
+    if(step.offset){
+      var offDt=new Date(startDate.replace(/[/]/g,'-'));
+      offDt.setDate(offDt.getDate()+step.offset);
+      startDate=offDt.toISOString().slice(0,10);
+    }
+
     var days=workdaysFrom(startDate,dur);
     if(!days.length)continue;
     var sd=days[0].toISOString().slice(0,10);
@@ -4217,20 +4228,24 @@ function startMasterDrag(e,stepIdx,bar,startLeft){
   e.preventDefault();
   bar.setPointerCapture(e.pointerId);
   var wrap=document.getElementById('masterGanttWrap');
-  mBarDrag={stepIdx:stepIdx,bar:bar,startLeft:startLeft,startClientX:e.clientX,startOffset:editingMaster.steps[stepIdx].offset||0};
+  var scrollX=wrap?wrap.scrollLeft:0;
+  // startLeftはcanvas内の絶対座標。clientXとscrollXを組み合わせて正確なdiff計算
+  mBarDrag={stepIdx:stepIdx,bar:bar,startLeft:startLeft,startClientX:e.clientX,startScrollX:scrollX,startOffset:editingMaster.steps[stepIdx].offset||0};
   bar.style.cursor='grabbing'; bar.style.zIndex='100'; bar.style.opacity='0.85';
   document.addEventListener('pointermove',onMasterBarDrag,{passive:false});
   document.addEventListener('pointerup',stopMasterBarDrag);
 }
 function onMasterBarDrag(e){
   if(!mBarDrag)return; e.preventDefault();
-  var pxMoved=e.clientX-mBarDrag.startClientX;
+  var wrap=document.getElementById('masterGanttWrap');
+  var scrollX=wrap?wrap.scrollLeft:0;
+  // クライアント座標の移動量＋スクロール変化量でcanvas内の正確な移動量を計算
+  var pxMoved=(e.clientX-mBarDrag.startClientX)+(scrollX-mBarDrag.startScrollX);
   var dayShift=Math.round(pxMoved/COL_W);
   editingMaster.steps[mBarDrag.stepIdx].offset=mBarDrag.startOffset+dayShift;
   var newLeft=mBarDrag.startLeft+dayShift*COL_W;
   if(newLeft>=0)mBarDrag.bar.style.left=newLeft+'px';
   // 自動スクロール
-  var wrap=document.getElementById('masterGanttWrap');
   if(wrap){var wr=wrap.getBoundingClientRect();if(e.clientX>wr.right-60)wrap.scrollLeft+=12;else if(e.clientX<wr.left+60)wrap.scrollLeft-=12;}
 }
 function stopMasterBarDrag(){
@@ -4238,12 +4253,14 @@ function stopMasterBarDrag(){
   document.removeEventListener('pointermove',onMasterBarDrag);
   document.removeEventListener('pointerup',stopMasterBarDrag);
   renderMasterGantt();
+  renderMasterStepList();
 }
 
 // Master resize
 var mBarRes=null;
 function startMasterResize(e,stepIdx,bar){
   e.preventDefault();
+  bar.setPointerCapture(e.pointerId);
   mBarRes={stepIdx:stepIdx,bar:bar,startX:e.clientX,startDur:editingMaster.steps[stepIdx].dur||1};
   document.addEventListener('pointermove',onMasterBarResize,{passive:false});
   document.addEventListener('pointerup',stopMasterBarResize);
