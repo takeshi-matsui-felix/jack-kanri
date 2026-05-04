@@ -1,6 +1,12 @@
 <!DOCTYPE html><html lang="ja"><head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=1.0,user-scalable=no">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="JACK">
+<meta name="theme-color" content="#1a3a7c">
+<link rel="apple-touch-icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='20' fill='%231a3a7c'/><text y='.9em' font-size='80' x='10'>🏗</text></svg>">
 <meta name="theme-color" content="#1a56db">
 <title>JACK 現場管理</title>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;600;700;800;900&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
@@ -473,6 +479,61 @@ body.sp-mode button[onclick="toggleGanttEditMode()"]{ display:none !important; }
 .mobile-mode .ss-num{ font-size:16px !important; }
 .mobile-mode .ss-label{ font-size:10px !important; }
 
+/* スマホ用ヘッダー改善 */
+body.sp-mode .top-header{
+  padding: env(safe-area-inset-top, 12px) 16px 12px;
+  padding-top: max(env(safe-area-inset-top, 0px), 12px);
+}
+body.sp-mode .th-logo{ font-size:22px; }
+body.sp-mode .th-sub{ font-size:11px; }
+body.sp-mode .sync-banner{ font-size:11px; padding:5px 14px; }
+
+/* スマホ用：areaTabs（エリアタブ）スクロール */
+body.sp-mode #areaTabs{
+  overflow-x:auto;
+  -webkit-overflow-scrolling:touch;
+  scrollbar-width:none;
+  flex-wrap:nowrap;
+}
+body.sp-mode #areaTabs::-webkit-scrollbar{ display:none; }
+body.sp-mode .atab{
+  white-space:nowrap;
+  padding:10px 14px;
+  font-size:13px;
+  flex-shrink:0;
+}
+
+/* スマホ用：ステータスチップを大きく */
+body.sp-mode .sf-wrap{
+  padding:10px 10px 6px;
+  gap:6px;
+}
+body.sp-mode .sf-chip{
+  padding:8px 14px !important;
+  font-size:12px !important;
+  border-radius:20px;
+}
+
+/* スマホ用：stats-strip */
+body.sp-mode .stats-strip{
+  padding:8px 12px;
+}
+body.sp-mode .ss-item{ gap:2px; }
+body.sp-mode .ss-num{ font-size:18px !important; }
+body.sp-mode .ss-label{ font-size:10px !important; }
+
+/* スマホ用：物件リスト行の高さ */
+body.sp-mode .fr-row{ min-height:52px !important; }
+body.sp-mode .fr-row .fc{
+  font-size:11px !important;
+}
+
+/* スマホ用：物件名セルを大きく */
+body.sp-mode .fr-row .fc:last-child{
+  font-size:13px !important;
+  font-weight:600;
+}
+
 /* ============================================================
    PC横長モード (pc-mode) スタイル
    ============================================================ */
@@ -653,8 +714,7 @@ body.sp-mode button[onclick="toggleGanttEditMode()"]{ display:none !important; }
 <div id="sp-tabbar">
   <button class="sp-tab active" id="sp-tab-home" onclick="spTabHome()"><span class="sp-tab-icon">🏠</span><span class="sp-tab-label">ホーム</span></button>
   <button class="sp-tab" id="sp-tab-my" onclick="spTabMy()"><span class="sp-tab-icon">⭐</span><span class="sp-tab-label">マイ物件</span></button>
-  <button class="sp-tab" id="sp-tab-all" onclick="spTabAll()"><span class="sp-tab-icon">📋</span><span class="sp-tab-label">全物件</span></button>
-  <button class="sp-tab" id="sp-tab-sync" onclick="doSync()"><span class="sp-tab-icon">🔄</span><span class="sp-tab-label">同期</span></button>
+  <button class="sp-tab" id="sp-tab-sync" onclick="doSync();spSetActiveTab('sp-tab-sync');setTimeout(function(){spSetActiveTab('sp-tab-home');},2000)"><span class="sp-tab-icon">🔄</span><span class="sp-tab-label">同期</span></button>
   <button class="sp-tab" id="sp-tab-more" onclick="spTabMore()"><span class="sp-tab-icon">☰</span><span class="sp-tab-label">メニュー</span></button>
 </div>
 
@@ -737,6 +797,10 @@ var FREEZE_COLS = [
   { key:'name',      label:'物件名',    w:150},
   { key:'hand_kumi', label:'手組',      w:22 }
 ];
+// スマホモード用（物件名のみ）
+var SP_FREEZE_COLS = [
+  { key:'name', label:'物件名', w:220 }
+];
 var FREEZE_W = FREEZE_COLS.reduce(function(a,c){return a+c.w;},0);
 
 var PRE_COLS = [
@@ -744,6 +808,10 @@ var PRE_COLS = [
   { key:'land_payment',   label:'土地\n決済期日',  w:58, cls:'hcell-dark'   },
   { key:'confirm_submit', label:'確認申請\n提出日', w:60, cls:'hcell-darker' },
   { key:'confirm_done',   label:'確認申請\n完了日', w:60, cls:'hcell-darker' }
+];
+// スマホモード用（確認申請完了日のみ）
+var SP_PRE_COLS = [
+  { key:'confirm_done', label:'確認申請\n完了日', w:60, cls:'hcell-darker' }
 ];
 var PRE_W = PRE_COLS.reduce(function(a,c){return a+c.w;},0);
 
@@ -1681,20 +1749,24 @@ function renderStats(){
 
 // ===== RENDER HEADER =====
 function renderHeader(){
+  var activeFreezeC=isPcMode?FREEZE_COLS:SP_FREEZE_COLS;
+  var activePreC=isPcMode?PRE_COLS:SP_PRE_COLS;
+  var activeFreezeW2=activeFreezeC.reduce(function(a,c){return a+c.w;},0);
+  var activeTotalW2=activePreC.reduce(function(a,c){return a+c.w;},0)+GANTT_W+POST_W;
   var fi=document.getElementById('freezeHeaderInner');
   var si=document.getElementById('scrollHeaderInner');
   fi.innerHTML='';si.innerHTML='';
-  fi.style.cssText='display:flex;width:'+FREEZE_W+'px;height:36px;';
-  si.style.cssText='width:'+TOTAL_SCROLL_W+'px;height:36px;position:relative;';
+  fi.style.cssText='display:flex;width:'+activeFreezeW2+'px;height:36px;';
+  si.style.cssText='width:'+activeTotalW2+'px;height:36px;position:relative;';
 
-  FREEZE_COLS.forEach(function(c){
+  activeFreezeC.forEach(function(c){
     var el=document.createElement('div');el.className='hcell hcell-blue';
     el.style.cssText='width:'+c.w+'px;min-width:'+c.w+'px;height:36px;white-space:pre;line-height:1.3;';
     el.textContent=c.label;fi.appendChild(el);
   });
 
   var x=0;
-  PRE_COLS.forEach(function(c){
+  activePreC.forEach(function(c){
     var el=document.createElement('div');el.className='info-col-h '+(c.cls||'hcell-dark');
     el.style.cssText='left:'+x+'px;width:'+c.w+'px;white-space:pre;line-height:1.2;';
     el.textContent=c.label;si.appendChild(el);x+=c.w;
@@ -1853,13 +1925,18 @@ function renderBars(cv, p, segs, gx, top, rowH) {
 
 // ===== RENDER BODY =====
 function renderBody(){
+  var activeFreezeC=isPcMode?FREEZE_COLS:SP_FREEZE_COLS;
+  var activePreC=isPcMode?PRE_COLS:SP_PRE_COLS;
+  var activeFreezeW=activeFreezeC.reduce(function(a,c){return a+c.w;},0);
+  var activePreW=activePreC.reduce(function(a,c){return a+c.w;},0);
   var rowH = isPcMode ? 32 : 40;
   document.documentElement.style.setProperty('--row-h',rowH+'px');
   var props=getProps();
   var fb=document.getElementById('freezeBody');
   var cv=document.getElementById('ganttCanvas');
   fb.innerHTML='';cv.innerHTML='';
-  cv.style.cssText='width:'+TOTAL_SCROLL_W+'px;height:'+(props.length*rowH)+'px;position:relative;';
+  var activeTotalW = activePreW + GANTT_W + POST_W;
+  cv.style.cssText='width:'+activeTotalW+'px;height:'+(props.length*rowH)+'px;position:relative;';
 
   if(props.length===0){
     fb.innerHTML='<div style="padding:24px;text-align:center;color:var(--g400);font-size:12px">'
@@ -1867,7 +1944,7 @@ function renderBody(){
     return;
   }
 
-  var gx=PRE_W;
+  var gx=activePreW;
   var nRows=props.length;
 
   // Pre-draw month boundary lines & today line first
@@ -1901,7 +1978,7 @@ function renderBody(){
     var fr=document.createElement('div');
     fr.className='fr-row'+(isUrgent?' urgent':isSoon?' soon':'')+(fav?' myfav-row':'');
     (function(pp){fr.onclick=function(){window.openDetail(pp);};})(p);
-    FREEZE_COLS.forEach(function(c){
+    activeFreezeC.forEach(function(c){
       var cell=document.createElement('div');cell.className='fc';
       cell.style.cssText='width:'+c.w+'px;min-width:'+c.w+'px;max-width:'+c.w+'px;height:'+rowH+'px;';
       var val=p[c.key]||'';
@@ -1943,7 +2020,7 @@ function renderBody(){
 
     // PRE-GANTT
     var px2=0;
-    PRE_COLS.forEach(function(c){
+    activePreC.forEach(function(c){
       var val=normDate(p[c.key]||'');
       var el=document.createElement('div');el.className='info-cell';
       el.style.cssText='left:'+px2+'px;top:'+top+'px;width:'+c.w+'px;height:'+rowH+'px;background:'+(ri%2===0?'rgba(30,58,95,.03)':'rgba(30,58,95,.05)')+';';
@@ -3270,8 +3347,17 @@ function addFavAction(){if(currentProp){addFav(currentProp);renderBody();showToa
 function removeFavAction(){if(currentProp){removeFav(currentProp);renderBody();showToast('マイ物件から削除しました','');openDetail(currentProp);}}
 
 // ===== PANELS =====
-function openPanel(id){document.getElementById(id).classList.add('open');}
-function closePanel(id){document.getElementById(id).classList.remove('open');}
+function openPanel(id){
+  document.getElementById(id).classList.add('open');
+  // スマホモード時：パネルを開いたらサイドバーを非表示
+  if(!isPcMode){
+    var sb=document.getElementById('jackSidebar');
+    if(sb) sb.style.display='none';
+  }
+}
+function closePanel(id){
+  document.getElementById(id).classList.remove('open');
+}
 
 // ===== MENU =====
 function openMenu(){document.getElementById('menuOverlay').classList.add('open');document.getElementById('sideMenu').classList.add('open');}
