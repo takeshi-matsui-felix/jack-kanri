@@ -758,7 +758,8 @@ body.sp-mode .fr-row .fc:last-child{
         <div id="jackMapAreaTabs" style="display:flex;border-bottom:2px solid #e2e8f0;flex-shrink:0;background:white"></div>
         <div id="jackMapList" style="flex:1;overflow-y:auto"></div>
       </div>
-      <div id="jackMapRight">
+      <div id="jackMapRight" style="position:relative;flex:1;display:flex;flex-direction:column;overflow:hidden;">
+        <button id="mapOpenListBtn" onclick="spMapToggleList()" style="display:none;position:absolute;top:8px;left:8px;z-index:100;align-items:center;gap:4px;padding:7px 12px;border-radius:8px;background:#1e293b;color:white;font-size:12px;font-weight:700;border:none;cursor:pointer;box-shadow:0 2px 8px rgba(0,0,0,.3)">☰ 物件</button>
         <div id="jackMapTabs" style="display:none;padding:6px;gap:4px;background:#f1f5f9;border-bottom:1px solid #e2e8f0;flex-shrink:0;display:none">
           <button id="mapTabBtn_map" class="map-tab-btn active" onclick="showMapTab('map')">📍 現場地図</button>
           <button id="mapTabBtn_park" class="map-tab-btn" onclick="showMapTab('park')">🅿️ 駐車場</button>
@@ -1686,6 +1687,36 @@ function spSetupAccordion(){
   },100);
 }
 window.spSetupAccordion=spSetupAccordion;
+
+// カレンダー左パネル開閉
+function spCalOpenList(){
+  var lp=document.getElementById('calLeftPanel');
+  var btn=document.getElementById('calOpenListBtn');
+  if(!lp)return;
+  if(lp.style.width==='0px'||lp.style.width==='0'){
+    lp.style.width='160px'; lp.style.overflow='';
+    if(btn)btn.style.display='none';
+  } else {
+    lp.style.width='0'; lp.style.overflow='hidden';
+    if(btn)btn.style.display='flex';
+  }
+}
+window.spCalOpenList=spCalOpenList;
+
+// マップ左パネル開閉
+function spMapToggleList(){
+  var lw=document.getElementById('jackMapListWrap');
+  var btn=document.getElementById('mapOpenListBtn');
+  if(!lw)return;
+  if(lw.style.width==='0px'||lw.style.width==='0'){
+    lw.style.width=''; lw.style.overflow='';
+    if(btn)btn.style.display='none';
+  } else {
+    lw.style.width='0'; lw.style.overflow='hidden';
+    if(btn)btn.style.display='flex';
+  }
+}
+window.spMapToggleList=spMapToggleList;
 function toggleMode(){setMode(!isPcMode);}
 
 // ===== STATS =====
@@ -5486,7 +5517,9 @@ function openJackMap(area){
       // スマホ時：物件選択で左リストを折りたたんでマップ全画面表示
       if(!isPcMode){
         var lw=document.getElementById('jackMapListWrap');
-        if(lw){lw.style.width='0';lw.style.overflow='hidden';lw.style.transition='width .25s ease';lw.style.flexShrink='0';}
+        var mbtn=document.getElementById('mapOpenListBtn');
+        if(lw){lw.style.width='0';lw.style.overflow='hidden';lw.style.transition='width .25s ease';}
+        if(mbtn){mbtn.style.display='flex';}
       }
       var fixNo=item.getAttribute('data-fixno');
       var propName=decodeURIComponent(item.getAttribute('data-name')||'');
@@ -5748,7 +5781,9 @@ function showSegPopup(favEnc){
   // スマホモード時：物件選択で左パネルを折りたたんで右カレンダーを全画面に
   if(!isPcMode){
     var lp=document.getElementById('calLeftPanel');
-    if(lp){ lp.style.width='0'; lp.style.overflow='hidden'; }
+    var btn=document.getElementById('calOpenListBtn');
+    if(lp){ lp.style.width='0'; lp.style.overflow='hidden'; lp.style.transition='width .25s ease'; }
+    if(btn){ btn.style.display='flex'; }
   }
   // myFavPropsのデータだけでなく、DB_PROPSから完全なデータを取得する
   var fav=null;
@@ -5880,6 +5915,7 @@ function renderCalendar(){
   // 右エリア：縦スクロール13ヶ月（前月〜12ヶ月後）
   // ツールバー
   var toolBar='<div style="display:flex;align-items:center;justify-content:space-between;padding:8px 12px;border-bottom:1px solid #e2e8f0;flex-shrink:0;background:white;position:sticky;top:0;z-index:10;">'
+    +'<button id="calOpenListBtn" onclick="spCalOpenList()" style="display:'+(isPcMode?'none':'flex')+';align-items:center;gap:4px;padding:5px 10px;border-radius:7px;background:#1e293b;color:white;font-size:11px;cursor:pointer;font-weight:700;border:none;flex-shrink:0">☰ 物件</button>'
     +'<div style="font-size:13px;font-weight:800;color:#1e293b">📅 工事カレンダー</div>'
     +'<div style="display:flex;gap:6px;">'
       +'<button onclick="scrollToToday()" style="padding:5px 12px;border-radius:7px;background:#1a56db;color:white;font-size:11px;cursor:pointer;font-weight:700">今月</button>'
