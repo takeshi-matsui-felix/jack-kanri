@@ -355,14 +355,27 @@ body{display:flex;overflow:hidden;}
 .ged-item.ged-active .ged-item-name{color:#fff}
 .ged-item-meta{font-size:8px;color:rgba(255,255,255,.38);margin-top:1px}
 @media print{
+  @page{size:A3 landscape;margin:5mm;}
   #jackSidebar,#menuOverlay,#sideMenu,.sync-banner,.status-bar,.stats-strip,.panel-action-bar,
   .th-icon-btn,.print-btn,#updatePopup,.tooltip,.toast,#loading,.editor-toolbar,#addBarFormPanel,
-  #jackMapModal,#jackAdminCPPanel{display:none!important;}
-  #jackMainWrap,#jackCalendarPanel.open{display:block!important;}
-  body{display:block!important;}
-  .slide-panel.open{display:flex!important;position:static!important;transform:none!important;height:auto!important;overflow:visible!important;}
-  #jackCalendarPanel.open .panel-scroll{overflow:visible!important;height:auto!important;}
-  @page{size:A3 landscape;margin:6mm;}
+  #jackMapModal,#jackAdminCPPanel,#sp-tabbar,#sp-more-overlay,#sp-more-sheet{display:none!important;}
+  html,body{display:block!important;width:100%;height:auto!important;overflow:visible!important;}
+  #jackMainWrap{display:block!important;width:100%;height:auto!important;overflow:visible!important;}
+  #app{display:block!important;width:100%;height:auto!important;overflow:visible!important;padding-bottom:0!important;}
+  /* テーブルラッパー：overflow解除してガント全体を展開 */
+  .table-wrap,.table-body,.table-header{overflow:visible!important;height:auto!important;}
+  /* freezeBodyとscrollBodyを縦積みにして全列表示 */
+  .table-body{display:block!important;}
+  .freeze-body{width:100%!important;max-width:none!important;float:none!important;border-right:none!important;overflow:visible!important;height:auto!important;}
+  .scroll-body{overflow:visible!important;height:auto!important;width:100%!important;}
+  #ganttCanvas{position:relative!important;width:100%!important;height:auto!important;min-height:0!important;}
+  /* ガントCanvasをscale調整してA3横に収める */
+  #ganttCanvas{transform-origin:top left;}
+  .fr-row{page-break-inside:avoid;}
+  /* freezeHeaderとscrollHeaderも表示 */
+  .freeze-header,.freeze-header-inner,#freezeHeaderInner,#scrollHeaderInner,#scrollHeaderWrap{display:block!important;overflow:visible!important;}
+  /* ステータスフィルター等を非表示 */
+  .sf-wrap,.area-tabs-wrap,#areaTabs,.atab-wrap{display:none!important;}
 }
 
 
@@ -2735,19 +2748,19 @@ function printDetailGantt(){
   while(dc<=pEnd){allDates.push(dc.toISOString().slice(0,10));dc.setDate(dc.getDate()+1);}
   var dIdx={};allDates.forEach(function(d,i){if(d)dIdx[d]=i;});
 
-  // Split into 2-month segments
+  // 横向きA3：3ヶ月単位でブロック分割
   var blocks=[];var cur=new Date(pStart.getTime());
   while(cur<=pEnd){
     var bStart=new Date(cur.getFullYear(),cur.getMonth(),1);
-    var bEnd=new Date(cur.getFullYear(),cur.getMonth()+2,0); // end of 2nd month
+    var bEnd=new Date(cur.getFullYear(),cur.getMonth()+3,0); // end of 3rd month
     if(bEnd>pEnd)bEnd=new Date(pEnd.getTime());
     blocks.push({start:bStart,end:bEnd});
-    cur=new Date(cur.getFullYear(),cur.getMonth()+2,1);
+    cur=new Date(cur.getFullYear(),cur.getMonth()+3,1);
   }
 
   // Build steps list (non-child rows)
   var allRows=segs.map(function(s,i){return{seg:s,rowIdx:i};});
-  var PCOL=18; // px per day in print
+  var PCOL=14; // px per day（A3横向き3ヶ月）
   var PROW=22; // px per row
 
   var mn={'01':'1月','02':'2月','03':'3月','04':'4月','05':'5月','06':'6月','07':'7月','08':'8月','09':'9月','10':'10月','11':'11月','12':'12月'};
@@ -2761,7 +2774,7 @@ function printDetailGantt(){
     var W=numDays*PCOL;var H=numRows*PROW+32;
     var yr=blk.start.getFullYear();
     var m1=('0'+(blk.start.getMonth()+1)).slice(-2);
-    var m2=('0'+(blk.end.getMonth()+1)).slice(-2);
+    var m2=('0'+(blk.end.getMonth()+1)).slice(-2); // 3ヶ月目末
     var title=yr+'年'+(mn[m1]||m1)+'〜'+(mn[m2]||m2);
 
     // Month bands
@@ -2879,7 +2892,7 @@ function printDetailGantt(){
     +'.hdr-name{font-size:20px;font-weight:800;margin-bottom:3px}'
     +'.hdr-meta{font-size:10px;opacity:.9;line-height:1.8}'
     +'@media print{'
-    +'  @page{size:A3 portrait;margin:8mm}'
+    +'  @page{size:A3 landscape;margin:8mm}'
     +'  body{padding:4px}'
     +'  .block{page-break-inside:avoid}'
     +'}'
@@ -4883,7 +4896,33 @@ function showPropQR(){
   ov2.onclick=function(e){if(e.target===ov2)ov2.remove();};
 }
 window.showPropQR=showPropQR;
-function printPage(){window.print();}
+function printPage(){
+  // A3横向きにガントを縮小して印刷
+  var canvas=document.getElementById('ganttCanvas');
+  var scrollBody=document.querySelector('.scroll-body');
+  var originalTransform='';
+  var originalOverflow='';
+  if(canvas&&scrollBody){
+    var canvasW=canvas.scrollWidth||canvas.offsetWidth;
+    var pageW=1170; // A3横向き印刷可能幅(px換算 約297mm at 96dpi×1.25)
+    if(canvasW>pageW){
+      var scale=pageW/canvasW;
+      originalTransform=canvas.style.transform;
+      originalOverflow=scrollBody.style.overflow;
+      canvas.style.transform='scale('+scale+')';
+      canvas.style.transformOrigin='top left';
+      scrollBody.style.overflow='visible';
+      // canvasの親のheightも調整
+      canvas.style.height=(canvas.offsetHeight*scale)+'px';
+    }
+  }
+  window.print();
+  // 印刷後に元に戻す
+  setTimeout(function(){
+    if(canvas){canvas.style.transform=originalTransform;canvas.style.height='';}
+    if(scrollBody){scrollBody.style.overflow=originalOverflow;}
+  },1000);
+}
 
 // ===== SYNC =====
 function updateSyncBanner(msg,syncing){
