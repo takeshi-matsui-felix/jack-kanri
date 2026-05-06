@@ -2719,11 +2719,27 @@ function printDetailGantt(){
   var PROW=18; // 行高さ
   var LABEL_W=80; // 左ラベル列幅
 
-  // 印刷開始日：確認申請完了日の1ヶ月前 or 最初のバー開始日
+  // 印刷開始日：segsの最初のstart_dateの2日前
   var cd=p.confirm_done||'';
-  var pStartBase=cd?new Date(cd):new Date(TODAY);
-  pStartBase.setMonth(pStartBase.getMonth()-1);
-  pStartBase.setDate(1);
+  var firstSegDate=null;
+  if(segs&&segs.length){
+    var sorted=segs.slice().sort(function(a,b){
+      var da=a.start_date||a.date||'9999';
+      var db=b.start_date||b.date||'9999';
+      return da<db?-1:da>db?1:0;
+    });
+    firstSegDate=sorted[0].start_date||sorted[0].date||null;
+  }
+  var pStartBase;
+  if(firstSegDate){
+    pStartBase=new Date(firstSegDate);
+    pStartBase.setDate(pStartBase.getDate()-2); // 2日前
+  } else if(cd){
+    pStartBase=new Date(cd);
+    pStartBase.setDate(pStartBase.getDate()-2);
+  } else {
+    pStartBase=new Date(TODAY);
+  }
 
   // 印刷終了日：引渡し日の月末 or 開始から6ヶ月後
   var delivEnd=p.delivery_date?new Date(p.delivery_date):null;
@@ -4899,14 +4915,20 @@ function printPage(){
   var visDates=window.VIS_DATES||[];
   if(!visDates.length){showToast('工程データがありません','error');return;}
 
+  // 今月1日をスタートとしてvisDatesをフィルタリング
+  var todayDt=new Date(TODAY);
+  var monthStart=todayDt.getFullYear()+'-'+('0'+(todayDt.getMonth()+1)).slice(-2)+'-01';
+  // monthStart以降の日付のみ使用
+  var printDates=visDates.filter(function(d){return !d||d>=monthStart;});
+  // インデックスを再構築
   var dIdx={};
-  visDates.forEach(function(d,i){if(d)dIdx[d]=i;});
-  var numDays=visDates.length-1;
+  printDates.forEach(function(d,i){if(d)dIdx[d]=i;});
+  var numDays=printDates.length-1;
   var GANTT_W=numDays*PCOL;
 
   // 月バンド
   var mBands={};
-  visDates.forEach(function(d,i){
+  printDates.forEach(function(d,i){
     if(!d)return;
     var m=d.substring(0,7);
     if(!mBands[m])mBands[m]={start:i-1,count:0};
@@ -4922,7 +4944,7 @@ function printPage(){
 
   // 日付ヘッダー
   var dayHtml='';
-  visDates.forEach(function(d,i){
+  printDates.forEach(function(d,i){
     if(!d)return;
     var dow=new Date(d).getDay();
     var day=parseInt(d.split('-')[2]);
@@ -4958,7 +4980,7 @@ function printPage(){
     rowBgs+='<div style="position:absolute;left:0;top:'+(ri*PROW+28)+'px;width:'+GANTT_W+'px;height:'+PROW+'px;background:'+bg+';border-bottom:1px solid #e2e8f0;"></div>';
 
     // weekend fills
-    visDates.forEach(function(d,di){
+    printDates.forEach(function(d,di){
       if(!d)return;
       var dow=new Date(d).getDay();
       if(dow===0||dow===6){
