@@ -1189,10 +1189,22 @@ function getActiveSegs(p) {
     tmplSteps=myMasters[0].steps;
   }
 
-  // ④ confirm_doneがあれば常に新鮮な計算結果を返す（キャッシュ一切不使用）
+  // ④ customGantt（手動編集済み）を最優先で返す
+  if(customGantt[ck]&&customGantt[ck].length)return customGantt[ck];
+
+  // DB_PROPSのcustom_ganttも確認
+  if(typeof DB_PROPS!=='undefined'&&DB_PROPS){
+    var dbP=DB_PROPS.find(function(dp){return String(dp.fix_no)===String(p.fix_no);});
+    if(dbP&&dbP.custom_gantt){
+      var cg=typeof dbP.custom_gantt==='string'?JSON.parse(dbP.custom_gantt):dbP.custom_gantt;
+      if(cg&&cg.length){customGantt[ck]=cg;return cg;}
+    }
+  }
+
+  // ⑤ confirm_doneがあればマスターから計算
   if(hasCd)return computeMasterSegs(cd,tmplSteps,p.hand_kumi);
 
-  // ⑤ confirm_doneなし → セグメントデータにフォールバック
+  // ⑥ confirm_doneなし → セグメントデータにフォールバック
   if(p.master_segs&&p.master_segs.length)return p.master_segs;
   return p.segments||[];
   }catch(e){console.warn('getActiveSegs err:',e);return (p&&p.segments)||[];}
@@ -5435,13 +5447,26 @@ window.retryAuth=retryAuth;
 async function initAuth(){
   var sb=getSB();
   if(!sb){showAuthScreen();return;}
+
+  // まず既存セッションを確認（キャッシュから即座に）
+  var sr=await sb.auth.getSession();
+  if(sr.data&&sr.data.session&&sr.data.session.user){
+    currentUser=sr.data.session.user;
+    await onAuthSuccess();
+  } else {
+    showAuthScreen();
+  }
+
+  // 以降の状態変化のみ監視（初回はgetSessionで処理済みなのでSIGNED_INは無視）
+  var initialDone=true;
   sb.auth.onAuthStateChange(function(event,session){
-    if(event==='SIGNED_IN'&&session&&session.user){currentUser=session.user;onAuthSuccess();}
+    if(event==='SIGNED_IN'&&session&&session.user){
+      if(initialDone&&currentProfile){return;} // 既にログイン済みなら無視
+      currentUser=session.user;
+      onAuthSuccess();
+    }
     else if(event==='SIGNED_OUT'){currentUser=null;currentProfile=null;showAuthScreen();}
   });
-  var sr=await sb.auth.getSession();
-  if(sr.data&&sr.data.session&&sr.data.session.user){currentUser=sr.data.session.user;await onAuthSuccess();}
-  else showAuthScreen();
 }
 window.addEventListener('load',function(){setTimeout(initAuth,400);});
 
