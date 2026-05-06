@@ -3487,7 +3487,7 @@ function renderMyPage(){
   var all=getAllProps();
   var html='<div style="padding:8px 12px 4px;font-size:11px;color:var(--g400)">登録物件 '+myFavProps.length+'件</div>'
     +'<div style="padding:4px 12px 8px;display:flex;gap:6px;flex-wrap:wrap">'
-    +'<button class="btn-secondary" style="font-size:11px;padding:7px 12px" onclick="openMasterPanel()">📋 マスター工程</button>'
+    +(currentProfile&&currentProfile.role==='admin'?'<button class="btn-secondary" style="font-size:11px;padding:7px 12px" onclick="openMasterPanel()">📋 マスター工程</button>':'')
     +'<button class="btn-secondary" style="font-size:11px;padding:7px 12px" onclick="printPage()">🖨️ 印刷</button>'
     +'</div>';
   html+=myFavProps.map(function(fav){
@@ -5335,28 +5335,30 @@ function _loadSharedGanttFromDB(){
   if(ovChanged)saveLS('jack_prop_overrides',ov);
 }
 
-async function onAuthSuccess(){
+async function onAuthSuccess(isNewLogin){
   var sb=getSB();
-  await new Promise(function(r){setTimeout(r,500);});
-  // profilesテーブルからユーザー情報取得（RLS: auth.uid()=id が必要）
-  var res=await sb.from('profiles').select('*').eq('id',currentUser.id).single();
-  if(res.error){
-    // RLSエラーの場合：管理者に連絡を促す
-    showToast('プロフィール取得エラー: '+res.error.message+' (Supabase RLSを確認してください)','error');
-    showPendingScreen();
-    return;
+  // 既存セッション復元時（isNewLogin=false）はprofileキャッシュを使う
+  var cachedProfile=null;
+  try{var cp=localStorage.getItem('jack_profile_cache');if(cp)cachedProfile=JSON.parse(cp);}catch(e){}
+  if(!isNewLogin&&cachedProfile&&cachedProfile.id===currentUser.id){
+    currentProfile=cachedProfile;
+  } else {
+    await new Promise(function(r){setTimeout(r,300);});
+    var res=await sb.from('profiles').select('*').eq('id',currentUser.id).single();
+    if(res.error){
+      showToast('プロフィール取得エラー: '+res.error.message,'error');
+      showPendingScreen(); return;
+    }
+    currentProfile=res.data;
+    try{localStorage.setItem('jack_profile_cache',JSON.stringify(currentProfile));}catch(e){}
   }
-  currentProfile=res.data;
-  if(!currentProfile||!currentProfile.approved){
-    showPendingScreen();
-    return;
-  }
+  if(!currentProfile||!currentProfile.approved){showPendingScreen();return;}
   hideAuthScreen();
   updateSidebarUser();
   var adminBtn=document.getElementById('sbAdminBtn');
   if(adminBtn&&currentProfile.role==='admin'&&isPcMode)adminBtn.style.display='';
   loadPropertiesFromCacheOrDB(false);
-  showToast('✅ ログインしました','success');
+  if(isNewLogin)showToast('✅ ログインしました','success');
 }
 
 // Patch getAllProps to use DB when available
@@ -5452,7 +5454,7 @@ async function initAuth(){
   var sr=await sb.auth.getSession();
   if(sr.data&&sr.data.session&&sr.data.session.user){
     currentUser=sr.data.session.user;
-    await onAuthSuccess();
+    await onAuthSuccess(false); // 既存セッション復元
   } else {
     showAuthScreen();
   }
@@ -5463,7 +5465,7 @@ async function initAuth(){
     if(event==='SIGNED_IN'&&session&&session.user){
       if(initialDone&&currentProfile){return;} // 既にログイン済みなら無視
       currentUser=session.user;
-      onAuthSuccess();
+      onAuthSuccess(true); // 新規ログイン
     }
     else if(event==='SIGNED_OUT'){currentUser=null;currentProfile=null;showAuthScreen();}
   });
@@ -6029,7 +6031,7 @@ function renderCalendar(){
   // 右エリア：縦スクロール13ヶ月（前月〜12ヶ月後）
   // ツールバー
   var toolBar='<div style="display:flex;align-items:center;justify-content:space-between;padding:8px 12px;border-bottom:1px solid #e2e8f0;flex-shrink:0;background:white;position:sticky;top:0;z-index:10;">'
-    +'<button id="calOpenListBtn" onclick="spCalOpenList()" style="display:'+(isPcMode?'none':'flex')+';align-items:center;padding:5px 12px;border-radius:6px;background:rgba(255,255,255,.12);color:white;font-size:11px;cursor:pointer;font-weight:600;border:1px solid rgba(255,255,255,.2);flex-shrink:0;letter-spacing:.5px">物件一覧</button>'
+    +'<button id="calOpenListBtn" onclick="spCalOpenList()" style="display:'+(isPcMode?'none':(window._calSelectedProp?'flex':'none'))+';align-items:center;padding:5px 12px;border-radius:6px;background:rgba(255,255,255,.12);color:white;font-size:11px;cursor:pointer;font-weight:600;border:1px solid rgba(255,255,255,.2);flex-shrink:0;letter-spacing:.5px">物件一覧</button>'
     +'<div style="font-size:13px;font-weight:800;color:#1e293b">📅 工事カレンダー</div>'
     +'<div style="display:flex;gap:6px;">'
       +'<button onclick="scrollToToday()" style="padding:5px 12px;border-radius:7px;background:#1a56db;color:white;font-size:11px;cursor:pointer;font-weight:700">今月</button>'
@@ -6118,7 +6120,7 @@ function renderCalendar(){
   +'</div>';
 
   el.innerHTML='<div style="display:flex;height:100%;overflow:hidden;">'
-    +'<div id="calLeftPanel" style="width:160px;flex-shrink:0;background:#1e293b;overflow-y:auto;display:flex;flex-direction:column;transition:width .25s ease;">'+leftHtml+'</div>'
+    +'<div id="calLeftPanel" style="width:'+(isPcMode||!window._calSelectedProp?'160px':'0')+';flex-shrink:0;background:#1e293b;overflow-y:auto;display:flex;flex-direction:column;transition:width .25s ease;overflow:'+(window._calSelectedProp&&!isPcMode?'hidden':'')+'">'+leftHtml+'</div>'
     +rightHtml
   +'</div>';
 
@@ -6127,12 +6129,10 @@ function renderCalendar(){
   // 今月へスクロール
   setTimeout(function(){scrollToToday();},50);
 
-  // スマホ時：物件が選択されていれば左パネルを折りたたんだ状態を維持
+  // スマホ時：物件が選択されていれば左パネルを折りたたむ
   if(!isPcMode && window._calSelectedProp){
     var lp=document.getElementById('calLeftPanel');
-    var btn=document.getElementById('calOpenListBtn');
-    if(lp){lp.style.width='0';lp.style.overflow='hidden';}
-    if(btn){btn.style.display='flex';}
+    if(lp){lp.style.width='0';lp.style.overflow='hidden';lp.style.transition='width .25s ease';}
   }
 }
 
