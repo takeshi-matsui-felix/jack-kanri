@@ -374,9 +374,9 @@ body{display:flex;overflow:hidden;}
 #sp-tabbar{
   display:none;
   position:fixed;bottom:0;left:0;right:0;
-  height:58px;
-  background:var(--primary);
-  box-shadow:0 -2px 12px rgba(0,0,0,.25);
+  height:56px;
+  background:#1a2d5a;
+  box-shadow:0 -1px 0 rgba(255,255,255,.08);
   z-index:8000;
   padding-bottom:env(safe-area-inset-bottom,0px);
 }
@@ -726,21 +726,21 @@ body.sp-mode .fr-row .fc:last-child{
 
 <!-- スマホ用ボトムシートメニュー -->
 <div id="sp-more-overlay" onclick="spCloseMore()" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:8500"></div>
-<div id="sp-more-sheet" style="display:none;position:fixed;bottom:58px;left:0;right:0;background:white;border-radius:16px 16px 0 0;z-index:8600;padding:8px 0 16px;box-shadow:0 -4px 24px rgba(0,0,0,.2)">
-  <div style="width:36px;height:4px;background:#e2e8f0;border-radius:2px;margin:8px auto 12px"></div>
+<div id="sp-more-sheet" style="display:none;position:fixed;bottom:58px;left:0;right:0;background:white;border-radius:20px 20px 0 0;z-index:8600;padding:0 0 24px;box-shadow:0 -8px 40px rgba(0,0,0,.18)">
+  <div style="width:40px;height:4px;background:#d1d5db;border-radius:4px;margin:12px auto 8px"></div>
   <div onclick="spMoreItem(function(){openMyCalendar();})" style="padding:14px 20px;cursor:pointer;font-size:14px;color:#1e293b;font-weight:600;letter-spacing:.3px;border-bottom:1px solid #f1f5f9">
     工事カレンダー
   </div>
-  <div onclick="spMoreItem(function(){openJackMap('東海');})" style="display:flex;align-items:center;gap:14px;padding:14px 20px;cursor:pointer;font-size:14px;color:#1e293b;font-weight:500">
+  <div onclick="spMoreItem(function(){openJackMap('東海');})" style="padding:14px 20px;cursor:pointer;font-size:14px;color:#1e293b;font-weight:600;letter-spacing:.3px;border-bottom:1px solid #f1f5f9">
     全現場マップ（東海）
   </div>
-  <div onclick="spMoreItem(function(){openJackMap('関東');})" style="display:flex;align-items:center;gap:14px;padding:14px 20px;cursor:pointer;font-size:14px;color:#1e293b;font-weight:500">
+  <div onclick="spMoreItem(function(){openJackMap('関東');})" style="padding:14px 20px;cursor:pointer;font-size:14px;color:#1e293b;font-weight:600;letter-spacing:.3px;border-bottom:1px solid #f1f5f9">
     全現場マップ（関東）
   </div>
-  <div onclick="spMoreItem(function(){openVendorList();})" style="display:flex;align-items:center;gap:14px;padding:14px 20px;cursor:pointer;font-size:14px;color:#1e293b;font-weight:500">
+  <div onclick="spMoreItem(function(){openVendorList();})" style="padding:14px 20px;cursor:pointer;font-size:14px;color:#1e293b;font-weight:600;letter-spacing:.3px;border-bottom:1px solid #f1f5f9">
     全業者選定一覧
   </div>
-  <div onclick="spMoreItem(function(){openSettings();})" style="display:flex;align-items:center;gap:14px;padding:14px 20px;cursor:pointer;font-size:14px;color:#1e293b;font-weight:500">
+  <div onclick="spMoreItem(function(){openSettings();})" style="padding:14px 20px;cursor:pointer;font-size:14px;color:#1e293b;font-weight:600;letter-spacing:.3px;border-bottom:1px solid #f1f5f9">
     設定
   </div>
 </div>
@@ -764,7 +764,7 @@ body.sp-mode .fr-row .fc:last-child{
         <div id="jackMapList" style="flex:1;overflow-y:auto"></div>
       </div>
       <div id="jackMapRight" style="position:relative;flex:1;display:flex;flex-direction:column;overflow:hidden;">
-        <button id="mapOpenListBtn" onclick="spMapToggleList()" style="display:none;position:absolute;top:8px;left:8px;z-index:100;align-items:center;gap:4px;padding:7px 12px;border-radius:8px;background:#1e293b;color:white;font-size:12px;font-weight:700;border:none;cursor:pointer;box-shadow:0 2px 8px rgba(0,0,0,.3)">物件</button>
+        <button id="mapOpenListBtn" onclick="spMapToggleList()" style="display:none;position:absolute;top:10px;left:10px;z-index:100;align-items:center;padding:7px 14px;border-radius:8px;background:rgba(26,45,90,.9);color:white;font-size:12px;font-weight:600;border:1px solid rgba(255,255,255,.15);cursor:pointer;box-shadow:0 4px 16px rgba(0,0,0,.25);letter-spacing:.4px;backdrop-filter:blur(4px)">物件一覧</button>
         <div id="jackMapTabs" style="display:none;padding:6px;gap:4px;background:#f1f5f9;border-bottom:1px solid #e2e8f0;flex-shrink:0;display:none">
           <button id="mapTabBtn_map" class="map-tab-btn active" onclick="showMapTab('map')">📍 現場地図</button>
           <button id="mapTabBtn_park" class="map-tab-btn" onclick="showMapTab('park')">🅿️ 駐車場</button>
@@ -6003,7 +6003,7 @@ function renderCalendar(){
   // 右エリア：縦スクロール13ヶ月（前月〜12ヶ月後）
   // ツールバー
   var toolBar='<div style="display:flex;align-items:center;justify-content:space-between;padding:8px 12px;border-bottom:1px solid #e2e8f0;flex-shrink:0;background:white;position:sticky;top:0;z-index:10;">'
-    +'<button id="calOpenListBtn" onclick="spCalOpenList()" style="display:'+(isPcMode?'none':'flex')+';align-items:center;gap:4px;padding:5px 10px;border-radius:7px;background:#1e293b;color:white;font-size:11px;cursor:pointer;font-weight:700;border:none;flex-shrink:0">物件</button>'
+    +'<button id="calOpenListBtn" onclick="spCalOpenList()" style="display:'+(isPcMode?'none':'flex')+';align-items:center;padding:5px 12px;border-radius:6px;background:rgba(255,255,255,.12);color:white;font-size:11px;cursor:pointer;font-weight:600;border:1px solid rgba(255,255,255,.2);flex-shrink:0;letter-spacing:.5px">物件一覧</button>'
     +'<div style="font-size:13px;font-weight:800;color:#1e293b">📅 工事カレンダー</div>'
     +'<div style="display:flex;gap:6px;">'
       +'<button onclick="scrollToToday()" style="padding:5px 12px;border-radius:7px;background:#1a56db;color:white;font-size:11px;cursor:pointer;font-weight:700">今月</button>'
