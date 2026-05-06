@@ -426,10 +426,7 @@ body.sp-mode button[onclick="toggleGanttEditMode()"]{ display:none !important; }
   border-radius:10px !important;
 }
 
-/* スマホ時：物件カードのタップ領域拡大 */
-.mobile-mode .fr-row{
-  min-height:48px !important;
-}
+/* スマホ時：物件カードのタップ領域拡大: --row-hで統一 */
 
 /* スマホ時：フォントサイズ底上げ */
 .mobile-mode .dp-label{ font-size:12px !important; }
@@ -527,8 +524,7 @@ body.sp-mode .ss-item{ gap:2px; }
 body.sp-mode .ss-num{ font-size:18px !important; }
 body.sp-mode .ss-label{ font-size:10px !important; }
 
-/* スマホ用：物件リスト行の高さ */
-body.sp-mode .fr-row{ min-height:52px !important; }
+/* スマホ用：物件リスト行の高さ: --row-hで統一 */
 body.sp-mode .fr-row .fc{
   font-size:11px !important;
 }
@@ -1564,7 +1560,7 @@ function showToast(msg,type){
 function setMode(pc){
   isPcMode=pc;
   localStorage.setItem('jack_mode', pc?'pc':'sp');
-  document.documentElement.style.setProperty('--row-h',(pc?32:40)+'px');
+  document.documentElement.style.setProperty('--row-h',(pc?32:52)+'px');
   var fw=FREEZE_COLS.reduce(function(a,c){return a+c.w;},0);
   document.documentElement.style.setProperty('--freeze-w',fw+'px');
 
@@ -1700,6 +1696,8 @@ function spCalOpenList(){
   var btn=document.getElementById('calOpenListBtn');
   if(!lp)return;
   if(lp.style.width==='0px'||lp.style.width==='0'){
+    // 物件一覧を開く → 選択状態をクリア
+    window._calSelectedProp=null;
     lp.style.width='160px'; lp.style.overflow='';
     if(btn)btn.style.display='none';
   } else {
@@ -1956,7 +1954,7 @@ function renderBody(){
   var activePreC=isPcMode?PRE_COLS:SP_PRE_COLS;
   var activeFreezeW=activeFreezeC.reduce(function(a,c){return a+c.w;},0);
   var activePreW=activePreC.reduce(function(a,c){return a+c.w;},0);
-  var rowH = isPcMode ? 32 : 40;
+  var rowH = isPcMode ? 32 : 52;
   document.documentElement.style.setProperty('--row-h',rowH+'px');
   var props=getProps();
   var fb=document.getElementById('freezeBody');
@@ -2223,9 +2221,9 @@ function buildGanttTab(p){
     var labels='<div style="position:absolute;left:0;top:28px;width:0;height:'+(numRows*ROW_H)+'px;">';
     segs.forEach(function(seg,ri){labels+='<div style="position:absolute;left:-90px;top:'+(ri*ROW_H)+'px;width:88px;height:'+ROW_H+'px;display:flex;align-items:center;justify-content:flex-end;padding-right:4px;font-size:9px;font-weight:700;color:rgba(255,255,255,.75);overflow:hidden;white-space:nowrap;">'+(seg.label||seg.name||'')+'</div>';});
     labels+='</div>';
-    return '<div style="overflow-x:auto;-webkit-overflow-scrolling:touch;padding-left:90px;">'
+    return '<div style="overflow-x:auto;-webkit-overflow-scrolling:touch;">'
       +'<div style="position:relative;width:'+totalW+'px;height:'+(numRows*ROW_H+28)+'px;background:white;">'
-      +labels+hdrBands+dayNums+todayLine+fills+rowBgs+bars+'</div></div>';
+      +hdrBands+dayNums+todayLine+fills+rowBgs+bars+'</div></div>';
   }
 
   // Compact row shown by default, expand button shows multi-row
@@ -5276,6 +5274,8 @@ function _saveGanttToSupabase(p,segsData,cb){
         // ローカルDB_PROPSキャッシュも更新
         var idx=DB_PROPS.findIndex(function(dp){return String(dp.fix_no)===String(p.fix_no);});
         if(idx>=0)DB_PROPS[idx].custom_gantt=payload.custom_gantt;
+        // LocalStorageキャッシュも更新
+        try{localStorage.setItem('jack_props_cache',JSON.stringify(DB_PROPS));}catch(e){}
       }
       if(cb)cb(!r.error);
     }).catch(function(){if(cb)cb(false);});
@@ -5868,6 +5868,7 @@ function showSegPopup(favEnc){
   var favName=decodeURIComponent(favEnc);
   // スマホモード時：物件選択で左パネルを折りたたんで右カレンダーを全画面に
   if(!isPcMode){
+    window._calSelectedProp=favName;
     var lp=document.getElementById('calLeftPanel');
     var btn=document.getElementById('calOpenListBtn');
     if(lp){ lp.style.width='0'; lp.style.overflow='hidden'; lp.style.transition='width .25s ease'; }
@@ -6100,6 +6101,14 @@ function renderCalendar(){
 
   // 今月へスクロール
   setTimeout(function(){scrollToToday();},50);
+
+  // スマホ時：物件が選択されていれば左パネルを折りたたんだ状態を維持
+  if(!isPcMode && window._calSelectedProp){
+    var lp=document.getElementById('calLeftPanel');
+    var btn=document.getElementById('calOpenListBtn');
+    if(lp){lp.style.width='0';lp.style.overflow='hidden';}
+    if(btn){btn.style.display='flex';}
+  }
 }
 
 function scrollToToday(){
