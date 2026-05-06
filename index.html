@@ -1702,20 +1702,29 @@ function spSetupAccordion(){
 }
 window.spSetupAccordion=spSetupAccordion;
 
-// カレンダー左パネル開閉
-function spCalOpenList(){
+// カレンダー右エリアタップ → 左パネルを折りたたんで全画面化（スマホのみ）
+function spCalExpandRight(e){
+  if(isPcMode) return;
+  var lp=document.getElementById('calLeftPanel');
+  if(!lp||lp.style.width==='0'||lp.style.width==='0px') return; // 既に全画面なら何もしない
+  lp.style.width='0';
+  lp.style.overflow='hidden';
+  lp.style.transition='width .25s ease';
+  var btn=document.getElementById('calOpenListBtn');
+  if(btn) btn.style.display='block';
+}
+window.spCalExpandRight=spCalExpandRight;
+
+// 物件一覧ボタンタップ → 左パネルを再表示
+function spCalOpenList(e){
+  if(e) e.stopPropagation();
   var lp=document.getElementById('calLeftPanel');
   var btn=document.getElementById('calOpenListBtn');
-  if(!lp)return;
-  if(lp.style.width==='0px'||lp.style.width==='0'){
-    // 物件一覧を開く → 選択状態をクリア
-    window._calSelectedProp=null;
-    lp.style.width='160px'; lp.style.overflow='';
-    if(btn)btn.style.display='none';
-  } else {
-    lp.style.width='0'; lp.style.overflow='hidden';
-    if(btn)btn.style.display='flex';
-  }
+  if(!lp) return;
+  lp.style.width='160px';
+  lp.style.overflow='';
+  lp.style.transition='width .25s ease';
+  if(btn) btn.style.display='none';
 }
 window.spCalOpenList=spCalOpenList;
 
@@ -5893,14 +5902,7 @@ window.openMyCalendar=openMyCalendar;
 // 物件名クリックで工種ポップアップ
 function showSegPopup(favEnc){
   var favName=decodeURIComponent(favEnc);
-  // スマホモード時：物件選択で左パネルを折りたたんで右カレンダーを全画面に
-  if(!isPcMode){
-    window._calSelectedProp=favName;
-    var lp=document.getElementById('calLeftPanel');
-    var btn=document.getElementById('calOpenListBtn');
-    if(lp){ lp.style.width='0'; lp.style.overflow='hidden'; lp.style.transition='width .25s ease'; }
-    if(btn){ btn.style.display='flex'; }
-  }
+
   // myFavPropsのデータだけでなく、DB_PROPSから完全なデータを取得する
   var fav=null;
   // まずgetAllPropsから検索（confirm_done等DBデータを持っている）
@@ -6031,7 +6033,7 @@ function renderCalendar(){
   // 右エリア：縦スクロール13ヶ月（前月〜12ヶ月後）
   // ツールバー
   var toolBar='<div style="display:flex;align-items:center;justify-content:space-between;padding:8px 12px;border-bottom:1px solid #e2e8f0;flex-shrink:0;background:white;position:sticky;top:0;z-index:10;">'
-    +'<button id="calOpenListBtn" onclick="spCalOpenList()" style="display:'+(isPcMode?'none':(window._calSelectedProp?'flex':'none'))+';align-items:center;padding:5px 12px;border-radius:6px;background:rgba(255,255,255,.12);color:white;font-size:11px;cursor:pointer;font-weight:600;border:1px solid rgba(255,255,255,.2);flex-shrink:0;letter-spacing:.5px">物件一覧</button>'
+    
     +'<div style="font-size:13px;font-weight:800;color:#1e293b">📅 工事カレンダー</div>'
     +'<div style="display:flex;gap:6px;">'
       +'<button onclick="scrollToToday()" style="padding:5px 12px;border-radius:7px;background:#1a56db;color:white;font-size:11px;cursor:pointer;font-weight:700">今月</button>'
@@ -6114,13 +6116,14 @@ function renderCalendar(){
     months+='</div></div>';
   }
 
-  var rightHtml='<div style="flex:1;display:flex;flex-direction:column;overflow:hidden;">'
+  var rightHtml='<div style="flex:1;display:flex;flex-direction:column;overflow:hidden;position:relative;">'
     +toolBar+dowHeader
-    +'<div id="calScrollArea" style="flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;">'+months+'</div>'
+    +'<div id="calScrollArea" onclick="spCalExpandRight(event)" style="flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;">'+months+'</div>'
+    +'<button id="calOpenListBtn" onclick="spCalOpenList(event)" style="display:none;position:absolute;top:50px;left:8px;z-index:100;padding:8px 16px;border-radius:8px;background:rgba(26,45,90,.9);color:white;font-size:13px;font-weight:600;border:1px solid rgba(255,255,255,.25);cursor:pointer;box-shadow:0 4px 16px rgba(0,0,0,.3);letter-spacing:.4px;backdrop-filter:blur(4px)">☰ 物件一覧</button>'
   +'</div>';
 
   el.innerHTML='<div style="display:flex;height:100%;overflow:hidden;">'
-    +'<div id="calLeftPanel" style="width:'+(isPcMode||!window._calSelectedProp?'160px':'0')+';flex-shrink:0;background:#1e293b;overflow-y:auto;display:flex;flex-direction:column;transition:width .25s ease;overflow:'+(window._calSelectedProp&&!isPcMode?'hidden':'')+'">'+leftHtml+'</div>'
+    +'<div id="calLeftPanel" style="width:160px;flex-shrink:0;background:#1e293b;overflow-y:auto;display:flex;flex-direction:column;transition:width .25s ease;">'+leftHtml+'</div>'
     +rightHtml
   +'</div>';
 
@@ -6129,11 +6132,7 @@ function renderCalendar(){
   // 今月へスクロール
   setTimeout(function(){scrollToToday();},50);
 
-  // スマホ時：物件が選択されていれば左パネルを折りたたむ
-  if(!isPcMode && window._calSelectedProp){
-    var lp=document.getElementById('calLeftPanel');
-    if(lp){lp.style.width='0';lp.style.overflow='hidden';lp.style.transition='width .25s ease';}
-  }
+
 }
 
 function scrollToToday(){
