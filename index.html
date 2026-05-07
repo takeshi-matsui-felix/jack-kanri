@@ -4990,14 +4990,39 @@ function printPage(){
       }
     });
 
-    // バー描画
+    // バー描画（今月以前に始まり今月中に続くバーもクリップして表示）
     var segs=getActiveSegs(p)||[];
+    var printStart=printDates[1]||''; // 印刷開始日（printDates[0]は空文字）
+    var printEnd=printDates[printDates.length-1]||'';
     segs.forEach(function(seg){
       var sd=seg.start_date||seg.date||''; if(!sd)return;
-      var si=dIdx[sd]; if(!si)return;
       var calDur=seg.calendar_dur||seg.dur||1;
+      // バー終了日を計算
+      var segEndDt=new Date(sd); segEndDt.setDate(segEndDt.getDate()+calDur-1);
+      var ed=segEndDt.toISOString().slice(0,10);
+      // 印刷範囲外なら完全スキップ
+      if(ed<printStart||sd>printEnd)return;
+      // クリップ：印刷範囲内にかかる部分だけ表示
+      var clipSd=sd<printStart?printStart:sd;
+      var si=dIdx[clipSd];
+      if(!si){
+        // printDatesに完全一致がない場合、最近傍を探す
+        for(var di=1;di<printDates.length;di++){
+          if(printDates[di]>=clipSd){si=di;break;}
+        }
+      }
+      if(!si)return;
+      // クリップされた幅を計算
+      var clipEd=ed>printEnd?printEnd:ed;
+      var ei=dIdx[clipEd];
+      if(!ei){
+        for(var di2=printDates.length-1;di2>=1;di2--){
+          if(printDates[di2]<=clipEd){ei=di2;break;}
+        }
+      }
+      if(!ei)ei=si;
       var sx=(si-1)*PCOL;
-      var bw=Math.max(calDur*PCOL-1,2);
+      var bw=Math.max((ei-si+1)*PCOL-1,2);
       var color=seg.color||'#94a3b8';
       var layer=seg.layer||0;
       var by=ri*PROW+28+(layer===1?4:2);
@@ -5629,20 +5654,21 @@ async function initAuth(){
 
   // まず既存セッションを確認（キャッシュから即座に）
   var sr=await sb.auth.getSession();
-  if(sr.data&&sr.data.session&&sr.data.session.user){
+  var hadSession=!!(sr.data&&sr.data.session&&sr.data.session.user);
+  if(hadSession){
     currentUser=sr.data.session.user;
-    await onAuthSuccess(false); // 既存セッション復元
+    await onAuthSuccess(false); // 既存セッション復元・トーストなし
   } else {
     showAuthScreen();
   }
 
-  // 以降の状態変化のみ監視（初回はgetSessionで処理済みなのでSIGNED_INは無視）
-  var initialDone=true;
+  // getSession完了後にonAuthStateChangeを登録
+  // SIGNED_IN：getSessionで既にセッションがあった場合は無視
   sb.auth.onAuthStateChange(function(event,session){
     if(event==='SIGNED_IN'&&session&&session.user){
-      if(initialDone&&currentProfile){return;} // 既にログイン済みなら無視
+      if(hadSession){return;} // 既存セッション復元時は無視
       currentUser=session.user;
-      onAuthSuccess(true); // 新規ログイン
+      onAuthSuccess(true); // 新規ログイン時のみトースト表示
     }
     else if(event==='SIGNED_OUT'){currentUser=null;currentProfile=null;showAuthScreen();}
   });
