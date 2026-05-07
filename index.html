@@ -582,7 +582,7 @@ body.sp-mode .fr-row .fc:last-child{
         <div style="margin-bottom:8px"><label style="font-size:10px;font-weight:700;color:#475569;display:block;margin-bottom:3px">メール *</label><input type="email" id="jackRegEmail" placeholder="email@example.com" style="width:100%;padding:8px 10px;border:1.5px solid #e2e8f0;border-radius:7px;font-size:12px;box-sizing:border-box"></div>
         <div style="margin-bottom:8px"><label style="font-size:10px;font-weight:700;color:#475569;display:block;margin-bottom:3px">パスワード * (8文字以上)</label><input type="password" id="jackRegPw" placeholder="パスワード" style="width:100%;padding:8px 10px;border:1.5px solid #e2e8f0;border-radius:7px;font-size:12px;box-sizing:border-box"></div>
         <div style="margin-bottom:14px"><label style="font-size:10px;font-weight:700;color:#475569;display:block;margin-bottom:3px">役割 *</label>
-          <select id="jackRegRole" style="width:100%;padding:8px 10px;border:1.5px solid #e2e8f0;border-radius:7px;font-size:12px;box-sizing:border-box"><option value="worker">現場担当者</option><option value="admin">管理者（要承認）</option></select></div>
+          <select id="jackRegRole" style="width:100%;padding:8px 10px;border:1.5px solid #e2e8f0;border-radius:7px;font-size:12px;box-sizing:border-box"><option value="worker">協力業者</option><option value="admin">管理者（要承認）</option></select></div>
         <div id="jackRegErr" style="display:none;background:#fee2e2;color:#dc2626;padding:8px 11px;border-radius:7px;font-size:12px;margin-bottom:10px"></div>
         <button onclick="doRegister()" id="jackRegBtn" style="width:100%;padding:12px;background:#1a56db;color:white;border-radius:9px;font-size:14px;font-weight:700;cursor:pointer">登録申請</button>
         <div style="background:#fefce8;border:1px solid #fde68a;border-radius:7px;padding:9px 11px;margin-top:10px;font-size:11px;color:#92400e">⚠️ 登録後、管理者（松井）の承認後にご利用いただけます</div>
@@ -721,7 +721,7 @@ body.sp-mode .fr-row .fc:last-child{
   </div>
 </div>
 <div class="menu-overlay" id="menuOverlay" onclick="closeMenu()"></div>
-<div class="side-menu" id="sideMenu"><div class="menu-head"><div class="menu-user">🏗️ 現場担当者</div><div class="menu-role">JACK 現場管理アプリ</div></div><div class="menu-body"><div class="menu-section">マイ物件</div><div class="menu-item" onclick="openMyPage()"><span class="mi-icon">⭐</span>マイ物件を見る</div><div class="menu-item" onclick="openSelectProp()"><span class="mi-icon">✅</span>担当物件を選択</div><div class="menu-item sp-hide" onclick="closeMenu();openMasterPanel()"><span class="mi-icon">📋</span>マスター工程</div><div class="menu-divider"></div><div class="menu-section">表示</div><div class="menu-item" onclick="closeMenu();setMode(false)"><span class="mi-icon">📱</span>スマホ表示</div><div class="menu-item" onclick="closeMenu();setMode(true)"><span class="mi-icon">🖥️</span>PC横長表示</div><div class="menu-divider"></div><div class="menu-section">その他</div><div class="menu-item" onclick="closeMenu();doSync()"><span class="mi-icon">🔄</span>今すぐ同期</div><div class="menu-item" onclick="openSettings()"><span class="mi-icon">⚙️</span>設定</div><div class="menu-item" onclick="closeMenu();printPage()"><span class="mi-icon">🖨️</span>印刷</div></div></div>
+<div class="side-menu" id="sideMenu"><div class="menu-head"><div class="menu-user">🏗️ 協力業者</div><div class="menu-role">JACK 現場管理アプリ</div></div><div class="menu-body"><div class="menu-section">マイ物件</div><div class="menu-item" onclick="openMyPage()"><span class="mi-icon">⭐</span>マイ物件を見る</div><div class="menu-item" onclick="openSelectProp()"><span class="mi-icon">✅</span>担当物件を選択</div><div class="menu-item sp-hide" onclick="closeMenu();openMasterPanel()"><span class="mi-icon">📋</span>マスター工程</div><div class="menu-divider"></div><div class="menu-section">表示</div><div class="menu-item" onclick="closeMenu();setMode(false)"><span class="mi-icon">📱</span>スマホ表示</div><div class="menu-item" onclick="closeMenu();setMode(true)"><span class="mi-icon">🖥️</span>PC横長表示</div><div class="menu-divider"></div><div class="menu-section">その他</div><div class="menu-item" onclick="closeMenu();doSync()"><span class="mi-icon">🔄</span>今すぐ同期</div><div class="menu-item" onclick="openSettings()"><span class="mi-icon">⚙️</span>設定</div><div class="menu-item" onclick="closeMenu();printPage()"><span class="mi-icon">🖨️</span>印刷</div></div></div>
 <div class="popup-overlay" id="updatePopup" style="display:none"><div class="popup-box"><div class="popup-head">🔔 データ更新情報</div><div class="popup-body" id="updateContent"></div><div class="popup-footer"><button class="popup-close" onclick="closeUpdatePopup()">閉じる</button></div></div></div>
 <div class="tooltip" id="tooltip"></div><div class="toast" id="toast"></div>
 
@@ -1182,13 +1182,15 @@ function getActiveSegs(p) {
   var cd=normDate(p.confirm_done||'')||p.confirm_done||'';
   var hasCd=!!(cd&&cd.match&&cd.match(/\d{4}/));
 
-  // ② 紐付けマスターを取得（propMaster → DB_PROPS.prop_master の順）
-  var pm=propMaster; // グローバル変数を直接参照（常に最新）
-  var masterName=pm[ck]||'';
-  if(!masterName&&typeof DB_PROPS!=='undefined'&&DB_PROPS){
+  // ② 紐付けマスターを取得（DB_PROPS.prop_master優先 → propMaster(ローカル)の順）
+  // 管理者がSupabaseに保存した値を最優先で使用
+  var masterName='';
+  if(typeof DB_PROPS!=='undefined'&&DB_PROPS){
     var dbMatch=DB_PROPS.find(function(dp){return String(dp.fix_no)===String(p.fix_no)&&dp.name===p.name;});
-    if(dbMatch&&dbMatch.prop_master){masterName=dbMatch.prop_master;pm[ck]=masterName;}
+    if(dbMatch&&dbMatch.prop_master){masterName=dbMatch.prop_master;}
   }
+  // DB_PROPSにない場合はローカルのpropMasterを参照
+  if(!masterName){masterName=propMaster[ck]||'';}
 
   // ③ 紐付けマスターのstepsを取得
   var tmplSteps=null;
@@ -5473,6 +5475,8 @@ function _saveMasterLinkToSupabase(p,masterName,cb){
       if(!r.error&&DB_PROPS){
         var idx=DB_PROPS.findIndex(function(dp){return String(dp.fix_no)===String(p.fix_no);});
         if(idx>=0)DB_PROPS[idx].prop_master=masterName||null;
+        // LocalStorageキャッシュも更新
+        try{localStorage.setItem('jack_props_cache',JSON.stringify(DB_PROPS));}catch(e){}
       }
       if(cb)cb(!r.error);
     }).catch(function(){if(cb)cb(false);});
@@ -5660,7 +5664,7 @@ function updateSidebarUser(){
   }
   if(avatar)avatar.textContent=(currentProfile.name||'U').charAt(0).toUpperCase();
   if(name)name.textContent=currentProfile.name||'ユーザー';
-  if(role)role.textContent=currentProfile.role==='admin'?'👑 管理者':'現場担当者';
+  if(role)role.textContent=currentProfile.role==='admin'?'👑 管理者':'協力業者';
 }
 window.updateSidebarUser=updateSidebarUser;
 
@@ -6630,7 +6634,7 @@ function admUserCard(u,approved){
   return '<div style="background:white;border-radius:9px;padding:10px 12px;margin-bottom:8px;border:1px solid #e2e8f0;display:flex;align-items:center;gap:10px">'
     +'<div style="width:36px;height:36px;border-radius:50%;background:#3b82f6;color:white;font-size:14px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0">'+(u.name||'?').charAt(0)+'</div>'
     +'<div style="flex:1;min-width:0">'
-      +'<div style="font-size:13px;font-weight:700;color:#1e293b">'+(u.name||'')+' <span style="font-size:10px;color:'+(u.role==='admin'?'#f59e0b':'#64748b')+'">'+( u.role==='admin'?'👑管理者':'担当者')+'</span></div>'
+      +'<div style="font-size:13px;font-weight:700;color:#1e293b">'+(u.name||'')+' <span style="font-size:10px;color:'+(u.role==='admin'?'#f59e0b':'#64748b')+'">'+( u.role==='admin'?'👑管理者':'協力業者')+'</span></div>'
       +'<div style="font-size:11px;color:#94a3b8">'+(u.email||'')+'</div>'
       +'<div style="font-size:10px;color:#94a3b8">'+(u.company||'')+' / '+(u.phone||'')+'</div>'
     +'</div>'
