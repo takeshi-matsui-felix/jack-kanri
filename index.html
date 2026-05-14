@@ -4756,7 +4756,14 @@ function _saveMasterToSupabase(master, cb){
 window._saveMasterToSupabase=_saveMasterToSupabase;
 
 // Supabaseからmastersテーブルを読み込んでLocalStorageと同期
-async function _loadMastersFromDB(){
+async function _loadMastersFromDB(forceRefresh){
+  // キャッシュがある場合はそれを使用、なければ取得しない（forceRefresh時のみ取得）
+  if(!forceRefresh){
+    var cachedMasters=loadLS('jack_my_masters',[]);
+    if(cachedMasters&&cachedMasters.length>0)return; // キャッシュあり
+    // キャッシュなしでも自動取得しない（同期ボタン時のみ）
+    return;
+  }
   var sb=getSB(); if(!sb)return;
   try{
     var r=await sb.from('masters').select('*').order('id');
@@ -5155,8 +5162,10 @@ async function _loadVendorsFromCacheOrDB(forceRefresh){
         }
       }
     }catch(e){}
+    // キャッシュなし・forceRefreshでない場合は取得しない（通信節約）
+    return;
   }
-  // Supabaseから取得
+  // forceRefresh=trueのみSupabaseから取得
   var sb=getSB(); if(!sb)return;
   try{
     var r=await sb.from('vendors').select('*').order('id');
@@ -5189,6 +5198,7 @@ function doSyncFull(){
   updateSyncBanner('同期中...',true);
   loadPropertiesFromCacheOrDB(true).then(function(){
     _loadVendorsFromCacheOrDB(true);
+    if(typeof _loadMastersFromDB==='function')_loadMastersFromDB(true);
     showToast('✅ データを同期しました','success');
   });
 }
@@ -6437,9 +6447,16 @@ async function loadAdmSec(sec){
       +'</div>';
 
   } else if(sec==='props'){
-    var sb2=getSB();
-    var pr=await sb2.from('properties').select('*').order('fix_no',{ascending:true});
-    var props=pr.data||[];
+    // DB_PROPSキャッシュを優先使用（通信節約）
+    var props=[];
+    if(typeof DB_PROPS!=='undefined'&&DB_PROPS&&DB_PROPS.length>0){
+      props=DB_PROPS;
+    } else {
+      var sb2=getSB();
+      var pr=await sb2.from('properties').select('*').order('fix_no',{ascending:true});
+      props=pr.data||[];
+      if(props.length>0){DB_PROPS=props;try{localStorage.setItem('jack_props_cache',JSON.stringify(props));}catch(e){}}
+    }
 
     right.innerHTML='<div style="display:flex;flex-direction:column;height:100%">'
       +'<div style="padding:10px 14px 6px;background:white;border-bottom:1px solid #e2e8f0;flex-shrink:0">'
