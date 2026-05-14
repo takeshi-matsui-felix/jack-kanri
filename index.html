@@ -5197,9 +5197,9 @@ window._syncVendorsManual=_syncVendorsManual;
 function doSyncFull(){
   updateSyncBanner('同期中...',true);
   loadPropertiesFromCacheOrDB(true).then(function(){
-    _loadVendorsFromCacheOrDB(true);
+    // vendorsは同期ボタンでは取得しない（全業者選定一覧を開いたときのみ取得）
     if(typeof _loadMastersFromDB==='function')_loadMastersFromDB(true);
-    showToast('✅ データを同期しました','success');
+    showToast('✅ データを同期しました（工程・マスター）','success');
   });
 }
 window.doSyncFull=doSyncFull;
