@@ -3004,6 +3004,16 @@ function printPropInfo(){
 function openDetail(p){
   try{
   currentProp=p;
+  // custom_ganttを遅延取得（軽量化のためpropertiesの初期取得に含めていない）
+  if(typeof _loadCustomGanttIfNeeded==='function'){
+    _loadCustomGanttIfNeeded(p).then(function(){
+      // 取得後に再描画
+      var ganttEl=document.getElementById('detail-gantt-wrap');
+      if(ganttEl&&typeof buildGanttTab==='function'){
+        ganttEl.innerHTML=buildGanttTab(currentProp);
+      }
+    });
+  }
   // LocalStorageのオーバーライドをマージ
   var ov=loadLS('jack_prop_overrides',{});
   var ck=custKey(p);
@@ -5128,7 +5138,8 @@ async function loadPropertiesFromCacheOrDB(forceRefresh){
     }catch(e){}
   }
   // Supabaseから取得してキャッシュ保存
-  var pr=await sb.from('properties').select('*').order('fix_no');
+  // 軽量カラムのみ取得（custom_ganttは重いため除外→別途取得）
+  var pr=await sb.from('properties').select('fix_no,seq_no,name,area,status,hand_kumi,tantou,delivery_date,delivery_month,land_contract,land_payment,confirm_submit,confirm_done,inspection_date,complete_date,address,parkings,prop_master,updated_at').order('fix_no');
   if(!pr.error&&pr.data&&pr.data.length>0){
     DB_PROPS=pr.data;
     try{
@@ -5146,6 +5157,38 @@ async function loadPropertiesFromCacheOrDB(forceRefresh){
   }
 }
 window.loadPropertiesFromCacheOrDB=loadPropertiesFromCacheOrDB;
+
+// custom_ganttを物件単位で遅延取得（物件詳細を開いたときのみ実行）
+var _ganttFetchedProps={};
+async function _loadCustomGanttIfNeeded(p){
+  var ck=String(p.fix_no||'')+'__'+(p.name||'');
+  if(_ganttFetchedProps[ck])return; // 取得済み
+  if(customGantt[ck]&&customGantt[ck].length){_ganttFetchedProps[ck]=true;return;} // ローカルキャッシュあり
+  // DB_PROPSに既にcustom_ganttがあるか確認
+  if(DB_PROPS){
+    var dbp=DB_PROPS.find(function(d){return String(d.fix_no)===String(p.fix_no);});
+    if(dbp&&dbp.custom_gantt){_ganttFetchedProps[ck]=true;return;}
+  }
+  // Supabaseから当該物件のcustom_ganttのみ取得
+  var sb=getSB(); if(!sb)return;
+  try{
+    var r=await sb.from('properties').select('fix_no,custom_gantt').eq('fix_no',String(p.fix_no)).single();
+    if(!r.error&&r.data&&r.data.custom_gantt){
+      var cg=typeof r.data.custom_gantt==='string'?JSON.parse(r.data.custom_gantt):r.data.custom_gantt;
+      if(cg&&cg.length){
+        customGantt[ck]=cg;
+        saveLS('jack_custom_gantt',customGantt);
+        // DB_PROPSも更新
+        if(DB_PROPS){
+          var idx=DB_PROPS.findIndex(function(d){return String(d.fix_no)===String(p.fix_no);});
+          if(idx>=0)DB_PROPS[idx].custom_gantt=r.data.custom_gantt;
+        }
+      }
+    }
+    _ganttFetchedProps[ck]=true;
+  }catch(e){}
+}
+window._loadCustomGanttIfNeeded=_loadCustomGanttIfNeeded;
 
 // vendorsキャッシュ
 var VENDORS_CACHE_KEY='jack_vendors_cache';
