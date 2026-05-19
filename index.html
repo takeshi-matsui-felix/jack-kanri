@@ -4310,11 +4310,12 @@ function openMasterEditor(){
 }
 
 function buildMasterEditorDates(){
-  // 8-month calendar starting from 2 weeks before today
-  var start=new Date(TODAY);
-  start.setDate(start.getDate()-14);
-  var end=new Date(TODAY);
-  end.setMonth(end.getMonth()+8);
+  // 架空の基準日：2000年1月1日スタート（実際の日付に依存しない）
+  // カレンダーは7ヶ月分（Day1〜Day約210）
+  var BASE_YEAR=2000;
+  var BASE_MONTH=1; // 1月
+  var start=new Date(BASE_YEAR, BASE_MONTH-1, 1); // 2000/01/01
+  var end=new Date(BASE_YEAR, BASE_MONTH-1+7, 0); // 7ヶ月後の月末
   masterEdDates=[''];
   var cur=new Date(start.getTime());
   while(cur<=end){masterEdDates.push(cur.toISOString().slice(0,10));cur.setDate(cur.getDate()+1);}
@@ -4324,7 +4325,8 @@ function buildMasterEditorDates(){
 // offset = manual day offset applied to this step's start (positive = later)
 function computeMasterEditorSegs(steps){
   if(!steps||!steps.length)return [];
-  var baseDateStr=masterEdDates[15]||masterEdDates[1]||TODAY;
+  // 架空カレンダー：1月2日（2000-01-02）を造成スタート基準日とする
+  var baseDateStr=masterEdDates[2]||masterEdDates[1]||'2000-01-02';
   var bd=new Date(baseDateStr.replace(/[/]/g,'-'));
   while(bd.getDay()===0)bd.setDate(bd.getDate()+1);
   baseDateStr=bd.toISOString().slice(0,10);
@@ -4658,13 +4660,13 @@ function renderMasterGantt(){
     cv.appendChild(bar);
   });
 
-  // スクロール位置を復元（初回のみTODAY付近へ）
+  // スクロール位置を復元（初回は先頭へ・架空日付のためTODAYは無効）
   if(wrap){
     setTimeout(function(){
       if(savedScroll>0){
         wrap.scrollLeft=savedScroll;
-      } else if(todayI>0){
-        wrap.scrollLeft=Math.max(0,(todayI-5)*COL);
+      } else {
+        wrap.scrollLeft=0; // 架空1月1日の先頭から表示
       }
     },30);
   }
