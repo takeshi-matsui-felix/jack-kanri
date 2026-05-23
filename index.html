@@ -7069,6 +7069,18 @@ function _renderVendorPanel(){
   _renderVendorTable();
 }
 
+// ★ セル背景色から適切な文字色（黒/白）を返す（輝度計算）
+function _vendorTextColor(hex){
+  try{
+    var c=hex.replace('#','');
+    if(c.length===3)c=c[0]+c[0]+c[1]+c[1]+c[2]+c[2];
+    var r=parseInt(c.slice(0,2),16),g=parseInt(c.slice(2,4),16),b=parseInt(c.slice(4,6),16);
+    // 相対輝度（WCAG）
+    var lum=0.299*r+0.587*g+0.114*b;
+    return lum>140?'#1e293b':'#ffffff';
+  }catch(x){return'#1e293b';}
+}
+
 function _renderVendorTable(){
   var data=window._VENDOR_LIST_DATA;
   var wrap=document.getElementById('vendorTableWrap');
@@ -7083,7 +7095,10 @@ function _renderVendorTable(){
     try{savedOrder=JSON.parse(rows[0].col_order);}catch(x){}
   }
   var colSet={};
-  rows.forEach(function(r){Object.keys(r).forEach(function(k){if(k!=='id'&&k!=='area'&&k!=='created_at'&&k!=='col_order')colSet[k]=1;});});
+  rows.forEach(function(r){Object.keys(r).forEach(function(k){
+    // _bg_ プレフィックスの色情報キー・管理キーは除外
+    if(k!=='id'&&k!=='area'&&k!=='created_at'&&k!=='col_order'&&k.indexOf('_bg_')!==0)colSet[k]=1;
+  });});
   var colsRaw=Object.keys(colSet);
   // col_orderで並び替え（保存済み順序を優先、未知の列は末尾に追加）
   var cols;
@@ -7122,8 +7137,10 @@ function _renderVendorTable(){
     +'<div id="vendorFreezeBody" style="flex:1;overflow:hidden;">'
     +rows.map(function(row,ri){
       var v=String(row[freezeCol]||'').trim();
-      var bg=ri%2===0?'white':'#f8fafc';
-      return '<div style="height:28px;display:flex;align-items:center;padding:0 8px;font-size:10px;font-weight:600;color:#1e293b;background:'+bg+';border-bottom:1px solid #f1f5f9;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:'+FREEZE_W+'px;" title="'+v+'">'+(v||'—')+'</div>';
+      var cellBg=row['_bg_'+freezeCol]||'';
+      var bg=cellBg||(ri%2===0?'white':'#f8fafc');
+      var fc=cellBg?_vendorTextColor(cellBg):'#1e293b';
+      return '<div style="height:28px;display:flex;align-items:center;padding:0 8px;font-size:10px;font-weight:600;color:'+fc+';background:'+bg+';border-bottom:1px solid #f1f5f9;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:'+FREEZE_W+'px;" title="'+v+'">'+(v||'—')+'</div>';
     }).join('')
     +'</div></div>';
 
@@ -7138,15 +7155,27 @@ function _renderVendorTable(){
     +'</div>'
     // データ行
     +rows.map(function(row,ri){
-      var bg=ri%2===0?'white':'#f8fafc';
-      return '<div style="display:flex;height:28px;background:'+bg+';border-bottom:1px solid #f1f5f9;">'
+      var rowBg=ri%2===0?'white':'#f8fafc';
+      return '<div style="display:flex;height:28px;background:'+rowBg+';border-bottom:1px solid #f1f5f9;">'
         +filteredScrollCols.map(function(c){
           var v=String(row[c]||'').trim();
+          var cellBg=row['_bg_'+c]||'';
           var hit=q&&v&&v.toLowerCase().indexOf(q)>=0;
-          var bg=hit?'#fef08a':''; // 一致セルのみ黄色
+          // 背景色優先: 検索ヒット > Excelセル色 > 交互行色
+          var bg=hit?'#fef08a':cellBg||'';
           var fw=hit?'700':'400';
-          var color=v?'#334155':'#cbd5e1';
-          return '<div style="min-width:'+VCOL_W+'px;max-width:'+VCOL_W+'px;display:flex;align-items:center;padding:0 8px;font-size:10px;font-weight:'+fw+';color:'+color+';background:'+bg+';border-right:1px solid #f1f5f9;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;" title="'+v+'">'+(v||'—')+'</div>';
+          // 空セルの場合
+          var isEmpty=!v;
+          var displayVal,textColor;
+          if(isEmpty){
+            displayVal=cellBg?'<span style="font-size:9px;opacity:.55;font-style:italic">未選定</span>':'<span style="color:#cbd5e1">—</span>';
+            textColor=cellBg?_vendorTextColor(cellBg):'#cbd5e1';
+          } else {
+            displayVal='<span>'+v+'</span>';
+            textColor=cellBg?_vendorTextColor(cellBg):(hit?'#92400e':'#334155');
+          }
+          var bgStyle=bg?'background:'+bg+';':'';
+          return '<div style="min-width:'+VCOL_W+'px;max-width:'+VCOL_W+'px;display:flex;align-items:center;padding:0 8px;font-size:10px;font-weight:'+fw+';color:'+textColor+';'+bgStyle+'border-right:1px solid #f1f5f9;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;" title="'+(isEmpty&&cellBg?'（未選定）':v)+'">'+displayVal+'</div>';
         }).join('')
         +'</div>';
     }).join('')
@@ -7176,7 +7205,8 @@ function admHandleVendorXlsx(input){
     var colOrderMap={}; // エリアごとの列順を保存
     try{
       var data=new Uint8Array(e.target.result);
-      var wb=XLSX.read(data,{type:'array',raw:false});
+      // ★ cellStyles:true でセルの背景色情報を取得
+      var wb=XLSX.read(data,{type:'array',raw:false,cellStyles:true});
       wb.SheetNames.forEach(function(sheetName){
         if(sheetName.indexOf('業者')<0&&sheetName.indexOf('選定')<0&&sheetName.indexOf('東海')<0&&sheetName.indexOf('関東')<0)return;
         var ws=wb.Sheets[sheetName];
@@ -7196,11 +7226,45 @@ function admHandleVendorXlsx(input){
         var area=sheetName.indexOf('東海')>=0?'東海（全体）':sheetName.indexOf('関東')>=0?'関東（全体）':sheetName;
         // ★ col_order: XLSXの列順をそのまま保存（F5リロード後も列順を復元するため）
         colOrderMap[area]=headerMap.map(function(hm){return hm.name;});
-        var dataRows=jsonRows.slice(1).filter(function(r){return r.some(function(c){return String(c||'').trim();});});
-        resultData[area]=dataRows.map(function(r){
+        // ★ シートの範囲からセルアドレスを列番号に変換するヘルパー
+        var _colNum=function(addr){var m=addr.match(/^([A-Z]+)/);if(!m)return-1;var s=m[1],n=0;for(var i=0;i<s.length;i++)n=n*26+(s.charCodeAt(i)-64);return n-1;};
+        var _rowNum=function(addr){var m=addr.match(/(\d+)$/);return m?parseInt(m[1],10)-1:-1;};
+        // ★ セル背景色マップを構築 {rowIndex: {colIndex: '#rrggbb'}}
+        var bgMap={};
+        Object.keys(ws).forEach(function(addr){
+          if(addr[0]==='!')return;
+          var cell=ws[addr];
+          if(!cell||!cell.s)return;
+          var fill=cell.s.fgColor||cell.s.bgColor||(cell.s.fill&&(cell.s.fill.fgColor||cell.s.fill.bgColor));
+          if(!fill)return;
+          var rgb=fill.rgb;
+          // 白・なし・デフォルトは除外（FFFFFFF / 00000000 / 透明等）
+          if(!rgb||rgb==='FFFFFFFF'||rgb==='FF000000'||rgb==='00000000'||rgb.toUpperCase()==='FFFFFF'||rgb.toUpperCase()==='000000')return;
+          var hex='#'+(rgb.length===8?rgb.slice(2):rgb);
+          var ri=_rowNum(addr),ci=_colNum(addr);
+          if(ri<0||ci<0)return;
+          if(!bgMap[ri])bgMap[ri]={};
+          bgMap[ri][ci]=hex;
+        });
+        var dataRows=jsonRows.slice(1).filter(function(r,fi){
+          var realRi=fi+1; // jsonRowsはheader含む全行なのでスライス前のインデックス+1
+          return r.some(function(c){return String(c||'').trim();});
+        });
+        // dataRowsの各行が元のjsonRows上で何行目かをトラッキング
+        var dataRowIndices=[];
+        jsonRows.slice(1).forEach(function(r,fi){
+          if(r.some(function(c){return String(c||'').trim();}))dataRowIndices.push(fi+1);
+        });
+        resultData[area]=dataRows.map(function(r,di){
+          var realRi=dataRowIndices[di];
           var obj={area:area};
           // ★ 元の列インデックス(hm.col)でアクセスすることで列ずれを防ぐ
-          headerMap.forEach(function(hm){obj[hm.name]=String(r[hm.col]||'').trim();});
+          headerMap.forEach(function(hm){
+            obj[hm.name]=String(r[hm.col]||'').trim();
+            // ★ 背景色があれば _bg_列名 キーで保存
+            var bg=bgMap[realRi]&&bgMap[realRi][hm.col];
+            if(bg)obj['_bg_'+hm.name]=bg;
+          });
           return obj;
         });
         allRows=allRows.concat(resultData[area]);
