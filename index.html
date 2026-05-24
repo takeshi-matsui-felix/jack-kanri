@@ -7750,6 +7750,52 @@ document.addEventListener('DOMContentLoaded',function(){
       sw.onclick=function(){selectEdColor(c,sw);};cp.appendChild(sw);
     });
   }
+
+  // ★ Android/iOS向けタッチスクロールハンドラ
+  // overflow:autoだけでは効かない端末のために、touchイベントで直接scrollLeftを操作
+  function addHorizontalTouchScroll(el){
+    if(!el)return;
+    var startX=0,startScroll=0,isDragging=false,moved=false;
+    el.addEventListener('touchstart',function(e){
+      // 子要素のタップも通す（タブのクリックを妨げないため、startのみ記録）
+      startX=e.touches[0].clientX;
+      startScroll=el.scrollLeft;
+      isDragging=true;
+      moved=false;
+    },{passive:true});
+    el.addEventListener('touchmove',function(e){
+      if(!isDragging)return;
+      var dx=startX-e.touches[0].clientX;
+      if(Math.abs(dx)>4){
+        moved=true;
+        el.scrollLeft=startScroll+dx;
+        // 横移動が明確なら縦スクロールを止める
+        e.stopPropagation();
+      }
+    },{passive:true});
+    el.addEventListener('touchend',function(){
+      isDragging=false;
+    },{passive:true});
+  }
+
+  // 3バー全てに適用（DOMが生成された後に呼ぶ必要があるため少し遅延）
+  setTimeout(function(){
+    addHorizontalTouchScroll(document.getElementById('areaTabs'));
+    addHorizontalTouchScroll(document.getElementById('statusBar'));
+    addHorizontalTouchScroll(document.getElementById('statsStrip'));
+  },600);
+
+  // renderStats・buildAreaTabsが呼ばれた後も再適用（動的生成対応）
+  var _origRenderStats=window.renderStats;
+  if(typeof _origRenderStats==='function'){
+    window.renderStats=function(){
+      _origRenderStats.apply(this,arguments);
+      setTimeout(function(){
+        addHorizontalTouchScroll(document.getElementById('statusBar'));
+        addHorizontalTouchScroll(document.getElementById('statsStrip'));
+      },100);
+    };
+  }
 });
 
 
