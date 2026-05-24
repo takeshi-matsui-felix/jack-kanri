@@ -7359,13 +7359,17 @@ function admHandleVendorXlsx(input){
         var area=sheetName.indexOf('東海')>=0?'東海（全体）':sheetName.indexOf('関東')>=0?'関東（全体）':sheetName;
         colOrderMap[area]=headerMap.map(function(hm){return hm.name;});
 
-        // ★ 2行目をfix_no行として取得（1行目=工事カテゴリ名、2行目=fix_no）
+        // ★ 2行目をFIX ID行として取得（A列=「FIX ID」ラベル、B列以降に各物件のfix_no）
         var fixNoRow=jsonRows[1]||[];
         var fixNoMap={};
         headerMap.forEach(function(hm){
+          if(hm.col===0)return; // A列（ラベル列）はスキップ
           var v=String(fixNoRow[hm.col]||'').trim();
           if(v)fixNoMap[hm.name]=v;
         });
+
+        // ★ 工事開始行：東海=8行目(index 7)、関東=9行目(index 8)
+        var WORK_START = sheetName.indexOf('東海')>=0 ? 7 : 8;
 
         // ★ セル背景色マップ {rowIndex: {colIndex: '#rrggbb'}}
         var bgMap={};
@@ -7385,10 +7389,10 @@ function admHandleVendorXlsx(input){
           bgMap[ri][ci]=hex;
         });
 
-        // ★ 3行目以降をデータ行として取得（2行目=fix_noは除外）
+        // ★ WORK_START行以降のみをデータ行として取得（日程行を除外）
         var dataRowIndices=[];
-        jsonRows.slice(2).forEach(function(r,fi){
-          if(r.some(function(c){return String(c||'').trim();}))dataRowIndices.push(fi+2);
+        jsonRows.slice(WORK_START).forEach(function(r,fi){
+          if(r.some(function(c){return String(c||'').trim();}))dataRowIndices.push(fi+WORK_START);
         });
         var dataRows=dataRowIndices.map(function(ri){return jsonRows[ri];});
         resultData[area]=dataRows.map(function(r,di){
