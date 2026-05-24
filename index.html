@@ -55,9 +55,9 @@ input,textarea,select{font-family:var(--font)}
 .print-btn:hover{background:rgba(255,255,255,.35)}
 
 /* AREA TABS */
-.area-tabs{display:flex;overflow-x:auto;background:#1e293b;flex-shrink:0;border-bottom:1px solid rgba(255,255,255,.1)}
+.area-tabs{display:flex;overflow-x:auto;overflow-y:hidden;background:#1e293b;flex-shrink:0;border-bottom:1px solid rgba(255,255,255,.1);-webkit-overflow-scrolling:touch;scroll-behavior:smooth;scrollbar-width:none;}
 .area-tabs::-webkit-scrollbar{display:none}
-.atab{padding:8px 11px;font-size:11px;font-weight:700;color:rgba(255,255,255,.45);white-space:nowrap;border-bottom:2px solid transparent;transition:all .15s;flex-shrink:0}
+.atab{padding:8px 11px;font-size:11px;font-weight:700;color:rgba(255,255,255,.45);white-space:nowrap;border-bottom:2px solid transparent;transition:all .15s;flex-shrink:0;cursor:pointer;-webkit-tap-highlight-color:transparent;}
 .atab.active{color:white;border-bottom-color:var(--accent)}
 .atab.myfav{color:rgba(245,158,11,.7)}.atab.myfav.active{color:var(--accent);border-bottom-color:var(--accent)}
 .atab.raikin.active{color:#a78bfa;border-bottom-color:#a78bfa}
@@ -515,8 +515,8 @@ body.sp-mode #areaTabs{
 body.sp-mode #areaTabs::-webkit-scrollbar{ display:none; }
 body.sp-mode .atab{
   white-space:nowrap;
-  padding:10px 14px;
-  font-size:13px;
+  padding:9px 10px;
+  font-size:11px;
   flex-shrink:0;
 }
 
@@ -2289,7 +2289,22 @@ function scrollToToday(){
 function setArea(area,btn){
   currentArea=area;currentStatus='all';
   document.querySelectorAll('.atab').forEach(function(b){b.classList.remove('active');});
-  if(btn)btn.classList.add('active');
+  if(btn){
+    btn.classList.add('active');
+    // ★ アクティブタブが見切れている場合に自動スクロール
+    var tabBar=document.getElementById('areaTabs');
+    if(tabBar){
+      var btnLeft=btn.offsetLeft;
+      var btnRight=btnLeft+btn.offsetWidth;
+      var barScroll=tabBar.scrollLeft;
+      var barWidth=tabBar.offsetWidth;
+      if(btnLeft<barScroll){
+        tabBar.scrollLeft=btnLeft-8;
+      } else if(btnRight>barScroll+barWidth){
+        tabBar.scrollLeft=btnRight-barWidth+8;
+      }
+    }
+  }
   renderStats();renderBody();scrollToToday();
 }
 function setStatus(s){currentStatus=s;renderStats();renderBody();}
