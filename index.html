@@ -5348,37 +5348,64 @@ window._loadCustomGanttIfNeeded=_loadCustomGanttIfNeeded;
 
 // vendorsキャッシュ
 var VENDORS_CACHE_KEY='jack_vendors_cache';
+var VENDORS_CACHE_TS_KEY='jack_vendors_cache_ts'; // キャッシュ保存時のタイムスタンプ
+
+// ★ vendorsの最新updated_atをSupabaseから取得（通信量極小：1行のみ）
+async function _getVendorsLatestTs(){
+  var sb=getSB();if(!sb)return null;
+  try{
+    var r=await sb.from('vendors').select('updated_at').order('updated_at',{ascending:false}).limit(1);
+    if(r.error||!r.data||!r.data.length)return null;
+    return r.data[0].updated_at||null;
+  }catch(e){return null;}
+}
 
 async function _loadVendorsFromCacheOrDB(forceRefresh){
-  if(!forceRefresh){
+  var sb=getSB();
+  // キャッシュ確認
+  var cachedStr=null;
+  var cachedTs=null;
+  try{
+    cachedStr=localStorage.getItem(VENDORS_CACHE_KEY);
+    cachedTs=localStorage.getItem(VENDORS_CACHE_TS_KEY);
+  }catch(e){}
+
+  if(!forceRefresh&&cachedStr){
     try{
-      var cached=localStorage.getItem(VENDORS_CACHE_KEY);
-      if(cached){
-        var parsed=JSON.parse(cached);
-        if(parsed&&Object.keys(parsed).length>0){
+      var parsed=JSON.parse(cachedStr);
+      if(parsed&&Object.keys(parsed).length>0){
+        // ★ Supabaseの最新タイムスタンプと比較（通信量：数十バイトのみ）
+        var latestTs=await _getVendorsLatestTs();
+        if(!latestTs||cachedTs===latestTs){
+          // キャッシュが最新 → そのまま使用（通信なし）
           window._VENDOR_LIST_DATA=parsed;
           return;
         }
+        // キャッシュが古い → DB再取得へ（以下に続く）
       }
     }catch(e){}
-    // キャッシュなし・forceRefreshでない場合は取得しない（通信節約）
-    return;
   }
-  // forceRefresh=trueのみSupabaseから取得
-  var sb=getSB(); if(!sb)return;
+
+  // DB取得（forceRefresh or キャッシュ古い or キャッシュなし）
+  if(!sb)return;
   try{
     var r=await sb.from('vendors').select('*').order('id');
     if(r.error||!r.data||!r.data.length)return;
     var grp={};
+    var latestUpdated='';
     r.data.forEach(function(row){
       var a=row.area||'東海（全体）';
       if(!grp[a])grp[a]=[];
       var obj=Object.assign({},row.data||{},{area:a});
       if(row.col_order)obj.col_order=row.col_order;
       grp[a].push(obj);
+      if(row.updated_at&&row.updated_at>latestUpdated)latestUpdated=row.updated_at;
     });
     window._VENDOR_LIST_DATA=grp;
-    try{localStorage.setItem(VENDORS_CACHE_KEY, JSON.stringify(grp));}catch(e){}
+    try{
+      localStorage.setItem(VENDORS_CACHE_KEY, JSON.stringify(grp));
+      localStorage.setItem(VENDORS_CACHE_TS_KEY, latestUpdated);
+    }catch(e){}
   }catch(e){console.warn('vendors err:',e);}
 }
 window._loadVendorsFromCacheOrDB=_loadVendorsFromCacheOrDB;
@@ -7423,10 +7450,10 @@ function admHandleVendorXlsx(input){
           bgMap[ri][ci]=hex;
         });
 
-        // ★ 3行目以降を全てデータ行として取得（FIX ID行=2行目のみ除外、日程行も含めて全行保存）
+        // ★ 2行目以降を全てデータ行として取得（1行目=ヘッダー除く全行）
         var dataRowIndices=[];
-        jsonRows.slice(2).forEach(function(r,fi){
-          if(r.some(function(c){return String(c||'').trim();}))dataRowIndices.push(fi+2);
+        jsonRows.slice(1).forEach(function(r,fi){
+          if(r.some(function(c){return String(c||'').trim();}))dataRowIndices.push(fi+1);
         });
         var dataRows=dataRowIndices.map(function(ri){return jsonRows[ri];});
         resultData[area]=dataRows.map(function(r,di){
@@ -7434,7 +7461,7 @@ function admHandleVendorXlsx(input){
           var obj={area:area};
           headerMap.forEach(function(hm){
             obj[hm.name]=String(r[hm.col]||'').trim();
-            // fix_noを_fixno_列名キーで保存
+            // fix_noを_fixno_列名キーで保存（物件詳細マッチング用・表示には影響しない）
             if(fixNoMap[hm.name])obj['_fixno_'+hm.name]=fixNoMap[hm.name];
             // 背景色を_bg_列名キーで保存
             var bg=bgMap[realRi]&&bgMap[realRi][hm.col];
@@ -7451,8 +7478,12 @@ function admHandleVendorXlsx(input){
       _saveVendorsToDB(allRows, colOrderMap).then(function(ok){
         if(ok){
           window._VENDOR_LIST_DATA=resultData;
-          // ★ キャッシュを最新データで必ず上書き（古いキャッシュが残るとF5で戻る問題を防止）
-          try{localStorage.setItem(VENDORS_CACHE_KEY, JSON.stringify(resultData));}catch(e){}
+          // ★ キャッシュを最新データで上書き（タイムスタンプも記録）
+          var nowTs=new Date().toISOString();
+          try{
+            localStorage.setItem(VENDORS_CACHE_KEY, JSON.stringify(resultData));
+            localStorage.setItem(VENDORS_CACHE_TS_KEY, nowTs);
+          }catch(e){}
           showToast('✅ 業者一覧をSupabaseに保存しました（'+allRows.length+'件）','success');
           admRenderVendorTables(resultData);
         }
