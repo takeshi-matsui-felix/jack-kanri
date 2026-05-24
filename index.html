@@ -3159,6 +3159,15 @@ function openDetail(p){
       }
     });
   }
+  // ★ vendorsが未ロードの場合はキャッシュ/DBから取得して業者セクションを再描画
+  if(!window._VENDOR_LIST_DATA||!Object.keys(window._VENDOR_LIST_DATA).length){
+    if(typeof _loadVendorsFromCacheOrDB==='function'){
+      _loadVendorsFromCacheOrDB(false).then(function(){
+        var vsEl=document.getElementById('detail-vendor-wrap');
+        if(vsEl&&currentProp)vsEl.innerHTML=buildVendorSection(currentProp);
+      });
+    }
+  }
   // LocalStorageのオーバーライドをマージ
   var ov=loadLS('jack_prop_overrides',{});
   var ck=custKey(p);
@@ -3230,7 +3239,7 @@ function openDetail(p){
     +'<div class="dp-sec"><div class="dp-sec-head">🏁 完了・引渡し情報</div>'+mkRow('完了検査日',p.inspection_date)+mkRow('完成日',p.complete_date)+delivRow+mkRow('引渡月',p.delivery_month)+'</div>'
     +'<div class="dp-sec"><div class="dp-sec-head">🏦 販売情報</div><div class="dp-row"><span class="dp-label">販売ステータス</span>'+makeBadge(p.status,true)+'</div>'+'</div>'
     +parkHtml
-    +buildVendorSection(p)
+    +'<div id="detail-vendor-wrap">'+buildVendorSection(p)+'</div>'
     +'<div class="dp-sec" id="weather-sec-'+p.fix_no+'"><div class="dp-sec-head">🌤 週間天気（現場エリア）</div><div id="weather-content-'+p.fix_no+'"></div></div>';
   setTimeout(function(){fetchWeather(p,'weather-content-'+p.fix_no);},300);
 
@@ -7164,14 +7173,38 @@ function openVendorList(){
   window._vendorSearchQ='';
   var si=document.getElementById('vendorSearchInput');
   if(si){si.value='';si.style.borderColor='#e2e8f0';}
-  if(Object.keys(window._VENDOR_LIST_DATA).length){
+
+  // ★ キャッシュが古い形式（_fixno_キーなし）かチェック
+  var _hasFixno=function(data){
+    var areas=Object.keys(data||{});
+    for(var i=0;i<areas.length;i++){
+      var rows=data[areas[i]]||[];
+      for(var j=0;j<rows.length;j++){
+        var keys=Object.keys(rows[j]);
+        if(keys.some(function(k){return k.indexOf('_fixno_')===0;}))return true;
+        // _fixno_がなくてもデータ自体は新形式かもしれない（fix_noがない物件もある）
+        // →行数が十分あればOKとみなす
+        if(rows.length>3)return true;
+      }
+    }
+    return false;
+  };
+
+  var needRefresh=!Object.keys(window._VENDOR_LIST_DATA).length||!_hasFixno(window._VENDOR_LIST_DATA);
+
+  if(!needRefresh){
     _renderVendorPanel();
   } else {
     var wrap=document.getElementById('vendorTableWrap');
     if(wrap)wrap.innerHTML='<div style="padding:24px;text-align:center;color:#94a3b8;font-size:12px"><div style="font-size:32px;margin-bottom:8px">👷</div>読み込み中…</div>';
+    // キャッシュがない or 古い形式 → DB・キャッシュ両方試みる
     _loadVendorsFromCacheOrDB(false).then(function(){
-      if(Object.keys(window._VENDOR_LIST_DATA).length)_renderVendorPanel();
-      else{var w=document.getElementById('vendorTableWrap');if(w)w.innerHTML='<div style="padding:24px;text-align:center;color:#94a3b8;font-size:12px"><div style="font-size:32px;margin-bottom:8px">👷</div>業者データがありません。<br>管理者CP → 全業者選定からXLSXを読み込んでください。</div>';}
+      if(Object.keys(window._VENDOR_LIST_DATA).length){
+        _renderVendorPanel();
+      } else {
+        var w=document.getElementById('vendorTableWrap');
+        if(w)w.innerHTML='<div style="padding:24px;text-align:center;color:#94a3b8;font-size:12px"><div style="font-size:32px;margin-bottom:8px">👷</div>業者データがありません。<br>管理者CP → 全業者選定からXLSXを読み込んでください。</div>';
+      }
     });
   }
 }
@@ -7435,6 +7468,8 @@ function admHandleVendorXlsx(input){
       _saveVendorsToDB(allRows, colOrderMap).then(function(ok){
         if(ok){
           window._VENDOR_LIST_DATA=resultData;
+          // ★ キャッシュを最新データで必ず上書き（古いキャッシュが残るとF5で戻る問題を防止）
+          try{localStorage.setItem(VENDORS_CACHE_KEY, JSON.stringify(resultData));}catch(e){}
           showToast('✅ 業者一覧をSupabaseに保存しました（'+allRows.length+'件）','success');
           admRenderVendorTables(resultData);
         }
