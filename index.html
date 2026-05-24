@@ -7251,6 +7251,24 @@ function _renderVendorTable(){
   var freezeCol=cols[0];
   var scrollCols=cols.slice(1);
 
+  // ★ 日程行フィルタ：B列以降の値が全て「日付・数値・無・空」のみの行を除外
+  // 業者名が入っている行は必ず漢字/カタカナの社名が含まれる
+  var _isScheduleRow=function(row){
+    var datePat=/^(\d{1,4}[\/\-\.]\d{1,2}([\/\-\.]\d{1,4})?(\s*[〜~]\s*\d{1,4}[\/\-\.]\d{1,2}([\/\-\.]\d{1,4})?)?|無|なし|\d+月|\d+年|\s*)$/;
+    // B列以降（scrollCols）に値があるものだけチェック
+    var valCols=scrollCols.filter(function(c){return String(row[c]||'').trim();});
+    if(!valCols.length)return false; // 全空行は除外しない（工事行で未入力のケースもある）
+    // 値がある列が全て日付パターンなら日程行
+    return valCols.every(function(c){
+      return datePat.test(String(row[c]||'').trim());
+    });
+  };
+  rows=rows.filter(function(r){return !_isScheduleRow(r);});
+
+  // A列（最初の列）= 工事項目列として固定
+  var freezeCol=cols[0];
+  var scrollCols=cols.slice(1);
+
   var isTokai=window._VENDOR_LIST_TAB.indexOf('東海')>=0;
   var hColor=isTokai?'#1a56db':'#10b981';
 
