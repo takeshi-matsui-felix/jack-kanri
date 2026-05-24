@@ -7288,23 +7288,6 @@ function _renderVendorTable(){
   var freezeCol=cols[0];
   var scrollCols=cols.slice(1);
 
-  // ★ 日程行フィルタ：A列（工事項目列）の値が日程キーワードの行を除外
-  // またはB列以降の値が全て日付パターン・数値・無の行も除外
-  var _isScheduleRow=function(row){
-    // A列キーワード判定（確実な除外）
-    var aVal=String(row[freezeCol]||'').trim();
-    var scheduleKeywords=['FIX','土地決済','土地契約','確認申請','建て方着工','造成着工','基礎着工','引渡し','引き渡し','着工予定','完了日','決済日','検査','地盤調査','調査'];
-    if(scheduleKeywords.some(function(k){return aVal.indexOf(k)>=0;}))return true;
-    // B列以降の値が全て「日付・数字・無・—・空」のみのパターンも除外
-    var datePat=/^(\d{1,4}[\/\-\.]\d{1,2}([\/\-\.]\d{1,4})?(\s*[〜~]\s*\d{1,4}[\/\-\.]\d{1,2}([\/\-\.]\d{1,4})?)?|無|なし|—|ー|\d+月|\d+年|\d+戸|\s*)$/;
-    var valCols=scrollCols.filter(function(c){return String(row[c]||'').trim();});
-    if(!valCols.length)return false;
-    return valCols.every(function(c){
-      return datePat.test(String(row[c]||'').trim());
-    });
-  };
-  rows=rows.filter(function(r){return !_isScheduleRow(r);});
-
   var isTokai=window._VENDOR_LIST_TAB.indexOf('東海')>=0;
   var hColor=isTokai?'#1a56db':'#10b981';
 
@@ -7422,9 +7405,6 @@ function admHandleVendorXlsx(input){
           if(v)fixNoMap[hm.name]=v;
         });
 
-        // ★ 工事開始行：東海=8行目(index 7)、関東=9行目(index 8)
-        var WORK_START = sheetName.indexOf('東海')>=0 ? 7 : 8;
-
         // ★ セル背景色マップ {rowIndex: {colIndex: '#rrggbb'}}
         var bgMap={};
         var _colNum=function(addr){var m=addr.match(/^([A-Z]+)/);if(!m)return -1;var s=m[1],n=0;for(var i=0;i<s.length;i++)n=n*26+(s.charCodeAt(i)-64);return n-1;};
@@ -7443,10 +7423,10 @@ function admHandleVendorXlsx(input){
           bgMap[ri][ci]=hex;
         });
 
-        // ★ WORK_START行以降のみをデータ行として取得（日程行を除外）
+        // ★ 3行目以降を全てデータ行として取得（FIX ID行=2行目のみ除外、日程行も含めて全行保存）
         var dataRowIndices=[];
-        jsonRows.slice(WORK_START).forEach(function(r,fi){
-          if(r.some(function(c){return String(c||'').trim();}))dataRowIndices.push(fi+WORK_START);
+        jsonRows.slice(2).forEach(function(r,fi){
+          if(r.some(function(c){return String(c||'').trim();}))dataRowIndices.push(fi+2);
         });
         var dataRows=dataRowIndices.map(function(ri){return jsonRows[ri];});
         resultData[area]=dataRows.map(function(r,di){
