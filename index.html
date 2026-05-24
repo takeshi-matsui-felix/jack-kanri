@@ -1505,30 +1505,165 @@ function normalizeForMatch(s){
     .toLowerCase();
 }
 function findVendorForProp(p){
-  if(!p||!VENDOR_DATA||!Object.keys(VENDOR_DATA).length)return null;
+  if(!p)return null;
+  // ★ まず新形式(_VENDOR_LIST_DATA)からfix_no・物件名でマッチング
+  var vld=window._VENDOR_LIST_DATA||{};
+  var areas=Object.keys(vld);
+  for(var ai=0;ai<areas.length;ai++){
+    var areaRows=vld[areas[ai]]||[];
+    for(var ri2=0;ri2<areaRows.length;ri2++){
+      var row=areaRows[ri2];
+      // fix_noマッチング：_fixno_列名キーを探して照合
+      var keys=Object.keys(row);
+      var fixKeys=keys.filter(function(k){return k.indexOf('_fixno_')===0;});
+      var fixMatched=fixKeys.some(function(fk){
+        return String(row[fk]||'').trim()===String(p.fix_no||'').trim()&&row[fk.slice(7)]; // 列名部分でセルが空でない
+      });
+      // 物件名マッチング（フォールバック）
+      var nameMatched=false;
+      keys.forEach(function(k){
+        if(k.indexOf('_bg_')===0||k.indexOf('_fixno_')===0||k==='area'||k==='id'||k==='col_order'||k==='created_at')return;
+        var v=String(row[k]||'').trim();
+        if(v&&normalizeForMatch(v)===normalizeForMatch(p.name))nameMatched=true;
+      });
+      if(fixMatched||nameMatched){
+        // この行の工事カテゴリ→業者名マップを返す（_bg_/_fixno_は除外）
+        var result={_area:areas[ai],_row:row};
+        return result;
+      }
+    }
+  }
+  // 旧形式(VENDOR_DATA)にフォールバック
+  if(!VENDOR_DATA||!Object.keys(VENDOR_DATA).length)return null;
   var target=normalizeForMatch(p.name);
   var regions=Object.keys(VENDOR_DATA);
   for(var ri=0;ri<regions.length;ri++){
     var region=VENDOR_DATA[regions[ri]];
-    var keys=Object.keys(region);
-    for(var ki=0;ki<keys.length;ki++){
-      var key=keys[ki];
-      var norm=normalizeForMatch(key);
+    var rkeys=Object.keys(region);
+    for(var ki=0;ki<rkeys.length;ki++){
+      var rkey=rkeys[ki];
+      var norm=normalizeForMatch(rkey);
       if(norm===target||norm.indexOf(target)>=0||target.indexOf(norm)>=0){
-        return region[key]; // {工事: 業者}
+        return {_legacy:true,_map:region[rkey]};
       }
     }
   }
   return null;
 }
+
 function buildVendorSection(p){
-  var vendors=findVendorForProp(p);
-  if(!vendors||!Object.keys(vendors).length)return '';
-  var rows=Object.keys(vendors).filter(function(k){return vendors[k];}).map(function(k){
-    return '<div class="dp-row"><span class="dp-label">'+k+'</span><span class="dp-val txt">'+vendors[k]+'</span></div>';
-  }).join('');
-  return '<div class="dp-sec"><div class="dp-sec-head">🏢 担当業者</div>'+rows+'</div>';
+  var result=findVendorForProp(p);
+  if(!result)return '';
+
+  // ★ 旧形式(VENDOR_DATA)フォールバック
+  if(result._legacy){
+    var map=result._map||{};
+    var rows2=Object.keys(map).filter(function(k){return map[k];}).map(function(k){
+      return '<div class="dp-row"><span class="dp-label">'+k+'</span><span class="dp-val txt">'+map[k]+'</span></div>';
+    }).join('');
+    return rows2?'<div class="dp-sec"><div class="dp-sec-head">🏢 担当業者</div>'+rows2+'</div>':'';
+  }
+
+  // ★ 新形式：2カラムグリッド表示
+  var areaName=result._area||'';
+  var row=result._row||{};
+  var isTokai=areaName.indexOf('東海')>=0;
+  var hColor=isTokai?'#1a56db':'#10b981';
+  var areaLabel=isTokai?'東海':'関東';
+
+  // col_orderがあれば列順を復元
+  var savedOrder=null;
+  if(row.col_order){try{savedOrder=JSON.parse(row.col_order);}catch(x){}}
+  var allVld=window._VENDOR_LIST_DATA||{};
+  var areaRows=allVld[areaName]||[];
+  var colSet2={};
+  areaRows.forEach(function(r){Object.keys(r).forEach(function(k){
+    if(k!=='id'&&k!=='area'&&k!=='created_at'&&k!=='col_order'&&k.indexOf('_bg_')!==0&&k.indexOf('_fixno_')!==0)colSet2[k]=1;
+  });});
+  var allCols=Object.keys(colSet2);
+  var dataCols;
+  if(savedOrder&&savedOrder.length){
+    var ord=savedOrder.filter(function(c){return allCols.indexOf(c)>=0;});
+    var ext=allCols.filter(function(c){return ord.indexOf(c)<0;});
+    dataCols=ord.concat(ext);
+  }else{dataCols=allCols;}
+  // A列（工事カテゴリ）を除いた列が「物件」列
+  var propCols=dataCols.slice(1);
+  if(!propCols.length)return '';
+
+  // 工事カテゴリ列名を取得
+  var catCol=dataCols[0]||'';
+
+  // 業者セルHTML生成（工事カテゴリ行ごと）
+  var cellHtml=areaRows.map(function(r){
+    var cat=String(r[catCol]||'').trim();
+    if(!cat)return '';
+    // この物件の列を探す（fix_noマッチ優先→物件名マッチ）
+    var targetCol=null;
+    propCols.forEach(function(c){
+      if(targetCol)return;
+      var fixKey='_fixno_'+c;
+      if(r[fixKey]&&String(r[fixKey]).trim()===String(p.fix_no||'').trim())targetCol=c;
+    });
+    if(!targetCol){
+      propCols.forEach(function(c){
+        if(targetCol)return;
+        if(normalizeForMatch(c)===normalizeForMatch(p.name))targetCol=c;
+      });
+    }
+    var vendor=targetCol?String(r[targetCol]||'').trim():'';
+    var bg=targetCol?String(r['_bg_'+targetCol]||''):'';
+    var isEmpty=!vendor;
+    var bgStyle=bg?'background:'+bg+';':'';
+    var textColor=bg?_vendorTextColor(bg):(isEmpty?'#cbd5e1':'#1e293b');
+
+    if(isEmpty&&!bg){
+      // 完全未着手（色なし・業者なし）
+      return '<div style="padding:8px 10px;border-bottom:1px solid #f1f5f9;border-right:1px solid #f1f5f9;">'
+        +'<div style="font-size:9px;font-weight:700;color:#94a3b8;margin-bottom:2px">'+cat+'</div>'
+        +'<div style="font-size:10px;color:#cbd5e1">—</div>'
+        +'</div>';
+    }
+    if(isEmpty&&bg){
+      // 色あり・業者未入力（未選定）
+      return '<div style="padding:8px 10px;border-bottom:1px solid #f1f5f9;border-right:1px solid #f1f5f9;'+bgStyle+'">'
+        +'<div style="font-size:9px;font-weight:700;color:'+textColor+';opacity:.7;margin-bottom:2px">'+cat+'</div>'
+        +'<div style="display:inline-block;font-size:9px;font-style:italic;background:rgba(255,255,255,.35);padding:1px 6px;border-radius:4px;color:'+textColor+'">未選定</div>'
+        +'</div>';
+    }
+    // 業者あり
+    var dot=bg?'<span style="display:inline-block;width:7px;height:7px;border-radius:2px;background:'+bg+';margin-right:4px;flex-shrink:0;border:1px solid rgba(0,0,0,.1)"></span>':'';
+    return '<div style="padding:8px 10px;border-bottom:1px solid #f1f5f9;border-right:1px solid #f1f5f9;">'
+      +'<div style="font-size:9px;font-weight:700;color:#64748b;margin-bottom:2px">'+cat+'</div>'
+      +'<div style="font-size:11px;font-weight:700;color:#1e293b;display:flex;align-items:center">'+dot+vendor+'</div>'
+      +'</div>';
+  }).filter(Boolean).join('');
+
+  if(!cellHtml)return '';
+
+  var totalCount=areaRows.length;
+  var filledCount=areaRows.filter(function(r){
+    var targetCol=null;
+    propCols.forEach(function(c){
+      if(targetCol)return;
+      var fixKey='_fixno_'+c;
+      if(r[fixKey]&&String(r[fixKey]).trim()===String(p.fix_no||'').trim())targetCol=c;
+    });
+    return targetCol&&String(r[targetCol]||'').trim();
+  }).length;
+
+  return '<div class="dp-sec">'
+    +'<div class="dp-sec-head" style="display:flex;align-items:center;gap:5px;">'
+    +'🏢 業者選定一覧'
+    +'<span style="font-size:9px;font-weight:700;background:'+(isTokai?'#dbeafe':'#dcfce7')+';color:'+(isTokai?'#1e40af':'#166534')+';padding:1px 6px;border-radius:6px">'+areaLabel+'</span>'
+    +'<span style="margin-left:auto;font-size:9px;font-weight:700;background:#ede9fe;color:#5b21b6;padding:2px 7px;border-radius:8px">'+filledCount+'/'+totalCount+'件</span>'
+    +'</div>'
+    +'<div style="display:grid;grid-template-columns:1fr 1fr;">'
+    +cellHtml
+    +'</div>'
+    +'</div>';
 }
+
 
 // ===== WEATHER (Open-Meteo - 無料・API key不要) =====
 var AREA_COORDS = {
@@ -7079,6 +7214,10 @@ function _renderVendorPanel(){
   _renderVendorTable();
 }
 
+function _vendorTextColor(hex){
+  try{var c=hex.replace('#','');if(c.length===3)c=c[0]+c[0]+c[1]+c[1]+c[2]+c[2];var r=parseInt(c.slice(0,2),16),g=parseInt(c.slice(2,4),16),b=parseInt(c.slice(4,6),16);return(0.299*r+0.587*g+0.114*b)>140?'#1e293b':'#ffffff';}catch(x){return'#1e293b';}
+}
+
 function _renderVendorTable(){
   var data=window._VENDOR_LIST_DATA;
   var wrap=document.getElementById('vendorTableWrap');
@@ -7093,7 +7232,9 @@ function _renderVendorTable(){
     try{savedOrder=JSON.parse(rows[0].col_order);}catch(x){}
   }
   var colSet={};
-  rows.forEach(function(r){Object.keys(r).forEach(function(k){if(k!=='id'&&k!=='area'&&k!=='created_at'&&k!=='col_order')colSet[k]=1;});});
+  rows.forEach(function(r){Object.keys(r).forEach(function(k){
+    if(k!=='id'&&k!=='area'&&k!=='created_at'&&k!=='col_order'&&k.indexOf('_bg_')!==0&&k.indexOf('_fixno_')!==0)colSet[k]=1;
+  });});
   var colsRaw=Object.keys(colSet);
   // col_orderで並び替え（保存済み順序を優先、未知の列は末尾に追加）
   var cols;
@@ -7132,8 +7273,10 @@ function _renderVendorTable(){
     +'<div id="vendorFreezeBody" style="flex:1;overflow:hidden;">'
     +rows.map(function(row,ri){
       var v=String(row[freezeCol]||'').trim();
-      var bg=ri%2===0?'white':'#f8fafc';
-      return '<div style="height:28px;display:flex;align-items:center;padding:0 8px;font-size:10px;font-weight:600;color:#1e293b;background:'+bg+';border-bottom:1px solid #f1f5f9;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:'+FREEZE_W+'px;" title="'+v+'">'+(v||'—')+'</div>';
+      var cellBg=row['_bg_'+freezeCol]||'';
+      var bg=cellBg||(ri%2===0?'white':'#f8fafc');
+      var fc=cellBg?_vendorTextColor(cellBg):'#1e293b';
+      return '<div style="height:28px;display:flex;align-items:center;padding:0 8px;font-size:10px;font-weight:600;color:'+fc+';background:'+bg+';border-bottom:1px solid #f1f5f9;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:'+FREEZE_W+'px;" title="'+v+'">'+(v||'—')+'</div>';
     }).join('')
     +'</div></div>';
 
@@ -7148,15 +7291,25 @@ function _renderVendorTable(){
     +'</div>'
     // データ行
     +rows.map(function(row,ri){
-      var bg=ri%2===0?'white':'#f8fafc';
-      return '<div style="display:flex;height:28px;background:'+bg+';border-bottom:1px solid #f1f5f9;">'
+      var rowBg=ri%2===0?'white':'#f8fafc';
+      return '<div style="display:flex;height:28px;background:'+rowBg+';border-bottom:1px solid #f1f5f9;">'
         +filteredScrollCols.map(function(c){
           var v=String(row[c]||'').trim();
+          var cellBg=row['_bg_'+c]||'';
           var hit=q&&v&&v.toLowerCase().indexOf(q)>=0;
-          var bg=hit?'#fef08a':''; // 一致セルのみ黄色
+          var bg=hit?'#fef08a':cellBg||'';
           var fw=hit?'700':'400';
-          var color=v?'#334155':'#cbd5e1';
-          return '<div style="min-width:'+VCOL_W+'px;max-width:'+VCOL_W+'px;display:flex;align-items:center;padding:0 8px;font-size:10px;font-weight:'+fw+';color:'+color+';background:'+bg+';border-right:1px solid #f1f5f9;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;" title="'+v+'">'+(v||'—')+'</div>';
+          var isEmpty=!v;
+          var displayVal,textColor;
+          if(isEmpty){
+            displayVal=cellBg?'<span style="font-size:9px;opacity:.55;font-style:italic">未選定</span>':'<span style="color:#cbd5e1">—</span>';
+            textColor=cellBg?_vendorTextColor(cellBg):'#cbd5e1';
+          }else{
+            displayVal='<span>'+v+'</span>';
+            textColor=cellBg?_vendorTextColor(cellBg):(hit?'#92400e':'#334155');
+          }
+          var bgStyle=bg?'background:'+bg+';':'';
+          return '<div style="min-width:'+VCOL_W+'px;max-width:'+VCOL_W+'px;display:flex;align-items:center;padding:0 8px;font-size:10px;font-weight:'+fw+';color:'+textColor+';'+bgStyle+'border-right:1px solid #f1f5f9;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;" title="'+(isEmpty&&cellBg?'（未選定）':v)+'">'+displayVal+'</div>';
         }).join('')
         +'</div>';
     }).join('')
@@ -7186,7 +7339,7 @@ function admHandleVendorXlsx(input){
     var colOrderMap={}; // エリアごとの列順を保存
     try{
       var data=new Uint8Array(e.target.result);
-      var wb=XLSX.read(data,{type:'array',raw:false});
+      var wb=XLSX.read(data,{type:'array',raw:false,cellStyles:true});
       wb.SheetNames.forEach(function(sheetName){
         if(sheetName.indexOf('業者')<0&&sheetName.indexOf('選定')<0&&sheetName.indexOf('東海')<0&&sheetName.indexOf('関東')<0)return;
         var ws=wb.Sheets[sheetName];
@@ -7204,13 +7357,51 @@ function admHandleVendorXlsx(input){
         });
         if(!headerMap.length)return;
         var area=sheetName.indexOf('東海')>=0?'東海（全体）':sheetName.indexOf('関東')>=0?'関東（全体）':sheetName;
-        // ★ col_order: XLSXの列順をそのまま保存（F5リロード後も列順を復元するため）
         colOrderMap[area]=headerMap.map(function(hm){return hm.name;});
-        var dataRows=jsonRows.slice(1).filter(function(r){return r.some(function(c){return String(c||'').trim();});});
-        resultData[area]=dataRows.map(function(r){
+
+        // ★ 2行目をfix_no行として取得（1行目=工事カテゴリ名、2行目=fix_no）
+        var fixNoRow=jsonRows[1]||[];
+        var fixNoMap={};
+        headerMap.forEach(function(hm){
+          var v=String(fixNoRow[hm.col]||'').trim();
+          if(v)fixNoMap[hm.name]=v;
+        });
+
+        // ★ セル背景色マップ {rowIndex: {colIndex: '#rrggbb'}}
+        var bgMap={};
+        var _colNum=function(addr){var m=addr.match(/^([A-Z]+)/);if(!m)return -1;var s=m[1],n=0;for(var i=0;i<s.length;i++)n=n*26+(s.charCodeAt(i)-64);return n-1;};
+        var _rowNum=function(addr){var m=addr.match(/(\d+)$/);return m?parseInt(m[1],10)-1:-1;};
+        Object.keys(ws).forEach(function(addr){
+          if(addr[0]==='!')return;
+          var cell=ws[addr];if(!cell||!cell.s)return;
+          var fill=cell.s.fgColor||cell.s.bgColor||(cell.s.fill&&(cell.s.fill.fgColor||cell.s.fill.bgColor));
+          if(!fill)return;
+          var rgb=fill.rgb;
+          if(!rgb||rgb==='FFFFFFFF'||rgb==='FF000000'||rgb==='00000000'||rgb.toUpperCase()==='FFFFFF'||rgb.toUpperCase()==='000000')return;
+          var hex='#'+(rgb.length===8?rgb.slice(2):rgb);
+          var ri=_rowNum(addr),ci=_colNum(addr);
+          if(ri<0||ci<0)return;
+          if(!bgMap[ri])bgMap[ri]={};
+          bgMap[ri][ci]=hex;
+        });
+
+        // ★ 3行目以降をデータ行として取得（2行目=fix_noは除外）
+        var dataRowIndices=[];
+        jsonRows.slice(2).forEach(function(r,fi){
+          if(r.some(function(c){return String(c||'').trim();}))dataRowIndices.push(fi+2);
+        });
+        var dataRows=dataRowIndices.map(function(ri){return jsonRows[ri];});
+        resultData[area]=dataRows.map(function(r,di){
+          var realRi=dataRowIndices[di];
           var obj={area:area};
-          // ★ 元の列インデックス(hm.col)でアクセスすることで列ずれを防ぐ
-          headerMap.forEach(function(hm){obj[hm.name]=String(r[hm.col]||'').trim();});
+          headerMap.forEach(function(hm){
+            obj[hm.name]=String(r[hm.col]||'').trim();
+            // fix_noを_fixno_列名キーで保存
+            if(fixNoMap[hm.name])obj['_fixno_'+hm.name]=fixNoMap[hm.name];
+            // 背景色を_bg_列名キーで保存
+            var bg=bgMap[realRi]&&bgMap[realRi][hm.col];
+            if(bg)obj['_bg_'+hm.name]=bg;
+          });
           return obj;
         });
         allRows=allRows.concat(resultData[area]);
