@@ -55,9 +55,9 @@ input,textarea,select{font-family:var(--font)}
 .print-btn:hover{background:rgba(255,255,255,.35)}
 
 /* AREA TABS */
-.area-tabs{display:block;overflow-x:auto;overflow-y:hidden;background:#1e293b;flex-shrink:0;border-bottom:1px solid rgba(255,255,255,.1);-webkit-overflow-scrolling:touch;scroll-behavior:smooth;scrollbar-width:none;touch-action:pan-x;will-change:scroll-position;overscroll-behavior-x:contain;}
+.area-tabs{display:block;white-space:nowrap;overflow-x:auto;overflow-y:hidden;background:#1e293b;flex-shrink:0;border-bottom:1px solid rgba(255,255,255,.1);-webkit-overflow-scrolling:touch;scroll-behavior:smooth;scrollbar-width:none;touch-action:pan-x;will-change:scroll-position;overscroll-behavior-x:contain;}
 .area-tabs::-webkit-scrollbar{display:none}
-.area-tabs-inner{display:inline-flex;min-width:100%;white-space:nowrap;}
+.area-tabs-inner{display:inline-flex;white-space:nowrap;width:max-content;}
 .atab{padding:8px 11px;font-size:11px;font-weight:700;color:rgba(255,255,255,.45);white-space:nowrap;border-bottom:2px solid transparent;transition:all .15s;flex-shrink:0;cursor:pointer;-webkit-tap-highlight-color:transparent;user-select:none;-webkit-user-select:none;display:inline-block;}
 .atab.active{color:white;border-bottom-color:var(--accent)}
 .atab.myfav{color:rgba(245,158,11,.7)}.atab.myfav.active{color:var(--accent);border-bottom-color:var(--accent)}
@@ -67,16 +67,16 @@ input,textarea,select{font-family:var(--font)}
 .atab.kankou.active{color:#34d399;border-bottom-color:#34d399}
 
 /* STATUS FILTER */
-.status-bar{display:block;overflow-x:auto;overflow-y:hidden;padding:5px 8px;background:white;border-bottom:1px solid var(--g200);flex-shrink:0;-webkit-overflow-scrolling:touch;touch-action:pan-x;will-change:scroll-position;scrollbar-width:none;overscroll-behavior-x:contain;}
+.status-bar{display:block;white-space:nowrap;overflow-x:auto;overflow-y:hidden;padding:5px 8px;background:white;border-bottom:1px solid var(--g200);flex-shrink:0;-webkit-overflow-scrolling:touch;touch-action:pan-x;will-change:scroll-position;scrollbar-width:none;overscroll-behavior-x:contain;}
 .status-bar::-webkit-scrollbar{display:none}
-.status-bar-inner{display:inline-flex;gap:4px;min-width:100%;}
+.status-bar-inner{display:inline-flex;gap:4px;width:max-content;white-space:nowrap;}
 .sf-chip{padding:3px 8px;border-radius:12px;font-size:10px;font-weight:700;border:1.5px solid var(--g200);color:var(--g500);white-space:nowrap;transition:all .15s;flex-shrink:0;user-select:none;-webkit-user-select:none;}
 .sf-chip.active{border-color:var(--primary);background:var(--primary);color:white}
 
 /* STATS */
-.stats-strip{display:block;background:#1e293b;padding:0;flex-shrink:0;border-bottom:1px solid rgba(255,255,255,.06);overflow-x:auto;overflow-y:hidden;-webkit-overflow-scrolling:touch;touch-action:pan-x;will-change:scroll-position;scrollbar-width:none;overscroll-behavior-x:contain;}
+.stats-strip{display:block;white-space:nowrap;background:#1e293b;padding:0;flex-shrink:0;border-bottom:1px solid rgba(255,255,255,.06);overflow-x:auto;overflow-y:hidden;-webkit-overflow-scrolling:touch;touch-action:pan-x;will-change:scroll-position;scrollbar-width:none;overscroll-behavior-x:contain;}
 .stats-strip::-webkit-scrollbar{display:none}
-.stats-strip-inner{display:inline-flex;padding:5px 10px;min-width:100%;}
+.stats-strip-inner{display:inline-flex;padding:5px 10px;width:max-content;white-space:nowrap;}
 .ss-item{text-align:center;min-width:50px;padding:0 5px;flex-shrink:0;}
 .ss-num{font-size:15px;font-weight:800;color:white;font-family:var(--mono)}
 .ss-label{font-size:9px;color:rgba(255,255,255,.45);font-weight:600;margin-top:1px;white-space:nowrap}
@@ -7802,7 +7802,7 @@ document.addEventListener('DOMContentLoaded',function(){
       velocity=cx-lastX;
       lastX=cx;
 
-      el.scrollLeft=startScroll-dx;
+      el.scrollTo({left:startScroll-dx,behavior:'instant'});
       try{e.preventDefault();}catch(x){}
       e.stopPropagation();
     },{passive:false});
@@ -7815,7 +7815,7 @@ document.addEventListener('DOMContentLoaded',function(){
       var vel=velocity*0.8;
       function inertia(){
         if(Math.abs(vel)<0.5){rafId=null;return;}
-        el.scrollLeft-=vel;
+        el.scrollTo({left:el.scrollLeft-vel,behavior:'instant'});
         vel*=0.88;
         rafId=requestAnimationFrame(inertia);
       }
