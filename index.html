@@ -26,7 +26,7 @@
   --freeze-w:150px;
 }
 *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
-html,body{height:100%;font-family:var(--font);background:#0f172a;overflow:hidden}
+html,body{height:100%;font-family:var(--font);background:#0f172a;overflow-x:hidden;overflow-y:hidden;touch-action:pan-x pan-y;}
 body{display:flex;flex-direction:row;}
 button{font-family:var(--font);cursor:pointer;border:none;background:none}
 input,textarea,select{font-family:var(--font)}
@@ -55,9 +55,10 @@ input,textarea,select{font-family:var(--font)}
 .print-btn:hover{background:rgba(255,255,255,.35)}
 
 /* AREA TABS */
-.area-tabs{display:flex;overflow-x:auto;overflow-y:hidden;background:#1e293b;flex-shrink:0;border-bottom:1px solid rgba(255,255,255,.1);-webkit-overflow-scrolling:touch;scroll-behavior:smooth;scrollbar-width:none;touch-action:pan-x;will-change:scroll-position;}
+.area-tabs{display:block;overflow-x:auto;overflow-y:hidden;background:#1e293b;flex-shrink:0;border-bottom:1px solid rgba(255,255,255,.1);-webkit-overflow-scrolling:touch;scroll-behavior:smooth;scrollbar-width:none;touch-action:pan-x;will-change:scroll-position;overscroll-behavior-x:contain;}
 .area-tabs::-webkit-scrollbar{display:none}
-.atab{padding:8px 11px;font-size:11px;font-weight:700;color:rgba(255,255,255,.45);white-space:nowrap;border-bottom:2px solid transparent;transition:all .15s;flex-shrink:0;cursor:pointer;-webkit-tap-highlight-color:transparent;user-select:none;-webkit-user-select:none;}
+.area-tabs-inner{display:inline-flex;min-width:100%;white-space:nowrap;}
+.atab{padding:8px 11px;font-size:11px;font-weight:700;color:rgba(255,255,255,.45);white-space:nowrap;border-bottom:2px solid transparent;transition:all .15s;flex-shrink:0;cursor:pointer;-webkit-tap-highlight-color:transparent;user-select:none;-webkit-user-select:none;display:inline-block;}
 .atab.active{color:white;border-bottom-color:var(--accent)}
 .atab.myfav{color:rgba(245,158,11,.7)}.atab.myfav.active{color:var(--accent);border-bottom-color:var(--accent)}
 .atab.raikin.active{color:#a78bfa;border-bottom-color:#a78bfa}
@@ -66,18 +67,20 @@ input,textarea,select{font-family:var(--font)}
 .atab.kankou.active{color:#34d399;border-bottom-color:#34d399}
 
 /* STATUS FILTER */
-.status-bar{display:flex;gap:4px;overflow-x:auto;overflow-y:hidden;padding:5px 8px;background:white;border-bottom:1px solid var(--g200);flex-shrink:0;-webkit-overflow-scrolling:touch;touch-action:pan-x;will-change:scroll-position;scrollbar-width:none;}
+.status-bar{display:block;overflow-x:auto;overflow-y:hidden;padding:5px 8px;background:white;border-bottom:1px solid var(--g200);flex-shrink:0;-webkit-overflow-scrolling:touch;touch-action:pan-x;will-change:scroll-position;scrollbar-width:none;overscroll-behavior-x:contain;}
 .status-bar::-webkit-scrollbar{display:none}
+.status-bar-inner{display:inline-flex;gap:4px;min-width:100%;}
 .sf-chip{padding:3px 8px;border-radius:12px;font-size:10px;font-weight:700;border:1.5px solid var(--g200);color:var(--g500);white-space:nowrap;transition:all .15s;flex-shrink:0;user-select:none;-webkit-user-select:none;}
 .sf-chip.active{border-color:var(--primary);background:var(--primary);color:white}
 
 /* STATS */
-.stats-strip{display:flex;background:#1e293b;padding:5px 10px;flex-shrink:0;border-bottom:1px solid rgba(255,255,255,.06);overflow-x:auto;overflow-y:hidden;-webkit-overflow-scrolling:touch;touch-action:pan-x;will-change:scroll-position;scrollbar-width:none;}
+.stats-strip{display:block;background:#1e293b;padding:0;flex-shrink:0;border-bottom:1px solid rgba(255,255,255,.06);overflow-x:auto;overflow-y:hidden;-webkit-overflow-scrolling:touch;touch-action:pan-x;will-change:scroll-position;scrollbar-width:none;overscroll-behavior-x:contain;}
 .stats-strip::-webkit-scrollbar{display:none}
-.ss-item{text-align:center;min-width:50px;padding:0 5px}
+.stats-strip-inner{display:inline-flex;padding:5px 10px;min-width:100%;}
+.ss-item{text-align:center;min-width:50px;padding:0 5px;flex-shrink:0;}
 .ss-num{font-size:15px;font-weight:800;color:white;font-family:var(--mono)}
 .ss-label{font-size:9px;color:rgba(255,255,255,.45);font-weight:600;margin-top:1px;white-space:nowrap}
-.ss-div{width:1px;background:rgba(255,255,255,.1);margin:2px 3px}
+.ss-div{width:1px;background:rgba(255,255,255,.1);margin:2px 3px;flex-shrink:0;}
 
 /* TABLE */
 .table-wrap{flex:1;display:flex;flex-direction:column;overflow:hidden;min-height:0;border-top:2px solid var(--g300)}
@@ -314,9 +317,9 @@ input,textarea,select{font-family:var(--font)}
 
 
 html,body{margin:0;padding:0;height:100%;}
-body{display:flex;overflow:hidden;}
+body{display:flex;overflow-x:hidden;overflow-y:hidden;}
 #jackSidebar{width:200px;flex-shrink:0;background:#1e293b;display:flex;flex-direction:column;overflow:hidden;z-index:200;}
-#jackMainWrap{flex:1;display:flex;flex-direction:column;overflow:hidden;min-width:0;}
+#jackMainWrap{flex:1;display:flex;flex-direction:column;overflow-x:hidden;overflow-y:hidden;min-width:0;touch-action:pan-x pan-y;}
 .sb-head{padding:11px 14px 9px;border-bottom:1px solid rgba(255,255,255,.1);display:flex;align-items:center;gap:10px;}
 .sb-logo-title{font-size:18px;font-weight:900;color:white;}
 .sb-logo-sub{font-size:9px;color:rgba(255,255,255,.45);margin-top:1px;}
@@ -1956,7 +1959,7 @@ function renderStats(){
     ['販売中',counts['販売中']||0,'#60a5fa'],['買付',counts['買付']||0,'#fbbf24'],['未公開',counts['未公開']||0,'#94a3b8']];
   if(urg)items.push(['⚡期限',urg,'#f87171']);
   if(delayedCount)items.push(['🔴遅延',delayedCount,'#fca5a5']);
-  var sh='';items.forEach(function(x,i){if(i>0)sh+='<div class="ss-div"></div>';sh+='<div class="ss-item"><div class="ss-num" style="color:'+x[2]+'">'+x[1]+'</div><div class="ss-label">'+x[0]+'</div></div>';});
+  var sh='<div class="stats-strip-inner">';items.forEach(function(x,i){if(i>0)sh+='<div class="ss-div"></div>';sh+='<div class="ss-item"><div class="ss-num" style="color:'+x[2]+'">'+x[1]+'</div><div class="ss-label">'+x[0]+'</div></div>';});sh+='</div>';
   document.getElementById('statsStrip').innerHTML=sh;
   var allSt=['all','契約済','販売中','買付','契約予定','未公開','販売中断','delayed'];
   var labels={'delayed':'🔴 遅延工程'};
@@ -1970,13 +1973,14 @@ function renderStats(){
     var active=pks.filter(function(pk){return !pk.contract_end||pk.contract_end>=todayStr;});
     if(active.length>0)hasPark++;else noPark++;
   });
-  document.getElementById('statusBar').innerHTML=allSt.map(function(s){
+  document.getElementById('statusBar').innerHTML='<div class="status-bar-inner">'+allSt.map(function(s){
     var cnt=s==='all'?allList.length:s==='delayed'?delayedCount:(counts[s]||0);
     var lbl=labels[s]||s;
     return '<button class="sf-chip'+(currentStatus===s?' active':'')+'" onclick="setStatus(\''+s+'\')">'+(s==='all'?'全て('+cnt+')':lbl+'('+cnt+')')+'</button>';
   }).join('')
-  +'<span style="margin-left:6px;font-size:10px;background:#6366f1;color:white;padding:3px 8px;border-radius:10px;font-weight:700">🅿️'+hasPark+'</span>'
-  +'<span style="margin-left:4px;font-size:10px;background:#f1f5f9;color:#94a3b8;padding:3px 8px;border-radius:10px;font-weight:700">🔲未'+noPark+'</span>';
+  +'<span style="margin-left:6px;font-size:10px;background:#6366f1;color:white;padding:3px 8px;border-radius:10px;font-weight:700;white-space:nowrap;flex-shrink:0">🅿️'+hasPark+'</span>'
+  +'<span style="margin-left:4px;font-size:10px;background:#f1f5f9;color:#94a3b8;padding:3px 8px;border-radius:10px;font-weight:700;white-space:nowrap;flex-shrink:0">🔲未'+noPark+'</span>'
+  +'</div>';
 }
 
 // ===== RENDER HEADER =====
@@ -5641,9 +5645,9 @@ window.toggleMode=toggleMode;
 window.onload=function(){
   // Build area tabs
   var tabsEl=document.getElementById('areaTabs');
-  tabsEl.innerHTML=AREA_TABS.map(function(t,i){
+  tabsEl.innerHTML='<div class="area-tabs-inner">'+AREA_TABS.map(function(t,i){
     return '<button class="atab'+(t.cls?' '+t.cls:'')+(i===0?' active':'')+'" onclick="setArea(\''+t.id+'\',this)">'+t.label+'</button>';
-  }).join('');
+  }).join('')+'</div>';
   // Color picker
   var cp=document.getElementById('colorPicker');
   if(cp){
@@ -7751,29 +7755,33 @@ document.addEventListener('DOMContentLoaded',function(){
     });
   }
 
-  // ★ Android/iOS向けタッチスクロールハンドラ
-  // overflow:autoだけでは効かない端末のために、touchイベントで直接scrollLeftを操作
+  // ★ Android/iOS向けタッチスクロールハンドラ（passive:false + 横移動時のみpreventDefault）
   function addHorizontalTouchScroll(el){
-    if(!el)return;
-    var startX=0,startScroll=0,isDragging=false,moved=false;
+    if(!el||el._touchBound)return;
+    el._touchBound=true;
+    var startX=0,startY=0,startScroll=0,isDragging=false;
     el.addEventListener('touchstart',function(e){
-      // 子要素のタップも通す（タブのクリックを妨げないため、startのみ記録）
       startX=e.touches[0].clientX;
+      startY=e.touches[0].clientY;
       startScroll=el.scrollLeft;
       isDragging=true;
-      moved=false;
     },{passive:true});
     el.addEventListener('touchmove',function(e){
       if(!isDragging)return;
-      var dx=startX-e.touches[0].clientX;
-      if(Math.abs(dx)>4){
-        moved=true;
-        el.scrollLeft=startScroll+dx;
-        // 横移動が明確なら縦スクロールを止める
+      var dx=e.touches[0].clientX-startX;
+      var dy=e.touches[0].clientY-startY;
+      // 横移動が縦移動より大きい場合のみ横スクロール処理
+      if(Math.abs(dx)>Math.abs(dy)&&Math.abs(dx)>3){
+        el.scrollLeft=startScroll-dx;
+        // 縦スクロールへの伝播を止める（Android WebView対策）
+        try{e.preventDefault();}catch(x){}
         e.stopPropagation();
       }
-    },{passive:true});
+    },{passive:false}); // passive:falseでpreventDefaultを有効化
     el.addEventListener('touchend',function(){
+      isDragging=false;
+    },{passive:true});
+    el.addEventListener('touchcancel',function(){
       isDragging=false;
     },{passive:true});
   }
