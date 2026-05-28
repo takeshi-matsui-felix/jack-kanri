@@ -6178,18 +6178,29 @@ window.openJackMap=openJackMap;
 
 function openNavigation(addr,label){
   if(!addr)return;
-  // 現在地が取得できる場合はGoogle Mapsナビ（出発地:現在地）
-  if(navigator.geolocation){
-    navigator.geolocation.getCurrentPosition(function(pos){
-      var origin=pos.coords.latitude+','+pos.coords.longitude;
-      var url='https://www.google.com/maps/dir/?api=1&origin='+encodeURIComponent(origin)+'&destination='+encodeURIComponent(addr)+'&travelmode=driving';
-      window.open(url,'_blank');
-    },function(){
-      // 位置情報エラー時は住所検索のみ
-      window.open('https://maps.google.com/maps?q='+encodeURIComponent(addr)+'&dirflg=d','_blank');
-    },{timeout:5000});
+  var ua=navigator.userAgent||'';
+  var isIOS=/iPhone|iPad|iPod/i.test(ua);
+
+  if(isIOS){
+    // iOS：Apple Mapsアプリが直接起動するmaps://を使用
+    // maps://はユーザー操作の直接結果なのでブロックされない
+    var mapsUrl='maps://?daddr='+encodeURIComponent(addr)+'&dirflg=d';
+    location.href=mapsUrl;
   } else {
-    window.open('https://maps.google.com/maps?q='+encodeURIComponent(addr),'_blank');
+    // Android他：Google MapsをChromeで直接開く
+    // geo:スキームはGoogleマップアプリが起動する
+    var geoUrl='google.navigation:q='+encodeURIComponent(addr);
+    // geo:スキームが使えない場合はhttps fallback
+    var fallbackUrl='https://www.google.com/maps/dir/?api=1&destination='+encodeURIComponent(addr)+'&travelmode=driving';
+    // Androidはintent経由でGoogleマップを起動
+    var intentUrl='intent://maps.google.com/maps?daddr='+encodeURIComponent(addr)+'&dirflg=d#Intent;scheme=https;package=com.google.android.apps.maps;end';
+    try{
+      location.href=intentUrl;
+      // intentが失敗した場合のfallback（300ms後）
+      setTimeout(function(){location.href=fallbackUrl;},300);
+    }catch(e){
+      location.href=fallbackUrl;
+    }
   }
 }
 window.openNavigation=openNavigation;
