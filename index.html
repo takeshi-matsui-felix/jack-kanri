@@ -7839,14 +7839,55 @@ document.addEventListener('DOMContentLoaded',function(){
     },{passive:true});
   }
 
-  // 3バー全てに適用
+  // 3バー全てにJSタッチハンドラ適用
   setTimeout(function(){
     addHorizontalTouchScroll(document.getElementById('areaTabs'));
     addHorizontalTouchScroll(document.getElementById('statusBar'));
     addHorizontalTouchScroll(document.getElementById('statsStrip'));
   },600);
 
-  // renderStats後も再適用（動的生成対応）
+  // ★ 3バーをposition:fixedで親から独立させてスクロール問題を解決
+  function fixScrollBars(){
+    var app=document.getElementById('app');
+    if(!app)return;
+    var isMobile=document.body.classList.contains('sp-mode')||window.innerWidth<=900;
+    var header=app.querySelector('.top-header');
+    var banner=document.getElementById('syncBanner');
+    var areaTabs=document.getElementById('areaTabs');
+    var statusBar=document.getElementById('statusBar');
+    var statsStrip=document.getElementById('statsStrip');
+    var tableWrap=app.querySelector('.table-wrap');
+    if(!areaTabs||!statusBar||!statsStrip||!tableWrap)return;
+
+    if(isMobile){
+      var topH=(header?header.getBoundingClientRect().bottom:0);
+      var bannerH=(banner&&banner.style.display!=='none'?banner.offsetHeight:0);
+      var base=topH;
+      var tabsH=areaTabs.offsetHeight||34;
+      var statusH=statusBar.offsetHeight||40;
+      var statsH=statsStrip.offsetHeight||40;
+
+      [
+        {el:areaTabs,  top:base},
+        {el:statusBar, top:base+tabsH},
+        {el:statsStrip,top:base+tabsH+statusH},
+      ].forEach(function(x){
+        x.el.style.cssText=(x.el.style.cssText||'')
+          +';position:fixed!important;top:'+x.top+'px!important;left:0!important;right:0!important;width:100vw!important;z-index:120!important;box-sizing:border-box!important;';
+      });
+      tableWrap.style.marginTop=(tabsH+statusH+statsH)+'px';
+    } else {
+      [areaTabs,statusBar,statsStrip].forEach(function(el){
+        ['position','top','left','right','width','z-index'].forEach(function(p){el.style.removeProperty(p);});
+      });
+      tableWrap.style.marginTop='';
+    }
+  }
+  window.fixScrollBars=fixScrollBars;
+  setTimeout(fixScrollBars,500);
+  window.addEventListener('resize',fixScrollBars);
+
+  // renderStats後も再適用
   var _origRenderStats=window.renderStats;
   if(typeof _origRenderStats==='function'){
     window.renderStats=function(){
@@ -7854,6 +7895,7 @@ document.addEventListener('DOMContentLoaded',function(){
       setTimeout(function(){
         addHorizontalTouchScroll(document.getElementById('statusBar'));
         addHorizontalTouchScroll(document.getElementById('statsStrip'));
+        fixScrollBars();
       },100);
     };
   }
