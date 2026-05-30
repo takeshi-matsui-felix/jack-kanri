@@ -834,21 +834,40 @@ var TODAY=(function(){var d=new Date();return d.getFullYear()+'-'+('0'+(d.getMon
 var COL_W = 18;        // reduced column width
 var SYNC_HOUR = 22;
 var SYNC_URL = 'https://script.google.com/a/macros/mizken.jp/s/AKfycbw6aIG24NPG-QRlVaEghJLwSrZ_DnMiicQvutfAp7ws6OmH8OOvkzmqx5Jebkazc0aY-A/exec';
+
+// ★ 日付短縮表示（2026/11/11 → 26/11/11）
+function fmtDateShort(raw){
+  if(!raw)return '';
+  var n=normDate(raw)||raw;
+  // YYYY/MM/DD → YY/MM/DD
+  return String(n).replace(/^20(\d{2})\//,'$1/');
+}
+
 // Visible range uses DATA.dates (index 0='', 1='2026-03-01' ...)
 // Full range (incl. past) uses DATA.full_dates
 
+// ★ PC用列定義
 var FREEZE_COLS = [
-  { key:'name', label:'物件名', w:150 }
+  { key:'name',    label:'物件名', w:150 },
+  { key:'fix_no',  label:'FiX No', w:52 }   // PC追加：物件番号
 ];
-var SP_FREEZE_COLS = FREEZE_COLS; // PC・スマホ共通
 var FREEZE_W = FREEZE_COLS.reduce(function(a,c){return a+c.w;},0);
 
 var PRE_COLS = [
-  { key:'status',       label:'ステータス',       w:56, cls:'hcell-darker' },
-  { key:'confirm_done', label:'確認申請\n完了日', w:60, cls:'hcell-darker' }
+  { key:'status',        label:'ステータス',       w:56, cls:'hcell-darker' },
+  { key:'confirm_done',  label:'確認申請\n完了日',  w:56, cls:'hcell-darker' },
+  { key:'delivery_date', label:'引渡し日',          w:56, cls:'hcell-darker' }   // PC追加
 ];
-var SP_PRE_COLS = PRE_COLS; // PC・スマホ共通
 var PRE_W = PRE_COLS.reduce(function(a,c){return a+c.w;},0);
+
+// ★ スマホ用列定義（独立）
+var SP_FREEZE_COLS = [
+  { key:'name', label:'物件名', w:150 }
+];
+var SP_PRE_COLS = [
+  { key:'confirm_done',  label:'着工日',   w:52, cls:'hcell-darker', short:true },  // 短縮日付・ラベル変更
+  { key:'delivery_date', label:'引渡し日', w:52, cls:'hcell-darker', short:true }   // 短縮日付
+];
 
 var POST_COLS = [
   { key:'inspection_date', label:'完了\n検査日',    w:58, cls:'hcell-post' },
@@ -925,6 +944,11 @@ var FULL_VIS_OFFSET = FULL_DATE_IDX[VIS_START_DATE] || 0;
 
 var GANTT_W = VIS_DATES.length * COL_W;
 var TOTAL_SCROLL_W = PRE_W + GANTT_W + POST_W;
+// ★ モード別スクロール幅計算
+function getTotalScrollW(){
+  var preW=(isPcMode?PRE_COLS:SP_PRE_COLS).reduce(function(a,c){return a+c.w;},0);
+  return preW + GANTT_W + POST_W;
+}
 
 // ===== STATE =====
 var currentArea = 'マイ物件';
@@ -2008,7 +2032,7 @@ function renderHeader(){
     el.textContent=c.label;si.appendChild(el);x+=c.w;
   });
 
-  var gx=PRE_W;
+  var gx=activePreC.reduce(function(a,c){return a+c.w;},0);
   var months={};
   VIS_DATES.forEach(function(d,i){
     if(!d)return;
@@ -2172,7 +2196,14 @@ function renderBody(){
   var cv=document.getElementById('ganttCanvas');
   fb.innerHTML='';cv.innerHTML='';
   var activeTotalW = activePreW + GANTT_W + POST_W;
-  cv.style.cssText='width:'+activeTotalW+'px;height:'+(props.length*rowH)+'px;position:relative;';
+  cv.style.cssText='width:'+activeTotalW+'px;min-width:'+activeTotalW+'px;height:'+(props.length*rowH)+'px;position:relative;';
+  // ★ scroll-bodyの幅を確実に設定して右端まで届くようにする
+  var sb2=document.getElementById('scrollBody');
+  if(sb2){
+    sb2.style.overflowX='auto';
+    sb2.style.webkitOverflowScrolling='touch';
+    sb2.style.touchAction='pan-x pan-y';
+  }
 
   if(props.length===0){
     fb.innerHTML='<div style="padding:24px;text-align:center;color:var(--g400);font-size:12px">'
@@ -2257,10 +2288,20 @@ function renderBody(){
     // PRE-GANTT
     var px2=0;
     activePreC.forEach(function(c){
-      var val=normDate(p[c.key]||'');
+      var rawVal=p[c.key]||'';
+      // ★ short:true（スマホ）または日付系列はfmtDateShort、statusはそのまま
+      var val;
+      if(c.key==='status'){
+        val=rawVal;
+      } else if(c.short){
+        val=fmtDateShort(rawVal);
+      } else {
+        val=fmtDateShort(rawVal)||normDate(rawVal)||rawVal;
+      }
       var el=document.createElement('div');el.className='info-cell';
       el.style.cssText='left:'+px2+'px;top:'+top+'px;width:'+c.w+'px;height:'+rowH+'px;background:'+(ri%2===0?'rgba(30,58,95,.03)':'rgba(30,58,95,.05)')+';';
-      el.textContent=val;if(!val)el.style.color='var(--g200)';
+      if(c.key==='status'){el.innerHTML=makeBadge(val);}
+      else{el.textContent=val;if(!val)el.style.color='var(--g200)';}
       cv.appendChild(el);px2+=c.w;
     });
 
@@ -2275,7 +2316,7 @@ function renderBody(){
       el.style.cssText='left:'+postX+'px;top:'+top+'px;width:'+c.w+'px;height:'+rowH+'px;';
       if(c.key==='status'){el.innerHTML=makeBadge(val);}
       else{
-        var disp=c.key==='delivery_month'?val:normDate(val);
+        var disp=c.key==='delivery_month'?val:fmtDateShort(val);
         el.textContent=disp;if(!disp)el.style.color='var(--g200)';
         if(c.key==='delivery_date'&&isUrgent){el.style.color='var(--danger)';el.style.fontWeight='700';}
       }
@@ -7885,6 +7926,11 @@ document.addEventListener('DOMContentLoaded',function(){
   }
   window.fixScrollBars=fixScrollBars;
   setTimeout(fixScrollBars,500);
+  // ★ ガントのscroll-bodyにもタッチハンドラ適用
+  setTimeout(function(){
+    addHorizontalTouchScroll(document.getElementById('scrollBody'));
+    addHorizontalTouchScroll(document.getElementById('scrollHeaderWrap'));
+  },700);
   window.addEventListener('resize',fixScrollBars);
 
   // renderStats後も再適用
