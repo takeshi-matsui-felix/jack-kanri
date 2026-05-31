@@ -103,8 +103,8 @@ input,textarea,select{font-family:var(--font)}
 
 /* TABLE BODY */
 .table-body{flex:1;display:flex;overflow:clip;min-height:0}
-.freeze-body{width:var(--freeze-w);min-width:var(--freeze-w);max-width:var(--freeze-w);flex-shrink:0;overflow:clip;border-right:2px solid #475569}
-.scroll-body{flex:1;overflow:auto;-webkit-overflow-scrolling:touch;touch-action:pan-x pan-y;will-change:scroll-position;overscroll-behavior:contain;}
+.freeze-body{width:var(--freeze-w);min-width:var(--freeze-w);max-width:var(--freeze-w);flex-shrink:0;overflow-x:clip;overflow-y:hidden;border-right:2px solid #475569}
+.scroll-body{flex:1;overflow-x:auto;overflow-y:auto;-webkit-overflow-scrolling:touch;touch-action:pan-x pan-y;will-change:scroll-position;overscroll-behavior:contain;}
 .scroll-body::-webkit-scrollbar{height:4px;width:4px}
 .scroll-body::-webkit-scrollbar-thumb{background:var(--g300);border-radius:2px}
 
