@@ -1786,7 +1786,9 @@ function setMode(pc){
   isPcMode=pc;
   localStorage.setItem('jack_mode', pc?'pc':'sp');
   document.documentElement.style.setProperty('--row-h',(pc?32:52)+'px');
-  var fw=FREEZE_COLS.reduce(function(a,c){return a+c.w;},0);
+  // ★ SP/PCモードに応じた正しい固定列幅を設定
+  var activeFreezeC=pc?FREEZE_COLS:SP_FREEZE_COLS;
+  var fw=activeFreezeC.reduce(function(a,c){return a+c.w;},0);
   document.documentElement.style.setProperty('--freeze-w',fw+'px');
 
   // body.sp-modeクラスで全CSS制御
@@ -2395,7 +2397,8 @@ function setArea(area,btn){
       }
     }
   }
-  renderStats();renderBody();scrollToToday();
+  renderStats();renderBody();
+  requestAnimationFrame(function(){requestAnimationFrame(function(){scrollToToday();});});
 }
 function setStatus(s){currentStatus=s;renderStats();renderBody();}
 
@@ -5721,7 +5724,13 @@ window.onload=function(){
   }
   document.getElementById('todayBadge').textContent=TODAY.replace(/-/g,'/');
   setMode(isPcMode);
-  renderHeader();renderStats();renderBody();initScrollSync();scrollToToday();
+  renderHeader();renderStats();renderBody();initScrollSync();
+  // ★ renderBody内のrequestAnimationFrame完了後にスクロール（2フレーム待つ）
+  requestAnimationFrame(function(){
+    requestAnimationFrame(function(){
+      scrollToToday();
+    });
+  });
   if(syncData.lastSync){
     var l=new Date(syncData.lastSync);
     updateSyncBanner('最終同期: '+(l.getMonth()+1)+'/'+l.getDate()+' '+l.getHours()+':'+('0'+l.getMinutes()).slice(-2),false);
