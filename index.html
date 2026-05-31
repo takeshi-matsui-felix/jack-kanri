@@ -848,8 +848,8 @@ function fmtDateShort(raw){
 
 // ★ PC用列定義
 var FREEZE_COLS = [
-  { key:'name',    label:'物件名', w:150 },
-  { key:'fix_no',  label:'FiX No', w:52 }   // PC追加：物件番号
+  { key:'fix_no',  label:'FiX No', w:52 },   // FiX No を先頭に
+  { key:'name',    label:'物件名', w:150 }
 ];
 var FREEZE_W = FREEZE_COLS.reduce(function(a,c){return a+c.w;},0);
 
