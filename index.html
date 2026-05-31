@@ -104,7 +104,7 @@ input,textarea,select{font-family:var(--font)}
 /* TABLE BODY */
 .table-body{flex:1;display:flex;overflow:hidden;min-height:0}
 .freeze-body{width:var(--freeze-w);min-width:var(--freeze-w);max-width:var(--freeze-w);flex-shrink:0;overflow:hidden;border-right:2px solid #475569}
-.scroll-body{flex:1;overflow:auto;-webkit-overflow-scrolling:touch}
+.scroll-body{flex:1;overflow:auto;-webkit-overflow-scrolling:touch;touch-action:pan-x pan-y;will-change:scroll-position;overscroll-behavior:contain;}
 .scroll-body::-webkit-scrollbar{height:4px;width:4px}
 .scroll-body::-webkit-scrollbar-thumb{background:var(--g300);border-radius:2px}
 
@@ -2198,7 +2198,9 @@ function renderBody(){
   var cv=document.getElementById('ganttCanvas');
   fb.innerHTML='';cv.innerHTML='';
   var activeTotalW = activePreW + GANTT_W + POST_W;
-  cv.style.cssText='width:'+activeTotalW+'px;min-width:'+activeTotalW+'px;height:'+(props.length*rowH)+'px;position:relative;';
+  // ★ 右端に余白を追加してスクロールが最後まで届くようにする（スマホのviewport分）
+  var rightPad = 32;
+  cv.style.cssText='width:'+(activeTotalW+rightPad)+'px;min-width:'+(activeTotalW+rightPad)+'px;height:'+(props.length*rowH)+'px;position:relative;';
   // ★ scroll-bodyの幅を確実に設定して右端まで届くようにする
   var sb2=document.getElementById('scrollBody');
   if(sb2){
