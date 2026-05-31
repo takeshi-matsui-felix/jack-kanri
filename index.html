@@ -2352,7 +2352,8 @@ function initScrollSync(){
 function scrollToToday(){
   setTimeout(function(){
     var sb=document.getElementById('scrollBody');
-    var off=Math.max(0,PRE_W+TODAY_VIS_COL*COL_W-80);
+    var activePreW=(isPcMode?PRE_COLS:SP_PRE_COLS).reduce(function(a,c){return a+c.w;},0);
+    var off=Math.max(0,activePreW+TODAY_VIS_COL*COL_W-80);
     sb.scrollLeft=off;document.getElementById('scrollHeaderWrap').scrollLeft=off;
   },80);
 }
