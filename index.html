@@ -2323,6 +2323,16 @@ function renderBody(){
       cv.appendChild(el);postX+=c.w;
     });
   });
+  // ★ renderBody完了直後にスクロール位置を設定（fixScrollBars後に実行）
+  requestAnimationFrame(function(){
+    var sb=document.getElementById('scrollBody');
+    var sh=document.getElementById('scrollHeaderWrap');
+    if(!sb)return;
+    var apw=(isPcMode?PRE_COLS:SP_PRE_COLS).reduce(function(a,c){return a+c.w;},0);
+    var off=Math.max(0,apw+TODAY_VIS_COL*COL_W-80);
+    sb.scrollLeft=off;
+    if(sh)sh.scrollLeft=off;
+  });
 }
 
 // ===== TOOLTIP =====
@@ -2350,12 +2360,19 @@ function initScrollSync(){
   sb.addEventListener('scroll',function(){sh.scrollLeft=sb.scrollLeft;fb.scrollTop=sb.scrollTop;});
 }
 function scrollToToday(){
-  setTimeout(function(){
+  function _doScroll(){
     var sb=document.getElementById('scrollBody');
+    var sh=document.getElementById('scrollHeaderWrap');
+    if(!sb)return;
     var activePreW=(isPcMode?PRE_COLS:SP_PRE_COLS).reduce(function(a,c){return a+c.w;},0);
     var off=Math.max(0,activePreW+TODAY_VIS_COL*COL_W-80);
-    sb.scrollLeft=off;document.getElementById('scrollHeaderWrap').scrollLeft=off;
-  },80);
+    sb.scrollLeft=off;
+    if(sh)sh.scrollLeft=off;
+  }
+  // 複数タイミングで試みる（レンダリング完了タイミングのばらつきに対応）
+  setTimeout(_doScroll,80);
+  setTimeout(_doScroll,300);
+  setTimeout(_doScroll,600);
 }
 
 // ===== AREA / STATUS =====
