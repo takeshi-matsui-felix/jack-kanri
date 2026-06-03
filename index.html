@@ -26,7 +26,7 @@
   --freeze-w:150px;
 }
 *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
-html,body{height:100%;font-family:var(--font);background:#0f172a;overflow-x:hidden;overflow-y:hidden;touch-action:pan-x pan-y;}
+html,body{height:100%;font-family:var(--font);background:#0f172a;overflow:hidden}
 body{display:flex;flex-direction:row;}
 button{font-family:var(--font);cursor:pointer;border:none;background:none}
 input,textarea,select{font-family:var(--font)}
@@ -39,7 +39,7 @@ input,textarea,select{font-family:var(--font)}
 @keyframes ldot{0%,80%,100%{transform:scale(.7);opacity:.5}40%{transform:scale(1.1);opacity:1}}
 
 /* APP SHELL */
-#app{display:flex;flex-direction:column;height:100vh;background:var(--g50);overflow:clip}
+#app{display:flex;flex-direction:column;height:100vh;background:var(--g50);overflow:hidden}
 #app.mobile-mode{max-width:480px;margin:0 auto;box-shadow:0 0 40px rgba(0,0,0,.4)}
 #app.pc-mode{max-width:100vw}
 
@@ -55,38 +55,33 @@ input,textarea,select{font-family:var(--font)}
 .print-btn:hover{background:rgba(255,255,255,.35)}
 
 /* AREA TABS */
-.area-tabs{display:block;white-space:nowrap;overflow-x:auto;overflow-y:hidden;background:#1e293b;flex-shrink:0;border-bottom:1px solid rgba(255,255,255,.1);-webkit-overflow-scrolling:touch;scroll-behavior:smooth;scrollbar-width:none;touch-action:pan-x;will-change:scroll-position;overscroll-behavior-x:contain;}
+.area-tabs{display:flex;overflow-x:auto;background:#1e293b;flex-shrink:0;border-bottom:1px solid rgba(255,255,255,.1)}
 .area-tabs::-webkit-scrollbar{display:none}
-.area-tabs-inner{display:inline-flex;white-space:nowrap;width:max-content;}
-.atab{padding:8px 11px;font-size:11px;font-weight:700;color:rgba(255,255,255,.45);white-space:nowrap;border-bottom:2px solid transparent;transition:all .15s;flex-shrink:0;cursor:pointer;-webkit-tap-highlight-color:transparent;user-select:none;-webkit-user-select:none;display:inline-block;}
+.atab{padding:8px 11px;font-size:11px;font-weight:700;color:rgba(255,255,255,.45);white-space:nowrap;border-bottom:2px solid transparent;transition:all .15s;flex-shrink:0}
 .atab.active{color:white;border-bottom-color:var(--accent)}
 .atab.myfav{color:rgba(245,158,11,.7)}.atab.myfav.active{color:var(--accent);border-bottom-color:var(--accent)}
 .atab.raikin.active{color:#a78bfa;border-bottom-color:#a78bfa}
-.atab.raikin-tokai.active{color:#c084fc;border-bottom-color:#c084fc}
-.atab.raikin-kanto.active{color:#86efac;border-bottom-color:#86efac}
 .atab.kankou.active{color:#34d399;border-bottom-color:#34d399}
 
 /* STATUS FILTER */
-.status-bar{display:block;white-space:nowrap;overflow-x:auto;overflow-y:hidden;padding:5px 8px;background:white;border-bottom:1px solid var(--g200);flex-shrink:0;-webkit-overflow-scrolling:touch;touch-action:pan-x;will-change:scroll-position;scrollbar-width:none;overscroll-behavior-x:contain;}
+.status-bar{display:flex;gap:4px;overflow-x:auto;padding:5px 8px;background:white;border-bottom:1px solid var(--g200);flex-shrink:0}
 .status-bar::-webkit-scrollbar{display:none}
-.status-bar-inner{display:inline-flex;gap:4px;width:max-content;white-space:nowrap;}
-.sf-chip{padding:3px 8px;border-radius:12px;font-size:10px;font-weight:700;border:1.5px solid var(--g200);color:var(--g500);white-space:nowrap;transition:all .15s;flex-shrink:0;user-select:none;-webkit-user-select:none;}
+.sf-chip{padding:3px 8px;border-radius:12px;font-size:10px;font-weight:700;border:1.5px solid var(--g200);color:var(--g500);white-space:nowrap;transition:all .15s}
 .sf-chip.active{border-color:var(--primary);background:var(--primary);color:white}
 
 /* STATS */
-.stats-strip{display:block;white-space:nowrap;background:#1e293b;padding:0;flex-shrink:0;border-bottom:1px solid rgba(255,255,255,.06);overflow-x:auto;overflow-y:hidden;-webkit-overflow-scrolling:touch;touch-action:pan-x;will-change:scroll-position;scrollbar-width:none;overscroll-behavior-x:contain;}
+.stats-strip{display:flex;background:#1e293b;padding:5px 10px;flex-shrink:0;border-bottom:1px solid rgba(255,255,255,.06);overflow-x:auto}
 .stats-strip::-webkit-scrollbar{display:none}
-.stats-strip-inner{display:inline-flex;padding:5px 10px;width:max-content;white-space:nowrap;}
-.ss-item{text-align:center;min-width:50px;padding:0 5px;flex-shrink:0;}
+.ss-item{text-align:center;min-width:50px;padding:0 5px}
 .ss-num{font-size:15px;font-weight:800;color:white;font-family:var(--mono)}
 .ss-label{font-size:9px;color:rgba(255,255,255,.45);font-weight:600;margin-top:1px;white-space:nowrap}
-.ss-div{width:1px;background:rgba(255,255,255,.1);margin:2px 3px;flex-shrink:0;}
+.ss-div{width:1px;background:rgba(255,255,255,.1);margin:2px 3px}
 
 /* TABLE */
-.table-wrap{flex:1;display:flex;flex-direction:column;overflow:clip;min-height:0;border-top:2px solid var(--g300)}
+.table-wrap{flex:1;display:flex;flex-direction:column;overflow:hidden;min-height:0;border-top:2px solid var(--g300)}
 .table-header{display:flex;flex-shrink:0;height:36px;border-bottom:2px solid #475569;background:#1e293b}
-.freeze-header{min-width:var(--freeze-w);display:flex;flex-shrink:0;border-right:2px solid #475569;overflow:clip}
-.scroll-header-wrap{flex:1;overflow:clip}
+.freeze-header{min-width:var(--freeze-w);display:flex;flex-shrink:0;border-right:2px solid #475569;overflow:hidden}
+.scroll-header-wrap{flex:1;overflow:hidden}
 .scroll-header-inner{position:relative;height:36px}
 .hcell{display:flex;align-items:center;justify-content:center;font-size:8.5px;font-weight:800;color:rgba(255,255,255,.9);border-right:1px solid rgba(255,255,255,.12);padding:0 2px;text-align:center;flex-shrink:0;white-space:pre;line-height:1.3}
 .hcell-blue{background:var(--primary)}.hcell-dark{background:#1e3a5f}.hcell-darker{background:#1e3650}.hcell-post{background:#1e2d3f}
@@ -102,9 +97,9 @@ input,textarea,select{font-family:var(--font)}
 .info-col-h{position:absolute;top:0;height:36px;display:flex;align-items:center;justify-content:center;padding:0 3px;font-size:8px;font-weight:800;color:rgba(255,255,255,.85);border-right:1px solid rgba(255,255,255,.1);white-space:pre;line-height:1.25;text-align:center}
 
 /* TABLE BODY */
-.table-body{flex:1;display:flex;overflow:clip;min-height:0}
-.freeze-body{width:var(--freeze-w);min-width:var(--freeze-w);max-width:var(--freeze-w);flex-shrink:0;overflow-x:clip;overflow-y:hidden;border-right:2px solid #475569}
-.scroll-body{flex:1;overflow-x:auto;overflow-y:auto;-webkit-overflow-scrolling:touch;touch-action:pan-x pan-y;will-change:scroll-position;overscroll-behavior:contain;}
+.table-body{flex:1;display:flex;overflow:hidden;min-height:0}
+.freeze-body{width:var(--freeze-w);min-width:var(--freeze-w);max-width:var(--freeze-w);flex-shrink:0;overflow:hidden;border-right:2px solid #475569}
+.scroll-body{flex:1;overflow:auto;-webkit-overflow-scrolling:touch}
 .scroll-body::-webkit-scrollbar{height:4px;width:4px}
 .scroll-body::-webkit-scrollbar-thumb{background:var(--g300);border-radius:2px}
 
@@ -317,9 +312,9 @@ input,textarea,select{font-family:var(--font)}
 
 
 html,body{margin:0;padding:0;height:100%;}
-body{display:flex;overflow:clip;}
-#jackSidebar{width:200px;flex-shrink:0;background:#1e293b;display:flex;flex-direction:column;overflow:clip;z-index:200;}
-#jackMainWrap{flex:1;display:flex;flex-direction:column;overflow:clip;min-width:0;touch-action:pan-x pan-y;}
+body{display:flex;overflow:hidden;}
+#jackSidebar{width:200px;flex-shrink:0;background:#1e293b;display:flex;flex-direction:column;overflow:hidden;z-index:200;}
+#jackMainWrap{flex:1;display:flex;flex-direction:column;overflow:hidden;min-width:0;}
 .sb-head{padding:11px 14px 9px;border-bottom:1px solid rgba(255,255,255,.1);display:flex;align-items:center;gap:10px;}
 .sb-logo-title{font-size:18px;font-weight:900;color:white;}
 .sb-logo-sub{font-size:9px;color:rgba(255,255,255,.45);margin-top:1px;}
@@ -511,21 +506,16 @@ body.sp-mode .sync-banner{ font-size:11px; padding:5px 14px; }
 /* スマホ用：areaTabs（エリアタブ）スクロール */
 body.sp-mode #areaTabs{
   overflow-x:auto;
-  overflow-y:hidden;
   -webkit-overflow-scrolling:touch;
   scrollbar-width:none;
   flex-wrap:nowrap;
-  touch-action:pan-x;
-  will-change:scroll-position;
 }
 body.sp-mode #areaTabs::-webkit-scrollbar{ display:none; }
 body.sp-mode .atab{
   white-space:nowrap;
-  padding:9px 10px;
-  font-size:11px;
+  padding:10px 14px;
+  font-size:13px;
   flex-shrink:0;
-  user-select:none;
-  -webkit-user-select:none;
 }
 
 /* スマホ用：ステータスチップを大きく */
@@ -533,39 +523,17 @@ body.sp-mode .sf-wrap{
   padding:10px 10px 6px;
   gap:6px;
 }
-body.sp-mode .status-bar{
-  overflow-x:auto;
-  overflow-y:hidden;
-  -webkit-overflow-scrolling:touch;
-  touch-action:pan-x;
-  will-change:scroll-position;
-  scrollbar-width:none;
-}
-body.sp-mode .status-bar::-webkit-scrollbar{ display:none; }
 body.sp-mode .sf-chip{
   padding:8px 14px !important;
   font-size:12px !important;
   border-radius:20px;
-  flex-shrink:0;
-  user-select:none;
-  -webkit-user-select:none;
 }
 
 /* スマホ用：stats-strip */
 body.sp-mode .stats-strip{
   padding:8px 12px;
-  overflow-x:auto;
-  overflow-y:hidden;
-  -webkit-overflow-scrolling:touch;
-  touch-action:pan-x;
-  will-change:scroll-position;
-  scrollbar-width:none;
 }
-body.sp-mode .stats-strip::-webkit-scrollbar{ display:none; }
-body.sp-mode .ss-item{
-  flex-shrink:0;
-  min-width:52px;
-}
+body.sp-mode .ss-item{ gap:2px; }
 body.sp-mode .ss-num{ font-size:18px !important; }
 body.sp-mode .ss-label{ font-size:10px !important; }
 
@@ -834,40 +802,21 @@ var TODAY=(function(){var d=new Date();return d.getFullYear()+'-'+('0'+(d.getMon
 var COL_W = 18;        // reduced column width
 var SYNC_HOUR = 22;
 var SYNC_URL = 'https://script.google.com/a/macros/mizken.jp/s/AKfycbw6aIG24NPG-QRlVaEghJLwSrZ_DnMiicQvutfAp7ws6OmH8OOvkzmqx5Jebkazc0aY-A/exec';
-
-// ★ 日付短縮表示（2026/11/11 → 26/11/11）
-function fmtDateShort(raw){
-  if(!raw)return '';
-  var n=normDate(raw)||raw;
-  // YYYY/MM/DD → YY/MM/DD
-  return String(n).replace(/^20(\d{2})\//,'$1/');
-}
-
 // Visible range uses DATA.dates (index 0='', 1='2026-03-01' ...)
 // Full range (incl. past) uses DATA.full_dates
 
-// ★ PC用列定義
 var FREEZE_COLS = [
-  { key:'fix_no',  label:'FiX No', w:52 },   // FiX No を先頭に
-  { key:'name',    label:'物件名', w:150 }
+  { key:'name', label:'物件名', w:150 }
 ];
+var SP_FREEZE_COLS = FREEZE_COLS; // PC・スマホ共通
 var FREEZE_W = FREEZE_COLS.reduce(function(a,c){return a+c.w;},0);
 
 var PRE_COLS = [
-  { key:'status',        label:'ステータス',       w:56, cls:'hcell-darker' },
-  { key:'confirm_done',  label:'確認申請\n完了日',  w:56, cls:'hcell-darker' },
-  { key:'delivery_date', label:'引渡し日',          w:56, cls:'hcell-darker' }   // PC追加
+  { key:'status',       label:'ステータス',       w:56, cls:'hcell-darker' },
+  { key:'confirm_done', label:'確認申請\n完了日', w:60, cls:'hcell-darker' }
 ];
+var SP_PRE_COLS = PRE_COLS; // PC・スマホ共通
 var PRE_W = PRE_COLS.reduce(function(a,c){return a+c.w;},0);
-
-// ★ スマホ用列定義（独立）
-var SP_FREEZE_COLS = [
-  { key:'name', label:'物件名', w:150 }
-];
-var SP_PRE_COLS = [
-  { key:'confirm_done',  label:'着工日',   w:52, cls:'hcell-darker', short:true },  // 短縮日付・ラベル変更
-  { key:'delivery_date', label:'引渡し日', w:52, cls:'hcell-darker', short:true }   // 短縮日付
-];
 
 var POST_COLS = [
   { key:'inspection_date', label:'完了\n検査日',    w:58, cls:'hcell-post' },
@@ -883,9 +832,7 @@ var AREA_TABS = [
   { id:'all',     label:'全物件',     cls:'',       areas:null },
   { id:'東海',    label:'東海',       cls:'',       areas:['愛知','三重','岐阜','静岡'] },
   { id:'関東',    label:'関東',       cls:'',       areas:['埼玉','東京','神奈川','千葉','茨城','栃木','群馬'] },
-  { id:'来期',      label:'来期全物件',    cls:'raikin',       areas:null, raikin:true, raikinArea:null },
-  { id:'来期東海',  label:'来期（東海）',  cls:'raikin-tokai', areas:null, raikin:true, raikinArea:'tokai' },
-  { id:'来期関東',  label:'来期（関東）',  cls:'raikin-kanto', areas:null, raikin:true, raikinArea:'kanto' },
+  { id:'来期',    label:'来期',       cls:'raikin', areas:null },
   { id:'完工',    label:'完工',       cls:'kankou', areas:null }
 ];
 
@@ -944,11 +891,6 @@ var FULL_VIS_OFFSET = FULL_DATE_IDX[VIS_START_DATE] || 0;
 
 var GANTT_W = VIS_DATES.length * COL_W;
 var TOTAL_SCROLL_W = PRE_W + GANTT_W + POST_W;
-// ★ モード別スクロール幅計算
-function getTotalScrollW(){
-  var preW=(isPcMode?PRE_COLS:SP_PRE_COLS).reduce(function(a,c){return a+c.w;},0);
-  return preW + GANTT_W + POST_W;
-}
 
 // ===== STATE =====
 var currentArea = 'マイ物件';
@@ -1319,14 +1261,8 @@ function getProps() {
   if (currentArea==='マイ物件') {
     list=all.filter(function(p){return isFav(p);});
   } else if (currentArea==='来期') {
-    // 来期全物件 = 来期開始日以降の引渡し日（全エリア）
+    // 来期 = 来期開始日（翌期10/1）以降の引渡し日
     list=all.filter(function(p){return isRaikin(p)&&!isKankou(p);});
-  } else if (currentArea==='来期東海') {
-    // 来期（東海）= 来期物件のうち東海エリア
-    list=all.filter(function(p){return isRaikin(p)&&!isKankou(p)&&TOKAI_AREAS.indexOf(normalizeArea(p))>=0;});
-  } else if (currentArea==='来期関東') {
-    // 来期（関東）= 来期物件のうち関東エリア
-    list=all.filter(function(p){return isRaikin(p)&&!isKankou(p)&&KANTO_AREAS.indexOf(normalizeArea(p))>=0;});
   } else if (currentArea==='完工') {
     // 完工 = 引渡し日がTODAY以前
     list=all.filter(function(p){return isKankou(p);});
@@ -1559,165 +1495,30 @@ function normalizeForMatch(s){
     .toLowerCase();
 }
 function findVendorForProp(p){
-  if(!p)return null;
-  // ★ まず新形式(_VENDOR_LIST_DATA)からfix_no・物件名でマッチング
-  var vld=window._VENDOR_LIST_DATA||{};
-  var areas=Object.keys(vld);
-  for(var ai=0;ai<areas.length;ai++){
-    var areaRows=vld[areas[ai]]||[];
-    for(var ri2=0;ri2<areaRows.length;ri2++){
-      var row=areaRows[ri2];
-      // fix_noマッチング：_fixno_列名キーを探して照合
-      var keys=Object.keys(row);
-      var fixKeys=keys.filter(function(k){return k.indexOf('_fixno_')===0;});
-      var fixMatched=fixKeys.some(function(fk){
-        return String(row[fk]||'').trim()===String(p.fix_no||'').trim()&&row[fk.slice(7)]; // 列名部分でセルが空でない
-      });
-      // 物件名マッチング（フォールバック）
-      var nameMatched=false;
-      keys.forEach(function(k){
-        if(k.indexOf('_bg_')===0||k.indexOf('_fixno_')===0||k==='area'||k==='id'||k==='col_order'||k==='created_at')return;
-        var v=String(row[k]||'').trim();
-        if(v&&normalizeForMatch(v)===normalizeForMatch(p.name))nameMatched=true;
-      });
-      if(fixMatched||nameMatched){
-        // この行の工事カテゴリ→業者名マップを返す（_bg_/_fixno_は除外）
-        var result={_area:areas[ai],_row:row};
-        return result;
-      }
-    }
-  }
-  // 旧形式(VENDOR_DATA)にフォールバック
-  if(!VENDOR_DATA||!Object.keys(VENDOR_DATA).length)return null;
+  if(!p||!VENDOR_DATA||!Object.keys(VENDOR_DATA).length)return null;
   var target=normalizeForMatch(p.name);
   var regions=Object.keys(VENDOR_DATA);
   for(var ri=0;ri<regions.length;ri++){
     var region=VENDOR_DATA[regions[ri]];
-    var rkeys=Object.keys(region);
-    for(var ki=0;ki<rkeys.length;ki++){
-      var rkey=rkeys[ki];
-      var norm=normalizeForMatch(rkey);
+    var keys=Object.keys(region);
+    for(var ki=0;ki<keys.length;ki++){
+      var key=keys[ki];
+      var norm=normalizeForMatch(key);
       if(norm===target||norm.indexOf(target)>=0||target.indexOf(norm)>=0){
-        return {_legacy:true,_map:region[rkey]};
+        return region[key]; // {工事: 業者}
       }
     }
   }
   return null;
 }
-
 function buildVendorSection(p){
-  var result=findVendorForProp(p);
-  if(!result)return '';
-
-  // ★ 旧形式(VENDOR_DATA)フォールバック
-  if(result._legacy){
-    var map=result._map||{};
-    var rows2=Object.keys(map).filter(function(k){return map[k];}).map(function(k){
-      return '<div class="dp-row"><span class="dp-label">'+k+'</span><span class="dp-val txt">'+map[k]+'</span></div>';
-    }).join('');
-    return rows2?'<div class="dp-sec"><div class="dp-sec-head">🏢 担当業者</div>'+rows2+'</div>':'';
-  }
-
-  // ★ 新形式：2カラムグリッド表示
-  var areaName=result._area||'';
-  var row=result._row||{};
-  var isTokai=areaName.indexOf('東海')>=0;
-  var hColor=isTokai?'#1a56db':'#10b981';
-  var areaLabel=isTokai?'東海':'関東';
-
-  // col_orderがあれば列順を復元
-  var savedOrder=null;
-  if(row.col_order){try{savedOrder=JSON.parse(row.col_order);}catch(x){}}
-  var allVld=window._VENDOR_LIST_DATA||{};
-  var areaRows=allVld[areaName]||[];
-  var colSet2={};
-  areaRows.forEach(function(r){Object.keys(r).forEach(function(k){
-    if(k!=='id'&&k!=='area'&&k!=='created_at'&&k!=='col_order'&&k.indexOf('_bg_')!==0&&k.indexOf('_fixno_')!==0)colSet2[k]=1;
-  });});
-  var allCols=Object.keys(colSet2);
-  var dataCols;
-  if(savedOrder&&savedOrder.length){
-    var ord=savedOrder.filter(function(c){return allCols.indexOf(c)>=0;});
-    var ext=allCols.filter(function(c){return ord.indexOf(c)<0;});
-    dataCols=ord.concat(ext);
-  }else{dataCols=allCols;}
-  // A列（工事カテゴリ）を除いた列が「物件」列
-  var propCols=dataCols.slice(1);
-  if(!propCols.length)return '';
-
-  // 工事カテゴリ列名を取得
-  var catCol=dataCols[0]||'';
-
-  // 業者セルHTML生成（工事カテゴリ行ごと）
-  var cellHtml=areaRows.map(function(r){
-    var cat=String(r[catCol]||'').trim();
-    if(!cat)return '';
-    // この物件の列を探す（fix_noマッチ優先→物件名マッチ）
-    var targetCol=null;
-    propCols.forEach(function(c){
-      if(targetCol)return;
-      var fixKey='_fixno_'+c;
-      if(r[fixKey]&&String(r[fixKey]).trim()===String(p.fix_no||'').trim())targetCol=c;
-    });
-    if(!targetCol){
-      propCols.forEach(function(c){
-        if(targetCol)return;
-        if(normalizeForMatch(c)===normalizeForMatch(p.name))targetCol=c;
-      });
-    }
-    var vendor=targetCol?String(r[targetCol]||'').trim():'';
-    var bg=targetCol?String(r['_bg_'+targetCol]||''):'';
-    var isEmpty=!vendor;
-    var bgStyle=bg?'background:'+bg+';':'';
-    var textColor=bg?_vendorTextColor(bg):(isEmpty?'#cbd5e1':'#1e293b');
-
-    if(isEmpty&&!bg){
-      // 完全未着手（色なし・業者なし）
-      return '<div style="padding:8px 10px;border-bottom:1px solid #f1f5f9;border-right:1px solid #f1f5f9;">'
-        +'<div style="font-size:9px;font-weight:700;color:#94a3b8;margin-bottom:2px">'+cat+'</div>'
-        +'<div style="font-size:10px;color:#cbd5e1">—</div>'
-        +'</div>';
-    }
-    if(isEmpty&&bg){
-      // 色あり・業者未入力（未選定）
-      return '<div style="padding:8px 10px;border-bottom:1px solid #f1f5f9;border-right:1px solid #f1f5f9;'+bgStyle+'">'
-        +'<div style="font-size:9px;font-weight:700;color:'+textColor+';opacity:.7;margin-bottom:2px">'+cat+'</div>'
-        +'<div style="display:inline-block;font-size:9px;font-style:italic;background:rgba(255,255,255,.35);padding:1px 6px;border-radius:4px;color:'+textColor+'">未選定</div>'
-        +'</div>';
-    }
-    // 業者あり
-    var dot=bg?'<span style="display:inline-block;width:7px;height:7px;border-radius:2px;background:'+bg+';margin-right:4px;flex-shrink:0;border:1px solid rgba(0,0,0,.1)"></span>':'';
-    return '<div style="padding:8px 10px;border-bottom:1px solid #f1f5f9;border-right:1px solid #f1f5f9;">'
-      +'<div style="font-size:9px;font-weight:700;color:#64748b;margin-bottom:2px">'+cat+'</div>'
-      +'<div style="font-size:11px;font-weight:700;color:#1e293b;display:flex;align-items:center">'+dot+vendor+'</div>'
-      +'</div>';
-  }).filter(Boolean).join('');
-
-  if(!cellHtml)return '';
-
-  var totalCount=areaRows.length;
-  var filledCount=areaRows.filter(function(r){
-    var targetCol=null;
-    propCols.forEach(function(c){
-      if(targetCol)return;
-      var fixKey='_fixno_'+c;
-      if(r[fixKey]&&String(r[fixKey]).trim()===String(p.fix_no||'').trim())targetCol=c;
-    });
-    return targetCol&&String(r[targetCol]||'').trim();
-  }).length;
-
-  return '<div class="dp-sec">'
-    +'<div class="dp-sec-head" style="display:flex;align-items:center;gap:5px;">'
-    +'🏢 業者選定一覧'
-    +'<span style="font-size:9px;font-weight:700;background:'+(isTokai?'#dbeafe':'#dcfce7')+';color:'+(isTokai?'#1e40af':'#166534')+';padding:1px 6px;border-radius:6px">'+areaLabel+'</span>'
-    +'<span style="margin-left:auto;font-size:9px;font-weight:700;background:#ede9fe;color:#5b21b6;padding:2px 7px;border-radius:8px">'+filledCount+'/'+totalCount+'件</span>'
-    +'</div>'
-    +'<div style="display:grid;grid-template-columns:1fr 1fr;">'
-    +cellHtml
-    +'</div>'
-    +'</div>';
+  var vendors=findVendorForProp(p);
+  if(!vendors||!Object.keys(vendors).length)return '';
+  var rows=Object.keys(vendors).filter(function(k){return vendors[k];}).map(function(k){
+    return '<div class="dp-row"><span class="dp-label">'+k+'</span><span class="dp-val txt">'+vendors[k]+'</span></div>';
+  }).join('');
+  return '<div class="dp-sec"><div class="dp-sec-head">🏢 担当業者</div>'+rows+'</div>';
 }
-
 
 // ===== WEATHER (Open-Meteo - 無料・API key不要) =====
 var AREA_COORDS = {
@@ -1786,9 +1587,7 @@ function setMode(pc){
   isPcMode=pc;
   localStorage.setItem('jack_mode', pc?'pc':'sp');
   document.documentElement.style.setProperty('--row-h',(pc?32:52)+'px');
-  // ★ SP/PCモードに応じた正しい固定列幅を設定
-  var activeFreezeC=pc?FREEZE_COLS:SP_FREEZE_COLS;
-  var fw=activeFreezeC.reduce(function(a,c){return a+c.w;},0);
+  var fw=FREEZE_COLS.reduce(function(a,c){return a+c.w;},0);
   document.documentElement.style.setProperty('--freeze-w',fw+'px');
 
   // body.sp-modeクラスで全CSS制御
@@ -1985,7 +1784,7 @@ function renderStats(){
     ['販売中',counts['販売中']||0,'#60a5fa'],['買付',counts['買付']||0,'#fbbf24'],['未公開',counts['未公開']||0,'#94a3b8']];
   if(urg)items.push(['⚡期限',urg,'#f87171']);
   if(delayedCount)items.push(['🔴遅延',delayedCount,'#fca5a5']);
-  var sh='<div class="stats-strip-inner">';items.forEach(function(x,i){if(i>0)sh+='<div class="ss-div"></div>';sh+='<div class="ss-item"><div class="ss-num" style="color:'+x[2]+'">'+x[1]+'</div><div class="ss-label">'+x[0]+'</div></div>';});sh+='</div>';
+  var sh='';items.forEach(function(x,i){if(i>0)sh+='<div class="ss-div"></div>';sh+='<div class="ss-item"><div class="ss-num" style="color:'+x[2]+'">'+x[1]+'</div><div class="ss-label">'+x[0]+'</div></div>';});
   document.getElementById('statsStrip').innerHTML=sh;
   var allSt=['all','契約済','販売中','買付','契約予定','未公開','販売中断','delayed'];
   var labels={'delayed':'🔴 遅延工程'};
@@ -1999,14 +1798,13 @@ function renderStats(){
     var active=pks.filter(function(pk){return !pk.contract_end||pk.contract_end>=todayStr;});
     if(active.length>0)hasPark++;else noPark++;
   });
-  document.getElementById('statusBar').innerHTML='<div class="status-bar-inner">'+allSt.map(function(s){
+  document.getElementById('statusBar').innerHTML=allSt.map(function(s){
     var cnt=s==='all'?allList.length:s==='delayed'?delayedCount:(counts[s]||0);
     var lbl=labels[s]||s;
     return '<button class="sf-chip'+(currentStatus===s?' active':'')+'" onclick="setStatus(\''+s+'\')">'+(s==='all'?'全て('+cnt+')':lbl+'('+cnt+')')+'</button>';
   }).join('')
-  +'<span style="margin-left:6px;font-size:10px;background:#6366f1;color:white;padding:3px 8px;border-radius:10px;font-weight:700;white-space:nowrap;flex-shrink:0">🅿️'+hasPark+'</span>'
-  +'<span style="margin-left:4px;font-size:10px;background:#f1f5f9;color:#94a3b8;padding:3px 8px;border-radius:10px;font-weight:700;white-space:nowrap;flex-shrink:0">🔲未'+noPark+'</span>'
-  +'</div>';
+  +'<span style="margin-left:6px;font-size:10px;background:#6366f1;color:white;padding:3px 8px;border-radius:10px;font-weight:700">🅿️'+hasPark+'</span>'
+  +'<span style="margin-left:4px;font-size:10px;background:#f1f5f9;color:#94a3b8;padding:3px 8px;border-radius:10px;font-weight:700">🔲未'+noPark+'</span>';
 }
 
 // ===== RENDER HEADER =====
@@ -2034,7 +1832,7 @@ function renderHeader(){
     el.textContent=c.label;si.appendChild(el);x+=c.w;
   });
 
-  var gx=activePreC.reduce(function(a,c){return a+c.w;},0);
+  var gx=PRE_W;
   var months={};
   VIS_DATES.forEach(function(d,i){
     if(!d)return;
@@ -2198,16 +1996,7 @@ function renderBody(){
   var cv=document.getElementById('ganttCanvas');
   fb.innerHTML='';cv.innerHTML='';
   var activeTotalW = activePreW + GANTT_W + POST_W;
-  // ★ 右端に余白を追加してスクロールが最後まで届くようにする（スマホのviewport分）
-  var rightPad = 32;
-  cv.style.cssText='width:'+(activeTotalW+rightPad)+'px;min-width:'+(activeTotalW+rightPad)+'px;height:'+(props.length*rowH)+'px;position:relative;';
-  // ★ scroll-bodyの幅を確実に設定して右端まで届くようにする
-  var sb2=document.getElementById('scrollBody');
-  if(sb2){
-    sb2.style.overflowX='auto';
-    sb2.style.webkitOverflowScrolling='touch';
-    sb2.style.touchAction='pan-x pan-y';
-  }
+  cv.style.cssText='width:'+activeTotalW+'px;height:'+(props.length*rowH)+'px;position:relative;';
 
   if(props.length===0){
     fb.innerHTML='<div style="padding:24px;text-align:center;color:var(--g400);font-size:12px">'
@@ -2292,20 +2081,10 @@ function renderBody(){
     // PRE-GANTT
     var px2=0;
     activePreC.forEach(function(c){
-      var rawVal=p[c.key]||'';
-      // ★ short:true（スマホ）または日付系列はfmtDateShort、statusはそのまま
-      var val;
-      if(c.key==='status'){
-        val=rawVal;
-      } else if(c.short){
-        val=fmtDateShort(rawVal);
-      } else {
-        val=fmtDateShort(rawVal)||normDate(rawVal)||rawVal;
-      }
+      var val=normDate(p[c.key]||'');
       var el=document.createElement('div');el.className='info-cell';
       el.style.cssText='left:'+px2+'px;top:'+top+'px;width:'+c.w+'px;height:'+rowH+'px;background:'+(ri%2===0?'rgba(30,58,95,.03)':'rgba(30,58,95,.05)')+';';
-      if(c.key==='status'){el.innerHTML=makeBadge(val);}
-      else{el.textContent=val;if(!val)el.style.color='var(--g200)';}
+      el.textContent=val;if(!val)el.style.color='var(--g200)';
       cv.appendChild(el);px2+=c.w;
     });
 
@@ -2320,22 +2099,12 @@ function renderBody(){
       el.style.cssText='left:'+postX+'px;top:'+top+'px;width:'+c.w+'px;height:'+rowH+'px;';
       if(c.key==='status'){el.innerHTML=makeBadge(val);}
       else{
-        var disp=c.key==='delivery_month'?val:fmtDateShort(val);
+        var disp=c.key==='delivery_month'?val:normDate(val);
         el.textContent=disp;if(!disp)el.style.color='var(--g200)';
         if(c.key==='delivery_date'&&isUrgent){el.style.color='var(--danger)';el.style.fontWeight='700';}
       }
       cv.appendChild(el);postX+=c.w;
     });
-  });
-  // ★ renderBody完了直後にスクロール位置を設定（fixScrollBars後に実行）
-  requestAnimationFrame(function(){
-    var sb=document.getElementById('scrollBody');
-    var sh=document.getElementById('scrollHeaderWrap');
-    if(!sb)return;
-    var apw=(isPcMode?PRE_COLS:SP_PRE_COLS).reduce(function(a,c){return a+c.w;},0);
-    var off=Math.max(0,apw+TODAY_VIS_COL*COL_W-80);
-    sb.scrollLeft=off;
-    if(sh)sh.scrollLeft=off;
   });
 }
 
@@ -2364,43 +2133,19 @@ function initScrollSync(){
   sb.addEventListener('scroll',function(){sh.scrollLeft=sb.scrollLeft;fb.scrollTop=sb.scrollTop;});
 }
 function scrollToToday(){
-  function _doScroll(){
+  setTimeout(function(){
     var sb=document.getElementById('scrollBody');
-    var sh=document.getElementById('scrollHeaderWrap');
-    if(!sb)return;
-    var activePreW=(isPcMode?PRE_COLS:SP_PRE_COLS).reduce(function(a,c){return a+c.w;},0);
-    var off=Math.max(0,activePreW+TODAY_VIS_COL*COL_W-80);
-    sb.scrollLeft=off;
-    if(sh)sh.scrollLeft=off;
-  }
-  // 複数タイミングで試みる（レンダリング完了タイミングのばらつきに対応）
-  setTimeout(_doScroll,80);
-  setTimeout(_doScroll,300);
-  setTimeout(_doScroll,600);
+    var off=Math.max(0,PRE_W+TODAY_VIS_COL*COL_W-80);
+    sb.scrollLeft=off;document.getElementById('scrollHeaderWrap').scrollLeft=off;
+  },80);
 }
 
 // ===== AREA / STATUS =====
 function setArea(area,btn){
   currentArea=area;currentStatus='all';
   document.querySelectorAll('.atab').forEach(function(b){b.classList.remove('active');});
-  if(btn){
-    btn.classList.add('active');
-    // ★ アクティブタブが見切れている場合に自動スクロール
-    var tabBar=document.getElementById('areaTabs');
-    if(tabBar){
-      var btnLeft=btn.offsetLeft;
-      var btnRight=btnLeft+btn.offsetWidth;
-      var barScroll=tabBar.scrollLeft;
-      var barWidth=tabBar.offsetWidth;
-      if(btnLeft<barScroll){
-        tabBar.scrollLeft=btnLeft-8;
-      } else if(btnRight>barScroll+barWidth){
-        tabBar.scrollLeft=btnRight-barWidth+8;
-      }
-    }
-  }
-  renderStats();renderBody();
-  requestAnimationFrame(function(){requestAnimationFrame(function(){scrollToToday();});});
+  if(btn)btn.classList.add('active');
+  renderStats();renderBody();scrollToToday();
 }
 function setStatus(s){currentStatus=s;renderStats();renderBody();}
 
@@ -2532,8 +2277,47 @@ function buildGanttTab(p){
   return '<div class="dp-sec" id="detail-gantt-sec">'
     +'<div class="dp-sec-head">🏗️ 工程表（6ヶ月カレンダー）'
     +'<span style="font-size:9px;color:var(--g400);font-weight:400;margin-left:4px">確認申請完了日起点・日曜休工</span></div>'
-    +ganttHtml+'</div>';
+    // ★ タブ切り替え
+    +'<div style="display:flex;border-bottom:2px solid #e2e8f0;background:white">'
+      +'<button id="gantt-tab-custom" onclick="switchGanttTab(\'custom\')" style="padding:6px 14px;font-size:11px;font-weight:700;border:none;background:none;cursor:pointer;border-bottom:2px solid #1a56db;color:#1a56db;margin-bottom:-2px">📅 カスタム工程</button>'
+      +'<button id="gantt-tab-excel" onclick="switchGanttTab(\'excel\')" style="padding:6px 14px;font-size:11px;font-weight:700;border:none;background:none;cursor:pointer;border-bottom:2px solid transparent;color:#94a3b8;margin-bottom:-2px">📋 Excel工程表</button>'
+    +'</div>'
+    +'<div id="gantt-pane-custom">'+ganttHtml+'</div>'
+    +'<div id="gantt-pane-excel" style="display:none"><div id="gantt-excel-content" style="padding:8px"><div style="color:#94a3b8;font-size:11px;padding:12px;text-align:center">読み込み中...</div></div></div>'
+    +'</div>';
 }
+
+
+function switchGanttTab(tab){
+  var customPane=document.getElementById('gantt-pane-custom');
+  var excelPane=document.getElementById('gantt-pane-excel');
+  var customBtn=document.getElementById('gantt-tab-custom');
+  var excelBtn=document.getElementById('gantt-tab-excel');
+  if(!customPane||!excelPane)return;
+  if(tab==='custom'){
+    customPane.style.display='';excelPane.style.display='none';
+    if(customBtn){customBtn.style.borderBottomColor='#1a56db';customBtn.style.color='#1a56db';}
+    if(excelBtn){excelBtn.style.borderBottomColor='transparent';excelBtn.style.color='#94a3b8';}
+  } else {
+    customPane.style.display='none';excelPane.style.display='';
+    if(excelBtn){excelBtn.style.borderBottomColor='#1a56db';excelBtn.style.color='#1a56db';}
+    if(customBtn){customBtn.style.borderBottomColor='transparent';customBtn.style.color='#94a3b8';}
+    var contentEl=document.getElementById('gantt-excel-content');
+    if(contentEl&&currentProp){
+      if(contentEl.getAttribute('data-loaded')===String(currentProp.fix_no))return;
+      contentEl.innerHTML='<div style="color:#94a3b8;font-size:11px;padding:12px;text-align:center">読み込み中...</div>';
+      _loadGanttSheetForProp(String(currentProp.fix_no||'')).then(function(data){
+        contentEl.setAttribute('data-loaded',String(currentProp.fix_no));
+        if(data){
+          contentEl.innerHTML=buildGanttSheetSection(data);
+        } else {
+          contentEl.innerHTML='<div style="color:#94a3b8;font-size:11px;padding:16px;text-align:center">📋 工程表データがありません<br><span style="font-size:10px">管理者CP → 工程表取込 からXLSXをアップロードしてください</span></div>';
+        }
+      });
+    }
+  }
+}
+window.switchGanttTab=switchGanttTab;
 
 function toggleDetailGanttExpand(){
   var c=document.getElementById('detail-gantt-compact');
@@ -3269,15 +3053,6 @@ function openDetail(p){
       }
     });
   }
-  // ★ vendorsが未ロードの場合はキャッシュ/DBから取得して業者セクションを再描画
-  if(!window._VENDOR_LIST_DATA||!Object.keys(window._VENDOR_LIST_DATA).length){
-    if(typeof _loadVendorsFromCacheOrDB==='function'){
-      _loadVendorsFromCacheOrDB(false).then(function(){
-        var vsEl=document.getElementById('detail-vendor-wrap');
-        if(vsEl&&currentProp)vsEl.innerHTML=buildVendorSection(currentProp);
-      });
-    }
-  }
   // LocalStorageのオーバーライドをマージ
   var ov=loadLS('jack_prop_overrides',{});
   var ck=custKey(p);
@@ -3349,7 +3124,7 @@ function openDetail(p){
     +'<div class="dp-sec"><div class="dp-sec-head">🏁 完了・引渡し情報</div>'+mkRow('完了検査日',p.inspection_date)+mkRow('完成日',p.complete_date)+delivRow+mkRow('引渡月',p.delivery_month)+'</div>'
     +'<div class="dp-sec"><div class="dp-sec-head">🏦 販売情報</div><div class="dp-row"><span class="dp-label">販売ステータス</span>'+makeBadge(p.status,true)+'</div>'+'</div>'
     +parkHtml
-    +'<div id="detail-vendor-wrap">'+buildVendorSection(p)+'</div>'
+    +buildVendorSection(p)
     +'<div class="dp-sec" id="weather-sec-'+p.fix_no+'"><div class="dp-sec-head">🌤 週間天気（現場エリア）</div><div id="weather-content-'+p.fix_no+'"></div></div>';
   setTimeout(function(){fetchWeather(p,'weather-content-'+p.fix_no);},300);
 
@@ -5458,64 +5233,37 @@ window._loadCustomGanttIfNeeded=_loadCustomGanttIfNeeded;
 
 // vendorsキャッシュ
 var VENDORS_CACHE_KEY='jack_vendors_cache';
-var VENDORS_CACHE_TS_KEY='jack_vendors_cache_ts'; // キャッシュ保存時のタイムスタンプ
-
-// ★ vendorsの最新updated_atをSupabaseから取得（通信量極小：1行のみ）
-async function _getVendorsLatestTs(){
-  var sb=getSB();if(!sb)return null;
-  try{
-    var r=await sb.from('vendors').select('updated_at').order('updated_at',{ascending:false}).limit(1);
-    if(r.error||!r.data||!r.data.length)return null;
-    return r.data[0].updated_at||null;
-  }catch(e){return null;}
-}
 
 async function _loadVendorsFromCacheOrDB(forceRefresh){
-  var sb=getSB();
-  // キャッシュ確認
-  var cachedStr=null;
-  var cachedTs=null;
-  try{
-    cachedStr=localStorage.getItem(VENDORS_CACHE_KEY);
-    cachedTs=localStorage.getItem(VENDORS_CACHE_TS_KEY);
-  }catch(e){}
-
-  if(!forceRefresh&&cachedStr){
+  if(!forceRefresh){
     try{
-      var parsed=JSON.parse(cachedStr);
-      if(parsed&&Object.keys(parsed).length>0){
-        // ★ Supabaseの最新タイムスタンプと比較（通信量：数十バイトのみ）
-        var latestTs=await _getVendorsLatestTs();
-        if(!latestTs||cachedTs===latestTs){
-          // キャッシュが最新 → そのまま使用（通信なし）
+      var cached=localStorage.getItem(VENDORS_CACHE_KEY);
+      if(cached){
+        var parsed=JSON.parse(cached);
+        if(parsed&&Object.keys(parsed).length>0){
           window._VENDOR_LIST_DATA=parsed;
           return;
         }
-        // キャッシュが古い → DB再取得へ（以下に続く）
       }
     }catch(e){}
+    // キャッシュなし・forceRefreshでない場合は取得しない（通信節約）
+    return;
   }
-
-  // DB取得（forceRefresh or キャッシュ古い or キャッシュなし）
-  if(!sb)return;
+  // forceRefresh=trueのみSupabaseから取得
+  var sb=getSB(); if(!sb)return;
   try{
     var r=await sb.from('vendors').select('*').order('id');
     if(r.error||!r.data||!r.data.length)return;
     var grp={};
-    var latestUpdated='';
     r.data.forEach(function(row){
       var a=row.area||'東海（全体）';
       if(!grp[a])grp[a]=[];
       var obj=Object.assign({},row.data||{},{area:a});
       if(row.col_order)obj.col_order=row.col_order;
       grp[a].push(obj);
-      if(row.updated_at&&row.updated_at>latestUpdated)latestUpdated=row.updated_at;
     });
     window._VENDOR_LIST_DATA=grp;
-    try{
-      localStorage.setItem(VENDORS_CACHE_KEY, JSON.stringify(grp));
-      localStorage.setItem(VENDORS_CACHE_TS_KEY, latestUpdated);
-    }catch(e){}
+    try{localStorage.setItem(VENDORS_CACHE_KEY, JSON.stringify(grp));}catch(e){}
   }catch(e){console.warn('vendors err:',e);}
 }
 window._loadVendorsFromCacheOrDB=_loadVendorsFromCacheOrDB;
@@ -5709,9 +5457,9 @@ window.toggleMode=toggleMode;
 window.onload=function(){
   // Build area tabs
   var tabsEl=document.getElementById('areaTabs');
-  tabsEl.innerHTML='<div class="area-tabs-inner">'+AREA_TABS.map(function(t,i){
+  tabsEl.innerHTML=AREA_TABS.map(function(t,i){
     return '<button class="atab'+(t.cls?' '+t.cls:'')+(i===0?' active':'')+'" onclick="setArea(\''+t.id+'\',this)">'+t.label+'</button>';
-  }).join('')+'</div>';
+  }).join('');
   // Color picker
   var cp=document.getElementById('colorPicker');
   if(cp){
@@ -5726,13 +5474,7 @@ window.onload=function(){
   }
   document.getElementById('todayBadge').textContent=TODAY.replace(/-/g,'/');
   setMode(isPcMode);
-  renderHeader();renderStats();renderBody();initScrollSync();
-  // ★ renderBody内のrequestAnimationFrame完了後にスクロール（2フレーム待つ）
-  requestAnimationFrame(function(){
-    requestAnimationFrame(function(){
-      scrollToToday();
-    });
-  });
+  renderHeader();renderStats();renderBody();initScrollSync();scrollToToday();
   if(syncData.lastSync){
     var l=new Date(syncData.lastSync);
     updateSyncBanner('最終同期: '+(l.getMonth()+1)+'/'+l.getDate()+' '+l.getHours()+':'+('0'+l.getMinutes()).slice(-2),false);
@@ -6248,29 +5990,18 @@ window.openJackMap=openJackMap;
 
 function openNavigation(addr,label){
   if(!addr)return;
-  var ua=navigator.userAgent||'';
-  var isIOS=/iPhone|iPad|iPod/i.test(ua);
-
-  if(isIOS){
-    // iOS：Apple Mapsアプリが直接起動するmaps://を使用
-    // maps://はユーザー操作の直接結果なのでブロックされない
-    var mapsUrl='maps://?daddr='+encodeURIComponent(addr)+'&dirflg=d';
-    location.href=mapsUrl;
+  // 現在地が取得できる場合はGoogle Mapsナビ（出発地:現在地）
+  if(navigator.geolocation){
+    navigator.geolocation.getCurrentPosition(function(pos){
+      var origin=pos.coords.latitude+','+pos.coords.longitude;
+      var url='https://www.google.com/maps/dir/?api=1&origin='+encodeURIComponent(origin)+'&destination='+encodeURIComponent(addr)+'&travelmode=driving';
+      window.open(url,'_blank');
+    },function(){
+      // 位置情報エラー時は住所検索のみ
+      window.open('https://maps.google.com/maps?q='+encodeURIComponent(addr)+'&dirflg=d','_blank');
+    },{timeout:5000});
   } else {
-    // Android他：Google MapsをChromeで直接開く
-    // geo:スキームはGoogleマップアプリが起動する
-    var geoUrl='google.navigation:q='+encodeURIComponent(addr);
-    // geo:スキームが使えない場合はhttps fallback
-    var fallbackUrl='https://www.google.com/maps/dir/?api=1&destination='+encodeURIComponent(addr)+'&travelmode=driving';
-    // Androidはintent経由でGoogleマップを起動
-    var intentUrl='intent://maps.google.com/maps?daddr='+encodeURIComponent(addr)+'&dirflg=d#Intent;scheme=https;package=com.google.android.apps.maps;end';
-    try{
-      location.href=intentUrl;
-      // intentが失敗した場合のfallback（300ms後）
-      setTimeout(function(){location.href=fallbackUrl;},300);
-    }catch(e){
-      location.href=fallbackUrl;
-    }
+    window.open('https://maps.google.com/maps?q='+encodeURIComponent(addr),'_blank');
   }
 }
 window.openNavigation=openNavigation;
@@ -6760,6 +6491,7 @@ function renderAdminCPShell(){
       +'<div style="height:1px;background:rgba(255,255,255,.08);margin:3px 10px"></div>'
       +admMenuItem('import','📥','データ取込')
       +admMenuItem('vendors','👷','全業者選定一覧')
+      +admMenuItem('ganttsheet','📋','工程表取込')
       +admMenuItem('dbsetup','🔧','DB設定')
     +'</div>'
     +'<div id="admRight" style="flex:1;overflow-y:auto;background:#f8fafc"></div>'
@@ -6894,6 +6626,22 @@ async function loadAdmSec(sec){
     if(window._VENDOR_LIST_DATA&&Object.keys(window._VENDOR_LIST_DATA).length){
       admRenderVendorTables(window._VENDOR_LIST_DATA);
     }
+  } else if(sec==='ganttsheet'){
+    right.innerHTML='<div style="padding:14px">'
+      +'<div style="font-size:16px;font-weight:800;color:#1e293b;margin-bottom:4px">📋 工程表取込</div>'
+      +'<div style="font-size:11px;color:#64748b;margin-bottom:16px">工程表.xlsxをアップロード → A1セルのFIX IDで物件と紐付けてSupabaseに保存します。複数ファイルを一括アップロードできます。</div>'
+      +'<div style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:8px;padding:10px;margin-bottom:14px;font-size:10px;color:#1e40af;line-height:1.8">'
+        +'<b>Excelフォーマット条件：</b><br>'
+        +'・A1セル：FIX ID（数値）<br>'
+        +'・B列：工事名<br>'
+        +'・E列以降：日付列（色付きセル＝工程バー）'
+      +'</div>'
+      +'<label style="display:block;background:#1a56db;color:white;padding:10px 16px;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;text-align:center;margin-bottom:12px">'
+        +'📁 工程表XLSXを選択（複数可）'
+        +'<input type="file" id="ganttSheetXlsxInput" accept=".xlsx,.xls" multiple onchange="admHandleGanttSheetXlsx(this)" style="display:none">'
+      +'</label>'
+      +'<div id="ganttSheetImportResult"></div>'
+    +'</div>';
   } else if(sec==='dbsetup'){
     var rlsDisableSql='-- ① まず緊急解除（ログインできない場合はこれだけ実行）\nALTER TABLE profiles DISABLE ROW LEVEL SECURITY;\nALTER TABLE properties DISABLE ROW LEVEL SECURITY;';
     var rlsFixSql='-- テーブル・カラム追加（何度実行しても安全）\nALTER TABLE properties ADD COLUMN IF NOT EXISTS custom_gantt jsonb;\nALTER TABLE properties ADD COLUMN IF NOT EXISTS prop_master text;\nALTER TABLE properties ADD COLUMN IF NOT EXISTS address text;\nALTER TABLE properties ADD COLUMN IF NOT EXISTS parkings jsonb;\nALTER TABLE properties ADD COLUMN IF NOT EXISTS inspection_date text;\nALTER TABLE properties ADD COLUMN IF NOT EXISTS complete_date text;\n\n-- vendorsテーブル\nCREATE TABLE IF NOT EXISTS vendors (\n  id bigint generated by default as identity primary key,\n  area text,\n  data jsonb,\n  col_order text,\n  created_at timestamptz default now()\n);\n\n-- mastersテーブル\nCREATE TABLE IF NOT EXISTS masters (\n  id bigint generated by default as identity primary key,\n  name text not null,\n  steps jsonb,\n  created_at timestamptz default now(),\n  updated_at timestamptz default now()\n);\n\n-- RLSポリシー（DROP→CREATEで何度実行しても安全）\nDROP POLICY IF EXISTS "profiles_all" ON profiles;\nDROP POLICY IF EXISTS "properties_all" ON properties;\nDROP POLICY IF EXISTS "vendors_all" ON vendors;\nDROP POLICY IF EXISTS "masters_all" ON masters;\n\nALTER TABLE profiles ENABLE ROW LEVEL SECURITY;\nALTER TABLE properties ENABLE ROW LEVEL SECURITY;\nALTER TABLE vendors ENABLE ROW LEVEL SECURITY;\nALTER TABLE masters ENABLE ROW LEVEL SECURITY;\n\nCREATE POLICY "profiles_all" ON profiles FOR ALL TO authenticated USING (true) WITH CHECK (true);\nCREATE POLICY "properties_all" ON properties FOR ALL TO authenticated USING (true) WITH CHECK (true);\nCREATE POLICY "vendors_all" ON vendors FOR ALL TO authenticated USING (true) WITH CHECK (true);\nCREATE POLICY "masters_all" ON masters FOR ALL TO authenticated USING (true) WITH CHECK (true);\n\n-- 協力業者向け：閲覧のみ公開（書き込みは認証必須のまま）\nDROP POLICY IF EXISTS "vendors_public_read" ON vendors;\nDROP POLICY IF EXISTS "properties_public_read" ON properties;\nCREATE POLICY "vendors_public_read" ON vendors FOR SELECT USING (true);\nCREATE POLICY "properties_public_read" ON properties FOR SELECT USING (true);';
@@ -6919,6 +6667,216 @@ async function loadAdmSec(sec){
     +'</div>';
   }
 }
+// ===== 工程表取込 =====
+var GANTT_SHEET_CACHE_KEY='jack_gantt_sheets_cache';
+var GANTT_SHEET_TS_KEY='jack_gantt_sheets_ts';
+window._GANTT_SHEET_DATA={};
+
+function admHandleGanttSheetXlsx(input){
+  var files=Array.from(input.files||[]);
+  if(!files.length)return;
+  var resultEl=document.getElementById('ganttSheetImportResult');
+  if(resultEl)resultEl.innerHTML='<div style="color:#64748b;font-size:11px">読み込み中...</div>';
+  var results=[];var done=0;
+  files.forEach(function(file){
+    var reader=new FileReader();
+    reader.onload=function(e){
+      try{
+        var data=new Uint8Array(e.target.result);
+        var wb=XLSX.read(data,{type:'array',raw:false,cellStyles:true});
+        var ws=wb.Sheets[wb.SheetNames[0]];
+        var jsonRows=XLSX.utils.sheet_to_json(ws,{header:1,defval:'',raw:false});
+        var fixNo=String((jsonRows[0]&&jsonRows[0][0])||'').trim();
+        if(!fixNo){results.push({file:file.name,ok:false,msg:'A1にFIX IDがありません'});check();}
+        else{
+          var sheetData=_parseGanttSheetXlsx(ws,jsonRows);
+          sheetData.fix_no=fixNo;
+          results.push({file:file.name,ok:true,fixNo:fixNo,data:sheetData});
+          check();
+        }
+      }catch(err){results.push({file:file.name,ok:false,msg:err.message});check();}
+    };
+    reader.readAsArrayBuffer(file);
+  });
+  function check(){
+    done++;
+    if(done<files.length)return;
+    var toSave=results.filter(function(r){return r.ok;});
+    var failed=results.filter(function(r){return !r.ok;});
+    if(!toSave.length){
+      if(resultEl)resultEl.innerHTML='<div style="color:#ef4444;font-size:11px">取込失敗：'+failed.map(function(r){return r.file+' ('+r.msg+')';}).join(', ')+'</div>';
+      return;
+    }
+    _saveGanttSheetsToDB(toSave).then(function(ok){
+      var msg='';
+      if(ok)msg+='<div style="color:#10b981;font-size:12px;font-weight:700;margin-bottom:6px">✅ '+toSave.length+'件を保存しました</div>';
+      toSave.forEach(function(r){msg+='<div style="font-size:11px;color:#475569">・'+r.file+' → FIX ID: '+r.fixNo+'</div>';});
+      if(failed.length)msg+='<div style="color:#ef4444;font-size:11px;margin-top:6px">⚠️ 失敗: '+failed.map(function(r){return r.file;}).join(', ')+'</div>';
+      if(resultEl)resultEl.innerHTML='<div style="background:white;border-radius:8px;padding:10px;border:1px solid #e2e8f0">'+msg+'</div>';
+    });
+  }
+}
+window.admHandleGanttSheetXlsx=admHandleGanttSheetXlsx;
+
+function _parseGanttSheetXlsx(ws,jsonRows){
+  var bgMap={};
+  var _colNum=function(addr){var m=addr.match(/^([A-Z]+)/);if(!m)return -1;var s=m[1],n=0;for(var i=0;i<s.length;i++)n=n*26+(s.charCodeAt(i)-64);return n-1;};
+  var _rowNum=function(addr){var m=addr.match(/(\d+)$/);return m?parseInt(m[1],10)-1:-1;};
+  Object.keys(ws).forEach(function(addr){
+    if(addr[0]==='!')return;
+    var cell=ws[addr];if(!cell||!cell.s)return;
+    var fill=cell.s.fgColor||cell.s.bgColor||(cell.s.fill&&(cell.s.fill.fgColor||cell.s.fill.bgColor));
+    if(!fill)return;
+    var rgb=fill.rgb;
+    if(!rgb||rgb==='FFFFFFFF'||rgb==='FF000000'||rgb==='00000000'||rgb.toUpperCase()==='FFFFFF')return;
+    var hex='#'+(rgb.length===8?rgb.slice(2):rgb);
+    var ri=_rowNum(addr),ci=_colNum(addr);
+    if(ri<0||ci<0)return;
+    if(!bgMap[ri])bgMap[ri]={};
+    bgMap[ri][ci]=hex;
+  });
+  // 年はB4から取得
+  var baseYear=parseInt(String((jsonRows[3]&&jsonRows[3][1])||'').trim())||new Date().getFullYear();
+  var sections=[];
+  var i=1;// 1行目はFIX ID
+  while(i<jsonRows.length){
+    var row=jsonRows[i];
+    // 月ヘッダー行を検出（行内に1〜12の数値があり、直前または同行に年がある）
+    var foundMonth=null,foundYear=baseYear;
+    for(var c=0;c<Math.min(row.length,10);c++){
+      var v=parseInt(String(row[c]||'').trim());
+      if(v>=1&&v<=12){
+        // 前のセルに年があれば取得
+        if(c>0){var py=parseInt(String(row[c-1]||'').trim());if(py>=2020&&py<=2035)foundYear=py;}
+        foundMonth=v;break;
+      }
+    }
+    if(foundMonth){
+      // 次の「工程名」行を探す（最大4行先）
+      var dateRowIdx=-1;
+      for(var j=i+1;j<Math.min(i+5,jsonRows.length);j++){
+        var bn=String(jsonRows[j][1]||'').trim();
+        if(bn==='工程名'||bn==='工程'||bn==='作業名'){dateRowIdx=j;break;}
+      }
+      if(dateRowIdx<0){i++;continue;}
+      var startCol=4;// E列
+      // 日数カウント
+      var days=0;
+      var dateR=jsonRows[dateRowIdx];
+      for(var dc=startCol;dc<dateR.length;dc++){if(String(dateR[dc]||'').trim()||bgMap[dateRowIdx]&&bgMap[dateRowIdx][dc])days++;else if(days>0)break;}
+      days=Math.max(days,28);days=Math.min(days,31);
+      // 工程行収集（曜日行=dateRowIdx+1をスキップして次から）
+      var workRows=[];
+      var k=dateRowIdx+2;
+      while(k<jsonRows.length){
+        var wrow=jsonRows[k];
+        // 次の月ヘッダーに達したら終了
+        var isNextMonth=false;
+        for(var nc=0;nc<Math.min(wrow.length,10);nc++){
+          var nv=parseInt(String(wrow[nc]||'').trim());
+          if(nv>=1&&nv<=12&&nc>0){isNextMonth=true;break;}
+        }
+        if(isNextMonth)break;
+        var wname=String(wrow[1]||'').trim();
+        if(wname){
+          var cells=[];
+          for(var dc2=startCol;dc2<startCol+days;dc2++){
+            cells.push({text:String(wrow[dc2]||'').trim(),color:(bgMap[k]&&bgMap[k][dc2])||''});
+          }
+          workRows.push({name:wname,cells:cells});
+        }
+        k++;
+      }
+      if(workRows.length)sections.push({year:foundYear,month:foundMonth,days:days,rows:workRows});
+      i=k;
+    } else {i++;}
+  }
+  return {sections:sections};
+}
+
+async function _saveGanttSheetsToDB(items){
+  var sb=getSB();if(!sb)return false;
+  try{
+    for(var i=0;i<items.length;i++){
+      var item=items[i];
+      await sb.from('gantt_sheets').delete().eq('fix_no',item.fixNo);
+      var r=await sb.from('gantt_sheets').insert({fix_no:item.fixNo,sheet_data:item.data,updated_at:new Date().toISOString()});
+      if(r.error)console.warn('gantt_sheets save:',r.error.message);
+      window._GANTT_SHEET_DATA[item.fixNo]=item.data;
+    }
+    try{
+      var cache=JSON.parse(localStorage.getItem(GANTT_SHEET_CACHE_KEY)||'{}');
+      items.forEach(function(item){cache[item.fixNo]=item.data;});
+      localStorage.setItem(GANTT_SHEET_CACHE_KEY,JSON.stringify(cache));
+      localStorage.setItem(GANTT_SHEET_TS_KEY,new Date().toISOString());
+    }catch(e){}
+    return true;
+  }catch(e){console.warn('gantt_sheets err:',e);return false;}
+}
+
+async function _loadGanttSheetForProp(fixNo){
+  if(!fixNo)return null;
+  if(window._GANTT_SHEET_DATA[fixNo])return window._GANTT_SHEET_DATA[fixNo];
+  try{
+    var cache=JSON.parse(localStorage.getItem(GANTT_SHEET_CACHE_KEY)||'{}');
+    if(cache[fixNo]){window._GANTT_SHEET_DATA[fixNo]=cache[fixNo];return cache[fixNo];}
+  }catch(e){}
+  var sb=getSB();if(!sb)return null;
+  try{
+    var r=await sb.from('gantt_sheets').select('fix_no,sheet_data').eq('fix_no',String(fixNo)).single();
+    if(r.error||!r.data)return null;
+    var data=r.data.sheet_data;
+    window._GANTT_SHEET_DATA[fixNo]=data;
+    try{
+      var c2=JSON.parse(localStorage.getItem(GANTT_SHEET_CACHE_KEY)||'{}');
+      c2[fixNo]=data;localStorage.setItem(GANTT_SHEET_CACHE_KEY,JSON.stringify(c2));
+    }catch(e){}
+    return data;
+  }catch(e){return null;}
+}
+window._loadGanttSheetForProp=_loadGanttSheetForProp;
+
+function buildGanttSheetSection(data){
+  if(!data||!data.sections||!data.sections.length)return '';
+  var COL=14;
+  var html='';
+  data.sections.forEach(function(sec){
+    var days=sec.days||28;
+    html+='<div style="margin-bottom:2px">';
+    // 月・日付ヘッダー
+    html+='<div style="display:flex;background:#1e293b;color:white;font-size:10px;font-weight:700;height:20px;align-items:center;flex-shrink:0">'
+      +'<div style="width:150px;min-width:150px;padding:0 8px;border-right:1px solid rgba(255,255,255,.2);flex-shrink:0">工事名</div>'
+      +'<div style="display:flex;flex:1">';
+    for(var d=1;d<=days;d++){
+      var dt=new Date(sec.year,sec.month-1,d);
+      var dow=dt.getDay();
+      var wkColor=dow===0?'#fca5a5':dow===6?'#93c5fd':'rgba(255,255,255,.7)';
+      html+='<div style="width:'+COL+'px;min-width:'+COL+'px;text-align:center;color:'+wkColor+';font-size:8px;border-right:1px solid rgba(255,255,255,.08)">'+d+'</div>';
+    }
+    html+='</div></div>';
+    // 月ラベル行
+    html+='<div style="background:#334155;color:rgba(255,255,255,.6);font-size:9px;height:16px;display:flex;align-items:center;padding-left:8px;flex-shrink:0">'+sec.year+'年'+sec.month+'月</div>';
+    // 工程行
+    sec.rows.forEach(function(row,ri){
+      var rowBg=ri%2===0?'white':'#f8fafc';
+      html+='<div style="display:flex;background:'+rowBg+';border-bottom:1px solid #f1f5f9;height:22px;align-items:center">'
+        +'<div style="width:150px;min-width:150px;padding:0 8px;font-size:10px;font-weight:600;color:#334155;border-right:2px solid #cbd5e1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex-shrink:0" title="'+row.name+'">'+row.name+'</div>'
+        +'<div style="display:flex">';
+      for(var ci=0;ci<days;ci++){
+        var cell=(row.cells&&row.cells[ci])||{text:'',color:''};
+        var bg=cell.color||'';
+        var fg=bg?_vendorTextColor(bg):'#334155';
+        html+='<div style="width:'+COL+'px;min-width:'+COL+'px;height:22px;'+(bg?'background:'+bg+';':'')+'display:flex;align-items:center;justify-content:center;border-right:1px solid #f1f5f9;overflow:hidden">'
+          +(cell.text?'<span style="font-size:7px;font-weight:700;color:'+fg+';white-space:nowrap">'+cell.text+'</span>':'')+'</div>';
+      }
+      html+='</div></div>';
+    });
+    html+='</div>';
+  });
+  return '<div style="overflow-x:auto;-webkit-overflow-scrolling:touch;touch-action:pan-x pan-y;will-change:scroll-position;">'+html+'</div>';
+}
+window.buildGanttSheetSection=buildGanttSheetSection;
+
 // ===== 全業者選定一覧 =====
 function admHandleVendorXlsx(input){
   var file=input.files[0]; if(!file)return;
@@ -7327,38 +7285,14 @@ function openVendorList(){
   window._vendorSearchQ='';
   var si=document.getElementById('vendorSearchInput');
   if(si){si.value='';si.style.borderColor='#e2e8f0';}
-
-  // ★ キャッシュが古い形式（_fixno_キーなし）かチェック
-  var _hasFixno=function(data){
-    var areas=Object.keys(data||{});
-    for(var i=0;i<areas.length;i++){
-      var rows=data[areas[i]]||[];
-      for(var j=0;j<rows.length;j++){
-        var keys=Object.keys(rows[j]);
-        if(keys.some(function(k){return k.indexOf('_fixno_')===0;}))return true;
-        // _fixno_がなくてもデータ自体は新形式かもしれない（fix_noがない物件もある）
-        // →行数が十分あればOKとみなす
-        if(rows.length>3)return true;
-      }
-    }
-    return false;
-  };
-
-  var needRefresh=!Object.keys(window._VENDOR_LIST_DATA).length||!_hasFixno(window._VENDOR_LIST_DATA);
-
-  if(!needRefresh){
+  if(Object.keys(window._VENDOR_LIST_DATA).length){
     _renderVendorPanel();
   } else {
     var wrap=document.getElementById('vendorTableWrap');
     if(wrap)wrap.innerHTML='<div style="padding:24px;text-align:center;color:#94a3b8;font-size:12px"><div style="font-size:32px;margin-bottom:8px">👷</div>読み込み中…</div>';
-    // キャッシュがない or 古い形式 → DB・キャッシュ両方試みる
     _loadVendorsFromCacheOrDB(false).then(function(){
-      if(Object.keys(window._VENDOR_LIST_DATA).length){
-        _renderVendorPanel();
-      } else {
-        var w=document.getElementById('vendorTableWrap');
-        if(w)w.innerHTML='<div style="padding:24px;text-align:center;color:#94a3b8;font-size:12px"><div style="font-size:32px;margin-bottom:8px">👷</div>業者データがありません。<br>管理者CP → 全業者選定からXLSXを読み込んでください。</div>';
-      }
+      if(Object.keys(window._VENDOR_LIST_DATA).length)_renderVendorPanel();
+      else{var w=document.getElementById('vendorTableWrap');if(w)w.innerHTML='<div style="padding:24px;text-align:center;color:#94a3b8;font-size:12px"><div style="font-size:32px;margin-bottom:8px">👷</div>業者データがありません。<br>管理者CP → 全業者選定からXLSXを読み込んでください。</div>';}
     });
   }
 }
@@ -7401,10 +7335,6 @@ function _renderVendorPanel(){
   _renderVendorTable();
 }
 
-function _vendorTextColor(hex){
-  try{var c=hex.replace('#','');if(c.length===3)c=c[0]+c[0]+c[1]+c[1]+c[2]+c[2];var r=parseInt(c.slice(0,2),16),g=parseInt(c.slice(2,4),16),b=parseInt(c.slice(4,6),16);return(0.299*r+0.587*g+0.114*b)>140?'#1e293b':'#ffffff';}catch(x){return'#1e293b';}
-}
-
 function _renderVendorTable(){
   var data=window._VENDOR_LIST_DATA;
   var wrap=document.getElementById('vendorTableWrap');
@@ -7419,9 +7349,7 @@ function _renderVendorTable(){
     try{savedOrder=JSON.parse(rows[0].col_order);}catch(x){}
   }
   var colSet={};
-  rows.forEach(function(r){Object.keys(r).forEach(function(k){
-    if(k!=='id'&&k!=='area'&&k!=='created_at'&&k!=='col_order'&&k.indexOf('_bg_')!==0&&k.indexOf('_fixno_')!==0)colSet[k]=1;
-  });});
+  rows.forEach(function(r){Object.keys(r).forEach(function(k){if(k!=='id'&&k!=='area'&&k!=='created_at'&&k!=='col_order')colSet[k]=1;});});
   var colsRaw=Object.keys(colSet);
   // col_orderで並び替え（保存済み順序を優先、未知の列は末尾に追加）
   var cols;
@@ -7433,10 +7361,6 @@ function _renderVendorTable(){
     cols=colsRaw;
   }
   if(!cols.length){wrap.innerHTML='<div style="padding:24px;text-align:center;color:#94a3b8;font-size:12px">列データなし</div>';return;}
-
-  // A列（最初の列）= 工事項目列として固定
-  var freezeCol=cols[0];
-  var scrollCols=cols.slice(1);
 
   // A列（最初の列）= 工事項目列として固定
   var freezeCol=cols[0];
@@ -7464,10 +7388,8 @@ function _renderVendorTable(){
     +'<div id="vendorFreezeBody" style="flex:1;overflow:hidden;">'
     +rows.map(function(row,ri){
       var v=String(row[freezeCol]||'').trim();
-      var cellBg=row['_bg_'+freezeCol]||'';
-      var bg=cellBg||(ri%2===0?'white':'#f8fafc');
-      var fc=cellBg?_vendorTextColor(cellBg):'#1e293b';
-      return '<div style="height:28px;display:flex;align-items:center;padding:0 8px;font-size:10px;font-weight:600;color:'+fc+';background:'+bg+';border-bottom:1px solid #f1f5f9;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:'+FREEZE_W+'px;" title="'+v+'">'+(v||'—')+'</div>';
+      var bg=ri%2===0?'white':'#f8fafc';
+      return '<div style="height:28px;display:flex;align-items:center;padding:0 8px;font-size:10px;font-weight:600;color:#1e293b;background:'+bg+';border-bottom:1px solid #f1f5f9;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:'+FREEZE_W+'px;" title="'+v+'">'+(v||'—')+'</div>';
     }).join('')
     +'</div></div>';
 
@@ -7482,25 +7404,15 @@ function _renderVendorTable(){
     +'</div>'
     // データ行
     +rows.map(function(row,ri){
-      var rowBg=ri%2===0?'white':'#f8fafc';
-      return '<div style="display:flex;height:28px;background:'+rowBg+';border-bottom:1px solid #f1f5f9;">'
+      var bg=ri%2===0?'white':'#f8fafc';
+      return '<div style="display:flex;height:28px;background:'+bg+';border-bottom:1px solid #f1f5f9;">'
         +filteredScrollCols.map(function(c){
           var v=String(row[c]||'').trim();
-          var cellBg=row['_bg_'+c]||'';
           var hit=q&&v&&v.toLowerCase().indexOf(q)>=0;
-          var bg=hit?'#fef08a':cellBg||'';
+          var bg=hit?'#fef08a':''; // 一致セルのみ黄色
           var fw=hit?'700':'400';
-          var isEmpty=!v;
-          var displayVal,textColor;
-          if(isEmpty){
-            displayVal=cellBg?'<span style="font-size:9px;opacity:.55;font-style:italic">未選定</span>':'<span style="color:#cbd5e1">—</span>';
-            textColor=cellBg?_vendorTextColor(cellBg):'#cbd5e1';
-          }else{
-            displayVal='<span>'+v+'</span>';
-            textColor=cellBg?_vendorTextColor(cellBg):(hit?'#92400e':'#334155');
-          }
-          var bgStyle=bg?'background:'+bg+';':'';
-          return '<div style="min-width:'+VCOL_W+'px;max-width:'+VCOL_W+'px;display:flex;align-items:center;padding:0 8px;font-size:10px;font-weight:'+fw+';color:'+textColor+';'+bgStyle+'border-right:1px solid #f1f5f9;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;" title="'+(isEmpty&&cellBg?'（未選定）':v)+'">'+displayVal+'</div>';
+          var color=v?'#334155':'#cbd5e1';
+          return '<div style="min-width:'+VCOL_W+'px;max-width:'+VCOL_W+'px;display:flex;align-items:center;padding:0 8px;font-size:10px;font-weight:'+fw+';color:'+color+';background:'+bg+';border-right:1px solid #f1f5f9;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;" title="'+v+'">'+(v||'—')+'</div>';
         }).join('')
         +'</div>';
     }).join('')
@@ -7530,7 +7442,7 @@ function admHandleVendorXlsx(input){
     var colOrderMap={}; // エリアごとの列順を保存
     try{
       var data=new Uint8Array(e.target.result);
-      var wb=XLSX.read(data,{type:'array',raw:false,cellStyles:true});
+      var wb=XLSX.read(data,{type:'array',raw:false});
       wb.SheetNames.forEach(function(sheetName){
         if(sheetName.indexOf('業者')<0&&sheetName.indexOf('選定')<0&&sheetName.indexOf('東海')<0&&sheetName.indexOf('関東')<0)return;
         var ws=wb.Sheets[sheetName];
@@ -7548,52 +7460,13 @@ function admHandleVendorXlsx(input){
         });
         if(!headerMap.length)return;
         var area=sheetName.indexOf('東海')>=0?'東海（全体）':sheetName.indexOf('関東')>=0?'関東（全体）':sheetName;
+        // ★ col_order: XLSXの列順をそのまま保存（F5リロード後も列順を復元するため）
         colOrderMap[area]=headerMap.map(function(hm){return hm.name;});
-
-        // ★ 2行目をFIX ID行として取得（A列=「FIX ID」ラベル、B列以降に各物件のfix_no）
-        var fixNoRow=jsonRows[1]||[];
-        var fixNoMap={};
-        headerMap.forEach(function(hm){
-          if(hm.col===0)return; // A列（ラベル列）はスキップ
-          var v=String(fixNoRow[hm.col]||'').trim();
-          if(v)fixNoMap[hm.name]=v;
-        });
-
-        // ★ セル背景色マップ {rowIndex: {colIndex: '#rrggbb'}}
-        var bgMap={};
-        var _colNum=function(addr){var m=addr.match(/^([A-Z]+)/);if(!m)return -1;var s=m[1],n=0;for(var i=0;i<s.length;i++)n=n*26+(s.charCodeAt(i)-64);return n-1;};
-        var _rowNum=function(addr){var m=addr.match(/(\d+)$/);return m?parseInt(m[1],10)-1:-1;};
-        Object.keys(ws).forEach(function(addr){
-          if(addr[0]==='!')return;
-          var cell=ws[addr];if(!cell||!cell.s)return;
-          var fill=cell.s.fgColor||cell.s.bgColor||(cell.s.fill&&(cell.s.fill.fgColor||cell.s.fill.bgColor));
-          if(!fill)return;
-          var rgb=fill.rgb;
-          if(!rgb||rgb==='FFFFFFFF'||rgb==='FF000000'||rgb==='00000000'||rgb.toUpperCase()==='FFFFFF'||rgb.toUpperCase()==='000000')return;
-          var hex='#'+(rgb.length===8?rgb.slice(2):rgb);
-          var ri=_rowNum(addr),ci=_colNum(addr);
-          if(ri<0||ci<0)return;
-          if(!bgMap[ri])bgMap[ri]={};
-          bgMap[ri][ci]=hex;
-        });
-
-        // ★ 2行目以降を全てデータ行として取得（1行目=ヘッダー除く全行）
-        var dataRowIndices=[];
-        jsonRows.slice(1).forEach(function(r,fi){
-          if(r.some(function(c){return String(c||'').trim();}))dataRowIndices.push(fi+1);
-        });
-        var dataRows=dataRowIndices.map(function(ri){return jsonRows[ri];});
-        resultData[area]=dataRows.map(function(r,di){
-          var realRi=dataRowIndices[di];
+        var dataRows=jsonRows.slice(1).filter(function(r){return r.some(function(c){return String(c||'').trim();});});
+        resultData[area]=dataRows.map(function(r){
           var obj={area:area};
-          headerMap.forEach(function(hm){
-            obj[hm.name]=String(r[hm.col]||'').trim();
-            // fix_noを_fixno_列名キーで保存（物件詳細マッチング用・表示には影響しない）
-            if(fixNoMap[hm.name])obj['_fixno_'+hm.name]=fixNoMap[hm.name];
-            // 背景色を_bg_列名キーで保存
-            var bg=bgMap[realRi]&&bgMap[realRi][hm.col];
-            if(bg)obj['_bg_'+hm.name]=bg;
-          });
+          // ★ 元の列インデックス(hm.col)でアクセスすることで列ずれを防ぐ
+          headerMap.forEach(function(hm){obj[hm.name]=String(r[hm.col]||'').trim();});
           return obj;
         });
         allRows=allRows.concat(resultData[area]);
@@ -7605,12 +7478,6 @@ function admHandleVendorXlsx(input){
       _saveVendorsToDB(allRows, colOrderMap).then(function(ok){
         if(ok){
           window._VENDOR_LIST_DATA=resultData;
-          // ★ キャッシュを最新データで上書き（タイムスタンプも記録）
-          var nowTs=new Date().toISOString();
-          try{
-            localStorage.setItem(VENDORS_CACHE_KEY, JSON.stringify(resultData));
-            localStorage.setItem(VENDORS_CACHE_TS_KEY, nowTs);
-          }catch(e){}
           showToast('✅ 業者一覧をSupabaseに保存しました（'+allRows.length+'件）','success');
           admRenderVendorTables(resultData);
         }
@@ -7834,79 +7701,6 @@ document.addEventListener('DOMContentLoaded',function(){
       if(i===0){SEL_COLOR=c;sw.style.transform='scale(1.2)';}
       sw.onclick=function(){selectEdColor(c,sw);};cp.appendChild(sw);
     });
-  }
-
-  // ★ overflow:clipにより祖先がタッチを奪わなくなったため
-  // iOS・Android ともにネイティブスクロールが動作する
-  // JSタッチハンドラは不要（むしろカクカクの原因になるため除去）
-  function addHorizontalTouchScroll(el){
-    // no-op: ネイティブスクロールに委譲
-  }
-
-  // 3バー全てにJSタッチハンドラ適用
-  setTimeout(function(){
-    addHorizontalTouchScroll(document.getElementById('areaTabs'));
-    addHorizontalTouchScroll(document.getElementById('statusBar'));
-    addHorizontalTouchScroll(document.getElementById('statsStrip'));
-  },600);
-
-  // ★ 3バーをposition:fixedで親から独立させてスクロール問題を解決
-  function fixScrollBars(){
-    var app=document.getElementById('app');
-    if(!app)return;
-    var isMobile=document.body.classList.contains('sp-mode')||window.innerWidth<=900;
-    var header=app.querySelector('.top-header');
-    var banner=document.getElementById('syncBanner');
-    var areaTabs=document.getElementById('areaTabs');
-    var statusBar=document.getElementById('statusBar');
-    var statsStrip=document.getElementById('statsStrip');
-    var tableWrap=app.querySelector('.table-wrap');
-    if(!areaTabs||!statusBar||!statsStrip||!tableWrap)return;
-
-    if(isMobile){
-      var topH=(header?header.getBoundingClientRect().bottom:0);
-      var bannerH=(banner&&banner.style.display!=='none'?banner.offsetHeight:0);
-      var base=topH;
-      var tabsH=areaTabs.offsetHeight||34;
-      var statusH=statusBar.offsetHeight||40;
-      var statsH=statsStrip.offsetHeight||40;
-
-      [
-        {el:areaTabs,  top:base},
-        {el:statusBar, top:base+tabsH},
-        {el:statsStrip,top:base+tabsH+statusH},
-      ].forEach(function(x){
-        x.el.style.cssText=(x.el.style.cssText||'')
-          +';position:fixed!important;top:'+x.top+'px!important;left:0!important;right:0!important;width:100vw!important;z-index:120!important;box-sizing:border-box!important;';
-      });
-      tableWrap.style.marginTop=(tabsH+statusH+statsH)+'px';
-    } else {
-      [areaTabs,statusBar,statsStrip].forEach(function(el){
-        ['position','top','left','right','width','z-index'].forEach(function(p){el.style.removeProperty(p);});
-      });
-      tableWrap.style.marginTop='';
-    }
-  }
-  window.fixScrollBars=fixScrollBars;
-  setTimeout(fixScrollBars,500);
-  // ★ ガントのscroll-bodyにもタッチハンドラ適用
-  setTimeout(function(){
-    addHorizontalTouchScroll(document.getElementById('scrollBody'));
-    addHorizontalTouchScroll(document.getElementById('scrollHeaderWrap'));
-  },700);
-  window.addEventListener('resize',fixScrollBars);
-
-  // renderStats後も再適用
-  var _origRenderStats=window.renderStats;
-  if(typeof _origRenderStats==='function'){
-    window.renderStats=function(){
-      _origRenderStats.apply(this,arguments);
-      setTimeout(function(){
-        addHorizontalTouchScroll(document.getElementById('statusBar'));
-        addHorizontalTouchScroll(document.getElementById('statsStrip'));
-        fixScrollBars();
-      },100);
-    };
   }
 });
 
