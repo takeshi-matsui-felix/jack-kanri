@@ -2310,6 +2310,12 @@ function switchGanttTab(tab){
         return;
       }
       if(contentEl.getAttribute('data-loaded')===gsKey)return;
+      // メモリキャッシュに既にあれば即時描画（先読み済みの場合）
+      if(window._GANTT_SHEET_DATA&&window._GANTT_SHEET_DATA[gsKey]){
+        contentEl.setAttribute('data-loaded',gsKey);
+        contentEl.innerHTML=buildGanttSheetSection(window._GANTT_SHEET_DATA[gsKey]);
+        return;
+      }
       contentEl.innerHTML='<div style="color:#94a3b8;font-size:11px;padding:12px;text-align:center">読み込み中...</div>';
       _loadGanttSheetForProp(gsKey).then(function(data){
         contentEl.setAttribute('data-loaded',gsKey);
@@ -3074,7 +3080,10 @@ function openDetail(p){
   if(gsKey&&typeof _loadGanttSheetForProp==='function'){
     _loadGanttSheetForProp(gsKey).then(function(data){
       var contentEl=document.getElementById('gantt-excel-content');
-      if(!contentEl)return;
+      // contentElが存在する場合のみ即時描画（既にタブが開かれている場合）
+      // メモリキャッシュ(window._GANTT_SHEET_DATA)への保存は_loadGanttSheetForProp内で完了済み
+      // contentElがない場合もswitchGanttTab側でメモリキャッシュから即時描画する
+      if(!contentEl||contentEl.getAttribute('data-loaded')===gsKey)return;
       contentEl.setAttribute('data-loaded',gsKey);
       if(data){
         contentEl.innerHTML=buildGanttSheetSection(data);
