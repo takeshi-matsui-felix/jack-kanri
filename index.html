@@ -646,7 +646,14 @@ body.sp-mode .fr-row .fc:last-child{
 <div id="jackMainWrap">
 <div id="loading"><div class="ld-logo">JACK</div><div class="ld-sub">現場管理システム</div><div class="ld-dots"><span></span><span></span><span></span></div></div>
 <div id="app" class="mobile-mode">
-  <div class="top-header"><div class="th-left"><div><div class="th-logo">JACK</div><div class="th-sub">新築AP 現場管理</div></div></div><div class="th-right"><button class="th-icon-btn" id="modeToggleBtn" onclick="toggleMode()">🖥️</button><div class="th-today" id="todayBadge"></div><button class="print-btn" onclick="printPage()">🖨️</button><button class="th-icon-btn" onclick="openMenu()">☰</button></div></div>
+  <div class="top-header"><div class="th-left"><div><div class="th-logo">JACK</div><div class="th-sub">新築AP 現場管理</div></div></div><div class="th-right"><button class="th-icon-btn" onclick="togglePropSearch()" title="物件検索" id="propSearchBtn">🔍</button><button class="th-icon-btn" id="modeToggleBtn" onclick="toggleMode()">🖥️</button><div class="th-today" id="todayBadge"></div><button class="print-btn" onclick="printPage()">🖨️</button><button class="th-icon-btn" onclick="openMenu()">☰</button></div></div>
+  <div id="propSearchBar" style="display:none;background:#1e293b;padding:6px 10px;border-bottom:1px solid #334155;flex-shrink:0;">
+    <div style="display:flex;gap:6px;align-items:center;">
+      <input id="propSearchInput" type="text" placeholder="物件名・FiX No・エリアで検索…" oninput="doPropSearch(this.value)" style="flex:1;padding:6px 10px;border-radius:7px;border:1.5px solid #475569;background:#0f172a;color:white;font-size:12px;outline:none;">
+      <button onclick="togglePropSearch()" style="background:#475569;color:white;border:none;border-radius:7px;padding:6px 10px;font-size:11px;cursor:pointer;font-weight:700">✕</button>
+    </div>
+    <div id="propSearchResults" style="max-height:200px;overflow-y:auto;margin-top:4px;"></div>
+  </div>
   <div class="sync-banner" id="syncBanner"><div style="display:flex;align-items:center;gap:6px"><div class="sync-dot"></div><span class="sync-msg">起動中...</span></div><button onclick="doSyncFull()" style="color:rgba(255,255,255,.6);font-size:10px;font-weight:600;background:rgba(255,255,255,.1);padding:2px 7px;border-radius:4px">同期</button></div>
   <div class="area-tabs" id="areaTabs"></div>
   <div class="status-bar" id="statusBar"></div>
@@ -827,9 +834,8 @@ var SP_FREEZE_COLS = [
 var FREEZE_W = FREEZE_COLS.reduce(function(a,c){return a+c.w;},0);
 
 var PRE_COLS = [
-  { key:'status',        label:'ステータス',  w:56, cls:'hcell-darker' },
   { key:'confirm_done',  label:'確認申請\n完了日', w:56, cls:'hcell-darker' },
-  { key:'delivery_date', label:'引渡し日',    w:56, cls:'hcell-darker' }
+  { key:'delivery_date', label:'引渡し日',         w:56, cls:'hcell-darker' }
 ];
 var SP_PRE_COLS = [
   { key:'confirm_done',  label:'着工日',   w:52, cls:'hcell-darker', short:true },
@@ -1869,6 +1875,40 @@ function spMapToggleList(){
   }
 }
 window.spMapToggleList=spMapToggleList;
+function togglePropSearch(){
+  var bar=document.getElementById('propSearchBar');
+  var inp=document.getElementById('propSearchInput');
+  if(!bar)return;
+  var isOpen=bar.style.display!=='none';
+  bar.style.display=isOpen?'none':'block';
+  if(!isOpen&&inp){inp.value='';inp.focus();document.getElementById('propSearchResults').innerHTML='';}
+  if(typeof fixScrollBars==='function')setTimeout(fixScrollBars,50);
+}
+window.togglePropSearch=togglePropSearch;
+
+function doPropSearch(q){
+  var el=document.getElementById('propSearchResults');
+  if(!el)return;
+  if(!q||q.length<1){el.innerHTML='';return;}
+  var qn=q.toLowerCase();
+  var all=getAllProps();
+  var matches=all.filter(function(p){
+    return (p.name||'').toLowerCase().indexOf(qn)>=0
+      ||String(p.fix_no||'').indexOf(qn)>=0
+      ||(p.area||'').indexOf(q)>=0;
+  }).slice(0,15);
+  if(!matches.length){el.innerHTML='<div style="color:#94a3b8;font-size:11px;padding:8px">該当なし</div>';return;}
+  el.innerHTML=matches.map(function(p){
+    var days=daysUntil(p.delivery_date);
+    var urgStr=days!==null&&days>=0&&days<=30?'<span style="color:#ef4444;font-size:9px;font-weight:700"> ⚡'+days+'日</span>':'';
+    return '<div onclick="togglePropSearch();openDetail(getAllProps().find(function(x){return x.fix_no===\''+p.fix_no+'\';}))" style="padding:7px 10px;border-bottom:1px solid #334155;cursor:pointer;display:flex;align-items:center;justify-content:space-between;background:rgba(255,255,255,.03);border-radius:5px;margin-bottom:2px;">'
+      +'<div><div style="font-size:12px;font-weight:700;color:white">'+p.name+'</div><div style="font-size:9px;color:#94a3b8">FiX '+p.fix_no+' / '+p.area+'</div></div>'
+      +'<div style="text-align:right"><div style="font-size:9px;color:#64748b">'+(p.delivery_date?fmtDateShort(p.delivery_date):'')+'</div>'+urgStr+'</div>'
+      +'</div>';
+  }).join('');
+}
+window.doPropSearch=doPropSearch;
+
 function toggleMode(){setMode(!isPcMode);}
 
 // ===== STATS =====
@@ -1945,7 +1985,7 @@ function renderHeader(){
     el.textContent=c.label;si.appendChild(el);x+=c.w;
   });
 
-  var gx=PRE_W;
+  var gx=activePreC.reduce(function(a,c){return a+c.w;},0);
   var months={};
   VIS_DATES.forEach(function(d,i){
     if(!d)return;
@@ -7717,42 +7757,74 @@ function _parseGanttSheetXlsx(ws,jsonRows){
     var ri=_rN(addr),ci=_cN(addr);if(ri<0||ci<0)return;
     if(!bgMap[ri])bgMap[ri]={};bgMap[ri][ci]=hex;
   });
+
+  // 年はB4(index3,col1)から取得
   var baseYear=parseInt(String((jsonRows[3]&&jsonRows[3][1])||'').trim())||new Date().getFullYear();
-  var sections=[];var i=1;
-  while(i<jsonRows.length){
-    var row=jsonRows[i];var foundMonth=null,foundYear=baseYear;
-    for(var c=0;c<Math.min(row.length,10);c++){
-      var v=parseInt(String(row[c]||'').trim());
+
+  // 月セクションを検出：「数値(1-12) ＋ '月'が同じ行に存在」する行
+  var _isMonthHeaderRow=function(row){
+    var rowStr=row.map(function(v){return String(v||'').trim();});
+    for(var c=0;c<rowStr.length;c++){
+      var v=parseInt(rowStr[c]);
       if(v>=1&&v<=12){
-        if(c>0){var py=parseInt(String(row[c-1]||'').trim());if(py>=2020&&py<=2035)foundYear=py;}
-        foundMonth=v;break;
+        // 直後に'月'があるか確認
+        for(var nc=c+1;nc<=c+3&&nc<rowStr.length;nc++){
+          if(rowStr[nc]==='月')return{month:v,col:c};
+        }
       }
     }
-    if(foundMonth){
-      var dateRowIdx=-1;
-      for(var j=i+1;j<Math.min(i+5,jsonRows.length);j++){
-        var bn=String(jsonRows[j][1]||'').trim();
-        if(bn==='工程名'||bn==='工程'||bn==='作業名'){dateRowIdx=j;break;}
+    return null;
+  };
+
+  var sections=[];
+  var i=1;// 1行目はFIX ID
+  while(i<jsonRows.length){
+    var row=jsonRows[i];
+    var mh=_isMonthHeaderRow(row);
+    if(mh){
+      // 年を探す（同じ行または前の行）
+      var yr=baseYear;
+      var rowStr=row.map(function(v){return String(v||'').trim();});
+      for(var c2=0;c2<mh.col;c2++){var yv=parseInt(rowStr[c2]);if(yv>=2020&&yv<=2035){yr=yv;break;}}
+
+      // 「工程名」行を探す（月ヘッダーの直後2-3行以内）
+      var workNameRowIdx=-1;
+      for(var j=i+1;j<Math.min(i+4,jsonRows.length);j++){
+        if(String(jsonRows[j][1]||'').trim()==='工程名'){workNameRowIdx=j;break;}
       }
-      if(dateRowIdx<0){i++;continue;}
-      var startCol=4;var days=28;
-      var dateR=jsonRows[dateRowIdx];
-      var dc=0;for(dc=startCol;dc<dateR.length;dc++){if(!String(dateR[dc]||'').trim()&&!(bgMap[dateRowIdx]&&bgMap[dateRowIdx][dc]))break;}
-      days=Math.min(Math.max(dc-startCol,28),31);
-      var workRows=[];var k=dateRowIdx+2;
+      if(workNameRowIdx<0){i++;continue;}
+
+      // 日付列の開始はE列(index4)
+      var startCol=4;
+      // 日数はE列以降の非空セル数（最大31）
+      var dateRow=jsonRows[workNameRowIdx];
+      var days=0;
+      for(var dc=startCol;dc<dateRow.length;dc++){
+        if(String(dateRow[dc]||'').trim()||String(dateRow[dc]||'').trim()==='0'||(bgMap[workNameRowIdx]&&bgMap[workNameRowIdx][dc]))days++;
+        else if(days>5)break;
+      }
+      days=Math.min(Math.max(days,20),31);
+
+      // 工程行収集（workNameRowIdx+2行目から次の月ヘッダーまで）
+      var workRows=[];
+      var k=workNameRowIdx+2;// 日付行・曜日行をスキップ
       while(k<jsonRows.length){
-        var wrow=jsonRows[k];var isNext=false;
-        for(var nc=0;nc<Math.min(wrow.length,10);nc++){var nv=parseInt(String(wrow[nc]||'').trim());if(nv>=1&&nv<=12&&nc>0){isNext=true;break;}}
-        if(isNext)break;
+        var wrow=jsonRows[k];
+        if(_isMonthHeaderRow(wrow))break;
         var wname=String(wrow[1]||'').trim();
-        if(wname){
+        if(wname&&wname!=='工程名'){
           var cells=[];
-          for(var dc2=startCol;dc2<startCol+days;dc2++)cells.push({text:String(wrow[dc2]||'').trim(),color:(bgMap[k]&&bgMap[k][dc2])||''});
+          for(var dc2=startCol;dc2<startCol+days;dc2++){
+            cells.push({
+              text:String(wrow[dc2]||'').trim(),
+              color:(bgMap[k]&&bgMap[k][dc2])||''
+            });
+          }
           workRows.push({name:wname,cells:cells});
         }
         k++;
       }
-      if(workRows.length)sections.push({year:foundYear,month:foundMonth,days:days,rows:workRows});
+      if(workRows.length)sections.push({year:yr,month:mh.month,days:days,rows:workRows});
       i=k;
     }else{i++;}
   }
@@ -7827,9 +7899,26 @@ function buildGanttSheetSection(data){
     });
     html+='</div>';
   });
-  return '<div style="overflow-x:auto;-webkit-overflow-scrolling:touch;touch-action:pan-x pan-y;">'+html+'</div>';
+  return '<div>'
+    +'<div style="display:flex;justify-content:flex-end;padding:6px 8px;background:#f8fafc;border-bottom:1px solid #e2e8f0;">'
+      +'<button onclick="printGanttSheet(this)" style="background:#1a56db;color:white;border:none;border-radius:6px;padding:5px 14px;font-size:11px;font-weight:700;cursor:pointer">🖨️ この工程表を印刷</button>'
+    +'</div>'
+    +'<div id="ganttSheetPrintArea" style="overflow-x:auto;-webkit-overflow-scrolling:touch;touch-action:pan-x pan-y;">'+html+'</div>'
+    +'</div>';
 }
 window.buildGanttSheetSection=buildGanttSheetSection;
+
+function printGanttSheet(btn){
+  var area=document.getElementById('ganttSheetPrintArea');
+  if(!area)return;
+  var w=window.open('','_blank');
+  w.document.write('<html><head><title>Excel工程表</title><style>body{margin:0;font-family:sans-serif}*{box-sizing:border-box}</style></head><body>');
+  w.document.write(area.innerHTML);
+  w.document.write('</body></html>');
+  w.document.close();
+  setTimeout(function(){w.print();},400);
+}
+window.printGanttSheet=printGanttSheet;
 
 function switchGanttTab(tab){
   var cPane=document.getElementById('gantt-pane-custom');
