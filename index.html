@@ -7716,7 +7716,7 @@ function admHandleGanttSheetXlsx(input){
     reader.onload=function(e){
       try{
         var data=new Uint8Array(e.target.result);
-        var wb=XLSX.read(data,{type:'array',raw:false,cellStyles:true});
+        var wb=XLSX.read(data,{type:'array',raw:false,cellStyles:true,cellDates:true});
         var ws=wb.Sheets[wb.SheetNames[0]];
         var jsonRows=XLSX.utils.sheet_to_json(ws,{header:1,defval:'',raw:false});
         var fixNo=String((jsonRows[0]&&jsonRows[0][0])||'').trim();
@@ -7751,35 +7751,84 @@ window.admHandleGanttSheetXlsx=admHandleGanttSheetXlsx;
 
 // ===== Excel工程表 Canvas画像変換 =====
 // SheetJSのws(worksheet)をCanvasで1セルずつ描画しPNG DataURLを返す
+// セル値を表示文字列に変換（日付シリアル値・数値・文字列を適切に処理）
+function _cellDisplayText(cell){
+  if(!cell||cell.v===undefined||cell.v===null||cell.v==='')return '';
+  // cellDates:trueの場合Dateオブジェクトになる
+  if(cell.t==='d'||cell.v instanceof Date){
+    var d=cell.v instanceof Date?cell.v:new Date(cell.v);
+    if(isNaN(d.getTime()))return String(cell.v);
+    // Excelの書式文字列があれば参考にする
+    var fmt=(cell.z||'').toLowerCase();
+    if(fmt.indexOf('m/d')>=0||fmt.indexOf('yy')>=0||fmt.indexOf('mm')>=0){
+      return (d.getMonth()+1)+'/'+d.getDate();
+    }
+    // 曜日書式 (aaa / aaaa / ddd / dddd)
+    if(fmt.indexOf('aaa')>=0||fmt.indexOf('ddd')>=0){
+      var days=['日','月','火','水','木','金','土'];
+      return days[d.getDay()];
+    }
+    // 月のみ
+    if(fmt==='m'||fmt==='mm'){return String(d.getMonth()+1);}
+    // 日のみ
+    if(fmt==='d'||fmt==='dd'){return String(d.getDate());}
+    // デフォルト: 月/日
+    return (d.getMonth()+1)+'/'+d.getDate();
+  }
+  // 数値型でExcel日付シリアル値っぽい（1900-2100年に相当: 1〜73050）
+  if(cell.t==='n'&&typeof cell.v==='number'){
+    var fmt2=(cell.z||'').toLowerCase();
+    var isDateFmt=fmt2&&(fmt2.indexOf('yy')>=0||fmt2.indexOf('mm')>=0||fmt2.indexOf('dd')>=0||fmt2.indexOf('m/d')>=0||fmt2.indexOf('aaa')>=0||fmt2.indexOf('ddd')>=0);
+    if(isDateFmt){
+      // Excelシリアル値→Date変換（1900年1月1日=1）
+      var serial=cell.v;
+      if(serial>=60)serial--; // Excel 1900年うるう年バグ回避
+      var d2=new Date((serial-1)*86400000+Date.UTC(1899,11,31));
+      var fmt3=(cell.z||'').toLowerCase();
+      if(fmt3.indexOf('aaa')>=0||fmt3.indexOf('ddd')>=0){
+        var days2=['日','月','火','水','木','金','土'];
+        return days2[d2.getUTCDay()];
+      }
+      if(fmt3==='m'||fmt3==='mm')return String(d2.getUTCMonth()+1);
+      if(fmt3==='d'||fmt3==='dd')return String(d2.getUTCDate());
+      return (d2.getUTCMonth()+1)+'/'+d2.getUTCDate();
+    }
+    // 普通の数値: 小数点以下が0なら整数表示
+    return Number.isInteger(cell.v)?String(cell.v):String(Math.round(cell.v*100)/100);
+  }
+  // 文字列・その他
+  if(cell.w!==undefined&&cell.w!=='')return cell.w; // SheetJSの整形済み文字列優先
+  return String(cell.v);
+}
+window._cellDisplayText=_cellDisplayText;
+
 function _renderSheetToCanvas(ws){
   if(!ws||!ws['!ref'])return null;
   var range=XLSX.utils.decode_range(ws['!ref']);
   var numRows=range.e.r-range.s.r+1;
   var numCols=range.e.c-range.s.c+1;
 
-  // --- セル幅: !cols.wpx優先、wch*7、未定義は18px
-  var DEFAULT_COL=18;
+  // --- セル幅: !cols.wpx優先
   var colWidths=[];
   for(var ci2=0;ci2<numCols;ci2++){
     var colInfo=(ws['!cols']&&ws['!cols'][range.s.c+ci2]);
-    var wpx=DEFAULT_COL;
+    var wpx=18;
     if(colInfo){
-      if(colInfo.wpx&&colInfo.wpx>0)wpx=colInfo.wpx;
-      else if(colInfo.wch&&colInfo.wch>0)wpx=Math.round(colInfo.wch*7);
-      else if(colInfo.width&&colInfo.width>0)wpx=Math.round(colInfo.width*7);
+      if(colInfo.wpx>0)wpx=colInfo.wpx;
+      else if(colInfo.wch>0)wpx=Math.round(colInfo.wch*7);
+      else if(colInfo.width>0)wpx=Math.round(colInfo.width*7);
     }
     colWidths.push(Math.max(wpx,6));
   }
 
-  // --- 行高さ: !rows.hpx優先、hpt*1.333、未定義は18px
-  var DEFAULT_ROW=18;
+  // --- 行高さ: !rows.hpx優先
   var rowHeights=[];
   for(var ri2=0;ri2<numRows;ri2++){
     var rowInfo=(ws['!rows']&&ws['!rows'][range.s.r+ri2]);
-    var hpx=DEFAULT_ROW;
+    var hpx=18;
     if(rowInfo){
-      if(rowInfo.hpx&&rowInfo.hpx>0)hpx=rowInfo.hpx;
-      else if(rowInfo.hpt&&rowInfo.hpt>0)hpx=Math.round(rowInfo.hpt*1.333);
+      if(rowInfo.hpx>0)hpx=rowInfo.hpx;
+      else if(rowInfo.hpt>0)hpx=Math.round(rowInfo.hpt*1.333);
     }
     rowHeights.push(Math.max(hpx,8));
   }
@@ -7792,7 +7841,7 @@ function _renderSheetToCanvas(ws){
   var totalW=xOffsets[xOffsets.length-1]+colWidths[colWidths.length-1];
   var totalH=yOffsets[yOffsets.length-1]+rowHeights[rowHeights.length-1];
 
-  // --- 結合セルマップ（セルごとにmerges全走査しない高速版）
+  // --- 結合セルマップ
   var mergeMap={};
   var mergedSkip={};
   if(ws['!merges']){
@@ -7810,7 +7859,7 @@ function _renderSheetToCanvas(ws){
     });
   }
 
-  // --- セルに値があるかマップ（テキストはみ出し判定用）
+  // --- セルに値があるか（テキストはみ出し判定）
   var hasValue={};
   Object.keys(ws).forEach(function(addr){
     if(addr[0]==='!')return;
@@ -7818,7 +7867,7 @@ function _renderSheetToCanvas(ws){
     var col=0;for(var k=0;k<m[1].length;k++)col=col*26+(m[1].charCodeAt(k)-64);col--;
     var row=parseInt(m[2],10)-1;
     var cell=ws[addr];
-    var v=String(cell.v!==undefined?cell.v:'').trim();
+    var v=_cellDisplayText(cell);
     if(v)hasValue[(row-range.s.r)+','+(col-range.s.c)]=true;
   });
 
@@ -7833,8 +7882,6 @@ function _renderSheetToCanvas(ws){
   ctx.scale(scale,scale);
   ctx.fillStyle='#ffffff';
   ctx.fillRect(0,0,totalW,totalH);
-
-  var BORDER_COLOR='#b0b8c4';
 
   // --- アドレス→RC変換
   var _addrToRC=function(addr){
@@ -7867,7 +7914,7 @@ function _renderSheetToCanvas(ws){
     }
   });
 
-  // パス2: テキスト（Excelはみ出しルール再現）
+  // パス2: テキスト（セル型を考慮した表示値 + はみ出しルール）
   Object.keys(ws).forEach(function(addr){
     if(addr[0]==='!')return;
     var rc=_addrToRC(addr);
@@ -7875,7 +7922,7 @@ function _renderSheetToCanvas(ws){
     var key=rc.r+','+rc.c;
     if(mergedSkip[key])return;
     var cell=ws[addr];
-    var txt=String(cell.v!==undefined?cell.v:'').trim();
+    var txt=_cellDisplayText(cell);
     if(!txt)return;
     var x=xOffsets[rc.c],y=yOffsets[rc.r];
     var w=mergeMap[key]?mergeMap[key].w:colWidths[rc.c];
@@ -7886,7 +7933,6 @@ function _renderSheetToCanvas(ws){
     var fgRgb=(cell.s&&cell.s.color&&cell.s.color.rgb)||'000000';
     ctx.fillStyle='#'+(fgRgb.length===8?fgRgb.slice(2):fgRgb);
     var align=(cell.s&&cell.s.alignment&&cell.s.alignment.horizontal)||'general';
-    // はみ出し幅: 右隣が空なら右方向に許可
     var clipW=w;
     if((align==='general'||align==='left')&&!mergeMap[key]){
       var availW=w;
@@ -7909,23 +7955,65 @@ function _renderSheetToCanvas(ws){
     ctx.restore();
   });
 
-  // パス3: 格子線（テキストの上に描画）
-  ctx.strokeStyle=BORDER_COLOR;
+  // パス3: Excelの罫線を再現（cell.s.border）
+  // thin=1px, medium=2px, thick=3px; 色はborder.color.rgb
+  var BORDER_STYLES={thin:0.75,medium:1.5,thick:2.5,hair:0.5,dashed:0.75,dotted:0.5,dashDot:0.75,dashDotDot:0.75,slantDashDot:0.75,mediumDashed:1.5,mediumDashDot:1.5,mediumDashDotDot:1.5};
+  var DEFAULT_BORDER_COLOR='#d0d7de';
+  var drawnBorders={};
+
+  var _drawBorderLine=function(x1,y1,x2,y2,style,colorRgb){
+    var bkey=x1+'_'+y1+'_'+x2+'_'+y2;
+    // 太い線が優先（既に描いた線より太い場合のみ上書き）
+    var lw=BORDER_STYLES[style]||0.5;
+    if(drawnBorders[bkey]&&drawnBorders[bkey]>=lw)return;
+    drawnBorders[bkey]=lw;
+    var color=DEFAULT_BORDER_COLOR;
+    if(colorRgb&&colorRgb!=='000000'&&colorRgb!=='00000000'){
+      color='#'+(colorRgb.length===8?colorRgb.slice(2):colorRgb);
+    }else if(colorRgb==='000000'||colorRgb==='00000000'||colorRgb==='FF000000'){
+      color='#000000';
+    }
+    ctx.strokeStyle=color;
+    ctx.lineWidth=lw;
+    ctx.beginPath();
+    ctx.moveTo(x1,y1);ctx.lineTo(x2,y2);
+    ctx.stroke();
+  };
+
+  Object.keys(ws).forEach(function(addr){
+    if(addr[0]==='!')return;
+    var rc=_addrToRC(addr);
+    if(!rc||rc.r<0||rc.c<0||rc.r>=numRows||rc.c>=numCols)return;
+    var cell=ws[addr];
+    if(!cell.s||!cell.s.border)return;
+    var b=cell.s.border;
+    var x=xOffsets[rc.c],y=yOffsets[rc.r];
+    var key=rc.r+','+rc.c;
+    var w=mergeMap[key]?mergeMap[key].w:colWidths[rc.c];
+    var h=mergeMap[key]?mergeMap[key].h:rowHeights[rc.r];
+    var px=function(v){return Math.round(v)+0.5;};
+    if(b.top&&b.top.style)    _drawBorderLine(px(x),px(y),      px(x+w),px(y),      b.top.style,   b.top.color&&b.top.color.rgb);
+    if(b.bottom&&b.bottom.style)_drawBorderLine(px(x),px(y+h),  px(x+w),px(y+h),    b.bottom.style,b.bottom.color&&b.bottom.color.rgb);
+    if(b.left&&b.left.style)  _drawBorderLine(px(x),px(y),      px(x),  px(y+h),    b.left.style,  b.left.color&&b.left.color.rgb);
+    if(b.right&&b.right.style)_drawBorderLine(px(x+w),px(y),    px(x+w),px(y+h),    b.right.style, b.right.color&&b.right.color.rgb);
+  });
+
+  // パス4: デフォルト格子線（罫線未設定セル用の細いグレー線）
+  ctx.strokeStyle=DEFAULT_BORDER_COLOR;
   ctx.lineWidth=0.5;
   ctx.beginPath();
   for(var ci4=0;ci4<=numCols;ci4++){
     var lx=ci4<numCols?xOffsets[ci4]:totalW;
-    ctx.moveTo(lx+0.5,0);ctx.lineTo(lx+0.5,totalH);
+    ctx.moveTo(Math.round(lx)+0.5,0);ctx.lineTo(Math.round(lx)+0.5,totalH);
   }
   for(var ri4=0;ri4<=numRows;ri4++){
     var ly=ri4<numRows?yOffsets[ri4]:totalH;
-    ctx.moveTo(0,ly+0.5);ctx.lineTo(totalW,ly+0.5);
+    ctx.moveTo(0,Math.round(ly)+0.5);ctx.lineTo(totalW,Math.round(ly)+0.5);
   }
   ctx.stroke();
 
   return canvas;
 }
-
 function _buildSheetCanvasDataUrl(ws){
   try{
     var canvas=_renderSheetToCanvas(ws);
