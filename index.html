@@ -7723,6 +7723,11 @@ function admHandleGanttSheetXlsx(input){
         if(!fixNo){results.push({file:file.name,ok:false,msg:'A1にFIX IDがありません'});_chk();}
         else{
           var sheetData=_parseGanttSheetXlsx(ws,jsonRows);
+          // rawHtml生成: sheet_to_htmlでExcel構造をそのままHTML化しセル色をinline styleで付与
+          try{
+            var rawHtml=_buildRawHtmlFromSheet(ws);
+            if(rawHtml)sheetData.rawHtml=rawHtml;
+          }catch(e2){console.warn('rawHtml生成失敗:',e2);}
           results.push({file:file.name,ok:true,fixNo:fixNo,data:sheetData});_chk();
         }
       }catch(err){results.push({file:file.name,ok:false,msg:err.message});_chk();}
@@ -7743,6 +7748,65 @@ function admHandleGanttSheetXlsx(input){
   }
 }
 window.admHandleGanttSheetXlsx=admHandleGanttSheetXlsx;
+
+// ===== Excel生HTML生成（sheet_to_html + セル色inline style付与） =====
+function _buildRawHtmlFromSheet(ws){
+  if(!ws||!ws['!ref'])return '';
+  // SheetJSのsheet_to_htmlでベースHTMLを生成
+  var baseHtml=XLSX.utils.sheet_to_html(ws,{editable:false});
+  // セルアドレスごとの背景色マップを作成
+  var bgMap={};
+  var _toExcelAddr=function(r,c){
+    var col='';var n=c+1;
+    while(n>0){col=String.fromCharCode(65+(n-1)%26)+col;n=Math.floor((n-1)/26);}
+    return col+(r+1);
+  };
+  Object.keys(ws).forEach(function(addr){
+    if(addr[0]==='!')return;
+    var cell=ws[addr];if(!cell||!cell.s)return;
+    var fill=cell.s.fgColor||cell.s.bgColor||(cell.s.fill&&(cell.s.fill.fgColor||cell.s.fill.bgColor));
+    if(!fill)return;var rgb=fill.rgb;
+    if(!rgb||rgb==='FFFFFFFF'||rgb==='FF000000'||rgb==='00000000'||rgb.toUpperCase()==='FFFFFF')return;
+    var hex='#'+(rgb.length===8?rgb.slice(2):rgb);
+    bgMap[addr]=hex;
+  });
+  if(!Object.keys(bgMap).length)return baseHtml; // 色なしならそのまま返す
+  // sheet_to_htmlのTD/THにセル順でdata属性が振られないため、
+  // <tr>/<td>の出現順番でセルアドレスを割り出し背景色を注入
+  var range=XLSX.utils.decode_range(ws['!ref']);
+  var ri=range.s.r;
+  var result=baseHtml.replace(/<tr[^>]*>([\s\S]*?)<\/tr>/gi,function(trMatch,trInner){
+    if(ri>range.e.r){return trMatch;}
+    var ci=range.s.c;
+    var newTr=trInner.replace(/<td([^>]*)>([\s\S]*?)<\/td>/gi,function(tdMatch,tdAttrs,tdContent){
+      var addr=_toExcelAddr(ri,ci);
+      var bg=bgMap[addr];
+      ci++;
+      if(bg){
+        var colorStyle='background:'+bg+';-webkit-print-color-adjust:exact;print-color-adjust:exact;';
+        if(/style\s*=\s*"/i.test(tdAttrs)){
+          tdAttrs=tdAttrs.replace(/(style\s*=\s*")/i,'$1'+colorStyle);
+        }else{
+          tdAttrs+=' style="'+colorStyle+'"';
+        }
+      }
+      return '<td'+tdAttrs+'>'+tdContent+'</td>';
+    });
+    ri++;
+    return '<tr>'+newTr+'</tr>';
+  });
+  // ラッパーとスタイルを付与
+  return '<div class="excel-raw-sheet">'
+    +'<style>'
+    +'.excel-raw-sheet{overflow-x:auto;-webkit-overflow-scrolling:touch;touch-action:pan-x pan-y}'
+    +'.excel-raw-sheet table{border-collapse:collapse;font-family:"Hiragino Sans","Meiryo",sans-serif;font-size:9px;white-space:nowrap}'
+    +'.excel-raw-sheet td,.excel-raw-sheet th{border:1px solid #cbd5e1;padding:1px 4px;min-width:14px;height:18px;vertical-align:middle;-webkit-print-color-adjust:exact;print-color-adjust:exact}'
+    +'@media print{.excel-raw-sheet table{font-size:7px}.excel-raw-sheet td,.excel-raw-sheet th{height:14px;padding:1px 2px}}'
+    +'</style>'
+    +result
+    +'</div>';
+}
+window._buildRawHtmlFromSheet=_buildRawHtmlFromSheet;
 
 function _parseGanttSheetXlsx(ws,jsonRows){
   var bgMap={};
@@ -7869,7 +7933,20 @@ async function _loadGanttSheetForProp(fixNo){
 window._loadGanttSheetForProp=_loadGanttSheetForProp;
 
 function buildGanttSheetSection(data){
-  if(!data||!data.sections||!data.sections.length)return '';
+  if(!data)return '';
+  // rawHtmlがある場合はExcel生HTMLをiframeで表示（より忠実な再現）
+  if(data.rawHtml){
+    return '<div>'
+      +'<div style="display:flex;justify-content:space-between;align-items:center;padding:6px 8px;background:#f8fafc;border-bottom:1px solid #e2e8f0;">'
+        +'<span style="font-size:10px;color:#64748b">📊 Excel工程表（原本表示）</span>'
+        +'<button onclick="printGanttSheet(this)" style="background:#1a56db;color:white;border:none;border-radius:6px;padding:5px 14px;font-size:11px;font-weight:700;cursor:pointer">🖨️ この工程表を印刷</button>'
+      +'</div>'
+      +'<div id="ganttSheetPrintArea" style="overflow-x:auto;-webkit-overflow-scrolling:touch;touch-action:pan-x pan-y;padding:8px;">'
+        +data.rawHtml
+      +'</div>'
+      +'</div>';
+  }
+  if(!data.sections||!data.sections.length)return '';
   var COL=14;var html='';
   data.sections.forEach(function(sec){
     var days=sec.days||28;
@@ -7911,12 +7988,21 @@ window.buildGanttSheetSection=buildGanttSheetSection;
 function printGanttSheet(btn){
   var area=document.getElementById('ganttSheetPrintArea');
   if(!area)return;
-  var w=window.open('','_blank');
-  w.document.write('<html><head><title>Excel工程表</title><style>body{margin:0;font-family:sans-serif}*{box-sizing:border-box}</style></head><body>');
+  var w=window.open('','_blank','width=1200,height=900');
+  if(!w){showToast('ポップアップを許可してください','error');return;}
+  w.document.write('<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Excel工程表</title><style>'
+    +'*{box-sizing:border-box;margin:0;padding:0;-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important}'
+    +'body{font-family:"Hiragino Sans","Meiryo",sans-serif;background:white;padding:4mm}'
+    +'@media print{'
+    +'@page{size:A3 landscape;margin:6mm}'
+    +'body{padding:0}'
+    +'.no-print{display:none!important}'
+    +'}'
+    +'</style></head><body>');
   w.document.write(area.innerHTML);
+  w.document.write('<scr'+'ipt>setTimeout(function(){window.print();},600);<\/sc'+'ript>');
   w.document.write('</body></html>');
   w.document.close();
-  setTimeout(function(){w.print();},400);
 }
 window.printGanttSheet=printGanttSheet;
 
