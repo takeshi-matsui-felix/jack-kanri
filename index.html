@@ -7757,135 +7757,169 @@ function _renderSheetToCanvas(ws){
   var numRows=range.e.r-range.s.r+1;
   var numCols=range.e.c-range.s.c+1;
 
-  // --- セル幅をExcel !cols から取得（単位: character width → px換算）
-  // Excel character width ≈ 7px (at 96dpi, default font 11pt)
-  var COL_UNIT=7;
-  var DEFAULT_COL=14; // px
+  // --- セル幅: !cols.wpx優先、wch*7、未定義は18px
+  var DEFAULT_COL=18;
   var colWidths=[];
   for(var ci2=0;ci2<numCols;ci2++){
     var colInfo=(ws['!cols']&&ws['!cols'][range.s.c+ci2]);
-    var wpx=colInfo?
-      (colInfo.wpx||Math.round((colInfo.wch||colInfo.width||DEFAULT_COL/COL_UNIT)*COL_UNIT))
-      :DEFAULT_COL;
-    colWidths.push(Math.max(wpx,4));
+    var wpx=DEFAULT_COL;
+    if(colInfo){
+      if(colInfo.wpx&&colInfo.wpx>0)wpx=colInfo.wpx;
+      else if(colInfo.wch&&colInfo.wch>0)wpx=Math.round(colInfo.wch*7);
+      else if(colInfo.width&&colInfo.width>0)wpx=Math.round(colInfo.width*7);
+    }
+    colWidths.push(Math.max(wpx,6));
   }
 
-  // --- 行高さをExcel !rows から取得（単位: pt → px換算 1pt≈1.333px）
-  var ROW_PT_TO_PX=1.333;
-  var DEFAULT_ROW=18; // px
+  // --- 行高さ: !rows.hpx優先、hpt*1.333、未定義は18px
+  var DEFAULT_ROW=18;
   var rowHeights=[];
   for(var ri2=0;ri2<numRows;ri2++){
     var rowInfo=(ws['!rows']&&ws['!rows'][range.s.r+ri2]);
-    var hpx=rowInfo?
-      (rowInfo.hpx||Math.round((rowInfo.hpt||DEFAULT_ROW/ROW_PT_TO_PX)*ROW_PT_TO_PX))
-      :DEFAULT_ROW;
+    var hpx=DEFAULT_ROW;
+    if(rowInfo){
+      if(rowInfo.hpx&&rowInfo.hpx>0)hpx=rowInfo.hpx;
+      else if(rowInfo.hpt&&rowInfo.hpt>0)hpx=Math.round(rowInfo.hpt*1.333);
+    }
     rowHeights.push(Math.max(hpx,8));
   }
 
+  // --- 累積オフセット
+  var xOffsets=[0];
+  for(var i=0;i<colWidths.length-1;i++)xOffsets.push(xOffsets[i]+colWidths[i]);
+  var yOffsets=[0];
+  for(var i=0;i<rowHeights.length-1;i++)yOffsets.push(yOffsets[i]+rowHeights[i]);
+  var totalW=xOffsets[xOffsets.length-1]+colWidths[colWidths.length-1];
+  var totalH=yOffsets[yOffsets.length-1]+rowHeights[rowHeights.length-1];
+
+  // --- 結合セルマップ（セルごとにmerges全走査しない高速版）
+  var mergeMap={};
+  var mergedSkip={};
+  if(ws['!merges']){
+    ws['!merges'].forEach(function(mg){
+      var mw=0,mh=0;
+      for(var mc=mg.s.c;mc<=mg.e.c;mc++){var ci3=mc-range.s.c;if(ci3>=0&&ci3<numCols)mw+=colWidths[ci3];}
+      for(var mr2=mg.s.r;mr2<=mg.e.r;mr2++){var ri3=mr2-range.s.r;if(ri3>=0&&ri3<numRows)mh+=rowHeights[ri3];}
+      mergeMap[(mg.s.r-range.s.r)+','+(mg.s.c-range.s.c)]={w:mw,h:mh};
+      for(var mr3=mg.s.r;mr3<=mg.e.r;mr3++){
+        for(var mc2=mg.s.c;mc2<=mg.e.c;mc2++){
+          if(mr3===mg.s.r&&mc2===mg.s.c)continue;
+          mergedSkip[(mr3-range.s.r)+','+(mc2-range.s.c)]=true;
+        }
+      }
+    });
+  }
+
+  // --- セルに値があるかマップ（テキストはみ出し判定用）
+  var hasValue={};
+  Object.keys(ws).forEach(function(addr){
+    if(addr[0]==='!')return;
+    var m=addr.match(/^([A-Z]+)([0-9]+)$/);if(!m)return;
+    var col=0;for(var k=0;k<m[1].length;k++)col=col*26+(m[1].charCodeAt(k)-64);col--;
+    var row=parseInt(m[2],10)-1;
+    var cell=ws[addr];
+    var v=String(cell.v!==undefined?cell.v:'').trim();
+    if(v)hasValue[(row-range.s.r)+','+(col-range.s.c)]=true;
+  });
+
   // --- Canvas生成
-  var totalW=colWidths.reduce(function(a,b){return a+b;},0);
-  var totalH=rowHeights.reduce(function(a,b){return a+b;},0);
   var canvas=document.createElement('canvas');
-  var scale=window.devicePixelRatio||1; // Retinaでも綺麗に
+  var scale=Math.min(window.devicePixelRatio||1,2);
   canvas.width=totalW*scale;
   canvas.height=totalH*scale;
   canvas.style.width=totalW+'px';
   canvas.style.height=totalH+'px';
   var ctx=canvas.getContext('2d');
   ctx.scale(scale,scale);
-
-  // 背景を白に
   ctx.fillStyle='#ffffff';
   ctx.fillRect(0,0,totalW,totalH);
 
-  // --- 各セルの累積座標を計算
-  var xOffsets=[0];
-  for(var i=0;i<colWidths.length-1;i++) xOffsets.push(xOffsets[i]+colWidths[i]);
-  var yOffsets=[0];
-  for(var i=0;i<rowHeights.length-1;i++) yOffsets.push(yOffsets[i]+rowHeights[i]);
+  var BORDER_COLOR='#b0b8c4';
 
-  // --- アドレス→座標変換ヘルパー
+  // --- アドレス→RC変換
   var _addrToRC=function(addr){
-    var m=addr.match(/^([A-Z]+)(\d+)$/);
+    var m=addr.match(/^([A-Z]+)([0-9]+)$/);
     if(!m)return null;
-    var col=0;for(var k=0;k<m[1].length;k++)col=col*26+(m[1].charCodeAt(k)-64);
-    col--; // 0-indexed
-    var row=parseInt(m[2],10)-1;
-    return{r:row-range.s.r, c:col-range.s.c};
+    var col=0;for(var k=0;k<m[1].length;k++)col=col*26+(m[1].charCodeAt(k)-64);col--;
+    return{r:parseInt(m[2],10)-1-range.s.r, c:col-range.s.c};
   };
 
-  // --- セルを描画
-  var BORDER_COLOR='#b0b8c4'; // Excelデフォルト格子線の色
-  var BORDER_THIN=0.5;
-
+  // パス1: 背景色
   Object.keys(ws).forEach(function(addr){
     if(addr[0]==='!')return;
     var rc=_addrToRC(addr);
     if(!rc||rc.r<0||rc.c<0||rc.r>=numRows||rc.c>=numCols)return;
+    var key=rc.r+','+rc.c;
+    if(mergedSkip[key])return;
     var cell=ws[addr];
-    var x=xOffsets[rc.c], y=yOffsets[rc.r];
-    var w=colWidths[rc.c], h=rowHeights[rc.r];
-
-    // --- 結合セル考慮 (merges)
-    if(ws['!merges']){
-      ws['!merges'].forEach(function(mg){
-        if(rc.r+range.s.r===mg.s.r&&rc.c+range.s.c===mg.s.c){
-          // 結合範囲の幅・高さを合算
-          var mw=0,mh=0;
-          for(var mc=mg.s.c;mc<=mg.e.c;mc++){var ci3=mc-range.s.c;if(ci3>=0&&ci3<numCols)mw+=colWidths[ci3];}
-          for(var mr=mg.s.r;mr<=mg.e.r;mr++){var ri3=mr-range.s.r;if(ri3>=0&&ri3<numRows)mh+=rowHeights[ri3];}
-          w=mw;h=mh;
-        }
-      });
-    }
-
-    // --- 背景色
+    var x=xOffsets[rc.c],y=yOffsets[rc.r];
+    var w=mergeMap[key]?mergeMap[key].w:colWidths[rc.c];
+    var h=mergeMap[key]?mergeMap[key].h:rowHeights[rc.r];
     if(cell.s){
       var fill=cell.s.fgColor||cell.s.bgColor||(cell.s.fill&&(cell.s.fill.fgColor||cell.s.fill.bgColor));
       if(fill&&fill.rgb){
         var rgb=fill.rgb;
         if(rgb!=='FFFFFFFF'&&rgb!=='FF000000'&&rgb!=='00000000'&&rgb.toUpperCase()!=='FFFFFF'){
-          var hex='#'+(rgb.length===8?rgb.slice(2):rgb);
-          ctx.fillStyle=hex;
+          ctx.fillStyle='#'+(rgb.length===8?rgb.slice(2):rgb);
           ctx.fillRect(x,y,w,h);
         }
       }
     }
-
-    // --- テキスト描画
-    var txt=String(cell.v!==undefined?cell.v:'').trim();
-    if(txt){
-      // フォント設定
-      var bold=(cell.s&&cell.s.bold)||false;
-      var fontSize=Math.min(rowHeights[rc.r]*0.65, 11);
-      ctx.font=(bold?'bold ':'')+fontSize+'px "Hiragino Sans","Meiryo",sans-serif';
-      // テキスト色
-      var fgRgb=(cell.s&&cell.s.color&&cell.s.color.rgb)||'000000';
-      ctx.fillStyle='#'+(fgRgb.length===8?fgRgb.slice(2):fgRgb);
-      // 水平寄せ
-      var align=(cell.s&&cell.s.alignment&&cell.s.alignment.horizontal)||'left';
-      ctx.textAlign=align==='center'?'center':align==='right'?'right':'left';
-      var tx=align==='center'?x+w/2:align==='right'?x+w-2:x+2;
-      var ty=y+h/2+fontSize*0.35;
-      // クリッピングでセルからはみ出した文字を切らずに描画（Excelのデフォルト挙動）
-      // ただし次セルが空の場合はみ出す → 本Canvas実装では全文描画（切り抜きなし）
-      ctx.fillText(txt, tx, ty);
-    }
   });
 
-  // --- 格子線を一括描画（後から描くことで文字の上に線が乗る）
+  // パス2: テキスト（Excelはみ出しルール再現）
+  Object.keys(ws).forEach(function(addr){
+    if(addr[0]==='!')return;
+    var rc=_addrToRC(addr);
+    if(!rc||rc.r<0||rc.c<0||rc.r>=numRows||rc.c>=numCols)return;
+    var key=rc.r+','+rc.c;
+    if(mergedSkip[key])return;
+    var cell=ws[addr];
+    var txt=String(cell.v!==undefined?cell.v:'').trim();
+    if(!txt)return;
+    var x=xOffsets[rc.c],y=yOffsets[rc.r];
+    var w=mergeMap[key]?mergeMap[key].w:colWidths[rc.c];
+    var h=mergeMap[key]?mergeMap[key].h:rowHeights[rc.r];
+    var bold=(cell.s&&cell.s.bold)||false;
+    var fontSize=Math.min(h*0.62,11);
+    ctx.font=(bold?'bold ':'')+fontSize+'px "Hiragino Sans","Meiryo",sans-serif';
+    var fgRgb=(cell.s&&cell.s.color&&cell.s.color.rgb)||'000000';
+    ctx.fillStyle='#'+(fgRgb.length===8?fgRgb.slice(2):fgRgb);
+    var align=(cell.s&&cell.s.alignment&&cell.s.alignment.horizontal)||'general';
+    // はみ出し幅: 右隣が空なら右方向に許可
+    var clipW=w;
+    if((align==='general'||align==='left')&&!mergeMap[key]){
+      var availW=w;
+      for(var nc=rc.c+1;nc<numCols;nc++){
+        var nKey=rc.r+','+nc;
+        if(hasValue[nKey]||mergedSkip[nKey])break;
+        availW+=colWidths[nc];
+      }
+      var txtW=ctx.measureText(txt).width;
+      clipW=Math.min(availW,Math.max(w,txtW+4));
+    }
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(x,y,clipW,h);
+    ctx.clip();
+    ctx.textAlign=align==='center'?'center':align==='right'?'right':'left';
+    var tx=align==='center'?x+w/2:align==='right'?x+w-2:x+2;
+    var ty=y+h/2+fontSize*0.36;
+    ctx.fillText(txt,tx,ty);
+    ctx.restore();
+  });
+
+  // パス3: 格子線（テキストの上に描画）
   ctx.strokeStyle=BORDER_COLOR;
-  ctx.lineWidth=BORDER_THIN;
+  ctx.lineWidth=0.5;
   ctx.beginPath();
-  // 縦線
   for(var ci4=0;ci4<=numCols;ci4++){
     var lx=ci4<numCols?xOffsets[ci4]:totalW;
-    ctx.moveTo(lx+0.5,0); ctx.lineTo(lx+0.5,totalH);
+    ctx.moveTo(lx+0.5,0);ctx.lineTo(lx+0.5,totalH);
   }
-  // 横線
   for(var ri4=0;ri4<=numRows;ri4++){
     var ly=ri4<numRows?yOffsets[ri4]:totalH;
-    ctx.moveTo(0,ly+0.5); ctx.lineTo(totalW,ly+0.5);
+    ctx.moveTo(0,ly+0.5);ctx.lineTo(totalW,ly+0.5);
   }
   ctx.stroke();
 
