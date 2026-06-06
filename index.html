@@ -1,6 +1,6 @@
 <!DOCTYPE html><html lang="ja"><head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=1.0,user-scalable=no">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -3695,7 +3695,7 @@ function openSelectProp(){
           ||(p.fix_no||'').toLowerCase().indexOf(q)>=0;
       });
     }
-    var tabHtml='<div style="position:sticky;top:0;z-index:10;background:white">'
+    var tabHtml='<div id="_spTabBar" style="position:sticky;top:0;z-index:10;background:white">'
       +'<div style="display:flex;border-bottom:2px solid #e2e8f0;">'
       +tabDefs.map(function(t){
         var act=t.id===selTab;
@@ -3704,13 +3704,13 @@ function openSelectProp(){
       +'<div style="padding:8px;border-bottom:1px solid #e2e8f0;background:white">'
         +'<div style="display:flex;align-items:center;gap:6px;background:#f1f5f9;border-radius:8px;padding:6px 10px">'
           +'<span style="font-size:13px">🔍</span>'
-          +'<input id="selectPropSearch" type="text" placeholder="物件名・FiX No で検索" value="'+searchQuery.replace(/"/g,'&quot;')+'" '
-            +'style="flex:1;border:none;background:transparent;font-size:12px;outline:none;color:#1e293b" '
-            +'oninput="(function(v){selectPropSearchQuery=v;renderSelectPropContent();})((this.value))"/>'
-          +(searchQuery?'<button onclick="selectPropSearchQuery=\'\';renderSelectPropContent()" style="border:none;background:none;color:#94a3b8;font-size:14px;cursor:pointer;padding:0">✕</button>':'')
+          +'<input id="selectPropSearch" type="text" placeholder="物件名・FiX No で検索" '
+            +'style="flex:1;border:none;background:transparent;font-size:16px;outline:none;color:#1e293b" />'
+          +'<button id="selectPropSearchClear" style="border:none;background:none;color:#94a3b8;font-size:14px;cursor:pointer;padding:0;display:none">✕</button>'
         +'</div>'
       +'</div>'
-      +'</div>';
+      +'</div>'
+      +'<div id="_spList"></div>';
 
     var itemsHtml=list.map(function(p){
       var eid='spi-'+p.fix_no+'-'+encodeURIComponent(p.name).replace(/[%]/g,'_');
@@ -3731,12 +3731,68 @@ function openSelectProp(){
     }).join('')||'<div style="padding:16px;text-align:center;color:var(--g400);font-size:12px">該当物件なし</div>';
 
     var el=document.getElementById('selectPropContent');
-    if(el){
-      el.innerHTML=tabHtml+itemsHtml;
+    if(!el)return;
+    var listEl=document.getElementById('_spList');
+    if(!listEl){
+      // 初回: タブ・検索バー・リストを全部描画
+      el.innerHTML=tabHtml;
+      listEl=document.getElementById('_spList');
       // タブクリック
       el.querySelectorAll('[data-stab]').forEach(function(btn){
         btn.addEventListener('click',function(){selTab=btn.getAttribute('data-stab');renderSelectContent();});
       });
+      // 検索バーのイベント（inputごとにlistだけ再描画）
+      var searchEl=document.getElementById('selectPropSearch');
+      var clearEl=document.getElementById('selectPropSearchClear');
+      if(searchEl){
+        searchEl.value=searchQuery;
+        searchEl.addEventListener('input',function(){
+          searchQuery=this.value;
+          window.selectPropSearchQuery=searchQuery;
+          clearEl.style.display=searchQuery?'':'none';
+          // listのみ更新（検索バーはそのまま）
+          renderListOnly();
+        });
+      }
+      if(clearEl){
+        clearEl.addEventListener('click',function(){
+          searchQuery='';
+          window.selectPropSearchQuery='';
+          var se=document.getElementById('selectPropSearch');
+          if(se){se.value='';se.focus();}
+          clearEl.style.display='none';
+          renderListOnly();
+        });
+      }
+    } else {
+      // 再描画時: タブのアクティブ状態だけ更新
+      el.querySelectorAll('[data-stab]').forEach(function(btn){
+        var act=btn.getAttribute('data-stab')===selTab;
+        btn.style.borderBottomColor=act?'#1a56db':'transparent';
+        btn.style.color=act?'#1a56db':'#94a3b8';
+      });
+    }
+    if(listEl)listEl.innerHTML=itemsHtml;
+    // listのみ更新する内部関数
+    function renderListOnly(){
+      var q=searchQuery.toLowerCase();
+      var filtered=active.filter(function(p){
+        var td=tabDefs.find(function(t){return t.id===selTab;});
+        if(!td||td.id==='all'){if(isRaikin(p)||isKankou(p))return false;}
+        else if(td.raikin){if(!isRaikin(p)||isKankou(p))return false;}
+        else{if(!td.areas||td.areas.indexOf(normalizeArea(p))<0||isRaikin(p)||isKankou(p))return false;}
+        if(!q)return true;
+        return (p.name||'').toLowerCase().indexOf(q)>=0||(p.fix_no||'').toLowerCase().indexOf(q)>=0;
+      });
+      var html=filtered.map(function(p){
+        var eid='spi-'+p.fix_no+'-'+encodeURIComponent(p.name).replace(/[%]/g,'_');
+        var checked=isFav(p);
+        var area=normalizeArea(p);
+        var areaColor=TOKAI_AREAS.indexOf(area)>=0?'#1a56db':KANTO_AREAS.indexOf(area)>=0?'#10b981':'#94a3b8';
+        return '<div class="select-prop-item" id="'+eid+'" onclick="toggleFavItem(\''+p.fix_no+'\',\''+encodeURIComponent(p.name)+'\',\''+eid+'\')">'          +'<div class="spi-check'+(checked?' checked':'')+'">'+( checked?'✓':'')+'</div>'          +'<div style="flex:1;min-width:0">'            +'<div class="spi-name" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+p.name+'</div>'            +'<div style="font-size:9px;color:var(--g400);display:flex;gap:6px">'              +'<span style="color:'+areaColor+';font-weight:700">'+area+'</span>'              +'<span>FiX:'+p.fix_no+'</span>'              +(p.delivery_date?'<span>引渡:'+normDate(p.delivery_date)+'</span>':'')            +'</div>'          +'</div>'          +'</div>';
+      }).join('')||'<div style="padding:16px;text-align:center;color:var(--g400);font-size:12px">該当物件なし</div>';
+      var ll=document.getElementById('_spList');
+      if(ll)ll.innerHTML=html;
     }
   }
 
@@ -8493,44 +8549,51 @@ function printGanttSheet(btn){
   var area=document.getElementById('ganttSheetPrintArea');
   if(!area)return;
   var imgEl=area.querySelector('img');
-  var w=window.open('','_blank','width=1400,height=900');
-  if(!w){showToast('ポップアップを許可してください','error');return;}
-  // imgの元サイズを取得してアスペクト比を保持
+  var imgSrc=imgEl?imgEl.src:'';
   var imgW=imgEl?imgEl.naturalWidth||imgEl.width||1200:1200;
   var imgH=imgEl?imgEl.naturalHeight||imgEl.height||800:800;
-  w.document.write('<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Excel工程表</title><style>'
-    +'*{box-sizing:border-box;margin:0;padding:0}'
-    +'html,body{width:100%;background:white}'
-    +'body{padding:4mm}'
-    +'.sheet-img{'
-    +'  display:block;'
-    +'  width:100%;'  // 画面表示時はウィンドウ幅に合わせる
-    +'  height:auto;'
-    +'}'
+  // 既存のiframeを削除
+  var old=document.getElementById('_ganttPrintFrame');
+  if(old)old.parentNode.removeChild(old);
+  // 非表示iframeを作成（元画面を離れずに印刷できる）
+  var ifr=document.createElement('iframe');
+  ifr.id='_ganttPrintFrame';
+  ifr.style.cssText='position:fixed;top:0;left:0;width:0;height:0;border:none;visibility:hidden;';
+  document.body.appendChild(ifr);
+  var doc=ifr.contentWindow.document;
+  var innerHtml=imgSrc
+    ? '<img src="'+imgSrc+'" style="width:100%;height:auto;display:block;" width="'+imgW+'" height="'+imgH+'">'
+    : area.innerHTML;
+  doc.open();
+  doc.write('<!DOCTYPE html><html><head>'
+    +'<meta charset="UTF-8">'
+    +'<meta name="viewport" content="width=device-width,initial-scale=1.0">'
+    +'<title>Excel工程表</title>'
+    +'<style>'
+    +'*{box-sizing:border-box;margin:0;padding:0;-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important}'
+    +'html,body{background:white;}'
+    +'img{max-width:100%;height:auto;display:block}'
     +'@media print{'
     +'@page{size:A3 landscape;margin:5mm}'
-    +'body{padding:0;margin:0}'
-    +'.sheet-img{'
-    +'  display:block;'
-    +'  width:100%;'  // 印刷時はページ幅に自動フィット
-    +'  height:auto;'
-    +'  max-height:100%;'
+    +'img{width:100%;height:auto}'
     +'}'
-    +'}'
-    +'</style></head><body>');
-  if(imgEl){
-    w.document.write('<img class="sheet-img" src="'+imgEl.src+'" width="'+imgW+'" height="'+imgH+'">');
-  }else{
-    w.document.write('<style>'
-      +'*{-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important}'
-      +'table{border-collapse:collapse;font-family:"Hiragino Sans","Meiryo",sans-serif;font-size:8px;width:100%}'
-      +'td,th{border:1px solid #b0b8c4;padding:1px 3px;height:16px;vertical-align:middle}'
-      +'</style>');
-    w.document.write(area.innerHTML);
-  }
-  w.document.write('<scr'+'ipt>setTimeout(function(){window.print();},600);<\/sc'+'ript>');
-  w.document.write('</body></html>');
-  w.document.close();
+    +'</style>'
+    +'</head><body>'+innerHtml+'</body></html>');
+  doc.close();
+  // ロード完了後に印刷
+  ifr.onload=function(){
+    try{
+      ifr.contentWindow.focus();
+      ifr.contentWindow.print();
+    }catch(e){
+      // iOS Safari フォールバック: 画像を直接開く
+      if(imgSrc){window.open(imgSrc,'_blank');}
+    }
+    // 印刷後にiframeを削除
+    setTimeout(function(){
+      if(ifr.parentNode)ifr.parentNode.removeChild(ifr);
+    },3000);
+  };
 }
 window.printGanttSheet=printGanttSheet;
 
