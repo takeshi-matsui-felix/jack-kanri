@@ -7727,6 +7727,21 @@ function admHandleGanttSheetXlsx(input){
           // canvasDataUrlは各端末で生成するためここでは生成しない
           try{
             sheetData.draw_data=_buildDrawData(ws);
+            // デバッグ: borderデータ取得状況をコンソールに出力
+            (function(){
+              var dd=sheetData.draw_data;
+              if(!dd)return;
+              var total=Object.keys(dd.cells).length;
+              var withBg=Object.keys(dd.cells).filter(function(k){return dd.cells[k].bg;}).length;
+              var withBo=Object.keys(dd.cells).filter(function(k){return dd.cells[k].bo;}).length;
+              var withV=Object.keys(dd.cells).filter(function(k){return dd.cells[k].v;}).length;
+              var sizeKB=Math.round(JSON.stringify(dd).length/1024);
+              console.log('[JACK draw_data] '+file.name+': cells='+total+', text='+withV+', bg='+withBg+', border='+withBo+', size='+sizeKB+'KB');
+              // borderがあるセルのサンプルを表示
+              var boSamples=Object.keys(dd.cells).filter(function(k){return dd.cells[k].bo;}).slice(0,3);
+              if(boSamples.length)console.log('[JACK border samples]', boSamples.map(function(k){return k+':'+dd.cells[k].bo;}));
+              else console.warn('[JACK] border=0: SheetJSがcellStyles未取得の可能性あり');
+            })();
           }catch(e2){console.warn('wsシリアライズ失敗:',e2);}
           // 管理者端末では即Canvas生成してメモリに持つ（即時表示用）
           try{
@@ -8042,7 +8057,11 @@ function _buildDrawData(ws){
     // テキスト値（_cellDisplayTextと同じロジックでここでも変換）
     var txt='';
     if(cell.v!==undefined&&cell.v!==null&&cell.v!==''){
-      if(cell.w&&cell.w.trim())txt=cell.w.trim();
+      var fmt0=(cell.z||'').toLowerCase();
+      var isDateFmt0=fmt0&&(fmt0.indexOf('aaa')>=0||fmt0.indexOf('ddd')>=0||fmt0.indexOf('yy')>=0||fmt0.indexOf('m/d')>=0||/^[md]+$/.test(fmt0));
+      // cell.wが書式文字列そのもの（"aaa","m","d"等）の場合は無視して自前変換する
+      var wOk=cell.w&&cell.w.trim()&&(!isDateFmt0||cell.w.trim().length>4);
+      if(wOk)txt=cell.w.trim();
       else if(cell.v instanceof Date){
         var fmt=(cell.z||'').toLowerCase();
         var d=cell.v;
