@@ -4510,7 +4510,8 @@ function startEditMaster(idx){
     // ★ offsetFrom/offsetDaysを必ず保持（旧コードで消えていた）
     steps:myMasters[idx].steps.map(function(s){
       return{name:s.name,dur:s.dur||s.days||1,color:s.color||'#64748b',
-             layer:0, offsetFrom:s.offsetFrom||'', offsetDays:s.offsetDays!=null?s.offsetDays:0};
+             layer:0, offsetFrom:s.offsetFrom||'', offsetDays:s.offsetDays!=null?s.offsetDays:0,
+             start_date:s.start_date||'', offset:0};
     })
   };
   openMasterEditor();
@@ -4559,9 +4560,14 @@ function computeMasterEditorSegs(steps){
     var startDate;
 
     if(step.offsetFrom==='基礎完了'&&kisoEndDate&&step.offsetDays!=null){
+      // 基礎完了からのオフセット
       var od=step.offsetDays;
       startDate=od>0?addWorkdays(kisoEndDate,od):kisoEndDate;
+    } else if(step.start_date&&step.offsetFrom!=='基礎完了'){
+      // 手動移動で固定されたstart_date（前工程連鎖しない）
+      startDate=step.start_date;
     } else {
+      // 前工程連鎖
       startDate=addWorkdays(prevEnd,1);
     }
 
@@ -4911,7 +4917,31 @@ function onMasterBarDrag(e){
   if(wrap){var wr=wrap.getBoundingClientRect();if(e.clientX>wr.right-60)wrap.scrollLeft+=12;else if(e.clientX<wr.left+60)wrap.scrollLeft-=12;}
 }
 function stopMasterBarDrag(){
-  if(mBarDrag){mBarDrag.bar.style.cursor='grab';mBarDrag.bar.style.zIndex='';mBarDrag.bar.style.opacity='';mBarDrag=null;}
+  if(mBarDrag){
+    var stepIdx=mBarDrag.stepIdx;
+    mBarDrag.bar.style.cursor='grab';mBarDrag.bar.style.zIndex='';mBarDrag.bar.style.opacity='';
+    // ドラッグ量をステップ定義に永続化
+    var step=editingMaster.steps[stepIdx];
+    var dayShift=step.offset||0;
+    if(dayShift!==0){
+      if(step.offsetFrom==='基礎完了'){
+        // offsetDaysに加算してoffsetをリセット
+        step.offsetDays=(step.offsetDays||0)+dayShift;
+      } else {
+        // start_dateを直接更新（前工程連鎖ステップ）
+        // computeMasterEditorSegsで計算されたstart_dateを元にdayShift分ずらす
+        var computedSegs=masterGanttSegs||[];
+        var seg=computedSegs.find(function(s){return s.stepIdx===stepIdx;});
+        if(seg&&seg.start_date){
+          var d=new Date(seg.start_date.replace(/[/]/g,'-'));
+          d.setDate(d.getDate()+dayShift);
+          step.start_date=d.toISOString().slice(0,10);
+        }
+      }
+      step.offset=0; // offsetはリセット
+    }
+    mBarDrag=null;
+  }
   document.removeEventListener('pointermove',onMasterBarDrag);
   document.removeEventListener('pointerup',stopMasterBarDrag);
   renderMasterGantt();
@@ -8363,7 +8393,7 @@ function buildGanttSheetSection(data){
   // canvasDataUrlがある場合はCanvas画像で表示（Excelと同じ見た目を保証）
   if(data.canvasDataUrl){
     // PC: 横幅100%に収めて縦スクロール / SP: 横スクロール維持
-    var isPc=typeof isPcMode==='function'?isPcMode():(window.isPcMode&&window.isPcMode());
+    var isPc=!!isPcMode; // isPcModeはboolean変数
     var imgStyle=isPc
       ? 'width:100%;height:auto;display:block;'           // PC: コンテナ幅に収める
       : 'max-width:none;height:auto;display:block;';      // SP: 元サイズ横スクロール
