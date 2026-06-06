@@ -26,7 +26,7 @@
   --freeze-w:150px;
 }
 *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
-html,body{height:100%;font-family:var(--font);background:#0f172a;overflow:clip;touch-action:pan-x pan-y;}
+html,body{height:100%;font-family:var(--font);background:#0f172a;overflow:clip;touch-action:pan-x pan-y pinch-zoom;}
 body{display:flex;flex-direction:row;}
 button{font-family:var(--font);cursor:pointer;border:none;background:none}
 input,textarea,select{font-family:var(--font)}
@@ -104,7 +104,7 @@ input,textarea,select{font-family:var(--font)}
 /* TABLE BODY */
 .table-body{flex:1;display:flex;overflow:clip;min-height:0}
 .freeze-body{width:var(--freeze-w);min-width:var(--freeze-w);max-width:var(--freeze-w);flex-shrink:0;overflow-x:clip;overflow-y:hidden;border-right:2px solid #475569}
-.scroll-body{flex:1;overflow-x:auto;overflow-y:auto;-webkit-overflow-scrolling:touch;touch-action:pan-x pan-y;will-change:scroll-position;overscroll-behavior:contain;}
+.scroll-body{flex:1;overflow-x:auto;overflow-y:auto;-webkit-overflow-scrolling:touch;touch-action:pan-x pan-y pinch-zoom;will-change:scroll-position;overscroll-behavior:contain;}
 .scroll-body::-webkit-scrollbar{height:4px;width:4px}
 .scroll-body::-webkit-scrollbar-thumb{background:var(--g300);border-radius:2px}
 
@@ -319,7 +319,7 @@ input,textarea,select{font-family:var(--font)}
 html,body{margin:0;padding:0;height:100%;}
 body{display:flex;overflow:clip;}
 #jackSidebar{width:200px;flex-shrink:0;background:#1e293b;display:flex;flex-direction:column;overflow:clip;z-index:200;}
-#jackMainWrap{flex:1;display:flex;flex-direction:column;overflow:clip;min-width:0;touch-action:pan-x pan-y;}
+#jackMainWrap{flex:1;display:flex;flex-direction:column;overflow:clip;min-width:0;touch-action:pan-x pan-y pinch-zoom;}
 .sb-head{padding:11px 14px 9px;border-bottom:1px solid rgba(255,255,255,.1);display:flex;align-items:center;gap:10px;}
 .sb-logo-title{font-size:18px;font-weight:900;color:white;}
 .sb-logo-sub{font-size:9px;color:rgba(255,255,255,.45);margin-top:1px;}
