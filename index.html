@@ -2707,21 +2707,20 @@ function geApplyKisoAnchor(movedIdx){
     var dur=s.dur||s.duration||1;
     var startDate;
     if(stepDef&&stepDef.offsetFrom==='基礎完了'&&stepDef.offsetDays!=null){
+      // templateにoffsetFromが定義されているバーのみ再配置
       var od=stepDef.offsetDays;
       startDate=od>0?addWorkdays(kisoEnd,od):kisoEnd;
-    } else {
-      // offsetFrom未定義の工程はkisoEnd翌日から（保険）
-      startDate=addWorkdays(kisoEnd,1);
+      var sd2=new Date(startDate.replace(/[/]/g,'-'));
+      while(sd2.getDay()===0)sd2.setDate(sd2.getDate()+1);
+      startDate=sd2.toISOString().slice(0,10);
+      var endStr2=endOfWorkdays(startDate,dur);
+      s.start_date=startDate; s.date=startDate; s.end_date=endStr2;
+      s.calendar_dur=calendarDur(startDate,endStr2);
+      var nc=FULL_DATE_IDX[startDate];
+      if(nc===undefined){var fks=Object.keys(FULL_DATE_IDX);for(var fki=0;fki<fks.length;fki++){if(fks[fki]>=startDate){nc=FULL_DATE_IDX[fks[fki]];break;}}}
+      if(nc!==undefined)s.col=nc;
     }
-    var sd2=new Date(startDate.replace(/[/]/g,'-'));
-    while(sd2.getDay()===0)sd2.setDate(sd2.getDate()+1);
-    startDate=sd2.toISOString().slice(0,10);
-    var endStr2=endOfWorkdays(startDate,dur);
-    s.start_date=startDate; s.date=startDate; s.end_date=endStr2;
-    s.calendar_dur=calendarDur(startDate,endStr2);
-    var nc=FULL_DATE_IDX[startDate];
-    if(nc===undefined){var fks=Object.keys(FULL_DATE_IDX);for(var fki=0;fki<fks.length;fki++){if(fks[fki]>=startDate){nc=FULL_DATE_IDX[fks[fki]];break;}}}
-    if(nc!==undefined)s.col=nc;
+    // offsetFromなし（手動追加バー等）は start_date をそのまま維持
   }
 }
 
@@ -4686,7 +4685,8 @@ function addMasterStepSidebar(){
   if(!nm){showToast('工種名を入力してください','error');return;}
   if(!dv||isNaN(dur)||dur<1){showToast('日数を入力してください','error');return;}
   var color=window._mNewSelColor||'#64748b';
-  editingMaster.steps.push({name:nm,dur:dur,color:color,layer:0,offset:0});
+  // offsetFromを付けないことで「前工程末尾の翌稼働日」連鎖（基礎に強制紐付けしない）
+  editingMaster.steps.push({name:nm,dur:dur,color:color,layer:0,offset:0,offsetFrom:'',offsetDays:0});
   document.getElementById('mNewName').value='';
   document.getElementById('mNewDays').value='';
   renderMasterStepList(); renderMasterGantt();
@@ -4716,12 +4716,8 @@ function deleteMasterStep(idx){
 function insertMasterStep(afterIdx){
   var nm=prompt('工種名を入力してください','新工種');if(!nm)return;
   var dur=parseInt(prompt('工期（稼働日数）','7'))||7;
-  // 基礎より後なら基礎完了オフセット、前なら順次連鎖
-  var kisoIdx=editingMaster.steps.findIndex(function(s){return s.name==='基礎';});
-  var useOffset=kisoIdx>=0&&afterIdx>=kisoIdx;
-  var newStep=useOffset
-    ?{name:nm,dur:dur,color:'#64748b',layer:0,offsetFrom:'基礎完了',offsetDays:0}
-    :{name:nm,dur:dur,color:'#64748b',layer:0,offsetFrom:'',offsetDays:0};
+  // 常に前工程連鎖で追加（基礎完了に強制紐付けしない）
+  var newStep={name:nm,dur:dur,color:'#64748b',layer:0,offsetFrom:'',offsetDays:0};
   editingMaster.steps.splice(afterIdx+1,0,newStep);
   renderMasterStepList();renderMasterGantt();
   showToast('「'+nm+'」を挿入しました','success');
@@ -4729,11 +4725,8 @@ function insertMasterStep(afterIdx){
 function addMasterStepEnd(){
   var nm=prompt('工種名','新工種');if(!nm)return;
   var dur=parseInt(prompt('工期（稼働日）','7'))||7;
-  var kisoIdx=editingMaster.steps.findIndex(function(s){return s.name==='基礎';});
-  var useOffset=kisoIdx>=0;
-  var newStep=useOffset
-    ?{name:nm,dur:dur,color:'#64748b',layer:0,offsetFrom:'基礎完了',offsetDays:0}
-    :{name:nm,dur:dur,color:'#64748b',layer:0,offsetFrom:'',offsetDays:0};
+  // 常に前工程連鎖で追加（基礎完了に強制紐付けしない）
+  var newStep={name:nm,dur:dur,color:'#64748b',layer:0,offsetFrom:'',offsetDays:0};
   editingMaster.steps.push(newStep);
   renderMasterStepList();renderMasterGantt();
 }
@@ -8368,7 +8361,7 @@ function buildGanttSheetSection(data){
   // canvasDataUrlがある場合はCanvas画像で表示（Excelと同じ見た目を保証）
   if(data.canvasDataUrl){
     // PC: 横幅100%に収めて縦スクロール / SP: 横スクロール維持
-    var isPc=window.isPcMode&&window.isPcMode();
+    var isPc=typeof isPcMode==='function'?isPcMode():(window.isPcMode&&window.isPcMode());
     var imgStyle=isPc
       ? 'width:100%;height:auto;display:block;'           // PC: コンテナ幅に収める
       : 'max-width:none;height:auto;display:block;';      // SP: 元サイズ横スクロール
