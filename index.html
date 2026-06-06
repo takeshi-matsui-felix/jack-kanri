@@ -8419,26 +8419,38 @@ window.buildGanttSheetSection=buildGanttSheetSection;
 function printGanttSheet(btn){
   var area=document.getElementById('ganttSheetPrintArea');
   if(!area)return;
-  // Canvas画像(img)があれば src をそのまま使う
   var imgEl=area.querySelector('img');
-  var w=window.open('','_blank','width=1200,height=900');
+  var w=window.open('','_blank','width=1400,height=900');
   if(!w){showToast('ポップアップを許可してください','error');return;}
+  // imgの元サイズを取得してアスペクト比を保持
+  var imgW=imgEl?imgEl.naturalWidth||imgEl.width||1200:1200;
+  var imgH=imgEl?imgEl.naturalHeight||imgEl.height||800:800;
   w.document.write('<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Excel工程表</title><style>'
     +'*{box-sizing:border-box;margin:0;padding:0}'
-    +'body{background:white;padding:4mm}'
-    +'img{max-width:100%;height:auto;display:block}'
+    +'html,body{width:100%;background:white}'
+    +'body{padding:4mm}'
+    +'.sheet-img{'
+    +'  display:block;'
+    +'  width:100%;'  // 画面表示時はウィンドウ幅に合わせる
+    +'  height:auto;'
+    +'}'
     +'@media print{'
-    +'@page{size:A3 landscape;margin:6mm}'
-    +'body{padding:0}'
-    +'img{max-width:100%;height:auto}'
+    +'@page{size:A3 landscape;margin:5mm}'
+    +'body{padding:0;margin:0}'
+    +'.sheet-img{'
+    +'  display:block;'
+    +'  width:100%;'  // 印刷時はページ幅に自動フィット
+    +'  height:auto;'
+    +'  max-height:100%;'
+    +'}'
     +'}'
     +'</style></head><body>');
   if(imgEl){
-    w.document.write('<img src="'+imgEl.src+'" style="max-width:none">');
+    w.document.write('<img class="sheet-img" src="'+imgEl.src+'" width="'+imgW+'" height="'+imgH+'">');
   }else{
     w.document.write('<style>'
       +'*{-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important}'
-      +'table{border-collapse:collapse;font-family:"Hiragino Sans","Meiryo",sans-serif;font-size:8px}'
+      +'table{border-collapse:collapse;font-family:"Hiragino Sans","Meiryo",sans-serif;font-size:8px;width:100%}'
       +'td,th{border:1px solid #b0b8c4;padding:1px 3px;height:16px;vertical-align:middle}'
       +'</style>');
     w.document.write(area.innerHTML);
