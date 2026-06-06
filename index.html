@@ -4594,7 +4594,8 @@ function computeMasterEditorSegs(steps){
       offsetFrom:step.offsetFrom||'', offsetDays:step.offsetDays!=null?step.offsetDays:0
     });
     if(nm==='基礎')kisoEndDate=ed;
-    if(!step.offsetFrom)prevEnd=ed;
+    // prevEndは全ステップで更新（新規追加バーが末尾の後に来るように）
+    if(ed>prevEnd)prevEnd=ed;
   }
   masterGanttSegs=segs;
   return segs;
@@ -8323,10 +8324,11 @@ async function _loadGanttSheetForProp(fixNo){
   if(window._GANTT_SHEET_DATA[fixNo]&&window._GANTT_SHEET_DATA[fixNo].canvasDataUrl)
     return window._GANTT_SHEET_DATA[fixNo];
   var data=null;
-  // LocalStorageキャッシュ確認
+  // LocalStorageキャッシュ確認（draw_dataがない古いキャッシュは無効）
   try{
     var cache=JSON.parse(localStorage.getItem(GANTT_SHEET_CACHE_KEY)||'{}');
-    if(cache[fixNo])data=cache[fixNo];
+    if(cache[fixNo]&&cache[fixNo].draw_data)data=cache[fixNo];
+    else if(cache[fixNo])delete cache[fixNo]; // 古い形式を削除
   }catch(e){}
   // キャッシュがなければSupabaseから取得
   if(!data){
