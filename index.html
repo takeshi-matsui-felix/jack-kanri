@@ -7944,37 +7944,122 @@ function _renderDrawDataToCanvas(dd){
     ctx.restore();
   });
 
-  // パス4: 背景色の境界に自動枠線（SheetJS v0.18.5は罫線情報未対応のため代替）
-  // 背景色ありセルの辺で隣が無色なら輪郭線を引く
-  var BG_BORDER_COLOR='#777777';
-  ctx.lineWidth=0.75;
-  var _getBg=function(r,c){
-    if(r<0||c<0||r>=numRows||c>=numCols)return null;
-    var cell=dd.cells[r+','+c];
-    return(cell&&cell.bg)?cell.bg:null;
-  };
-  var drawnBg={};
+  // パス4: 表構造の外枠・区切り線を自動検出して描画
+  // 検出ルール:
+  //   表全体外周: 値または背景色があるセル範囲の外周に太線
+  //   月区切り縦線: 「月」という文字を含む行で数値が変わる列に太線
+  //   工程名列右: 左端から連続して値があり右が日付数値列になる境界に縦線
+  //   ヘッダー行下: 日付数値が並ぶ行の下に横線
+
+  var LINE_OUTER = '#444444'; // 外枠・太線
+  var LINE_DIVIDER = '#666666'; // 区切り線
+  var LW_THICK = 1.5;
+  var LW_MED   = 1.0;
+
+  // --- 有効範囲（値または背景色があるセル）を検出
+  var minR=numRows,maxR=0,minC=numCols,maxC=0;
   Object.keys(dd.cells).forEach(function(key){
-    var cell=dd.cells[key];
-    if(!cell.bg)return;
     var rc=key.split(',');var r=+rc[0],c=+rc[1];
-    if(mergedSkip[key])return;
-    var x=xOffsets[c],y=yOffsets[r];
-    var w=mergeMap[key]?mergeMap[key].w:colWidths[c];
-    var h=mergeMap[key]?mergeMap[key].h:rowHeights[r];
-    var er=r,ec=c;
-    if(mergeMap[key]){
-      var accW=0;for(var tc=c;tc<numCols;tc++){accW+=colWidths[tc];if(accW>=w-1){ec=tc;break;}}
-      var accH=0;for(var tr=r;tr<numRows;tr++){accH+=rowHeights[tr];if(accH>=h-1){er=tr;break;}}
+    if(r<minR)minR=r;if(r>maxR)maxR=r;
+    if(c<minC)minC=c;if(c>maxC)maxC=c;
+  });
+  if(minR>maxR){return canvas;} // セルなし
+
+  // --- 表全体の外枠（太線）
+  var ox=xOffsets[minC], oy=yOffsets[minR];
+  var ow=(xOffsets[maxC]||0)+colWidths[maxC]-ox;
+  var oh=(yOffsets[maxR]||0)+rowHeights[maxR]-oy;
+  ctx.strokeStyle=LINE_OUTER;
+  ctx.lineWidth=LW_THICK;
+  ctx.strokeRect(ox+0.75,oy+0.75,ow-1.5,oh-1.5);
+
+  // --- 各行を走査して「月ヘッダー行」と「日付数値行」と「工程名列」を検出
+  // 月ヘッダー行: その行に1〜12の数値セルが3個以上あり、近くに「月」文字がある行
+  // 日付数値行: 1〜31の数値が10個以上並ぶ行
+  var monthHeaderRows = [];
+  var dateNumRows = [];
+  var processColEnd = minC; // 工程名列の右端列
+
+  for(var ri5=minR;ri5<=maxR;ri5++){
+    var numCount=0, monthCount=0, smallNumCount=0;
+    for(var ci5=minC;ci5<=maxC;ci5++){
+      var cell5=dd.cells[ri5+','+ci5];
+      if(!cell5||!cell5.v)continue;
+      var v5=String(cell5.v).trim();
+      var n5=parseInt(v5,10);
+      if(!isNaN(n5)&&String(n5)===v5){
+        if(n5>=1&&n5<=12)monthCount++;
+        if(n5>=1&&n5<=31)smallNumCount++;
+        numCount++;
+      }
+      if(v5==='月')monthCount+=2; // 「月」文字は月ヘッダーの強いシグナル
     }
-    var bk=r+'_'+c;if(drawnBg[bk])return;drawnBg[bk]=true;
-    ctx.strokeStyle=BG_BORDER_COLOR;
+    if(monthCount>=2&&numCount>=1)monthHeaderRows.push(ri5);
+    if(smallNumCount>=15)dateNumRows.push(ri5);
+  }
+
+  // 工程名列の右端を検出: 左端から見て、日付行で数値が始まる列-1
+  if(dateNumRows.length>0){
+    var dr=dateNumRows[0];
+    for(var ci6=minC;ci6<=maxC;ci6++){
+      var cell6=dd.cells[dr+','+ci6];
+      if(cell6&&cell6.v&&!isNaN(parseInt(cell6.v,10))&&String(parseInt(cell6.v,10))===String(cell6.v).trim()){
+        processColEnd=ci6-1;
+        break;
+      }
+    }
+  }
+
+  // --- 工程名列の右側に縦線
+  if(processColEnd>=minC&&processColEnd<maxC){
+    var pcx=xOffsets[processColEnd]+colWidths[processColEnd];
+    ctx.strokeStyle=LINE_DIVIDER;
+    ctx.lineWidth=LW_MED;
     ctx.beginPath();
-    if(!_getBg(r-1,c)){ctx.moveTo(x+0.5,y+0.5);ctx.lineTo(x+w-0.5,y+0.5);}
-    if(!_getBg(er+1,c)){ctx.moveTo(x+0.5,y+h-0.5);ctx.lineTo(x+w-0.5,y+h-0.5);}
-    if(!_getBg(r,c-1)){ctx.moveTo(x+0.5,y+0.5);ctx.lineTo(x+0.5,y+h-0.5);}
-    if(!_getBg(r,ec+1)){ctx.moveTo(x+w-0.5,y+0.5);ctx.lineTo(x+w-0.5,y+h-0.5);}
+    ctx.moveTo(pcx+0.5,oy);ctx.lineTo(pcx+0.5,oy+oh);
     ctx.stroke();
+  }
+
+  // --- 月ヘッダー行の下に横線
+  monthHeaderRows.forEach(function(mhr){
+    var mhy=yOffsets[mhr]+rowHeights[mhr];
+    ctx.strokeStyle=LINE_DIVIDER;
+    ctx.lineWidth=LW_MED;
+    ctx.beginPath();
+    ctx.moveTo(ox,mhy+0.5);ctx.lineTo(ox+ow,mhy+0.5);
+    ctx.stroke();
+  });
+
+  // --- 日付行で月が変わる列（数値がリセットされる箇所）に縦線
+  dateNumRows.forEach(function(dr2){
+    var prevN=-1;
+    for(var ci7=minC;ci7<=maxC;ci7++){
+      var cell7=dd.cells[dr2+','+ci7];
+      if(!cell7||!cell7.v)continue;
+      var n7=parseInt(cell7.v,10);
+      if(isNaN(n7)||String(n7)!==String(cell7.v).trim())continue;
+      if(n7<prevN&&prevN>15&&n7<=3){
+        // 月替わり（例: 31→1）
+        var divX=xOffsets[ci7];
+        ctx.strokeStyle=LINE_OUTER;
+        ctx.lineWidth=LW_THICK;
+        ctx.beginPath();
+        ctx.moveTo(divX+0.5,oy);ctx.lineTo(divX+0.5,oy+oh);
+        ctx.stroke();
+      }
+      prevN=n7;
+    }
+  });
+
+  // --- 日付数値行の上下に横線（ヘッダーブロックの区切り）
+  dateNumRows.forEach(function(dr3){
+    // 上辺
+    var ty=yOffsets[dr3];
+    ctx.strokeStyle=LINE_DIVIDER;ctx.lineWidth=LW_MED;
+    ctx.beginPath();ctx.moveTo(ox,ty+0.5);ctx.lineTo(ox+ow,ty+0.5);ctx.stroke();
+    // 下辺
+    var by=yOffsets[dr3]+rowHeights[dr3];
+    ctx.beginPath();ctx.moveTo(ox,by+0.5);ctx.lineTo(ox+ow,by+0.5);ctx.stroke();
   });
 
   return canvas;
