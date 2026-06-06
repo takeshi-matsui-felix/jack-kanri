@@ -3679,18 +3679,38 @@ function openSelectProp(){
   ];
   var selTab='all';
 
+  var searchQuery='';
   function renderSelectContent(){
     var list=active.filter(function(p){
       var td=tabDefs.find(function(t){return t.id===selTab;});
-      if(!td||td.id==='all')return !isRaikin(p)&&!isKankou(p); // 全て=今期のみ
+      if(!td||td.id==='all')return !isRaikin(p)&&!isKankou(p);
       if(td.raikin)return isRaikin(p)&&!isKankou(p);
       return td.areas&&td.areas.indexOf(normalizeArea(p))>=0&&!isRaikin(p)&&!isKankou(p);
     });
-    var tabHtml='<div style="display:flex;border-bottom:2px solid #e2e8f0;flex-shrink:0;background:white;position:sticky;top:0;z-index:10">'
+    // 検索フィルタ
+    if(searchQuery){
+      var q=searchQuery.toLowerCase();
+      list=list.filter(function(p){
+        return (p.name||'').toLowerCase().indexOf(q)>=0
+          ||(p.fix_no||'').toLowerCase().indexOf(q)>=0;
+      });
+    }
+    var tabHtml='<div style="position:sticky;top:0;z-index:10;background:white">'
+      +'<div style="display:flex;border-bottom:2px solid #e2e8f0;">'
       +tabDefs.map(function(t){
         var act=t.id===selTab;
         return '<button data-stab="'+t.id+'" style="flex:1;padding:8px 4px;font-size:11px;font-weight:700;border:none;cursor:pointer;border-bottom:2px solid '+(act?'#1a56db':'transparent')+';color:'+(act?'#1a56db':'#94a3b8')+';background:white;margin-bottom:-2px">'+t.label+'</button>';
-      }).join('')+'</div>';
+      }).join('')+'</div>'
+      +'<div style="padding:8px;border-bottom:1px solid #e2e8f0;background:white">'
+        +'<div style="display:flex;align-items:center;gap:6px;background:#f1f5f9;border-radius:8px;padding:6px 10px">'
+          +'<span style="font-size:13px">🔍</span>'
+          +'<input id="selectPropSearch" type="text" placeholder="物件名・FiX No で検索" value="'+searchQuery.replace(/"/g,'&quot;')+'" '
+            +'style="flex:1;border:none;background:transparent;font-size:12px;outline:none;color:#1e293b" '
+            +'oninput="(function(v){selectPropSearchQuery=v;renderSelectPropContent();})((this.value))"/>'
+          +(searchQuery?'<button onclick="selectPropSearchQuery=\'\';renderSelectPropContent()" style="border:none;background:none;color:#94a3b8;font-size:14px;cursor:pointer;padding:0">✕</button>':'')
+        +'</div>'
+      +'</div>'
+      +'</div>';
 
     var itemsHtml=list.map(function(p){
       var eid='spi-'+p.fix_no+'-'+encodeURIComponent(p.name).replace(/[%]/g,'_');
@@ -3720,8 +3740,17 @@ function openSelectProp(){
     }
   }
 
+  // グローバルからアクセスできるようにバインド（検索クリアボタン用）
+  window.selectPropSearchQuery='';
+  window.renderSelectPropContent=function(q){
+    if(q!==undefined)searchQuery=q;
+    else searchQuery=window.selectPropSearchQuery||'';
+    renderSelectContent();
+  };
   renderSelectContent();
   closeMenu();openPanel('selectPropPanel');
+  // パネルを開いた後に検索バーにフォーカス（PCのみ）
+  if(isPcMode)setTimeout(function(){var el=document.getElementById('selectPropSearch');if(el)el.focus();},300);
 }
 function toggleFavItem(fixNo,enc,eid){
   var name=decodeURIComponent(enc);
@@ -8394,21 +8423,32 @@ function buildGanttSheetSection(data){
   if(data.canvasDataUrl){
     // PC: 横幅100%に収めて縦スクロール / SP: 横スクロール維持
     var isPc=!!isPcMode; // isPcModeはboolean変数
-    var imgStyle=isPc
-      ? 'width:100%;height:auto;display:block;'           // PC: コンテナ幅に収める
-      : 'max-width:none;height:auto;display:block;';      // SP: 元サイズ横スクロール
-    var wrapStyle=isPc
-      ? 'overflow-x:hidden;overflow-y:visible;padding:8px;'  // PC: 横はみ出し禁止
-      : 'overflow-x:auto;-webkit-overflow-scrolling:touch;touch-action:pan-x pan-y;padding:8px;'; // SP
-    return '<div>'
-      +'<div style="display:flex;justify-content:space-between;align-items:center;padding:6px 8px;background:#f8fafc;border-bottom:1px solid #e2e8f0;">'
-        +'<span style="font-size:10px;color:#64748b">📊 Excel工程表（原本表示）</span>'
-        +'<button onclick="printGanttSheet(this)" style="background:#1a56db;color:white;border:none;border-radius:6px;padding:5px 14px;font-size:11px;font-weight:700;cursor:pointer">🖨️ この工程表を印刷</button>'
-      +'</div>'
-      +'<div id="ganttSheetPrintArea" style="'+wrapStyle+'">'
-        +'<img src="'+data.canvasDataUrl+'" style="'+imgStyle+'" alt="Excel工程表">'
-      +'</div>'
-      +'</div>';
+    if(isPc){
+      // PC: 幅100%でフィット・縦スクロール
+      return '<div>'
+        +'<div style="display:flex;justify-content:space-between;align-items:center;padding:6px 8px;background:#f8fafc;border-bottom:1px solid #e2e8f0;">'
+          +'<span style="font-size:10px;color:#64748b">📊 Excel工程表（原本表示）</span>'
+          +'<button onclick="printGanttSheet(this)" style="background:#1a56db;color:white;border:none;border-radius:6px;padding:5px 14px;font-size:11px;font-weight:700;cursor:pointer">🖨️ この工程表を印刷</button>'
+        +'</div>'
+        +'<div id="ganttSheetPrintArea" style="overflow-x:hidden;overflow-y:visible;padding:8px;">'
+          +'<img src="'+data.canvasDataUrl+'" style="width:100%;height:auto;display:block;" alt="Excel工程表">'
+        +'</div>'
+        +'</div>';
+    } else {
+      // SP: 画面幅にフィット表示 + ピンチズーム可能なコンテナ
+      // imgをdiv内に入れ、touch-action:pinch-zoom で拡大縮小できるようにする
+      return '<div>'
+        +'<div style="display:flex;justify-content:space-between;align-items:center;padding:6px 8px;background:#f8fafc;border-bottom:1px solid #e2e8f0;">'
+          +'<span style="font-size:10px;color:#64748b">📊 Excel工程表</span>'
+          +'<button onclick="printGanttSheet(this)" style="background:#1a56db;color:white;border:none;border-radius:6px;padding:5px 14px;font-size:11px;font-weight:700;cursor:pointer">🖨️ 印刷</button>'
+        +'</div>'
+        +'<div id="ganttSheetPrintArea" style="overflow:auto;-webkit-overflow-scrolling:touch;touch-action:pan-x pan-y pinch-zoom;">'
+          +'<img src="'+data.canvasDataUrl+'" '
+            +'style="width:100%;min-width:600px;height:auto;display:block;" '
+            +'alt="Excel工程表">'
+        +'</div>'
+        +'</div>';
+    }
   }
   if(!data.sections||!data.sections.length)return '';
   var COL=14;var html='';
