@@ -7723,11 +7723,16 @@ function admHandleGanttSheetXlsx(input){
         if(!fixNo){results.push({file:file.name,ok:false,msg:'A1にFIX IDがありません'});_chk();}
         else{
           var sheetData=_parseGanttSheetXlsx(ws,jsonRows);
-          // Canvas画像変換: ExcelシートをPNG DataURLに変換して保存
+          // wsスナップショットを保存（DB保存用・Canvas再生成に使用）
+          // canvasDataUrlは各端末で生成するためここでは生成しない
+          try{
+            sheetData.draw_data=_buildDrawData(ws);
+          }catch(e2){console.warn('wsシリアライズ失敗:',e2);}
+          // 管理者端末では即Canvas生成してメモリに持つ（即時表示用）
           try{
             var dataUrl=_buildSheetCanvasDataUrl(ws);
             if(dataUrl)sheetData.canvasDataUrl=dataUrl;
-          }catch(e2){console.warn('Canvas変換失敗:',e2);}
+          }catch(e3){console.warn('Canvas変換失敗:',e3);}
           results.push({file:file.name,ok:true,fixNo:fixNo,data:sheetData});_chk();
         }
       }catch(err){results.push({file:file.name,ok:false,msg:err.message});_chk();}
@@ -7802,73 +7807,42 @@ function _cellDisplayText(cell){
 }
 window._cellDisplayText=_cellDisplayText;
 
-function _renderSheetToCanvas(ws){
-  if(!ws||!ws['!ref'])return null;
-  var range=XLSX.utils.decode_range(ws['!ref']);
-  var numRows=range.e.r-range.s.r+1;
-  var numCols=range.e.c-range.s.c+1;
-
-  // --- セル幅: !cols.wpx優先
-  var colWidths=[];
-  for(var ci2=0;ci2<numCols;ci2++){
-    var colInfo=(ws['!cols']&&ws['!cols'][range.s.c+ci2]);
-    var wpx=18;
-    if(colInfo){
-      if(colInfo.wpx>0)wpx=colInfo.wpx;
-      else if(colInfo.wch>0)wpx=Math.round(colInfo.wch*7);
-      else if(colInfo.width>0)wpx=Math.round(colInfo.width*7);
-    }
-    colWidths.push(Math.max(wpx,6));
-  }
-
-  // --- 行高さ: !rows.hpx優先
-  var rowHeights=[];
-  for(var ri2=0;ri2<numRows;ri2++){
-    var rowInfo=(ws['!rows']&&ws['!rows'][range.s.r+ri2]);
-    var hpx=18;
-    if(rowInfo){
-      if(rowInfo.hpx>0)hpx=rowInfo.hpx;
-      else if(rowInfo.hpt>0)hpx=Math.round(rowInfo.hpt*1.333);
-    }
-    rowHeights.push(Math.max(hpx,8));
-  }
+// draw_dataからCanvasを描画（Supabase保存済みデータ対応）
+function _renderDrawDataToCanvas(dd){
+  if(!dd||!dd.cols||!dd.rows||!dd.cells)return null;
+  var numCols=dd.cols.length;
+  var numRows=dd.rows.length;
+  var colWidths=dd.cols;
+  var rowHeights=dd.rows;
 
   // --- 累積オフセット
   var xOffsets=[0];
-  for(var i=0;i<colWidths.length-1;i++)xOffsets.push(xOffsets[i]+colWidths[i]);
+  for(var i=0;i<numCols-1;i++)xOffsets.push(xOffsets[i]+colWidths[i]);
   var yOffsets=[0];
-  for(var i=0;i<rowHeights.length-1;i++)yOffsets.push(yOffsets[i]+rowHeights[i]);
-  var totalW=xOffsets[xOffsets.length-1]+colWidths[colWidths.length-1];
-  var totalH=yOffsets[yOffsets.length-1]+rowHeights[rowHeights.length-1];
+  for(var i=0;i<numRows-1;i++)yOffsets.push(yOffsets[i]+rowHeights[i]);
+  var totalW=xOffsets[numCols-1]+colWidths[numCols-1];
+  var totalH=yOffsets[numRows-1]+rowHeights[numRows-1];
 
   // --- 結合セルマップ
   var mergeMap={};
   var mergedSkip={};
-  if(ws['!merges']){
-    ws['!merges'].forEach(function(mg){
+  if(dd.merges){
+    dd.merges.forEach(function(mg){
+      var sr=mg[0],sc=mg[1],er=mg[2],ec=mg[3];
       var mw=0,mh=0;
-      for(var mc=mg.s.c;mc<=mg.e.c;mc++){var ci3=mc-range.s.c;if(ci3>=0&&ci3<numCols)mw+=colWidths[ci3];}
-      for(var mr2=mg.s.r;mr2<=mg.e.r;mr2++){var ri3=mr2-range.s.r;if(ri3>=0&&ri3<numRows)mh+=rowHeights[ri3];}
-      mergeMap[(mg.s.r-range.s.r)+','+(mg.s.c-range.s.c)]={w:mw,h:mh};
-      for(var mr3=mg.s.r;mr3<=mg.e.r;mr3++){
-        for(var mc2=mg.s.c;mc2<=mg.e.c;mc2++){
-          if(mr3===mg.s.r&&mc2===mg.s.c)continue;
-          mergedSkip[(mr3-range.s.r)+','+(mc2-range.s.c)]=true;
-        }
-      }
+      for(var mc=sc;mc<=ec;mc++)mw+=colWidths[mc]||0;
+      for(var mr=sr;mr<=er;mr++)mh+=rowHeights[mr]||0;
+      mergeMap[sr+','+sc]={w:mw,h:mh};
+      for(var mr2=sr;mr2<=er;mr2++)
+        for(var mc2=sc;mc2<=ec;mc2++)
+          if(mr2!==sr||mc2!==sc)mergedSkip[mr2+','+mc2]=true;
     });
   }
 
-  // --- セルに値があるか（テキストはみ出し判定）
+  // --- hasValue（テキストはみ出し判定）
   var hasValue={};
-  Object.keys(ws).forEach(function(addr){
-    if(addr[0]==='!')return;
-    var m=addr.match(/^([A-Z]+)([0-9]+)$/);if(!m)return;
-    var col=0;for(var k=0;k<m[1].length;k++)col=col*26+(m[1].charCodeAt(k)-64);col--;
-    var row=parseInt(m[2],10)-1;
-    var cell=ws[addr];
-    var v=_cellDisplayText(cell);
-    if(v)hasValue[(row-range.s.r)+','+(col-range.s.c)]=true;
+  Object.keys(dd.cells).forEach(function(key){
+    if(dd.cells[key].v)hasValue[key]=true;
   });
 
   // --- Canvas生成
@@ -7883,140 +7857,248 @@ function _renderSheetToCanvas(ws){
   ctx.fillStyle='#ffffff';
   ctx.fillRect(0,0,totalW,totalH);
 
-  // --- アドレス→RC変換
-  var _addrToRC=function(addr){
-    var m=addr.match(/^([A-Z]+)([0-9]+)$/);
-    if(!m)return null;
-    var col=0;for(var k=0;k<m[1].length;k++)col=col*26+(m[1].charCodeAt(k)-64);col--;
-    return{r:parseInt(m[2],10)-1-range.s.r, c:col-range.s.c};
+  var DEFAULT_BORDER_COLOR='#c0c8d0';
+
+  // --- 罫線コードデコード: "TBLR" or "TBLR_RRGGBB"
+  var BORDER_PX=[0,0.75,1.5,2.5];
+  var _decodeBorder=function(bo){
+    if(!bo)return null;
+    var parts=bo.split('_');
+    var code=parts[0];
+    var color=parts[1]?'#'+parts[1]:null;
+    return{t:+code[0],b:+code[1],l:+code[2],r:+code[3],color:color};
   };
 
-  // パス1: 背景色
-  Object.keys(ws).forEach(function(addr){
-    if(addr[0]==='!')return;
-    var rc=_addrToRC(addr);
-    if(!rc||rc.r<0||rc.c<0||rc.r>=numRows||rc.c>=numCols)return;
-    var key=rc.r+','+rc.c;
-    if(mergedSkip[key])return;
-    var cell=ws[addr];
-    var x=xOffsets[rc.c],y=yOffsets[rc.r];
-    var w=mergeMap[key]?mergeMap[key].w:colWidths[rc.c];
-    var h=mergeMap[key]?mergeMap[key].h:rowHeights[rc.r];
-    if(cell.s){
-      var fill=cell.s.fgColor||cell.s.bgColor||(cell.s.fill&&(cell.s.fill.fgColor||cell.s.fill.bgColor));
-      if(fill&&fill.rgb){
-        var rgb=fill.rgb;
-        if(rgb!=='FFFFFFFF'&&rgb!=='FF000000'&&rgb!=='00000000'&&rgb.toUpperCase()!=='FFFFFF'){
-          ctx.fillStyle='#'+(rgb.length===8?rgb.slice(2):rgb);
-          ctx.fillRect(x,y,w,h);
-        }
-      }
-    }
-  });
-
-  // パス2: テキスト（セル型を考慮した表示値 + はみ出しルール）
-  Object.keys(ws).forEach(function(addr){
-    if(addr[0]==='!')return;
-    var rc=_addrToRC(addr);
-    if(!rc||rc.r<0||rc.c<0||rc.r>=numRows||rc.c>=numCols)return;
-    var key=rc.r+','+rc.c;
-    if(mergedSkip[key])return;
-    var cell=ws[addr];
-    var txt=_cellDisplayText(cell);
-    if(!txt)return;
-    var x=xOffsets[rc.c],y=yOffsets[rc.r];
-    var w=mergeMap[key]?mergeMap[key].w:colWidths[rc.c];
-    var h=mergeMap[key]?mergeMap[key].h:rowHeights[rc.r];
-    var bold=(cell.s&&cell.s.bold)||false;
-    var fontSize=Math.min(h*0.62,11);
-    ctx.font=(bold?'bold ':'')+fontSize+'px "Hiragino Sans","Meiryo",sans-serif';
-    var fgRgb=(cell.s&&cell.s.color&&cell.s.color.rgb)||'000000';
-    ctx.fillStyle='#'+(fgRgb.length===8?fgRgb.slice(2):fgRgb);
-    var align=(cell.s&&cell.s.alignment&&cell.s.alignment.horizontal)||'general';
-    var clipW=w;
-    if((align==='general'||align==='left')&&!mergeMap[key]){
-      var availW=w;
-      for(var nc=rc.c+1;nc<numCols;nc++){
-        var nKey=rc.r+','+nc;
-        if(hasValue[nKey]||mergedSkip[nKey])break;
-        availW+=colWidths[nc];
-      }
-      var txtW=ctx.measureText(txt).width;
-      clipW=Math.min(availW,Math.max(w,txtW+4));
-    }
-    ctx.save();
-    ctx.beginPath();
-    ctx.rect(x,y,clipW,h);
-    ctx.clip();
-    ctx.textAlign=align==='center'?'center':align==='right'?'right':'left';
-    var tx=align==='center'?x+w/2:align==='right'?x+w-2:x+2;
-    var ty=y+h/2+fontSize*0.36;
-    ctx.fillText(txt,tx,ty);
-    ctx.restore();
-  });
-
-  // パス3: Excelの罫線を再現（cell.s.border）
-  // thin=1px, medium=2px, thick=3px; 色はborder.color.rgb
-  var BORDER_STYLES={thin:0.75,medium:1.5,thick:2.5,hair:0.5,dashed:0.75,dotted:0.5,dashDot:0.75,dashDotDot:0.75,slantDashDot:0.75,mediumDashed:1.5,mediumDashDot:1.5,mediumDashDotDot:1.5};
-  var DEFAULT_BORDER_COLOR='#d0d7de';
-  var drawnBorders={};
-
-  var _drawBorderLine=function(x1,y1,x2,y2,style,colorRgb){
-    var bkey=x1+'_'+y1+'_'+x2+'_'+y2;
-    // 太い線が優先（既に描いた線より太い場合のみ上書き）
-    var lw=BORDER_STYLES[style]||0.5;
-    if(drawnBorders[bkey]&&drawnBorders[bkey]>=lw)return;
-    drawnBorders[bkey]=lw;
-    var color=DEFAULT_BORDER_COLOR;
-    if(colorRgb&&colorRgb!=='000000'&&colorRgb!=='00000000'){
-      color='#'+(colorRgb.length===8?colorRgb.slice(2):colorRgb);
-    }else if(colorRgb==='000000'||colorRgb==='00000000'||colorRgb==='FF000000'){
-      color='#000000';
-    }
-    ctx.strokeStyle=color;
-    ctx.lineWidth=lw;
-    ctx.beginPath();
-    ctx.moveTo(x1,y1);ctx.lineTo(x2,y2);
-    ctx.stroke();
-  };
-
-  Object.keys(ws).forEach(function(addr){
-    if(addr[0]==='!')return;
-    var rc=_addrToRC(addr);
-    if(!rc||rc.r<0||rc.c<0||rc.r>=numRows||rc.c>=numCols)return;
-    var cell=ws[addr];
-    if(!cell.s||!cell.s.border)return;
-    var b=cell.s.border;
-    var x=xOffsets[rc.c],y=yOffsets[rc.r];
-    var key=rc.r+','+rc.c;
-    var w=mergeMap[key]?mergeMap[key].w:colWidths[rc.c];
-    var h=mergeMap[key]?mergeMap[key].h:rowHeights[rc.r];
-    var px=function(v){return Math.round(v)+0.5;};
-    if(b.top&&b.top.style)    _drawBorderLine(px(x),px(y),      px(x+w),px(y),      b.top.style,   b.top.color&&b.top.color.rgb);
-    if(b.bottom&&b.bottom.style)_drawBorderLine(px(x),px(y+h),  px(x+w),px(y+h),    b.bottom.style,b.bottom.color&&b.bottom.color.rgb);
-    if(b.left&&b.left.style)  _drawBorderLine(px(x),px(y),      px(x),  px(y+h),    b.left.style,  b.left.color&&b.left.color.rgb);
-    if(b.right&&b.right.style)_drawBorderLine(px(x+w),px(y),    px(x+w),px(y+h),    b.right.style, b.right.color&&b.right.color.rgb);
-  });
-
-  // パス4: デフォルト格子線（罫線未設定セル用の細いグレー線）
+  // パス1: デフォルト格子線（背景の下地）
   ctx.strokeStyle=DEFAULT_BORDER_COLOR;
   ctx.lineWidth=0.5;
   ctx.beginPath();
-  for(var ci4=0;ci4<=numCols;ci4++){
-    var lx=ci4<numCols?xOffsets[ci4]:totalW;
+  for(var ci=0;ci<=numCols;ci++){
+    var lx=ci<numCols?xOffsets[ci]:totalW;
     ctx.moveTo(Math.round(lx)+0.5,0);ctx.lineTo(Math.round(lx)+0.5,totalH);
   }
-  for(var ri4=0;ri4<=numRows;ri4++){
-    var ly=ri4<numRows?yOffsets[ri4]:totalH;
+  for(var ri=0;ri<=numRows;ri++){
+    var ly=ri<numRows?yOffsets[ri]:totalH;
     ctx.moveTo(0,Math.round(ly)+0.5);ctx.lineTo(totalW,Math.round(ly)+0.5);
   }
   ctx.stroke();
 
+  // パス2: 背景色
+  Object.keys(dd.cells).forEach(function(key){
+    var cell=dd.cells[key];
+    if(!cell.bg)return;
+    var rc=key.split(',');
+    var r=+rc[0],c=+rc[1];
+    if(mergedSkip[key])return;
+    var x=xOffsets[c],y=yOffsets[r];
+    var w=mergeMap[key]?mergeMap[key].w:colWidths[c];
+    var h=mergeMap[key]?mergeMap[key].h:rowHeights[r];
+    ctx.fillStyle='#'+cell.bg;
+    ctx.fillRect(x,y,w,h);
+  });
+
+  // パス3: テキスト
+  Object.keys(dd.cells).forEach(function(key){
+    var cell=dd.cells[key];
+    if(!cell.v)return;
+    var rc=key.split(',');
+    var r=+rc[0],c=+rc[1];
+    if(mergedSkip[key])return;
+    var x=xOffsets[c],y=yOffsets[r];
+    var w=mergeMap[key]?mergeMap[key].w:colWidths[c];
+    var h=mergeMap[key]?mergeMap[key].h:rowHeights[r];
+    var fontSize=Math.min(h*0.62,11);
+    ctx.font=(cell.b?'bold ':'')+fontSize+'px "Hiragino Sans","Meiryo",sans-serif';
+    ctx.fillStyle=cell.fc?'#'+cell.fc:'#000000';
+    var align=cell.al==='c'?'center':cell.al==='r'?'right':'left';
+    var clipW=w;
+    if(align==='left'&&!mergeMap[key]){
+      var availW=w;
+      for(var nc=c+1;nc<numCols;nc++){
+        if(hasValue[r+','+nc]||mergedSkip[r+','+nc])break;
+        availW+=colWidths[nc];
+      }
+      clipW=Math.min(availW,Math.max(w,ctx.measureText(cell.v).width+4));
+    }
+    ctx.save();
+    ctx.beginPath();ctx.rect(x,y,clipW,h);ctx.clip();
+    ctx.textAlign=align;
+    var tx=align==='center'?x+w/2:align==='right'?x+w-2:x+2;
+    ctx.fillText(cell.v,tx,y+h/2+fontSize*0.36);
+    ctx.restore();
+  });
+
+  // パス4: Excelの罫線（格子線の上に上書き）
+  var drawnBorders={};
+  Object.keys(dd.cells).forEach(function(key){
+    var cell=dd.cells[key];
+    if(!cell.bo)return;
+    var bd=_decodeBorder(cell.bo);
+    if(!bd)return;
+    var rc=key.split(',');
+    var r=+rc[0],c=+rc[1];
+    var x=xOffsets[c],y=yOffsets[r];
+    var mkey=key;
+    var w=mergeMap[mkey]?mergeMap[mkey].w:colWidths[c];
+    var h=mergeMap[mkey]?mergeMap[mkey].h:rowHeights[r];
+    var color=bd.color||'#000000';
+    var _draw=function(x1,y1,x2,y2,lw){
+      var bk=x1+'_'+y1+'_'+x2+'_'+y2;
+      if(drawnBorders[bk]>=lw)return;
+      drawnBorders[bk]=lw;
+      ctx.strokeStyle=color;
+      ctx.lineWidth=lw;
+      ctx.beginPath();
+      ctx.moveTo(Math.round(x1)+0.5,Math.round(y1)+0.5);
+      ctx.lineTo(Math.round(x2)+0.5,Math.round(y2)+0.5);
+      ctx.stroke();
+    };
+    if(bd.t)_draw(x,y,x+w,y,BORDER_PX[bd.t]);
+    if(bd.b)_draw(x,y+h,x+w,y+h,BORDER_PX[bd.b]);
+    if(bd.l)_draw(x,y,x,y+h,BORDER_PX[bd.l]);
+    if(bd.r)_draw(x+w,y,x+w,y+h,BORDER_PX[bd.r]);
+  });
+
   return canvas;
 }
-function _buildSheetCanvasDataUrl(ws){
+window._renderDrawDataToCanvas=_renderDrawDataToCanvas;
+// 後方互換（古いコードがws形式で呼ぶ場合）
+function _renderSheetToCanvas(ws){
+  var dd=_buildDrawData(ws);
+  return dd?_renderDrawDataToCanvas(dd):null;
+}
+
+function _buildDrawData(ws){
+  if(!ws||!ws['!ref'])return null;
+  var range=XLSX.utils.decode_range(ws['!ref']);
+  var numRows=range.e.r-range.s.r+1;
+  var numCols=range.e.c-range.s.c+1;
+
+  // 列幅（wpx配列）
+  var cols=[];
+  for(var ci=0;ci<numCols;ci++){
+    var ci2=range.s.c+ci;
+    var ci3=ws['!cols']&&ws['!cols'][ci2];
+    var wpx=18;
+    if(ci3){if(ci3.wpx>0)wpx=ci3.wpx;else if(ci3.wch>0)wpx=Math.round(ci3.wch*7);else if(ci3.width>0)wpx=Math.round(ci3.width*7);}
+    cols.push(Math.max(wpx,6));
+  }
+  // 行高さ（hpx配列）
+  var rows=[];
+  for(var ri=0;ri<numRows;ri++){
+    var ri2=range.s.r+ri;
+    var ri3=ws['!rows']&&ws['!rows'][ri2];
+    var hpx=18;
+    if(ri3){if(ri3.hpx>0)hpx=ri3.hpx;else if(ri3.hpt>0)hpx=Math.round(ri3.hpt*1.333);}
+    rows.push(Math.max(hpx,8));
+  }
+  // 結合セル（[sr,sc,er,ec]の配列）
+  var merges=[];
+  if(ws['!merges']){
+    ws['!merges'].forEach(function(mg){
+      merges.push([mg.s.r-range.s.r,mg.s.c-range.s.c,mg.e.r-range.s.r,mg.e.c-range.s.c]);
+    });
+  }
+  // セルデータ（値・色・罫線のあるセルのみ）
+  // キー: "r,c"（行列番号）、値: 最小限のオブジェクト
+  var cells={};
+  var _rgbNorm=function(rgb){
+    // 透明/白/黒のデフォルト値はnull（省略）
+    if(!rgb)return null;
+    var s=String(rgb).replace('#','');
+    if(s.length===8)s=s.slice(2); // ARGB→RGB
+    s=s.toUpperCase();
+    if(s==='FFFFFF'||s==='000000'||s==='00000000'||s==='FFFFFFFF')return null;
+    return s;
+  };
+  var _borderCode=function(b){
+    // 上下左右の罫線を1文字コードに圧縮: "thin"→1,"medium"→2,"thick"→3,なし→0
+    // フォーマット: "TBLR_colorRGB" (例: "1200_FF0000" 上thin,下medium,左なし,右なし,赤)
+    if(!b)return null;
+    var CODES={thin:1,hair:1,dashed:1,dotted:1,dashDot:1,dashDotDot:1,medium:2,mediumDashed:2,mediumDashDot:2,mediumDashDotDot:2,slantDashDot:2,thick:3};
+    var t=b.top&&b.top.style?CODES[b.top.style]||1:0;
+    var bt=b.bottom&&b.bottom.style?CODES[b.bottom.style]||1:0;
+    var l=b.left&&b.left.style?CODES[b.left.style]||1:0;
+    var r=b.right&&b.right.style?CODES[b.right.style]||1:0;
+    if(!t&&!bt&&!l&&!r)return null;
+    // 色は最初に見つかった非デフォルト色を使用
+    var bcolor=null;
+    [b.top,b.bottom,b.left,b.right].forEach(function(side){
+      if(!bcolor&&side&&side.color)bcolor=_rgbNorm(side.color.rgb);
+    });
+    var code=''+t+bt+l+r;
+    return bcolor?code+'_'+bcolor:code;
+  };
+
+  Object.keys(ws).forEach(function(addr){
+    if(addr[0]==='!')return;
+    var m=addr.match(/^([A-Z]+)([0-9]+)$/);if(!m)return;
+    var col=0;for(var k=0;k<m[1].length;k++)col=col*26+(m[1].charCodeAt(k)-64);col--;
+    var row=parseInt(m[2],10)-1;
+    var r=row-range.s.r,c=col-range.s.c;
+    if(r<0||c<0||r>=numRows||c>=numCols)return;
+    var cell=ws[addr];
+    var obj={};
+    // テキスト値（_cellDisplayTextと同じロジックでここでも変換）
+    var txt='';
+    if(cell.v!==undefined&&cell.v!==null&&cell.v!==''){
+      if(cell.w&&cell.w.trim())txt=cell.w.trim();
+      else if(cell.v instanceof Date){
+        var fmt=(cell.z||'').toLowerCase();
+        var d=cell.v;
+        if(fmt.indexOf('aaa')>=0||fmt.indexOf('ddd')>=0){var days=['日','月','火','水','木','金','土'];txt=days[d.getDay()];}
+        else if(fmt==='m'||fmt==='mm')txt=String(d.getMonth()+1);
+        else if(fmt==='d'||fmt==='dd')txt=String(d.getDate());
+        else txt=(d.getMonth()+1)+'/'+d.getDate();
+      }else if(cell.t==='n'&&typeof cell.v==='number'){
+        var fmt2=(cell.z||'').toLowerCase();
+        var isDate=fmt2&&(fmt2.indexOf('yy')>=0||fmt2.indexOf('m')>=0||fmt2.indexOf('d')>=0||fmt2.indexOf('aaa')>=0);
+        if(isDate){
+          var serial=cell.v;if(serial>=60)serial--;
+          var d2=new Date((serial-1)*86400000+Date.UTC(1899,11,31));
+          if(fmt2.indexOf('aaa')>=0){var days2=['日','月','火','水','木','金','土'];txt=days2[d2.getUTCDay()];}
+          else if(fmt2==='m'||fmt2==='mm')txt=String(d2.getUTCMonth()+1);
+          else if(fmt2==='d'||fmt2==='dd')txt=String(d2.getUTCDate());
+          else txt=(d2.getUTCMonth()+1)+'/'+d2.getUTCDate();
+        }else{txt=Number.isInteger(cell.v)?String(cell.v):String(Math.round(cell.v*100)/100);}
+      }else{txt=String(cell.v);}
+    }
+    if(txt)obj.v=txt;
+    // 背景色
+    if(cell.s){
+      var fill=cell.s.fgColor||cell.s.bgColor||(cell.s.fill&&(cell.s.fill.fgColor||cell.s.fill.bgColor));
+      var bg=fill?_rgbNorm(fill.rgb):null;
+      if(bg)obj.bg=bg;
+      // 罫線
+      var bc=_borderCode(cell.s.border);
+      if(bc)obj.bo=bc;
+      // テキスト書式
+      if(cell.s.bold)obj.b=1;
+      var fgRgb=cell.s.color?_rgbNorm(cell.s.color.rgb):null;
+      if(fgRgb)obj.fc=fgRgb;
+      var al=cell.s.alignment&&cell.s.alignment.horizontal;
+      if(al&&al!=='general'&&al!=='left')obj.al=al==='center'?'c':'r';
+    }
+    // 何かデータがあるセルのみ保存
+    if(Object.keys(obj).length)cells[r+','+c]=obj;
+  });
+
+  var result={ref:ws['!ref'],cols:cols,rows:rows,cells:cells};
+  if(merges.length)result.merges=merges;
+  return result;
+}
+window._buildDrawData=_buildDrawData;
+
+function _buildSheetCanvasDataUrl(input){
   try{
-    var canvas=_renderSheetToCanvas(ws);
+    // wsオブジェクト（SheetJS直接）またはdraw_dataオブジェクトを受け付ける
+    var dd=input;
+    if(input&&input['!ref']){
+      // wsオブジェクトの場合はdraw_dataに変換
+      dd=_buildDrawData(input);
+    }
+    if(!dd)return null;
+    var canvas=_renderDrawDataToCanvas(dd);
     if(!canvas)return null;
     return canvas.toDataURL('image/png');
   }catch(e){console.warn('Canvas変換失敗:',e);return null;}
@@ -8116,13 +8198,19 @@ async function _saveGanttSheetsToDB(items){
   try{
     for(var i=0;i<items.length;i++){
       var item=items[i];
+      // canvasDataUrlはDB/キャッシュに保存しない（サイズ大・各端末で再生成）
+      var dbData=Object.assign({},item.data);
+      delete dbData.canvasDataUrl;
       await sb.from('gantt_sheets').delete().eq('fix_no',item.fixNo);
-      await sb.from('gantt_sheets').insert({fix_no:item.fixNo,sheet_data:item.data,updated_at:new Date().toISOString()});
-      window._GANTT_SHEET_DATA[item.fixNo]=item.data;
+      await sb.from('gantt_sheets').insert({fix_no:item.fixNo,sheet_data:dbData,updated_at:new Date().toISOString()});
+      window._GANTT_SHEET_DATA[item.fixNo]=dbData;
     }
     try{
       var cache=JSON.parse(localStorage.getItem(GANTT_SHEET_CACHE_KEY)||'{}');
-      items.forEach(function(item){cache[item.fixNo]=item.data;});
+      items.forEach(function(item){
+        var dbData2=Object.assign({},item.data);delete dbData2.canvasDataUrl;
+        cache[item.fixNo]=dbData2;
+      });
       localStorage.setItem(GANTT_SHEET_CACHE_KEY,JSON.stringify(cache));
     }catch(e){}
     return true;
@@ -8131,20 +8219,40 @@ async function _saveGanttSheetsToDB(items){
 
 async function _loadGanttSheetForProp(fixNo){
   if(!fixNo)return null;
-  if(window._GANTT_SHEET_DATA[fixNo])return window._GANTT_SHEET_DATA[fixNo];
+  // メモリキャッシュ（canvasDataUrl付き）があればそのまま返す
+  if(window._GANTT_SHEET_DATA[fixNo]&&window._GANTT_SHEET_DATA[fixNo].canvasDataUrl)
+    return window._GANTT_SHEET_DATA[fixNo];
+  var data=null;
+  // LocalStorageキャッシュ確認
   try{
     var cache=JSON.parse(localStorage.getItem(GANTT_SHEET_CACHE_KEY)||'{}');
-    if(cache[fixNo]){window._GANTT_SHEET_DATA[fixNo]=cache[fixNo];return cache[fixNo];}
+    if(cache[fixNo])data=cache[fixNo];
   }catch(e){}
-  var sb=getSB();if(!sb)return null;
-  try{
-    var r=await sb.from('gantt_sheets').select('fix_no,sheet_data').eq('fix_no',String(fixNo)).single();
-    if(r.error||!r.data)return null;
-    var data=r.data.sheet_data;
-    window._GANTT_SHEET_DATA[fixNo]=data;
-    try{var c2=JSON.parse(localStorage.getItem(GANTT_SHEET_CACHE_KEY)||'{}');c2[fixNo]=data;localStorage.setItem(GANTT_SHEET_CACHE_KEY,JSON.stringify(c2));}catch(e){}
-    return data;
-  }catch(e){return null;}
+  // キャッシュがなければSupabaseから取得
+  if(!data){
+    var sb=getSB();if(!sb)return null;
+    try{
+      var r=await sb.from('gantt_sheets').select('fix_no,sheet_data,updated_at').eq('fix_no',String(fixNo)).single();
+      if(r.error||!r.data)return null;
+      data=r.data.sheet_data;
+      // LocalStorageにキャッシュ（canvasDataUrlなし・軽い）
+      try{
+        var c2=JSON.parse(localStorage.getItem(GANTT_SHEET_CACHE_KEY)||'{}');
+        c2[fixNo]=data;
+        localStorage.setItem(GANTT_SHEET_CACHE_KEY,JSON.stringify(c2));
+      }catch(e){}
+    }catch(e){return null;}
+  }
+  if(!data)return null;
+  // Canvas画像を端末で生成（DBには保存しない・メモリのみ）
+  if(data.draw_data){
+    try{
+      var dataUrl=_buildSheetCanvasDataUrl(data.draw_data);
+      if(dataUrl)data=Object.assign({},data,{canvasDataUrl:dataUrl});
+    }catch(e){console.warn('Canvas再生成失敗:',e);}
+  }
+  window._GANTT_SHEET_DATA[fixNo]=data;
+  return data;
 }
 window._loadGanttSheetForProp=_loadGanttSheetForProp;
 
