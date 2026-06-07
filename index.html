@@ -2182,6 +2182,13 @@ function renderBody(){
   var activeTotalW = activePreW + GANTT_W + POST_W;
   cv.style.cssText='width:'+activeTotalW+'px;height:'+(props.length*rowH)+'px;position:relative;';
 
+  // ★ バックグラウンドでTS確認（更新があれば自動再描画される）
+  if(typeof _loadCustomGanttIfNeeded==='function'){
+    setTimeout(function(){
+      props.forEach(function(p){_loadCustomGanttIfNeeded(p);});
+    },300);
+  }
+
   if(props.length===0){
     fb.innerHTML='<div style="padding:24px;text-align:center;color:var(--g400);font-size:12px">'
       +(currentArea==='マイ物件'?'⭐ マイ物件が未登録<br>メニュー→担当物件を選択':'該当物件なし')+'</div>';
@@ -2911,6 +2918,14 @@ function saveGanttEdit(){
   // 管理者の場合はSupabaseにも保存（全ユーザーに共有）
   if(currentProfile&&currentProfile.role==='admin'){
     _saveGanttToSupabase(currentProp,segsData,function(ok){
+      if(ok){
+        // 自分のTSキャッシュを最新に更新（保存直後にTS不一致にならないよう）
+        var fixNo=String(currentProp.fix_no||'');
+        var tsKey='jack_gantt_ts_'+fixNo;
+        // DB_PROPSのupdated_atを確認してTSを更新
+        var dbp=DB_PROPS&&DB_PROPS.find(function(d){return String(d.fix_no)===fixNo;});
+        if(dbp&&dbp.updated_at)localStorage.setItem(tsKey,dbp.updated_at);
+      }
       showToast(ok?'✅ 工程表を保存しました（全共有）':'✅ 工程表を保存しました（ローカル）','success');
     });
   } else {
@@ -4452,6 +4467,12 @@ function saveEditorChanges(){
   // 管理者の場合はSupabaseにも保存（全ユーザーに共有）
   if(currentProfile&&currentProfile.role==='admin'){
     _saveGanttToSupabase(edProp,segsData,function(ok){
+      if(ok){
+        var fixNo=String(edProp.fix_no||'');
+        var tsKey='jack_gantt_ts_'+fixNo;
+        var dbp=DB_PROPS&&DB_PROPS.find(function(d){return String(d.fix_no)===fixNo;});
+        if(dbp&&dbp.updated_at)localStorage.setItem(tsKey,dbp.updated_at);
+      }
       showToast(ok?'✅ 工程表を保存しました（全共有）':'✅ 工程表を保存しました（ローカル）','success');
     });
   } else {
@@ -5568,12 +5589,25 @@ async function _loadCustomGanttIfNeeded(p){
       if(r.data.custom_gantt){
         var cg=typeof r.data.custom_gantt==='string'?JSON.parse(r.data.custom_gantt):r.data.custom_gantt;
         if(cg&&cg.length){
+          var changed=JSON.stringify(customGantt[ck])!==JSON.stringify(cg);
           customGantt[ck]=cg;
           saveLS('jack_custom_gantt',customGantt);
           if(DB_PROPS){
             var idx=DB_PROPS.findIndex(function(d){return String(d.fix_no)===String(p.fix_no);});
             if(idx>=0)DB_PROPS[idx].custom_gantt=r.data.custom_gantt;
           }
+          // ★ 変更があった場合はホーム画面を即時再描画
+          if(changed){
+            if(typeof renderBody==='function')renderBody();
+            if(typeof renderMyPage==='function')renderMyPage();
+          }
+        }
+      }else{
+        // custom_ganttがnull（削除された）場合もクリア
+        if(customGantt[ck]){
+          delete customGantt[ck];
+          saveLS('jack_custom_gantt',customGantt);
+          if(typeof renderBody==='function')renderBody();
         }
       }
     }
