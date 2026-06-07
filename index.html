@@ -1096,6 +1096,8 @@ function computeMasterSegs(confirmDoneStr, template, handKumi) {
       if(col===undefined)col=0;
     }
 
+    console.log('[JACK DEBUG] computeMasterSegs',nm,'startDate='+startDate,'col='+col,
+      'FULL_DATE_IDX['+startDate+']='+FULL_DATE_IDX[startDate]);
     segs.push({
       label:nm, name:nm,
       dur:dur, duration:dur, calendar_dur:calendarDur(startDate,endStr),
@@ -1250,7 +1252,12 @@ function getActiveSegs(p) {
   }
 
   // ④ customGantt（手動編集済み）を最優先で返す
-  if(customGantt[ck]&&customGantt[ck].length)return customGantt[ck];
+  if(customGantt[ck]&&customGantt[ck].length){
+    var _d=customGantt[ck];
+    console.log('[JACK DEBUG] getActiveSegs customGantt経路',p.name,
+      _d.slice(0,2).map(function(s){return s.label+':col='+s.col+' start='+s.start_date;}));
+    return _d;
+  }
 
   // DB_PROPSのcustom_ganttも確認
   if(typeof DB_PROPS!=='undefined'&&DB_PROPS){
