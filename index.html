@@ -908,7 +908,7 @@ var DARK_TEXT = {'造成':1,'地盤':1,'基礎':1,'建て方':1,'造作':1,'外�
   var visEnd=new Date(visStart.getFullYear(),visStart.getMonth()+8,0);
   var dynDates=[''];
   var cur=new Date(visStart.getTime());
-  while(cur<=visEnd){dynDates.push(cur.toISOString().slice(0,10));cur.setDate(cur.getDate()+1);}
+  while(cur<=visEnd){dynDates.push(localDateStr(cur));cur.setDate(cur.getDate()+1);}
 
   // FULL_DATESはDATAの広い範囲を使いつつ、動的日付範囲で補完
   var FULL_DATES_BASE = DATA.full_dates || DATA.dates;
@@ -994,7 +994,7 @@ function workdaysFrom(startStr, n) {
 function addWorkdays(startStr, n) {
   if(n===0)return startStr;
   var days=workdaysFrom(startStr,n);
-  return days[days.length-1].toISOString().slice(0,10);
+  return localDateStr(days[days.length-1]);
 }
 
 // startStrを0日目として n 稼働日後（addWorkdaysのエイリアス）
@@ -1015,7 +1015,7 @@ function nextWorkday(dateStr){
   var d=new Date(dateStr.replace(/[/]/g,'-'));
   d.setDate(d.getDate()+1);
   while(d.getDay()===0)d.setDate(d.getDate()+1);
-  return d.toISOString().slice(0,10);
+  return localDateStr(d);
 }
 
 // calendar_dur を計算（start→end の実カレンダー日数）
@@ -1085,7 +1085,7 @@ function computeMasterSegs(confirmDoneStr, template, handKumi) {
     // 日曜スキップ
     var sd=new Date(startDate.replace(/[/]/g,'-'));
     while(sd.getDay()===0)sd.setDate(sd.getDate()+1);
-    startDate=sd.toISOString().slice(0,10);
+    startDate=localDateStr(sd);
 
     var endStr=endOfWorkdays(startDate,dur);
 
@@ -1138,7 +1138,7 @@ function recomputeSegsFromKiso(segs, newKisoStart, tmpl) {
     if(step.offsetFrom==='基礎完了'&&step.offsetDays!=null){
       var od=step.offsetDays;
       var st=od>0?addWorkdays(kisoEnd,od):kisoEnd;
-      var sd=new Date(st.replace(/[/]/g,'-'));while(sd.getDay()===0)sd.setDate(sd.getDate()+1);st=sd.toISOString().slice(0,10);
+      var sd=new Date(st.replace(/[/]/g,'-'));while(sd.getDay()===0)sd.setDate(sd.getDate()+1);st=localDateStr(sd);
       var ed=endOfWorkdays(st,s.dur);
       var cl=FULL_DATE_IDX[st]||(function(){var fkeys=Object.keys(FULL_DATE_IDX);for(var fi=0;fi<fkeys.length;fi++){if(fkeys[fi]>=st)return FULL_DATE_IDX[fkeys[fi]];}return 0;})();
       return Object.assign({},s,{start_date:st,date:st,end_date:ed,col:cl,calendar_dur:calendarDur(st,ed)});
@@ -2413,7 +2413,7 @@ function buildGanttTab(p){
   });
   var gDates=[''];
   var cur=new Date(gStart.getTime());
-  while(cur<=gEnd){gDates.push(cur.toISOString().slice(0,10));cur.setDate(cur.getDate()+1);}
+  while(cur<=gEnd){gDates.push(localDateStr(cur));cur.setDate(cur.getDate()+1);}
   var gDateIdx={};gDates.forEach(function(d,i){if(d)gDateIdx[d]=i;});
   var GCW=14;
 
@@ -2616,7 +2616,7 @@ function geRenderBars(){
     var ed=s.end_date||''; if(ed){var dt=new Date(ed.replace(/[/]/g,'-'));if(dt>gEnd)gEnd=new Date(dt.getFullYear(),dt.getMonth()+1,0);}
   });
   var gDates=[''],cur=new Date(gStart);
-  while(cur<=gEnd){gDates.push(cur.toISOString().slice(0,10));cur.setDate(cur.getDate()+1);}
+  while(cur<=gEnd){gDates.push(localDateStr(cur));cur.setDate(cur.getDate()+1);}
   var gDateIdx={}; gDates.forEach(function(d,i){if(d)gDateIdx[d]=i;});
   var totalW=(gDates.length-1)*GCW, numRows=segs.length;
   var mn={'01':'1月','02':'2月','03':'3月','04':'4月','05':'5月','06':'6月','07':'7月','08':'8月','09':'9月','10':'10月','11':'11月','12':'12月'};
@@ -2726,7 +2726,7 @@ function geOnDrag(e){
   var newLeft=geDragBar.startBarLeft + dayShift*GCW_GE;
   if(newLeft<0)newLeft=0;
   geDragBar.bar.style.left=newLeft+'px';
-  var nd=new Date(geDragStartMs+dayShift*86400000).toISOString().slice(0,10);
+  var nd=localDateStr(new Date(geDragStartMs+dayShift*86400000));
   var seg=geSegs[geDragBar.idx];
   seg.start_date=nd;seg.date=nd;
   // ★ 完了日も再計算（期間を維持したまま移動）
@@ -2773,7 +2773,7 @@ function geApplyKisoAnchor(movedIdx){
       startDate=od>0?addWorkdays(kisoEnd,od):kisoEnd;
       var sd2=new Date(startDate.replace(/[/]/g,'-'));
       while(sd2.getDay()===0)sd2.setDate(sd2.getDate()+1);
-      startDate=sd2.toISOString().slice(0,10);
+      startDate=localDateStr(sd2);
       var endStr2=endOfWorkdays(startDate,dur);
       s.start_date=startDate; s.date=startDate; s.end_date=endStr2;
       s.calendar_dur=calendarDur(startDate,endStr2);
@@ -2855,7 +2855,7 @@ function geRenderSegList(){
     var edVal=s.end_date||'';
     if(!edVal&&sd){
       var d=new Date(sd.replace(/\//g,'-')); d.setDate(d.getDate()+dur-1);
-      edVal=d.toISOString().slice(0,10);
+      edVal=localDateStr(d);
     }
     var inputStyle='padding:3px 4px;border:1px solid #334155;border-radius:4px;font-size:10px;background:#0f172a;color:white;width:100%;box-sizing:border-box;';
     return '<div style="display:flex;flex-direction:column;gap:4px;padding:6px 6px;background:#0f172a;border-radius:6px;border-left:3px solid '+(s.color||'#64748b')+';">'
@@ -2920,7 +2920,7 @@ function shiftGanttEdit(){
   var days=parseInt(v); if(isNaN(days)){showToast('数値を入力してください','error');return;}
   geSegs=geSegs.map(function(s){
     var sd=s.start_date||s.date||''; if(!sd)return s;
-    var d=new Date(sd); d.setDate(d.getDate()+days); var ns=d.toISOString().slice(0,10);
+    var d=new Date(sd); d.setDate(d.getDate()+days); var ns=localDateStr(d);
     return Object.assign({},s,{start_date:ns,date:ns});
   });
   geRenderBars(); showToast((days>=0?'+':'')+days+'日シフトしました','success');
@@ -2932,7 +2932,7 @@ function saveGanttEdit(){
   var ck=custKey(currentProp);
   var segsData=geSegs.map(function(s){
     var sd=s.start_date||s.date||'',cd=s.calendar_dur||s.duration||1,ed=s.end_date||'';
-    if(!ed&&sd){var d=new Date(sd);d.setDate(d.getDate()+cd-1);ed=d.toISOString().slice(0,10);}
+    if(!ed&&sd){var d=new Date(sd);d.setDate(d.getDate()+cd-1);ed=localDateStr(d);}
     var dk=toDateKey(sd);return {col:FULL_DATE_IDX[dk]||0,date:dk,start_date:dk,end_date:toDateKey(ed),label:s.label,color:s.color,calendar_dur:cd,duration:cd,dur:cd,layer:s.layer||0,textColor:s.textColor||'auto'};
   });
   customGantt[ck]=segsData;
@@ -3035,7 +3035,7 @@ function printDetailGantt(){
 
   function makeDates(start,end){
     var dates=[''];var d=new Date(start.getTime());
-    while(d<=end){dates.push(d.toISOString().slice(0,10));d.setDate(d.getDate()+1);}
+    while(d<=end){dates.push(localDateStr(d));d.setDate(d.getDate()+1);}
     return dates;
   }
 
@@ -3106,10 +3106,10 @@ function printDetailGantt(){
         // バーの期間がブロックにかかっているかチェック
         var calDur=sg.calendar_dur||sg.dur||1;
         var segEnd=new Date(sd);segEnd.setDate(segEnd.getDate()+calDur-1);
-        var segEndStr=segEnd.toISOString().slice(0,10);
+        var segEndStr=localDateStr(segEnd);
         // ブロック開始日以降に終わり、かつブロック終了日以前に始まる
-        var bStartStr=bStart.toISOString().slice(0,10);
-        var bEndStr=bEnd.toISOString().slice(0,10);
+        var bStartStr=localDateStr(bStart);
+        var bEndStr=localDateStr(bEnd);
         if(sd>bEndStr||segEndStr<bStartStr)return;
         // ブロック内でクリップ
         var clipStart=sd<bStartStr?bStartStr:sd;
@@ -3118,8 +3118,8 @@ function printDetailGantt(){
       var calDur=sg.calendar_dur||sg.dur||1;
       // ブロック内に収まる幅
       var segEnd=new Date(sd);segEnd.setDate(segEnd.getDate()+calDur-1);
-      var bEndStr=bEnd.toISOString().slice(0,10);
-      var actualEnd=segEnd.toISOString().slice(0,10)>bEndStr?bEndStr:segEnd.toISOString().slice(0,10);
+      var bEndStr=localDateStr(bEnd);
+      var actualEnd=localDateStr(segEnd)>bEndStr?bEndStr:localDateStr(segEnd);
       var eiInBlock=bIdx[actualEnd]||numDays;
       var bw=Math.max((eiInBlock-si+1)*PCOL-1,2);
       var sx=(si-1)*PCOL;
@@ -3961,7 +3961,7 @@ function printAllGantt(){
     });
   });
   var dates=[''];var cur=new Date(gStart);
-  while(cur<=gEnd){dates.push(cur.toISOString().slice(0,10));cur.setDate(cur.getDate()+1);}
+  while(cur<=gEnd){dates.push(localDateStr(cur));cur.setDate(cur.getDate()+1);}
   var dateIdx={};dates.forEach(function(d,i){if(d)dateIdx[d]=i;});
   var totalW=(dates.length-1)*GCW;
   var mn={'01':'1月','02':'2月','03':'3月','04':'4月','05':'5月','06':'6月','07':'7月','08':'8月','09':'9月','10':'10月','11':'11月','12':'12月'};
@@ -4021,11 +4021,11 @@ function edBuildDates(segs){
   segs.forEach(function(s){
     var sd=s.start_date||s.date||''; if(!sd)return;
     var d0=new Date(sd.replace(/\//g,'-')); if(d0<gStart)gStart=new Date(d0.getFullYear(),d0.getMonth(),1);
-    var ed=s.end_date||''; if(!ed){var d2=new Date(sd.replace(/\//g,'-'));d2.setDate(d2.getDate()+(s.calendar_dur||s.duration||s.dur||1)-1);ed=d2.toISOString().slice(0,10);}
+    var ed=s.end_date||''; if(!ed){var d2=new Date(sd.replace(/\//g,'-'));d2.setDate(d2.getDate()+(s.calendar_dur||s.duration||s.dur||1)-1);ed=localDateStr(d2);}
     var d1=new Date(ed.replace(/\//g,'-')); if(d1>gEnd)gEnd=new Date(d1.getFullYear(),d1.getMonth()+1,0);
   });
   var arr=['']; var cur=new Date(gStart);
-  while(cur<=gEnd){arr.push(cur.toISOString().slice(0,10));cur.setDate(cur.getDate()+1);}
+  while(cur<=gEnd){arr.push(localDateStr(cur));cur.setDate(cur.getDate()+1);}
   return arr;
 }
 
@@ -4063,7 +4063,7 @@ function renderEditorCanvas(){
     if(ed){var dt=new Date(ed.replace(/[/]/g,'-'));if(dt>gEnd)gEnd=new Date(dt.getFullYear(),dt.getMonth()+1,0);}
   });
   var gDates=['']; var cur=new Date(gStart.getTime());
-  while(cur<=gEnd){gDates.push(cur.toISOString().slice(0,10));cur.setDate(cur.getDate()+1);}
+  while(cur<=gEnd){gDates.push(localDateStr(cur));cur.setDate(cur.getDate()+1);}
   var gDateIdx={}; gDates.forEach(function(d,i){if(d)gDateIdx[d]=i;});
 
   var totalW=(gDates.length-1)*GCW;
@@ -4205,7 +4205,7 @@ function onEdDrag(e){
   if(newLeft<0)newLeft=0;
   dragBar.bar.style.left=newLeft+'px';
   var newMs=dragStartDateMs+dayShift*86400000;
-  var newDate=new Date(newMs).toISOString().slice(0,10);
+  var newDate=localDateStr(new Date(newMs));
   edSegs[dragBar.idx].start_date=newDate; edSegs[dragBar.idx].date=newDate;
   // 自動スクロール
   var wrap=dragBar.wrap;
@@ -4245,7 +4245,7 @@ function edApplyKisoAnchor(movedIdx){
     }
     var sd2=new Date(startDate.replace(/[/]/g,'-'));
     while(sd2.getDay()===0)sd2.setDate(sd2.getDate()+1);
-    startDate=sd2.toISOString().slice(0,10);
+    startDate=localDateStr(sd2);
     var endStr2=endOfWorkdays(startDate,dur);
     s.start_date=startDate; s.date=startDate; s.end_date=endStr2;
     s.calendar_dur=calendarDur(startDate,endStr2); s.duration=s.calendar_dur;
@@ -4464,7 +4464,7 @@ function showPeriodShift(){
   edSegs=edSegs.map(function(s){
     var sd=s.start_date||s.date||''; if(!sd)return s;
     var d=new Date(sd.replace(/\//g,'-')); d.setDate(d.getDate()+days);
-    var ns=d.toISOString().slice(0,10);
+    var ns=localDateStr(d);
     return Object.assign({},s,{start_date:ns,date:ns});
   });
   renderEditorCanvas();
@@ -4479,7 +4479,7 @@ function saveEditorChanges(){
     var sd=s.start_date||s.date||'';
     var cd=s.calendar_dur||s.duration||1;
     var ed=s.end_date||'';
-    if(!ed&&sd){var d=new Date(sd.replace(/\//g,'-'));d.setDate(d.getDate()+cd-1);ed=d.toISOString().slice(0,10);}
+    if(!ed&&sd){var d=new Date(sd.replace(/\//g,'-'));d.setDate(d.getDate()+cd-1);ed=localDateStr(d);}
     var dk=toDateKey(sd);var col=FULL_DATE_IDX[dk]||0;
     return {col:col,date:dk,start_date:dk,end_date:toDateKey(ed),label:s.label,color:s.color,calendar_dur:cd,duration:cd,dur:cd,layer:s.layer||0,textColor:s.textColor||'auto'};
   });
@@ -4709,7 +4709,7 @@ function buildMasterEditorDates(){
   var end=new Date(BASE_YEAR, BASE_MONTH-1+7, 0); // 7ヶ月後の月末
   masterEdDates=[''];
   var cur=new Date(start.getTime());
-  while(cur<=end){masterEdDates.push(cur.toISOString().slice(0,10));cur.setDate(cur.getDate()+1);}
+  while(cur<=end){masterEdDates.push(localDateStr(cur));cur.setDate(cur.getDate()+1);}
 }
 
 // Compute master gantt: sequential workday scheduling with step offsets
@@ -4720,7 +4720,7 @@ function computeMasterEditorSegs(steps){
   var baseDateStr=masterEdDates[2]||masterEdDates[1]||'2000-01-02';
   var bd=new Date(baseDateStr.replace(/[/]/g,'-'));
   while(bd.getDay()===0)bd.setDate(bd.getDate()+1);
-  baseDateStr=bd.toISOString().slice(0,10);
+  baseDateStr=localDateStr(bd);
 
   var segs=[];
   var prevEnd=baseDateStr;
@@ -4746,19 +4746,19 @@ function computeMasterEditorSegs(steps){
 
     var sfDt=new Date(startDate.replace(/[/]/g,'-'));
     while(sfDt.getDay()===0)sfDt.setDate(sfDt.getDate()+1);
-    startDate=sfDt.toISOString().slice(0,10);
+    startDate=localDateStr(sfDt);
 
     // step.offset: ドラッグで付いた日数ずれを加算
     if(step.offset){
       var offDt=new Date(startDate.replace(/[/]/g,'-'));
       offDt.setDate(offDt.getDate()+step.offset);
-      startDate=offDt.toISOString().slice(0,10);
+      startDate=localDateStr(offDt);
     }
 
     var days=workdaysFrom(startDate,dur);
     if(!days.length)continue;
-    var sd=days[0].toISOString().slice(0,10);
-    var ed=days[days.length-1].toISOString().slice(0,10);
+    var sd=localDateStr(days[0]);
+    var ed=localDateStr(days[days.length-1]);
     var calDur=Math.round((days[days.length-1]-days[0])/86400000)+1;
     var col=masterEdDates.indexOf(sd);
     if(col<0){for(var fi2=1;fi2<masterEdDates.length;fi2++){if(masterEdDates[fi2]>=sd){col=fi2;break;}}}
@@ -5108,7 +5108,7 @@ function stopMasterBarDrag(){
         if(seg&&seg.start_date){
           var d=new Date(seg.start_date.replace(/[/]/g,'-'));
           d.setDate(d.getDate()+dayShift);
-          step.start_date=d.toISOString().slice(0,10);
+          step.start_date=localDateStr(d);
         }
       }
       step.offset=0; // offsetはリセット
@@ -5433,7 +5433,7 @@ function printPage(){
       var calDur=seg.calendar_dur||seg.dur||1;
       // バー終了日を計算
       var segEndDt=new Date(sd); segEndDt.setDate(segEndDt.getDate()+calDur-1);
-      var ed=segEndDt.toISOString().slice(0,10);
+      var ed=localDateStr(segEndDt);
       // 印刷範囲外なら完全スキップ
       if(ed<printStart||sd>printEnd)return;
       // クリップ：印刷範囲内にかかる部分だけ表示
