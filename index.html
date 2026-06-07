@@ -1257,7 +1257,16 @@ function getActiveSegs(p) {
     var dbP=DB_PROPS.find(function(dp){return String(dp.fix_no)===String(p.fix_no);});
     if(dbP&&dbP.custom_gantt){
       var cg=typeof dbP.custom_gantt==='string'?JSON.parse(dbP.custom_gantt):dbP.custom_gantt;
-      if(cg&&cg.length){customGantt[ck]=cg;return cg;}
+      if(cg&&cg.length){
+        // 日付フォーマットを正規化してcol再計算（toISOStringのUTCずれ対策）
+        cg=cg.map(function(s){
+          var dk=toDateKey(s.start_date||s.date||'');
+          var ek=toDateKey(s.end_date||'');
+          var col=(typeof FULL_DATE_IDX!=='undefined'&&dk)?FULL_DATE_IDX[dk]||0:s.col||0;
+          return Object.assign({},s,{start_date:dk,date:dk,end_date:ek,col:col});
+        });
+        customGantt[ck]=cg;return cg;
+      }
     }
   }
 
@@ -5696,6 +5705,13 @@ function doSyncFull(){
   loadPropertiesFromCacheOrDB(true).then(function(){
     // vendorsは同期ボタンでは取得しない（全業者選定一覧を開いたときのみ取得）
     if(typeof _loadMastersFromDB==='function')_loadMastersFromDB(true);
+    // 同期後はTSキャッシュ・_ganttFetchedPropsをリセットして再確認を強制
+    if(typeof window._ganttFetchedProps!=='undefined')window._ganttFetchedProps={};
+    // jack_gantt_ts_*をLocalStorageから全削除
+    try{
+      Object.keys(localStorage).filter(function(k){return k.indexOf('jack_gantt_ts_')===0;})
+        .forEach(function(k){localStorage.removeItem(k);});
+    }catch(e){}
     showToast('✅ データを同期しました（工程・マスター）','success');
   });
 }
@@ -8795,6 +8811,8 @@ document.addEventListener('DOMContentLoaded',function(){
     });
   })();
   // ===== ピンチズームここまで =====
+  // customGanttのcolをFULL_DATE_IDX確定後に再計算
+  if(typeof _recalcCustomGanttCols==='function')_recalcCustomGanttCols();
 
   // FIXED_AREAがある場合、マップメニューを該当エリアのみに絞る
   if(FIXED_AREA==='tokai'||FIXED_AREA==='kanto'){
