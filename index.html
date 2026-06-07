@@ -1096,8 +1096,6 @@ function computeMasterSegs(confirmDoneStr, template, handKumi) {
       if(col===undefined)col=0;
     }
 
-    console.log('[JACK DEBUG] computeMasterSegs',nm,'startDate='+startDate,'col='+col,
-      'FULL_DATE_IDX['+startDate+']='+FULL_DATE_IDX[startDate]);
     segs.push({
       label:nm, name:nm,
       dur:dur, duration:dur, calendar_dur:calendarDur(startDate,endStr),
@@ -1252,12 +1250,7 @@ function getActiveSegs(p) {
   }
 
   // ④ customGantt（手動編集済み）を最優先で返す
-  if(customGantt[ck]&&customGantt[ck].length){
-    var _d=customGantt[ck];
-    console.log('[JACK DEBUG] getActiveSegs customGantt経路',p.name,
-      _d.slice(0,2).map(function(s){return s.label+':col='+s.col+' start='+s.start_date;}));
-    return _d;
-  }
+  if(customGantt[ck]&&customGantt[ck].length)return customGantt[ck];
 
   // DB_PROPSのcustom_ganttも確認
   if(typeof DB_PROPS!=='undefined'&&DB_PROPS){
@@ -2118,7 +2111,10 @@ function renderBars(cv, p, segs, gx, top, rowH) {
     var lbl   = seg.label || seg.name || '';
     var calDur = seg.calendar_dur || seg.duration || seg.dur || 1;
     var layer = seg.layer || 0;
-    var col   = typeof seg.col==='number' ? seg.col : 0;
+    // start_dateから毎回FULL_DATE_IDXで引き直す（保存時とインデックスがずれる問題を防ぐ）
+    var _sd=seg.start_date||seg.date||'';
+    var _dk=_sd.replace(/\//g,'-').slice(0,10);
+    var col=(_dk&&FULL_DATE_IDX[_dk]!==undefined)?FULL_DATE_IDX[_dk]:(typeof seg.col==='number'?seg.col:0);
     var color = seg.color || EC[lbl] || '#64748b';
     var tcOverride = seg.textColor;
     var tcolor = tcOverride && tcOverride !== 'auto' ? tcOverride : (DARK_TEXT[lbl] ? '#3a2a10' : 'white');
