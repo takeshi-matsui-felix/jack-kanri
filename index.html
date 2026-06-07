@@ -917,7 +917,7 @@ var DARK_TEXT = {'造成':1,'地盤':1,'基礎':1,'建て方':1,'造作':1,'外�
   var fullEnd=new Date(todayDt.getFullYear()+2,11,31); // 2年後末日
   var dynFull=[''];
   var cf=new Date(fullStart.getTime());
-  while(cf<=fullEnd){dynFull.push(cf.toISOString().slice(0,10));cf.setDate(cf.getDate()+1);}
+  while(cf<=fullEnd){dynFull.push(localDateStr(cf));cf.setDate(cf.getDate()+1);}
 
   window.VIS_DATES  = dynDates;
   window.FULL_DATES = dynFull.length > FULL_DATES_BASE.length ? dynFull : FULL_DATES_BASE;
@@ -1362,6 +1362,20 @@ function getProps() {
 function getAllProps(){return(DATA.all['全物件進捗']||[]).concat(DATA.all['来期物件']||[]);}
 function getDow(d){return d?new Date(d).getDay():-1;}
 // 日付を YYYY/MM/DD に正規化（9/20/24→2024/09/20, 2024-09-20→2024/09/20）
+// ローカル日付をYYYY-MM-DD形式で返す（toISOString()のUTCずれを防ぐ）
+function localDateStr(d){
+  if(!d)return '';
+  var y=d.getFullYear();
+  var m=String(d.getMonth()+1).padStart(2,'0');
+  var day=String(d.getDate()).padStart(2,'0');
+  return y+'-'+m+'-'+day;
+}
+// 日付文字列をFULL_DATE_IDXのキー形式（YYYY-MM-DD）に統一
+function toDateKey(s){
+  if(!s)return '';
+  return String(s).replace(/\//g,'-').split(' ')[0].trim().slice(0,10);
+}
+
 function normDate(raw){
   if(!raw||/REF|#/.test(String(raw)))return '';
   var s=String(raw).replace(/-/g,'/').split(' ')[0].trim();
@@ -2910,7 +2924,7 @@ function saveGanttEdit(){
   var segsData=geSegs.map(function(s){
     var sd=s.start_date||s.date||'',cd=s.calendar_dur||s.duration||1,ed=s.end_date||'';
     if(!ed&&sd){var d=new Date(sd);d.setDate(d.getDate()+cd-1);ed=d.toISOString().slice(0,10);}
-    return {col:FULL_DATE_IDX[sd]||0,date:sd,start_date:sd,end_date:ed,label:s.label,color:s.color,calendar_dur:cd,duration:cd,dur:cd,layer:s.layer||0,textColor:s.textColor||'auto'};
+    var dk=toDateKey(sd);return {col:FULL_DATE_IDX[dk]||0,date:dk,start_date:dk,end_date:toDateKey(ed),label:s.label,color:s.color,calendar_dur:cd,duration:cd,dur:cd,layer:s.layer||0,textColor:s.textColor||'auto'};
   });
   customGantt[ck]=segsData;
   saveLS('jack_custom_gantt',customGantt);
@@ -4457,8 +4471,8 @@ function saveEditorChanges(){
     var cd=s.calendar_dur||s.duration||1;
     var ed=s.end_date||'';
     if(!ed&&sd){var d=new Date(sd.replace(/\//g,'-'));d.setDate(d.getDate()+cd-1);ed=d.toISOString().slice(0,10);}
-    var col=FULL_DATE_IDX[sd]||0;
-    return {col:col,date:sd,start_date:sd,end_date:ed,label:s.label,color:s.color,calendar_dur:cd,duration:cd,dur:cd,layer:s.layer||0,textColor:s.textColor||'auto'};
+    var dk=toDateKey(sd);var col=FULL_DATE_IDX[dk]||0;
+    return {col:col,date:dk,start_date:dk,end_date:toDateKey(ed),label:s.label,color:s.color,calendar_dur:cd,duration:cd,dur:cd,layer:s.layer||0,textColor:s.textColor||'auto'};
   });
   customGantt[ck]=segsData;
   saveLS('jack_custom_gantt',customGantt);
@@ -5589,6 +5603,13 @@ async function _loadCustomGanttIfNeeded(p){
       if(r.data.custom_gantt){
         var cg=typeof r.data.custom_gantt==='string'?JSON.parse(r.data.custom_gantt):r.data.custom_gantt;
         if(cg&&cg.length){
+          // DBのstart_dateをFULL_DATE_IDXのキー形式に統一
+          cg=cg.map(function(s){
+            var dk=toDateKey(s.start_date||s.date||'');
+            var ek=toDateKey(s.end_date||'');
+            var col=FULL_DATE_IDX[dk]||0;
+            return Object.assign({},s,{start_date:dk,date:dk,end_date:ek,col:col});
+          });
           var changed=JSON.stringify(customGantt[ck])!==JSON.stringify(cg);
           customGantt[ck]=cg;
           saveLS('jack_custom_gantt',customGantt);
