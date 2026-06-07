@@ -870,25 +870,14 @@ var AREA_TABS = [
   { id:'完工',    label:'完工',       cls:'kankou', areas:null }
 ];
 // FIXED_AREAでタブを絞り込む（東海・関東業者モード）
-// allタブのラベルをエリア名入りに変更
-if(FIXED_AREA==='tokai'){
-  var _at=AREA_TABS.find(function(t){return t.id==='all';});
-  if(_at)_at.label='東海全物件';
-  var _at2=AREA_TABS.find(function(t){return t.id==='来期';});
-  if(_at2)_at2.label='来期（東海）';
-}else if(FIXED_AREA==='kanto'){
-  var _at=AREA_TABS.find(function(t){return t.id==='all';});
-  if(_at)_at.label='関東全物件';
-  var _at2=AREA_TABS.find(function(t){return t.id==='来期';});
-  if(_at2)_at2.label='来期（関東）';
-}
+
 if(FIXED_AREA==='tokai'){
   AREA_TABS=AREA_TABS.filter(function(t){
-    return ['マイ物件','all','東海','来期','来期東海','完工'].indexOf(t.id)>=0;
+    return ['マイ物件','東海','来期東海'].indexOf(t.id)>=0;
   });
 }else if(FIXED_AREA==='kanto'){
   AREA_TABS=AREA_TABS.filter(function(t){
-    return ['マイ物件','all','関東','来期','来期関東','完工'].indexOf(t.id)>=0;
+    return ['マイ物件','関東','来期関東'].indexOf(t.id)>=0;
   });
 }
 
@@ -1313,7 +1302,19 @@ function isKankou(p){
 
 function getProps() {
   var tabDef = AREA_TABS.find(function(t){return t.id===currentArea;});
-  var all=getAllProps(); // DB_PROPS優先（パッチ済み）
+  var all=getAllProps().filter(function(p){
+    // 不正データ除外: 物件名がない・数値のみ・エリア名のみ・集計行等
+    var name=String(p.name||'').trim();
+    var fixNo=String(p.fix_no||'').trim();
+    if(!name)return false;
+    // fix_noが数値5桁以上で物件名が短い（エリア名・年月のみ）は除外
+    if(/^\d{4,}$/.test(fixNo)&&name.length<=4)return false;
+    // 物件名が「エリア」「月度」「計」「来期」等の集計ラベルのみは除外
+    if(/^(エリア|月度|計|来期|前期|愛知|東京|神奈川|長野|埼玉|静岡|三重|岐阜|千葉|茨城|栃木|群馬)$/.test(name))return false;
+    // ~2025/9 等の年月表記のみは除外
+    if(/^[~〜]?\d{4}\/?\d*$/.test(name))return false;
+    return true;
+  }); // DB_PROPS優先（パッチ済み）
   var list;
   if (currentArea==='マイ物件') {
     list=all.filter(function(p){return isFav(p);});
@@ -3707,6 +3708,14 @@ function openSelectProp(){
     {id:'関東',  label:'🌿 関東', areas:KANTO_AREAS},
     {id:'来期',  label:'📅 来期', raikin:true},
   ];
+  // FIXED_AREAで絞り込む
+  if(FIXED_AREA==='tokai'){
+    tabDefs=tabDefs.filter(function(t){return t.id==='all'||t.id==='東海'||t.id==='来期';});
+    tabDefs[0].label='東海（今期）';
+  }else if(FIXED_AREA==='kanto'){
+    tabDefs=tabDefs.filter(function(t){return t.id==='all'||t.id==='関東'||t.id==='来期';});
+    tabDefs[0].label='関東（今期）';
+  }
   var selTab='all';
 
   var searchQuery='';
