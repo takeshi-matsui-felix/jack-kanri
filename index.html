@@ -870,13 +870,25 @@ var AREA_TABS = [
   { id:'完工',    label:'完工',       cls:'kankou', areas:null }
 ];
 // FIXED_AREAでタブを絞り込む（東海・関東業者モード）
+// allタブのラベルをエリア名入りに変更
+if(FIXED_AREA==='tokai'){
+  var _at=AREA_TABS.find(function(t){return t.id==='all';});
+  if(_at)_at.label='東海全物件';
+  var _at2=AREA_TABS.find(function(t){return t.id==='来期';});
+  if(_at2)_at2.label='来期（東海）';
+}else if(FIXED_AREA==='kanto'){
+  var _at=AREA_TABS.find(function(t){return t.id==='all';});
+  if(_at)_at.label='関東全物件';
+  var _at2=AREA_TABS.find(function(t){return t.id==='来期';});
+  if(_at2)_at2.label='来期（関東）';
+}
 if(FIXED_AREA==='tokai'){
   AREA_TABS=AREA_TABS.filter(function(t){
-    return t.id==='my'||t.id==='tokai'||t.id==='raikin_tokai'||t.id==='kankou';
+    return ['マイ物件','all','東海','来期','来期東海','完工'].indexOf(t.id)>=0;
   });
 }else if(FIXED_AREA==='kanto'){
   AREA_TABS=AREA_TABS.filter(function(t){
-    return t.id==='my'||t.id==='kanto'||t.id==='raikin_kanto'||t.id==='kankou';
+    return ['マイ物件','all','関東','来期','来期関東','完工'].indexOf(t.id)>=0;
   });
 }
 
@@ -3700,6 +3712,9 @@ function openSelectProp(){
   var searchQuery='';
   function renderSelectContent(){
     var list=active.filter(function(p){
+      // FIXED_AREA絞り込み（業者モード）
+      if(FIXED_AREA==='tokai'){var a=normalizeArea(p);if(TOKAI_AREAS.indexOf(a)<0)return false;}
+      if(FIXED_AREA==='kanto'){var a=normalizeArea(p);if(KANTO_AREAS.indexOf(a)<0)return false;}
       var td=tabDefs.find(function(t){return t.id===selTab;});
       if(!td||td.id==='all')return !isRaikin(p)&&!isKankou(p);
       if(td.raikin)return isRaikin(p)&&!isKankou(p);
@@ -3795,6 +3810,8 @@ function openSelectProp(){
     function renderListOnly(){
       var q=searchQuery.toLowerCase();
       var filtered=active.filter(function(p){
+        if(FIXED_AREA==='tokai'){var a=normalizeArea(p);if(TOKAI_AREAS.indexOf(a)<0)return false;}
+        if(FIXED_AREA==='kanto'){var a=normalizeArea(p);if(KANTO_AREAS.indexOf(a)<0)return false;}
         var td=tabDefs.find(function(t){return t.id===selTab;});
         if(!td||td.id==='all'){if(isRaikin(p)||isKankou(p))return false;}
         else if(td.raikin){if(!isRaikin(p)||isKankou(p))return false;}
@@ -6156,7 +6173,10 @@ function openJackMap(area){
   if(frameEl)frameEl.src='about:blank';
   _mapProp=null; _mapParkIdx=-1;
 
-  var allAreas=Object.keys(areaGroups);
+  // FIXED_AREAがある場合は該当エリアのみ表示・タブ切り替えなし
+  if(FIXED_AREA==='tokai'){allAreas=['東海'];area='東海';}
+  else if(FIXED_AREA==='kanto'){allAreas=['関東'];area='関東';}
+  else{allAreas=Object.keys(areaGroups);}
 
   function getAddr(p){
     // prop_overrides(LocalStorage)を優先
@@ -6183,34 +6203,32 @@ function openJackMap(area){
     _currentMapArea=targetArea;
     var fixedTabs=document.getElementById('jackMapAreaTabs');
     if(!fixedTabs)return;
-    fixedTabs.innerHTML=
-      '<div style="display:flex;border-bottom:2px solid #e2e8f0;background:white">'
-      +allAreas.map(function(a){
-        var act=a===targetArea;
-        return '<button class="map-area-tab" data-area="'+a+'" style="flex:1;padding:9px 4px;font-size:12px;font-weight:700;cursor:pointer;border:none;border-bottom:3px solid '+(act?'#1a56db':'transparent')+';color:'+(act?'#1a56db':'#94a3b8')+';background:white;margin-bottom:-2px">'+a+'</button>';
-      }).join('')
-      +'</div>'
+    var tabHtml='';
+    if(!FIXED_AREA){
+      // 管理者モード: エリアタブを表示
+      tabHtml='<div style="display:flex;border-bottom:2px solid #e2e8f0;background:white">'
+        +allAreas.map(function(a){
+          var act=a===targetArea;
+          return '<button class="map-area-tab" data-area="'+a+'" style="flex:1;padding:9px 4px;font-size:12px;font-weight:700;cursor:pointer;border:none;border-bottom:3px solid '+(act?'#1a56db':'transparent')+';color:'+(act?'#1a56db':'#94a3b8')+';background:white;margin-bottom:-2px">'+a+'</button>';
+        }).join('')+'</div>';
+    }
+    fixedTabs.innerHTML=tabHtml
       +'<div style="padding:6px 10px;background:white;border-bottom:1px solid #e2e8f0">'
       +'<input id="jackMapSearch" type="text" placeholder="物件名・FiX Noで検索…" '
       +'style="width:100%;padding:7px 10px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:12px;box-sizing:border-box">'
       +'</div>';
-    // タブクリック
-    fixedTabs.querySelector('div').addEventListener('click',function(e){
-      var aTab=e.target.closest('.map-area-tab');
-      if(aTab){
-        _currentSearch='';
-        renderHeader(aTab.getAttribute('data-area'));
-        renderItems(_currentMapArea,'');
-      }
-    });
-    // 検索バー：入力時はリストのみ更新（フォーカスを失わない）
+    if(!FIXED_AREA){
+      // タブクリック（管理者のみ）
+      var tabDiv=fixedTabs.querySelector('div');
+      if(tabDiv)tabDiv.addEventListener('click',function(e){
+        var aTab=e.target.closest('.map-area-tab');
+        if(aTab){_currentSearch='';renderHeader(aTab.getAttribute('data-area'));renderItems(_currentMapArea,'');}
+      });
+    }
     var searchEl=document.getElementById('jackMapSearch');
     if(searchEl){
       searchEl.value=_currentSearch;
-      searchEl.addEventListener('input',function(){
-        _currentSearch=this.value;
-        renderItems(_currentMapArea,_currentSearch);
-      });
+      searchEl.addEventListener('input',function(){_currentSearch=this.value;renderItems(_currentMapArea,_currentSearch);});
       searchEl.addEventListener('click',function(e){e.stopPropagation();});
     }
   }
@@ -7440,8 +7458,12 @@ function _renderVendorPanel(){
   var data=window._VENDOR_LIST_DATA;
   var areas=Object.keys(data);
   if(!areas.length)return;
+  // FIXED_AREAで絞り込む（東海業者→東海のみ、関東業者→関東のみ）
+  if(FIXED_AREA==='tokai')areas=areas.filter(function(a){return a.indexOf('東海')>=0;});
+  else if(FIXED_AREA==='kanto')areas=areas.filter(function(a){return a.indexOf('関東')>=0;});
+  if(!areas.length)return;
   if(!window._VENDOR_LIST_TAB||!data[window._VENDOR_LIST_TAB])window._VENDOR_LIST_TAB=areas[0];
-  // タブ描画
+  // タブ描画（FIXED_AREAがある場合はタブ1つなので非表示でもよいが残す）
   var tabsEl=document.getElementById('vendorAreaTabs');
   if(tabsEl){
     tabsEl.innerHTML=areas.map(function(a){
@@ -8664,6 +8686,17 @@ function switchGanttTab(tab){
 window.switchGanttTab=switchGanttTab;
 
 document.addEventListener('DOMContentLoaded',function(){
+  // FIXED_AREAがある場合、マップメニューを該当エリアのみに絞る
+  if(FIXED_AREA==='tokai'||FIXED_AREA==='kanto'){
+    var mapLabel=FIXED_AREA==='tokai'?'東海':'関東';
+    // サブメニューのマップ項目を絞り込む
+    var mapItems=document.querySelectorAll('[onclick*="openJackMap"]');
+    mapItems.forEach(function(el){
+      var label=el.textContent||'';
+      if(label.indexOf(mapLabel)<0&&label.indexOf('全現場マップ')<0)el.style.display='none';
+    });
+
+  }
   // エリアバッジ表示
   var badge=document.getElementById('areaBadge');
   if(badge&&FIXED_AREA){
