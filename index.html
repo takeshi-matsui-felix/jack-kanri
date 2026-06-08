@@ -2128,7 +2128,8 @@ function renderBars(cv, p, segs, gx, top, rowH) {
       var _p=_dk.split('-');
       var _sdObj=new Date(parseInt(_p[0]),parseInt(_p[1])-1,parseInt(_p[2]));
       var _dayDiff=Math.round((_sdObj-VIS_START_DATE_OBJ)/86400000);
-      sPx = gx + _dayDiff * COL_W;
+      // VIS_DATES[0]=''(空)のためインデックスは1始まり → +1してヘッダーと一致させる
+      sPx = gx + (_dayDiff + 1) * COL_W;
     }else{
       var col=typeof seg.col==='number'?seg.col:0;
       sPx = gx + (col - FULL_VIS_OFFSET) * COL_W;
