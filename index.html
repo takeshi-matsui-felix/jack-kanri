@@ -936,6 +936,8 @@ var FULL_VIS_OFFSET = FULL_DATE_IDX[VIS_START_DATE] || 0;
 // VIS_DATE_IDX: VIS_DATESの日付→インデックス（ホーム画面バー描画に使用）
 var VIS_DATE_IDX = {};
 VIS_DATES.forEach(function(d,i){ if(d) VIS_DATE_IDX[d]=i; });
+// 表示開始日のDateオブジェクト（日数差計算用）
+var VIS_START_DATE_OBJ = new Date(VIS_START_DATE);
 
 var GANTT_W = VIS_DATES.length * COL_W;
 var TOTAL_SCROLL_W = PRE_W + GANTT_W + POST_W;
@@ -2114,20 +2116,19 @@ function renderBars(cv, p, segs, gx, top, rowH) {
     var lbl   = seg.label || seg.name || '';
     var calDur = seg.calendar_dur || seg.duration || seg.dur || 1;
     var layer = seg.layer || 0;
-    // VIS_DATE_IDX で start_date を引き直す（FULL_DATE_IDXのオフセット計算不要・ずれなし）
+    // start_dateとVIS_START_DATEの日数差でcol計算（UTC変換なし・確実）
     var _sd=seg.start_date||seg.date||'';
     var _dk=_sd.replace(/\//g,'-').slice(0,10);
-    // VIS_DATE_IDX: VIS_DATES配列内のインデックス（1始まり）
-    // ホーム画面のsPx = gx + (col - FULL_VIS_OFFSET) * COL_W
-    // VIS_DATE_IDX[_dk] = VIS_DATES内のi → FULL_DATE_IDX[_dk] - FULL_VIS_OFFSET = VIS_DATE_IDX[_dk] - 1
-    // → col = FULL_DATE_IDX[_dk] にして (col - FULL_VIS_OFFSET) = VIS_DATE_IDX[_dk] - 1 が正しい列番号
-    var _visIdx=VIS_DATE_IDX&&VIS_DATE_IDX[_dk];
     var col;
-    if(_visIdx!==undefined){
-      // VIS_DATE_IDXから逆算してFULL_DATE_IDX相当の値にする
-      col=FULL_VIS_OFFSET+_visIdx-1;
+    if(_dk){
+      // _dkをローカル日付として解釈するため年月日を分解してDateを作る
+      var _p=_dk.split('-');
+      var _sdObj=new Date(parseInt(_p[0]),parseInt(_p[1])-1,parseInt(_p[2]));
+      // VIS_START_DATEからの日数差（0始まり） → FULL_VIS_OFFSET加算でcol値に変換
+      var _dayDiff=Math.round((_sdObj-VIS_START_DATE_OBJ)/86400000);
+      col=FULL_VIS_OFFSET+_dayDiff;
     }else{
-      col=(_dk&&FULL_DATE_IDX[_dk]!==undefined)?FULL_DATE_IDX[_dk]:(typeof seg.col==='number'?seg.col:0);
+      col=typeof seg.col==='number'?seg.col:0;
     }
     var color = seg.color || EC[lbl] || '#64748b';
     var tcOverride = seg.textColor;
