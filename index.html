@@ -937,7 +937,11 @@ var FULL_VIS_OFFSET = FULL_DATE_IDX[VIS_START_DATE] || 0;
 var VIS_DATE_IDX = {};
 VIS_DATES.forEach(function(d,i){ if(d) VIS_DATE_IDX[d]=i; });
 // 表示開始日のDateオブジェクト（日数差計算用）
-var VIS_START_DATE_OBJ = new Date(VIS_START_DATE);
+// VIS_START_DATE_OBJをローカル時刻で作成（'2026-05-16'のUTC解釈を避ける）
+var VIS_START_DATE_OBJ = (function(){
+  var _p=VIS_START_DATE.split('-');
+  return new Date(parseInt(_p[0]),parseInt(_p[1])-1,parseInt(_p[2]));
+})();
 
 var GANTT_W = VIS_DATES.length * COL_W;
 var TOTAL_SCROLL_W = PRE_W + GANTT_W + POST_W;
@@ -2116,25 +2120,23 @@ function renderBars(cv, p, segs, gx, top, rowH) {
     var lbl   = seg.label || seg.name || '';
     var calDur = seg.calendar_dur || seg.duration || seg.dur || 1;
     var layer = seg.layer || 0;
-    // start_dateとVIS_START_DATEの日数差でcol計算（UTC変換なし・確実）
+    // start_dateから直接ピクセルを計算（colを経由しない・確実にずれない）
     var _sd=seg.start_date||seg.date||'';
     var _dk=_sd.replace(/\//g,'-').slice(0,10);
-    var col;
+    var sPx;
     if(_dk){
-      // _dkをローカル日付として解釈するため年月日を分解してDateを作る
       var _p=_dk.split('-');
       var _sdObj=new Date(parseInt(_p[0]),parseInt(_p[1])-1,parseInt(_p[2]));
-      // VIS_START_DATEからの日数差（0始まり） → FULL_VIS_OFFSET加算でcol値に変換
       var _dayDiff=Math.round((_sdObj-VIS_START_DATE_OBJ)/86400000);
-      col=FULL_VIS_OFFSET+_dayDiff;
+      sPx = gx + _dayDiff * COL_W;
     }else{
-      col=typeof seg.col==='number'?seg.col:0;
+      var col=typeof seg.col==='number'?seg.col:0;
+      sPx = gx + (col - FULL_VIS_OFFSET) * COL_W;
     }
     var color = seg.color || EC[lbl] || '#64748b';
     var tcOverride = seg.textColor;
     var tcolor = tcOverride && tcOverride !== 'auto' ? tcOverride : (DARK_TEXT[lbl] ? '#3a2a10' : 'white');
 
-    var sPx = gx + (col - FULL_VIS_OFFSET) * COL_W;
     var ePx = sPx + calDur * COL_W - 2;
 
     if (sPx > vEndPx || ePx < vStartPx) return;
