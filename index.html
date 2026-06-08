@@ -933,6 +933,9 @@ FULL_DATES.forEach(function(d,i){ if(d) FULL_DATE_IDX[d]=i; });
 
 // Which col in VIS_DATES corresponds to FULL_DATES col
 var FULL_VIS_OFFSET = FULL_DATE_IDX[VIS_START_DATE] || 0;
+// VIS_DATE_IDX: VIS_DATESの日付→インデックス（ホーム画面バー描画に使用）
+var VIS_DATE_IDX = {};
+VIS_DATES.forEach(function(d,i){ if(d) VIS_DATE_IDX[d]=i; });
 
 var GANTT_W = VIS_DATES.length * COL_W;
 var TOTAL_SCROLL_W = PRE_W + GANTT_W + POST_W;
@@ -2111,10 +2114,21 @@ function renderBars(cv, p, segs, gx, top, rowH) {
     var lbl   = seg.label || seg.name || '';
     var calDur = seg.calendar_dur || seg.duration || seg.dur || 1;
     var layer = seg.layer || 0;
-    // start_dateから毎回FULL_DATE_IDXで引き直す（保存時とインデックスがずれる問題を防ぐ）
+    // VIS_DATE_IDX で start_date を引き直す（FULL_DATE_IDXのオフセット計算不要・ずれなし）
     var _sd=seg.start_date||seg.date||'';
     var _dk=_sd.replace(/\//g,'-').slice(0,10);
-    var col=(_dk&&FULL_DATE_IDX[_dk]!==undefined)?FULL_DATE_IDX[_dk]:(typeof seg.col==='number'?seg.col:0);
+    // VIS_DATE_IDX: VIS_DATES配列内のインデックス（1始まり）
+    // ホーム画面のsPx = gx + (col - FULL_VIS_OFFSET) * COL_W
+    // VIS_DATE_IDX[_dk] = VIS_DATES内のi → FULL_DATE_IDX[_dk] - FULL_VIS_OFFSET = VIS_DATE_IDX[_dk] - 1
+    // → col = FULL_DATE_IDX[_dk] にして (col - FULL_VIS_OFFSET) = VIS_DATE_IDX[_dk] - 1 が正しい列番号
+    var _visIdx=VIS_DATE_IDX&&VIS_DATE_IDX[_dk];
+    var col;
+    if(_visIdx!==undefined){
+      // VIS_DATE_IDXから逆算してFULL_DATE_IDX相当の値にする
+      col=FULL_VIS_OFFSET+_visIdx-1;
+    }else{
+      col=(_dk&&FULL_DATE_IDX[_dk]!==undefined)?FULL_DATE_IDX[_dk]:(typeof seg.col==='number'?seg.col:0);
+    }
     var color = seg.color || EC[lbl] || '#64748b';
     var tcOverride = seg.textColor;
     var tcolor = tcOverride && tcOverride !== 'auto' ? tcOverride : (DARK_TEXT[lbl] ? '#3a2a10' : 'white');
@@ -2639,6 +2653,7 @@ function geRenderBars(){
     var sd=seg.start_date||seg.date||''; if(!sd)return;
     var sdClean=sd.replace(/\//g,'-');
     var col=gDateIdx[sdClean]; if(col===undefined||col===0)return;
+    // デバッグ: 最初の2バーのみ
     var calDur=seg.calendar_dur||(function(){var ed=seg.end_date||'';if(ed)return Math.round((new Date(ed.replace(/[/]/g,'-'))-new Date(sdClean))/86400000)+1;return seg.duration||seg.dur||1;})();
     var sx=(col-1)*GCW, bw=Math.max(calDur*GCW-1,GCW-1);
     var layer=seg.layer||0, by=idx*ROW_H+28+(layer===1?3:0), bh=layer===1?ROW_H-7:ROW_H-3;
@@ -4112,6 +4127,7 @@ function renderEditorCanvas(){
     var sd=seg.start_date||seg.date||''; if(!sd)return;
     var sdClean=sd.replace(/\//g,'-');
     var col=gDateIdx[sdClean]; if(col===undefined||col===0)return;
+    // デバッグ: 最初の2バーのみ
     var calDur=seg.calendar_dur||(function(){
       var ed=seg.end_date||'';
       if(ed)return Math.round((new Date(ed.replace(/[/]/g,'-'))-new Date(sdClean))/86400000)+1;
