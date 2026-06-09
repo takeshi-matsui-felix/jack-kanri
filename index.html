@@ -2098,15 +2098,23 @@ function renderBars(cv, p, segs, gx, top, rowH) {
   var barH = rowH === 32 ? 18 : 20;
   var barY = top + Math.floor((rowH-barH)/2);
 
+  // 日付文字列→ピクセル変換ヘルパー（VIS_DATES[0]=''の+1補正込み）
+  var _dateToPx=function(dateStr){
+    var dk=(dateStr||'').replace(/\//g,'-').slice(0,10);
+    if(!dk)return null;
+    var pp=dk.split('-');
+    if(pp.length!==3)return null;
+    var obj=new Date(parseInt(pp[0]),parseInt(pp[1])-1,parseInt(pp[2]));
+    var diff=Math.round((obj-VIS_START_DATE_OBJ)/86400000);
+    return gx+(diff+1)*COL_W;
+  };
+
   // 引渡し日の縦ライン（薄い赤）を最初に描画
   var ddRawPre=p.delivery_date||'';
   if(ddRawPre&&!/REF|#/.test(ddRawPre)){
     var ddNormPre=normDate(ddRawPre)||ddRawPre;
-    var dsPre=ddNormPre.replace(/\//g,'-');
-    var dcolPre=FULL_DATE_IDX[dsPre];
-    if(dcolPre===undefined){var kk=Object.keys(FULL_DATE_IDX);for(var kki=0;kki<kk.length;kki++){if(kk[kki]>=dsPre){dcolPre=FULL_DATE_IDX[kk[kki]];break;}}}
-    if(dcolPre!==undefined){
-      var dvX=gx+(dcolPre-FULL_VIS_OFFSET)*COL_W;
+    var dvX=_dateToPx(ddNormPre);
+    if(dvX!==null){
       if(dvX>=vStartPx-2&&dvX<=vEndPx+2){
         var dvLine=document.createElement('div');
         dvLine.style.cssText='position:absolute;left:'+dvX+'px;top:'+top+'px;width:2px;height:'+rowH+'px;'
@@ -2124,12 +2132,9 @@ function renderBars(cv, p, segs, gx, top, rowH) {
     var _sd=seg.start_date||seg.date||'';
     var _dk=_sd.replace(/\//g,'-').slice(0,10);
     var sPx;
-    if(_dk){
-      var _p=_dk.split('-');
-      var _sdObj=new Date(parseInt(_p[0]),parseInt(_p[1])-1,parseInt(_p[2]));
-      var _dayDiff=Math.round((_sdObj-VIS_START_DATE_OBJ)/86400000);
-      // VIS_DATES[0]=''(空)のためインデックスは1始まり → +1してヘッダーと一致させる
-      sPx = gx + (_dayDiff + 1) * COL_W;
+    var _datePx=_dk?_dateToPx(_dk):null;
+    if(_datePx!==null){
+      sPx=_datePx;
     }else{
       var col=typeof seg.col==='number'?seg.col:0;
       sPx = gx + (col - FULL_VIS_OFFSET) * COL_W;
@@ -2151,8 +2156,8 @@ function renderBars(cv, p, segs, gx, top, rowH) {
     var slot = 0;
     for(var sj=0;sj<si;sj++){
       var ps=segs[sj];
-      var pcol=typeof ps.col==='number'?ps.col:0;
-      var psPx=gx+(pcol-FULL_VIS_OFFSET)*COL_W;
+      var _psd=(ps.start_date||ps.date||'').replace(/\//g,'-').slice(0,10);
+      var psPx=_psd?_dateToPx(_psd):(gx+((typeof ps.col==='number'?ps.col:0)-FULL_VIS_OFFSET)*COL_W);
       var pDur=ps.calendar_dur||ps.duration||ps.dur||1;
       var pePx=psPx+pDur*COL_W-2;
       if(psPx<=ePx&&pePx>=sPx){slot++;} // 重なっている
@@ -2183,14 +2188,11 @@ function renderBars(cv, p, segs, gx, top, rowH) {
   if(ddRaw&&!/REF|#/.test(ddRaw)){
     var ddNorm=normDate(ddRaw)||ddRaw;
     var ds=ddNorm.replace(/\//g,'-');
-    var dcol=FULL_DATE_IDX[ds];
-    // 見つからない場合は近傍検索
-    if(dcol===undefined){
-      var keys=Object.keys(FULL_DATE_IDX);
-      for(var ki=0;ki<keys.length;ki++){if(keys[ki]>=ds){dcol=FULL_DATE_IDX[keys[ki]];break;}}
+    var icX=_dateToPx(ddNorm);
+    if(icX!==null){
+      icX=icX; // _dateToPx済み
     }
-    if(dcol!==undefined){
-      var icX=gx+(dcol-FULL_VIS_OFFSET)*COL_W;
+    if(icX!==null){
       if(icX>=vStartPx-COL_W*2&&icX<=vEndPx+COL_W){
         var clampX=Math.max(icX,vStartPx);
         // 赤い水平バー「渡し」
