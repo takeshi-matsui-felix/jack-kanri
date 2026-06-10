@@ -2231,8 +2231,7 @@ function renderBody(){
 
   // 全業者選定一覧のサイドバータイムスタンプを初期表示
   setTimeout(function(){if(typeof _updateVendorSbTs==='function')_updateVendorSbTs();},300);
-  // freeze-bodyスクロール転送を再バインド
-  setTimeout(function(){if(typeof _bindFreezeScroll==='function')_bindFreezeScroll();},100);
+
   // ★ バックグラウンドでTS確認（更新があれば自動再描画される）
   if(typeof _loadCustomGanttIfNeeded==='function'){
     setTimeout(function(){
@@ -8900,40 +8899,7 @@ document.addEventListener('DOMContentLoaded',function(){
   // customGanttのcolをFULL_DATE_IDX確定後に再計算
   if(typeof _recalcCustomGanttCols==='function')_recalcCustomGanttCols();
 
-  // freeze-body上でのスクロールをscroll-bodyに転送（物件名列でも縦スクロール可能に）
-  (function(){
-    function bindFreezeScroll(){
-      var fb=document.getElementById('freezeBody');
-      var sb=document.getElementById('scrollBody');
-      if(!fb||!sb)return;
-      // ホイールイベント: scroll-bodyのscrollTopを変更→scrollイベント発火→freeze-bodyが追随
-      fb.addEventListener('wheel',function(e){
-        e.preventDefault();
-        sb.scrollTop+=e.deltaY;
-        sb.scrollLeft+=e.deltaX;
-        // 手動でscrollイベントをトリガー（念のため）
-        
-        if(document.getElementById('scrollHeaderWrap'))
-          document.getElementById('scrollHeaderWrap').scrollLeft=sb.scrollLeft;
-      },{passive:false});
-      // タッチイベント: scroll-bodyを操作してスクロール
-      var _ty0=0,_sy0=0;
-      fb.addEventListener('touchstart',function(e){
-        if(e.touches.length===1){_ty0=e.touches[0].clientY;_sy0=sb.scrollTop;}
-      },{passive:true});
-      fb.addEventListener('touchmove',function(e){
-        if(e.touches.length===1){
-          var dy=_ty0-e.touches[0].clientY;
-          sb.scrollTop=_sy0+dy;
-          
-          e.preventDefault();
-        }
-      },{passive:false});
-    }
-    // DOM構築後にバインド（renderBody後も再バインドできるよう公開）
-    window._bindFreezeScroll=bindFreezeScroll;
-    setTimeout(bindFreezeScroll,500);
-  })();
+
 
   // FIXED_AREAがある場合、マップメニューを該当エリアのみに絞る
   if(FIXED_AREA==='tokai'||FIXED_AREA==='kanto'){
