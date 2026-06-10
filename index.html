@@ -2226,7 +2226,6 @@ function renderBody(){
   var fb=document.getElementById('freezeBody');
   var cv=document.getElementById('ganttCanvas');
   fb.innerHTML='';cv.innerHTML='';
-  fb.style.cssText='position:absolute;top:0;width:100%;';
   var activeTotalW = activePreW + GANTT_W + POST_W;
   cv.style.cssText='width:'+activeTotalW+'px;height:'+(props.length*rowH)+'px;position:relative;';
 
@@ -2392,7 +2391,7 @@ function initScrollSync(){
   sb.addEventListener('scroll',function(){
     if(sh)sh.scrollLeft=sb.scrollLeft;
     // freeze-bodyはoverflow:clipなのでtranslateYで内部コンテンツを動かす
-    if(fb)fb.style.marginTop='-'+sb.scrollTop+'px';
+    if(fb)fb.scrollTop=sb.scrollTop;
   });
 }
 function scrollToToday(){
@@ -8913,7 +8912,7 @@ document.addEventListener('DOMContentLoaded',function(){
         sb.scrollTop+=e.deltaY;
         sb.scrollLeft+=e.deltaX;
         // 手動でscrollイベントをトリガー（念のため）
-        fb.style.marginTop='-'+sb.scrollTop+'px';
+        
         if(document.getElementById('scrollHeaderWrap'))
           document.getElementById('scrollHeaderWrap').scrollLeft=sb.scrollLeft;
       },{passive:false});
@@ -8926,7 +8925,7 @@ document.addEventListener('DOMContentLoaded',function(){
         if(e.touches.length===1){
           var dy=_ty0-e.touches[0].clientY;
           sb.scrollTop=_sy0+dy;
-          fb.style.top='-'+sb.scrollTop+'px';
+          
           e.preventDefault();
         }
       },{passive:false});
