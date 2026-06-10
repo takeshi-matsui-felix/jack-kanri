@@ -627,6 +627,7 @@ body.sp-mode .fr-row .fc:last-child{
     <div class="sb-divider"></div>
     <div class="sb-section">業者選定</div>
     <div class="sb-item" onclick="openVendorList()"><span class="sb-icon">👷</span><span class="sb-label">全業者選定一覧</span></div>
+    <div id="vendorSbTs" style="padding:2px 16px 6px;font-size:9px;color:#64748b;line-height:1.4"></div>
     <div class="sb-divider"></div>
     <div class="sb-section">工程管理</div>
     <div class="sb-item" onclick="openMasterPanel()"><span class="sb-icon">📐</span><span class="sb-label">マスター工程</span></div>
@@ -2228,6 +2229,8 @@ function renderBody(){
   var activeTotalW = activePreW + GANTT_W + POST_W;
   cv.style.cssText='width:'+activeTotalW+'px;height:'+(props.length*rowH)+'px;position:relative;';
 
+  // 全業者選定一覧のサイドバータイムスタンプを初期表示
+  setTimeout(function(){if(typeof _updateVendorSbTs==='function')_updateVendorSbTs();},300);
   // freeze-bodyスクロール転送を再バインド
   setTimeout(function(){if(typeof _bindFreezeScroll==='function')_bindFreezeScroll();},100);
   // ★ バックグラウンドでTS確認（更新があれば自動再描画される）
@@ -2385,7 +2388,11 @@ function initScrollSync(){
   var sb=document.getElementById('scrollBody');
   var sh=document.getElementById('scrollHeaderWrap');
   var fb=document.getElementById('freezeBody');
-  sb.addEventListener('scroll',function(){sh.scrollLeft=sb.scrollLeft;fb.scrollTop=sb.scrollTop;});
+  sb.addEventListener('scroll',function(){
+    if(sh)sh.scrollLeft=sb.scrollLeft;
+    // freeze-bodyはoverflow:clipなのでtranslateYで縦位置を同期
+    if(fb)fb.style.transform='translateY(-'+sb.scrollTop+'px)';
+  });
 }
 function scrollToToday(){
   function _do(){
@@ -7537,7 +7544,28 @@ async function _saveVendorsToDB(allRows, colOrderMap){
 }
 
 // サイドバー：全業者選定一覧パネルを開く
+function _updateVendorSbTs(){
+  var el=document.getElementById('vendorSbTs');
+  if(!el)return;
+  try{
+    var rawTs=localStorage.getItem(VENDORS_CACHE_TS_KEY)||'';
+    if(rawTs){
+      var d=new Date(rawTs);
+      if(!isNaN(d.getTime())){
+        var str='最終更新\n'
+          +d.getFullYear()+'/'+(d.getMonth()+1)+'/'+d.getDate()+' '
+          +('0'+d.getHours()).slice(-2)+':'+('0'+d.getMinutes()).slice(-2);
+        el.style.whiteSpace='pre';
+        el.textContent=str;
+        return;
+      }
+    }
+  }catch(e){}
+  el.textContent='';
+}
 function openVendorList(){
+  // サイドバーのタイムスタンプ更新
+  _updateVendorSbTs();
   openPanel('vendorPanel');
   // 検索状態リセット
   window._vendorSearchQ='';
@@ -8878,13 +8906,17 @@ document.addEventListener('DOMContentLoaded',function(){
       var fb=document.getElementById('freezeBody');
       var sb=document.getElementById('scrollBody');
       if(!fb||!sb)return;
-      // ホイールイベント転送
+      // ホイールイベント: scroll-bodyのscrollTopを変更→scrollイベント発火→freeze-bodyが追随
       fb.addEventListener('wheel',function(e){
         e.preventDefault();
         sb.scrollTop+=e.deltaY;
         sb.scrollLeft+=e.deltaX;
+        // 手動でscrollイベントをトリガー（念のため）
+        fb.style.transform='translateY(-'+sb.scrollTop+'px)';
+        if(document.getElementById('scrollHeaderWrap'))
+          document.getElementById('scrollHeaderWrap').scrollLeft=sb.scrollLeft;
       },{passive:false});
-      // タッチイベント転送
+      // タッチイベント: scroll-bodyを操作してスクロール
       var _ty0=0,_sy0=0;
       fb.addEventListener('touchstart',function(e){
         if(e.touches.length===1){_ty0=e.touches[0].clientY;_sy0=sb.scrollTop;}
@@ -8893,6 +8925,7 @@ document.addEventListener('DOMContentLoaded',function(){
         if(e.touches.length===1){
           var dy=_ty0-e.touches[0].clientY;
           sb.scrollTop=_sy0+dy;
+          fb.style.transform='translateY(-'+sb.scrollTop+'px)';
           e.preventDefault();
         }
       },{passive:false});
