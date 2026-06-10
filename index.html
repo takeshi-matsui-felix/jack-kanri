@@ -102,8 +102,8 @@ input,textarea,select{font-family:var(--font)}
 .info-col-h{position:absolute;top:0;height:36px;display:flex;align-items:center;justify-content:center;padding:0 3px;font-size:8px;font-weight:800;color:rgba(255,255,255,.85);border-right:1px solid rgba(255,255,255,.1);white-space:pre;line-height:1.25;text-align:center}
 
 /* TABLE BODY */
-.table-body{flex:1;display:flex;overflow:clip;min-height:0}
-.freeze-body{width:var(--freeze-w);min-width:var(--freeze-w);max-width:var(--freeze-w);flex-shrink:0;overflow-x:clip;overflow-y:clip;border-right:2px solid #475569;touch-action:pan-y pinch-zoom}
+.table-body{flex:1;display:flex;overflow:hidden;min-height:0}
+.freeze-body{width:var(--freeze-w);min-width:var(--freeze-w);max-width:var(--freeze-w);flex-shrink:0;overflow-x:clip;overflow-y:clip;border-right:2px solid #475569;touch-action:pan-y pinch-zoom;position:relative}
 .scroll-body{flex:1;overflow-x:auto;overflow-y:auto;-webkit-overflow-scrolling:touch;touch-action:pan-x pan-y pinch-zoom;will-change:scroll-position;overscroll-behavior:contain;}
 .scroll-body::-webkit-scrollbar{height:4px;width:4px}
 .scroll-body::-webkit-scrollbar-thumb{background:var(--g300);border-radius:2px}
@@ -2226,6 +2226,7 @@ function renderBody(){
   var fb=document.getElementById('freezeBody');
   var cv=document.getElementById('ganttCanvas');
   fb.innerHTML='';cv.innerHTML='';
+  fb.style.cssText='position:absolute;top:0;width:100%;';
   var activeTotalW = activePreW + GANTT_W + POST_W;
   cv.style.cssText='width:'+activeTotalW+'px;height:'+(props.length*rowH)+'px;position:relative;';
 
@@ -2390,8 +2391,8 @@ function initScrollSync(){
   var fb=document.getElementById('freezeBody');
   sb.addEventListener('scroll',function(){
     if(sh)sh.scrollLeft=sb.scrollLeft;
-    // freeze-bodyはoverflow:clipなのでtranslateYで縦位置を同期
-    if(fb)fb.style.transform='translateY(-'+sb.scrollTop+'px)';
+    // freeze-bodyはoverflow:clipなのでtranslateYで内部コンテンツを動かす
+    if(fb)fb.style.marginTop='-'+sb.scrollTop+'px';
   });
 }
 function scrollToToday(){
@@ -8912,7 +8913,7 @@ document.addEventListener('DOMContentLoaded',function(){
         sb.scrollTop+=e.deltaY;
         sb.scrollLeft+=e.deltaX;
         // 手動でscrollイベントをトリガー（念のため）
-        fb.style.transform='translateY(-'+sb.scrollTop+'px)';
+        fb.style.marginTop='-'+sb.scrollTop+'px';
         if(document.getElementById('scrollHeaderWrap'))
           document.getElementById('scrollHeaderWrap').scrollLeft=sb.scrollLeft;
       },{passive:false});
@@ -8925,7 +8926,7 @@ document.addEventListener('DOMContentLoaded',function(){
         if(e.touches.length===1){
           var dy=_ty0-e.touches[0].clientY;
           sb.scrollTop=_sy0+dy;
-          fb.style.transform='translateY(-'+sb.scrollTop+'px)';
+          fb.style.top='-'+sb.scrollTop+'px';
           e.preventDefault();
         }
       },{passive:false});
