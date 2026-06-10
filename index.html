@@ -103,7 +103,7 @@ input,textarea,select{font-family:var(--font)}
 
 /* TABLE BODY */
 .table-body{flex:1;display:flex;overflow:clip;min-height:0}
-.freeze-body{width:var(--freeze-w);min-width:var(--freeze-w);max-width:var(--freeze-w);flex-shrink:0;overflow-x:clip;overflow-y:hidden;border-right:2px solid #475569}
+.freeze-body{width:var(--freeze-w);min-width:var(--freeze-w);max-width:var(--freeze-w);flex-shrink:0;overflow-x:clip;overflow-y:clip;border-right:2px solid #475569;touch-action:pan-y pinch-zoom}
 .scroll-body{flex:1;overflow-x:auto;overflow-y:auto;-webkit-overflow-scrolling:touch;touch-action:pan-x pan-y pinch-zoom;will-change:scroll-position;overscroll-behavior:contain;}
 .scroll-body::-webkit-scrollbar{height:4px;width:4px}
 .scroll-body::-webkit-scrollbar-thumb{background:var(--g300);border-radius:2px}
@@ -2228,6 +2228,8 @@ function renderBody(){
   var activeTotalW = activePreW + GANTT_W + POST_W;
   cv.style.cssText='width:'+activeTotalW+'px;height:'+(props.length*rowH)+'px;position:relative;';
 
+  // freeze-bodyスクロール転送を再バインド
+  setTimeout(function(){if(typeof _bindFreezeScroll==='function')_bindFreezeScroll();},100);
   // ★ バックグラウンドでTS確認（更新があれば自動再描画される）
   if(typeof _loadCustomGanttIfNeeded==='function'){
     setTimeout(function(){
@@ -3939,7 +3941,15 @@ function renderMyPage(){
     +'</div>';
   html+=myFavProps.map(function(fav){
     var p=all.find(function(x){return x.fix_no===fav.fix_no&&x.name===fav.name;});
-    if(!p)return '';
+    // 完工・非表示物件は getAllProps() に含まれないが削除ボタンは表示する
+    if(!p){
+      return '<div class="mypage-card" style="opacity:0.5">'
+        +'<div class="mypc-top">'
+        +'<div class="mypc-info" style="flex:1"><div class="mypc-name">'+fav.name+'</div>'
+        +'<div class="mypc-meta"><span style="font-size:10px;color:#94a3b8">完工・非表示物件</span></div></div>'
+        +'<button class="mypc-del" onclick="event.stopPropagation();removeFavCard(\''+fav.fix_no+'\',\''+encodeURIComponent(fav.name)+'\')">✕</button>'
+        +'</div></div>';
+    }
     var days=daysUntil(p.delivery_date);
     var ac=p.area==='愛知'?'#1a56db':p.area==='埼玉'?'#10b981':'#7c3aed';
     var ai=p.area==='愛知'?'🏙':p.area==='埼玉'?'🌿':'🏠';
@@ -4027,7 +4037,14 @@ function printAllGantt(){
 }
 window.printAllGantt=printAllGantt;
 function openDetailFromFav(fixNo,enc){var name=decodeURIComponent(enc);var p=getAllProps().find(function(x){return x.fix_no===fixNo&&x.name===name;});if(p)openDetail(p);}
-function removeFavCard(fixNo,enc){var name=decodeURIComponent(enc);var p=getAllProps().find(function(x){return x.fix_no===fixNo&&x.name===name;});if(p){removeFav(p);renderMyPage();renderBody();}}
+function removeFavCard(fixNo,enc){
+  var name=decodeURIComponent(enc);
+  // getAllPropsは絞り込みがあるため全件から検索（完工物件も含む）
+  var p=(DB_PROPS||[]).concat(DATA.all['全物件進捗']||[]).concat(DATA.all['来期物件']||[])
+    .find(function(x){return String(x.fix_no)===String(fixNo)&&x.name===name;});
+  if(!p)p={fix_no:fixNo,name:name}; // 物件データがなくてもfav削除は実行
+  removeFav(p);renderMyPage();renderBody();
+}
 
 // ===== GANTT EDITOR (white-bg, same as buildGanttTab multiRow) =====
 var edProp=null, edSegs=[];
@@ -7561,6 +7578,18 @@ window._clearVendorFilter=_clearVendorFilter;
 
 function _renderVendorPanel(){
   var data=window._VENDOR_LIST_DATA;
+  // 最終更新日時を取得（LocalStorageのTSキャッシュ）
+  var vendorTs='';
+  try{
+    var rawTs=localStorage.getItem(VENDORS_CACHE_TS_KEY)||'';
+    if(rawTs){
+      var d=new Date(rawTs);
+      if(!isNaN(d.getTime())){
+        vendorTs=d.getFullYear()+'/'+(d.getMonth()+1)+'/'+(d.getDate())+' '
+          +('0'+d.getHours()).slice(-2)+':'+('0'+d.getMinutes()).slice(-2);
+      }
+    }
+  }catch(e){}
   var areas=Object.keys(data);
   if(!areas.length)return;
   // FIXED_AREAで絞り込む（東海業者→東海のみ、関東業者→関東のみ）
@@ -7571,7 +7600,11 @@ function _renderVendorPanel(){
   // タブ描画（FIXED_AREAがある場合はタブ1つなので非表示でもよいが残す）
   var tabsEl=document.getElementById('vendorAreaTabs');
   if(tabsEl){
-    tabsEl.innerHTML=areas.map(function(a){
+    // 最終更新日時をタブの上に表示
+    var tsHtml=vendorTs
+      ?'<div style="padding:4px 12px;font-size:10px;color:#94a3b8;border-bottom:1px solid #e2e8f0;background:#f8fafc">最終更新: '+vendorTs+'</div>'
+      :'';
+    tabsEl.innerHTML=tsHtml+areas.map(function(a){
       var act=a===window._VENDOR_LIST_TAB;
       var ico=a.indexOf('東海')>=0?'🏙':'🌿';
       return '<button onclick="vendorSetTab(\''+encodeURIComponent(a)+'\')" style="flex:1;padding:9px 4px;font-size:11px;font-weight:700;border:none;cursor:pointer;border-bottom:3px solid '+(act?'#1a56db':'transparent')+';color:'+(act?'#1a56db':'#94a3b8')+';background:white">'+ico+' '+a+'</button>';
@@ -8838,6 +8871,36 @@ document.addEventListener('DOMContentLoaded',function(){
   // ===== ピンチズームここまで =====
   // customGanttのcolをFULL_DATE_IDX確定後に再計算
   if(typeof _recalcCustomGanttCols==='function')_recalcCustomGanttCols();
+
+  // freeze-body上でのスクロールをscroll-bodyに転送（物件名列でも縦スクロール可能に）
+  (function(){
+    function bindFreezeScroll(){
+      var fb=document.getElementById('freezeBody');
+      var sb=document.getElementById('scrollBody');
+      if(!fb||!sb)return;
+      // ホイールイベント転送
+      fb.addEventListener('wheel',function(e){
+        e.preventDefault();
+        sb.scrollTop+=e.deltaY;
+        sb.scrollLeft+=e.deltaX;
+      },{passive:false});
+      // タッチイベント転送
+      var _ty0=0,_sy0=0;
+      fb.addEventListener('touchstart',function(e){
+        if(e.touches.length===1){_ty0=e.touches[0].clientY;_sy0=sb.scrollTop;}
+      },{passive:true});
+      fb.addEventListener('touchmove',function(e){
+        if(e.touches.length===1){
+          var dy=_ty0-e.touches[0].clientY;
+          sb.scrollTop=_sy0+dy;
+          e.preventDefault();
+        }
+      },{passive:false});
+    }
+    // DOM構築後にバインド（renderBody後も再バインドできるよう公開）
+    window._bindFreezeScroll=bindFreezeScroll;
+    setTimeout(bindFreezeScroll,500);
+  })();
 
   // FIXED_AREAがある場合、マップメニューを該当エリアのみに絞る
   if(FIXED_AREA==='tokai'||FIXED_AREA==='kanto'){
