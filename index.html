@@ -103,9 +103,10 @@ input,textarea,select{font-family:var(--font)}
 
 /* TABLE BODY */
 .table-body{flex:1;display:flex;overflow:hidden;min-height:0}
-.freeze-body{width:var(--freeze-w);min-width:var(--freeze-w);max-width:var(--freeze-w);flex-shrink:0;overflow-x:clip;overflow-y:clip;border-right:2px solid #475569;touch-action:pan-y pinch-zoom;position:relative}
+.freeze-body{width:var(--freeze-w);min-width:var(--freeze-w);max-width:var(--freeze-w);flex-shrink:0;overflow-x:clip;overflow-y:scroll;scrollbar-width:none;border-right:2px solid #475569}
 .scroll-body{flex:1;overflow-x:auto;overflow-y:auto;-webkit-overflow-scrolling:touch;touch-action:pan-x pan-y pinch-zoom;will-change:scroll-position;overscroll-behavior:contain;}
 .scroll-body::-webkit-scrollbar{height:4px;width:4px}
+.freeze-body::-webkit-scrollbar{display:none}
 .scroll-body::-webkit-scrollbar-thumb{background:var(--g300);border-radius:2px}
 
 /* FREEZE ROWS */
@@ -2387,11 +2388,31 @@ function initScrollSync(){
   var sb=document.getElementById('scrollBody');
   var sh=document.getElementById('scrollHeaderWrap');
   var fb=document.getElementById('freezeBody');
+  if(!sb)return;
+  // scroll-bodyがスクロールしたらfreeze-bodyを同期
   sb.addEventListener('scroll',function(){
     if(sh)sh.scrollLeft=sb.scrollLeft;
-    // freeze-bodyはoverflow:clipなのでtranslateYで内部コンテンツを動かす
-    if(fb)fb.scrollTop=sb.scrollTop;
+    if(fb&&fb.scrollTop!==sb.scrollTop)fb.scrollTop=sb.scrollTop;
   });
+  // freeze-body上のホイール操作をscroll-bodyに転送
+  if(fb){
+    fb.addEventListener('wheel',function(e){
+      e.preventDefault();
+      sb.scrollTop+=e.deltaY;
+      sb.scrollLeft+=e.deltaX;
+    },{passive:false});
+    // タッチ操作も転送
+    var _ty=0,_sy=0;
+    fb.addEventListener('touchstart',function(e){
+      if(e.touches.length===1){_ty=e.touches[0].clientY;_sy=sb.scrollTop;}
+    },{passive:true});
+    fb.addEventListener('touchmove',function(e){
+      if(e.touches.length===1){
+        sb.scrollTop=_sy+(_ty-e.touches[0].clientY);
+        e.preventDefault();
+      }
+    },{passive:false});
+  }
 }
 function scrollToToday(){
   function _do(){
@@ -6950,6 +6971,7 @@ window.printCalendar=printCalendar;
 // ================================================================
 function openAdminCP(){
   if(!currentProfile||currentProfile.role!=='admin'){showToast('管理者権限が必要です','error');return;}
+  setTimeout(function(){if(typeof _loadAdmMaintState==='function')_loadAdmMaintState();},400);
   renderAdminCPShell();
   openPanel('jackAdminCPPanel');
 }
@@ -6969,6 +6991,8 @@ function renderAdminCPShell(){
       +admMenuItem('vendors','👷','全業者選定一覧')
       +admMenuItem('ganttsheet','📋','工程表取込')
       +admMenuItem('dbsetup','🔧','DB設定')
+      +'<div style="height:1px;background:rgba(255,255,255,.08);margin:6px 10px"></div>'
+      +'<div id="admMaintBtn" onclick="admToggleMaintenance()" style="padding:10px 16px;font-size:12px;font-weight:700;cursor:pointer;color:#94a3b8;border-radius:8px;margin:2px 8px">🔧 メンテナンスモード: 確認中...</div>'
     +'</div>'
     +'<div id="admRight" style="flex:1;overflow-y:auto;background:#f8fafc"></div>'
   +'</div>';
@@ -8101,6 +8125,36 @@ function admHandleGanttSheetXlsx(input){
     });
   }
 }
+// メンテナンスモード切替
+async function admToggleMaintenance(){
+  var sb=getSB();if(!sb){showToast('DB未接続','error');return;}
+  try{
+    var r=await sb.from('app_settings').select('value').eq('key','maintenance').single();
+    var isOn=(r.data&&r.data.value==='1');
+    var msg=isOn?'メンテナンスモードをOFFにします。\n一般ユーザーのアクセスが再開されます。'
+                :'メンテナンスモードをONにします。\n一般ユーザーはアクセスできなくなります。';
+    if(!confirm(msg))return;
+    var next=isOn?'0':'1';
+    await sb.from('app_settings').upsert({key:'maintenance',value:next},{onConflict:'key'});
+    localStorage.setItem('jack_maintenance',next);
+    _updateAdmMaintBtn(next==='1');
+    showToast(next==='1'?'🔧 メンテナンスモード ON':'✅ メンテナンスモード OFF','success');
+  }catch(e){showToast('エラー: '+e.message,'error');}
+}
+function _updateAdmMaintBtn(isOn){
+  var btn=document.getElementById('admMaintBtn');if(!btn)return;
+  btn.textContent=isOn?'🔧 メンテナンスON（クリックでOFF）':'🔧 メンテナンスOFF（クリックでON）';
+  btn.style.color=isOn?'#f87171':'#86efac';
+}
+async function _loadAdmMaintState(){
+  var sb=getSB();if(!sb)return;
+  try{
+    var r=await sb.from('app_settings').select('value').eq('key','maintenance').single();
+    _updateAdmMaintBtn(r.data&&r.data.value==='1');
+  }catch(e){}
+}
+window.admToggleMaintenance=admToggleMaintenance;
+window._loadAdmMaintState=_loadAdmMaintState;
 window.admHandleGanttSheetXlsx=admHandleGanttSheetXlsx;
 
 // ===== Excel工程表 Canvas画像変換 =====
@@ -8851,6 +8905,44 @@ function switchGanttTab(tab){
 window.switchGanttTab=switchGanttTab;
 
 document.addEventListener('DOMContentLoaded',function(){
+
+  // ===== メンテナンスモードチェック =====
+  (function(){
+    var isTestMode=new URLSearchParams(window.location.search).get('mode')==='test';
+    if(isTestMode)document.title='[TEST] '+document.title;
+    function _isAdmin(){try{var p=JSON.parse(localStorage.getItem('jack_profile_cache')||'{}');return p.role==='admin';}catch(e){return false;}}
+    function showM(){
+      if(_isAdmin())return; // 管理者は通過
+      var el=document.getElementById('maintenanceOverlay');
+      if(el){el.style.display='flex';return;}
+      var d=document.createElement('div');
+      d.id='maintenanceOverlay';
+      d.style.cssText='position:fixed;top:0;left:0;width:100%;height:100%;background:#0f172a;z-index:99999;display:flex;flex-direction:column;align-items:center;justify-content:center;color:white;font-family:sans-serif';
+      d.innerHTML='<div style="font-size:48px;margin-bottom:16px">🔧</div>'
+        +'<div style="font-size:22px;font-weight:800;margin-bottom:8px">メンテナンス中</div>'
+        +'<div style="font-size:13px;color:#94a3b8;text-align:center">現在システムのメンテナンスを行っています<br>しばらくお待ちください</div>';
+      document.body.appendChild(d);
+    }
+    function hideM(){var el=document.getElementById('maintenanceOverlay');if(el)el.style.display='none';}
+    window._showMaintenance=showM;
+    window._hideMaintenance=hideM;
+    // LocalStorageキャッシュ確認
+    if(localStorage.getItem('jack_maintenance')==='1')showM();
+    // Supabaseから最新状態を確認
+    setTimeout(function(){
+      try{
+        var sb=getSB();if(!sb)return;
+        sb.from('app_settings').select('value').eq('key','maintenance').single()
+          .then(function(r){
+            if(r.error)return;
+            var isOn=r.data&&r.data.value==='1';
+            localStorage.setItem('jack_maintenance',isOn?'1':'0');
+            if(isOn)showM(); else hideM();
+          }).catch(function(){});
+      }catch(e){}
+    },800);
+  })();
+  // ===== メンテナンスモードここまで =====
 
   // ===== スマホ ピンチズーム（JSのtransformで実装・overflow:clip対応）=====
   (function(){
