@@ -102,11 +102,10 @@ input,textarea,select{font-family:var(--font)}
 .info-col-h{position:absolute;top:0;height:36px;display:flex;align-items:center;justify-content:center;padding:0 3px;font-size:8px;font-weight:800;color:rgba(255,255,255,.85);border-right:1px solid rgba(255,255,255,.1);white-space:pre;line-height:1.25;text-align:center}
 
 /* TABLE BODY */
-.table-body{flex:1;display:flex;overflow:hidden;min-height:0}
-.freeze-body{width:var(--freeze-w);min-width:var(--freeze-w);max-width:var(--freeze-w);flex-shrink:0;overflow-x:clip;overflow-y:scroll;scrollbar-width:none;border-right:2px solid #475569}
-.scroll-body{flex:1;overflow-x:auto;overflow-y:auto;-webkit-overflow-scrolling:touch;touch-action:pan-x pan-y pinch-zoom;will-change:scroll-position;overscroll-behavior:contain;}
+.table-body{flex:1;display:flex;overflow-x:hidden;overflow-y:auto;-webkit-overflow-scrolling:touch;min-height:0;touch-action:pan-x pan-y}
+.freeze-body{width:var(--freeze-w);min-width:var(--freeze-w);max-width:var(--freeze-w);flex-shrink:0;overflow-x:clip;overflow-y:visible;border-right:2px solid #475569;flex-shrink:0;align-self:flex-start}
+.scroll-body{flex:1;overflow-x:auto;overflow-y:visible;touch-action:pan-x;overscroll-behavior-x:contain;align-self:flex-start}
 .scroll-body::-webkit-scrollbar{height:4px;width:4px}
-.freeze-body::-webkit-scrollbar{display:none}
 .scroll-body::-webkit-scrollbar-thumb{background:var(--g300);border-radius:2px}
 
 /* FREEZE ROWS */
@@ -2387,29 +2386,20 @@ document.addEventListener('click',function(e){
 function initScrollSync(){
   var sb=document.getElementById('scrollBody');
   var sh=document.getElementById('scrollHeaderWrap');
-  var fb=document.getElementById('freezeBody');
+  var tb=document.querySelector('.table-body');
   if(!sb)return;
-  // scroll-bodyがスクロールしたらfreeze-bodyを同期
+  // 横スクロール同期: scroll-body → scrollHeader
   sb.addEventListener('scroll',function(){
     if(sh)sh.scrollLeft=sb.scrollLeft;
-    if(fb&&fb.scrollTop!==sb.scrollTop)fb.scrollTop=sb.scrollTop;
   });
-  // freeze-body上のホイール操作をscroll-bodyに転送
-  if(fb){
-    fb.addEventListener('wheel',function(e){
-      e.preventDefault();
-      sb.scrollTop+=e.deltaY;
-      sb.scrollLeft+=e.deltaX;
-    },{passive:false});
-    // タッチ操作も転送
-    var _ty=0,_sy=0;
-    fb.addEventListener('touchstart',function(e){
-      if(e.touches.length===1){_ty=e.touches[0].clientY;_sy=sb.scrollTop;}
-    },{passive:true});
-    fb.addEventListener('touchmove',function(e){
-      if(e.touches.length===1){
-        sb.scrollTop=_sy+(_ty-e.touches[0].clientY);
+  // table-body縦スクロール → scrollHeaderの縦位置は不要（固定済み）
+  // table-body上でのホイールはブラウザデフォルトで縦スクロール
+  // scroll-body上でのホイールの縦成分をtable-bodyに転送
+  if(sb&&tb){
+    sb.addEventListener('wheel',function(e){
+      if(Math.abs(e.deltaY)>Math.abs(e.deltaX)){
         e.preventDefault();
+        tb.scrollTop+=e.deltaY;
       }
     },{passive:false});
   }
