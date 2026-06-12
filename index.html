@@ -1378,7 +1378,26 @@ function getProps() {
   });
   return list;
 }
-function getAllProps(){return(DATA.all['全物件進捗']||[]).concat(DATA.all['来期物件']||[]);}
+function getAllProps(){
+  var base=(DATA.all['全物件進捗']||[]).concat(DATA.all['来期物件']||[]);
+  // DB_PROPSのtantou・status・address等をXLSXデータにマージ
+  if(DB_PROPS&&DB_PROPS.length){
+    var dbMap={};
+    DB_PROPS.forEach(function(d){dbMap[String(d.fix_no||'')]=d;});
+    base=base.map(function(p){
+      var db=dbMap[String(p.fix_no||'')];
+      if(!db)return p;
+      // DB_PROPSのフィールドで上書き（値がある場合のみ）
+      var merged=Object.assign({},p);
+      ['tantou','status','address','custom_gantt','delivery_date',
+       'inspection_date','complete_date','parkings','updated_at'].forEach(function(k){
+        if(db[k]!=null&&db[k]!=='')merged[k]=db[k];
+      });
+      return merged;
+    });
+  }
+  return base;
+}
 function getDow(d){return d?new Date(d).getDay():-1;}
 // 日付を YYYY/MM/DD に正規化（9/20/24→2024/09/20, 2024-09-20→2024/09/20）
 // ローカル日付をYYYY-MM-DD形式で返す（toISOString()のUTCずれを防ぐ）
