@@ -856,7 +856,7 @@ var POST_COLS = [
   { key:'complete_date',   label:'完成日',         w:56, cls:'hcell-post' },
   { key:'delivery_date',   label:'引渡し日',       w:68, cls:'hcell-post' },
   { key:'delivery_month',  label:'引渡\n月',        w:42, cls:'hcell-post' },
-  { key:'status',          label:'販売\nステータス', w:60, cls:'hcell-post' }
+  { key:'tantou',          label:'担当者', w:60, cls:'hcell-post' }
 ];
 var POST_W = POST_COLS.reduce(function(a,c){return a+c.w;},0);
 
@@ -2334,8 +2334,9 @@ function renderBody(){
       else val=fmtDateShort(rawVal)||normDate(rawVal)||rawVal;
       var el=document.createElement('div');el.className='info-cell';
       el.style.cssText='left:'+px2+'px;top:'+top+'px;width:'+c.w+'px;height:'+rowH+'px;background:'+(ri%2===0?'rgba(30,58,95,.03)':'rgba(30,58,95,.05)')+';';
-      if(c.key==='status'){el.innerHTML=makeBadge(val);}
-      else{el.textContent=val;if(!val)el.style.color='var(--g200)';}
+      if(c.key==='tantou'||c.key==='status'){
+        el.innerHTML=val?'<span style="font-size:9px;background:#475569;color:white;padding:1px 5px;border-radius:3px">'+val+'</span>':'';
+      }else{el.textContent=val;if(!val)el.style.color='var(--g200)';}
       cv.appendChild(el);px2+=c.w;
     });
 
@@ -2348,8 +2349,11 @@ function renderBody(){
       var val=p[c.key]||'';
       var el=document.createElement('div');el.className='info-cell';
       el.style.cssText='left:'+postX+'px;top:'+top+'px;width:'+c.w+'px;height:'+rowH+'px;';
-      if(c.key==='status'){el.innerHTML=makeBadge(val);}
-      else{
+      if(c.key==='tantou'){
+        // 担当者バッジ
+        var tv=val||'';
+        el.innerHTML=tv?'<span style="font-size:9px;background:#475569;color:white;padding:1px 5px;border-radius:3px">'+tv+'</span>':'';
+      }else{
         var disp=c.key==='delivery_month'?val:fmtDateShort(val);
         el.textContent=disp;if(!disp)el.style.color='var(--g200)';
         if(c.key==='delivery_date'&&isUrgent){el.style.color='var(--danger)';el.style.fontWeight='700';}
@@ -3405,7 +3409,7 @@ function openDetail(p){
     '<div class="dp-hero"><div class="dp-area-tag">'+(p.area||'不明')+'</div>'
     +'<div class="dp-name">'+p.name+'</div>'
     +'<div class="dp-fixno">FiX No.'+p.fix_no+' ／ 通し:'+p.seq_no+'</div>'
-    +'<div class="dp-status-row">'+makeBadge(p.status,true)+(isUrgent?'<span class="urg-pill">⚡ 引渡まで'+days+'日</span>':'')+'</div></div>'
+    +'<div class="dp-status-row">'+(p.tantou||p.staff?'<span style="font-size:10px;background:#475569;color:white;padding:2px 6px;border-radius:4px">'+(p.tantou||p.staff)+'</span>':'<span class="sb s-'+(p.status||'未公開')+'">'+( p.status||'未公開')+'</span>')+(isUrgent?'<span class="urg-pill">⚡ 引渡まで'+days+'日</span>':'')+'</div></div>'
     +buildGanttTab(p)
     +'<div class="dp-sec"><div class="dp-sec-head">📅 マイルストーン</div><div class="proc-list">'+procHtml+'</div></div>'
     +buildProgressSection(p)
