@@ -2295,7 +2295,12 @@ function renderBody(){
         var activePks2=pks.filter(function(pk){return !pk.contract_end||pk.contract_end>=todayStr2;});
         var parkBadge2=activePks2.length?'<span style="font-size:8px;background:#6366f1;color:white;padding:0 3px;border-radius:3px;margin-left:2px">🅿️</span>':'';
         var md=document.createElement('div');md.style.cssText='display:flex;align-items:center;gap:3px;margin-top:1px';
-        md.innerHTML=makeBadge(p.status)+(isUrgent?'<span class="urg-pill">⚡'+days+'日</span>':'')+(fav?'<span style="font-size:9px">⭐</span>':'')+parkBadge2;
+        // 担当者バッジ（販売ステータスの代わりに担当者名を表示）
+        var tantouName=(p.tantou||p.staff||'').trim();
+        var tantouBadge=tantouName
+          ?'<span style="font-size:9px;background:#475569;color:white;padding:1px 5px;border-radius:3px;max-width:60px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:inline-block;vertical-align:middle">'+tantouName+'</span>'
+          :'';
+        md.innerHTML=tantouBadge+(isUrgent?'<span class="urg-pill">⚡'+days+'日</span>':'')+(fav?'<span style="font-size:9px">⭐</span>':'')+parkBadge2;
         cell.appendChild(nd);cell.appendChild(md);
       } else { cell.textContent=val;if(!val)cell.style.color='var(--g300)'; }
       fr.appendChild(cell);
@@ -3984,7 +3989,7 @@ function renderMyPage(){
     return '<div class="mypage-card" onclick="openDetailFromFav(\''+fav.fix_no+'\',\''+encodeURIComponent(fav.name)+'\')">'
       +'<div class="mypc-top"><div class="mypc-area" style="background:'+ac+'">'+ai+'</div>'
       +'<div class="mypc-info"><div class="mypc-name">'+p.name+'</div>'
-      +'<div class="mypc-meta">'+makeBadge(p.status)+'<span class="mypc-date">'+(p.delivery_date||'引渡日未定')+'</span>'+tag+'</div></div>'
+      +'<div class="mypc-meta">'+(p.tantou||p.staff?'<span style="font-size:9px;background:#475569;color:white;padding:1px 5px;border-radius:3px;margin-right:3px">'+(p.tantou||p.staff)+'</span>':makeBadge(p.status))+'<span class="mypc-date">'+(p.delivery_date||'引渡日未定')+'</span>'+tag+'</div></div>'
       +'<div style="display:flex;flex-direction:column;gap:4px;align-items:flex-end;flex-shrink:0">'
       +rs
       +'<button class="mypc-del" onclick="event.stopPropagation();removeFavCard(\''+fav.fix_no+'\',\''+encodeURIComponent(fav.name)+'\')">✕</button>'
