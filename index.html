@@ -3428,7 +3428,7 @@ function openDetail(p){
     '<div class="dp-hero"><div class="dp-area-tag">'+(p.area||'不明')+'</div>'
     +'<div class="dp-name">'+p.name+'</div>'
     +'<div class="dp-fixno">FiX No.'+p.fix_no+' ／ 通し:'+p.seq_no+'</div>'
-    +'<div class="dp-status-row">'+(p.tantou||p.staff?'<span style="font-size:10px;background:#475569;color:white;padding:2px 6px;border-radius:4px">'+(p.tantou||p.staff)+'</span>':'<span class="sb s-'+(p.status||'未公開')+'">'+( p.status||'未公開')+'</span>')+(isUrgent?'<span class="urg-pill">⚡ 引渡まで'+days+'日</span>':'')+'</div></div>'
+    +'<div class="dp-status-row">'+(p.tantou||p.staff?'<span style="font-size:10px;background:#475569;color:white;padding:2px 6px;border-radius:4px">'+(p.tantou||p.staff)+'</span>':'')+(isUrgent?'<span class="urg-pill">⚡ 引渡まで'+days+'日</span>':'')+'</div></div>'
     +buildGanttTab(p)
     +'<div class="dp-sec"><div class="dp-sec-head">📅 マイルストーン</div><div class="proc-list">'+procHtml+'</div></div>'
     +buildProgressSection(p)
@@ -3440,7 +3440,7 @@ function openDetail(p){
     +'<div class="dp-sec"><div class="dp-sec-head">📋 土地・契約情報</div>'+mkRow('土地契約日',p.land_contract)+mkRow('土地決済期日',p.land_payment)+'</div>'
     +'<div class="dp-sec"><div class="dp-sec-head">📐 設計・調査情報</div>'+mkRow('確認申請提出日',p.confirm_submit)+mkRow('確認申請完了日',p.confirm_done)+mkRow('地盤調査確定日',p.ground_survey)+'</div>'
     +'<div class="dp-sec"><div class="dp-sec-head">🏁 完了・引渡し情報</div>'+mkRow('完了検査日',p.inspection_date)+mkRow('完成日',p.complete_date)+delivRow+mkRow('引渡月',p.delivery_month)+'</div>'
-    +'<div class="dp-sec"><div class="dp-sec-head">🏦 販売情報</div><div class="dp-row"><span class="dp-label">販売ステータス</span>'+makeBadge(p.status,true)+'</div>'+'</div>'
+    +'<div class="dp-sec"><div class="dp-sec-head">🏦 販売情報</div>'+mkRow('販売ステータス',p.status)+mkRow('担当者',p.tantou||p.staff||'')+'</div>'
     +parkHtml
     +'<div id="detail-vendor-wrap">'+buildVendorSection(p)+'</div>'
     +'<div class="dp-sec" id="weather-sec-'+p.fix_no+'"><div class="dp-sec-head">🌤 週間天気（現場エリア）</div><div id="weather-content-'+p.fix_no+'"></div></div>';
@@ -4012,7 +4012,7 @@ function renderMyPage(){
     return '<div class="mypage-card" onclick="openDetailFromFav(\''+fav.fix_no+'\',\''+encodeURIComponent(fav.name)+'\')">'
       +'<div class="mypc-top"><div class="mypc-area" style="background:'+ac+'">'+ai+'</div>'
       +'<div class="mypc-info"><div class="mypc-name">'+p.name+'</div>'
-      +'<div class="mypc-meta">'+(p.tantou||p.staff?'<span style="font-size:9px;background:#475569;color:white;padding:1px 5px;border-radius:3px;margin-right:3px">'+(p.tantou||p.staff)+'</span>':makeBadge(p.status))+'<span class="mypc-date">'+(p.delivery_date||'引渡日未定')+'</span>'+tag+'</div></div>'
+      +'<div class="mypc-meta">'+(p.tantou||p.staff?'<span style="font-size:9px;background:#475569;color:white;padding:1px 5px;border-radius:3px;margin-right:3px">'+(p.tantou||p.staff)+'</span>':'')+'<span class="mypc-date">'+(p.delivery_date||'引渡日未定')+'</span>'+tag+'</div></div>'
       +'<div style="display:flex;flex-direction:column;gap:4px;align-items:flex-end;flex-shrink:0">'
       +rs
       +'<button class="mypc-del" onclick="event.stopPropagation();removeFavCard(\''+fav.fix_no+'\',\''+encodeURIComponent(fav.name)+'\')">✕</button>'
