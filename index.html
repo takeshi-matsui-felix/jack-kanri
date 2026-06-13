@@ -4649,7 +4649,7 @@ async function applyMasterToAll(){
         var chunk=batch.slice(i,i+50);
         for(var j=0;j<chunk.length;j++){
           var pp=chunk[j];
-          await sb.from('properties').update({prop_master:masterName}).eq('fix_no',pp.fix_no).eq('name',pp.name);
+          await sb.from('properties').update({prop_master:masterName}).eq('fix_no',String(pp.fix_no)).eq('name',pp.name);
         }
       }
       showToast('✅ 全'+allProps.length+'件に「'+masterName+'」を紐付けました（DB保存済み）','success');
@@ -5615,8 +5615,8 @@ function jsonpFetch(url, cbPrefix, onSuccess, onError){
 }
 
 // ========== プロパティキャッシュ ==========
-var PROPS_CACHE_KEY='jack_props_cache';
-var PROPS_CACHE_TS_KEY='jack_props_cache_ts';
+var PROPS_CACHE_KEY='jack_props_cache_v2';
+var PROPS_CACHE_TS_KEY='jack_props_cache_ts_v2';
 
 async function loadPropertiesFromCacheOrDB(forceRefresh){
   var sb=getSB(); if(!sb)return;
@@ -5671,7 +5671,7 @@ async function _loadCustomGanttIfNeeded(p){
   var needFetch=false;
   if(sb&&fixNo){
     try{
-      var tsRes=await sb.from('properties').select('updated_at').eq('fix_no',fixNo).single();
+      var tsRes=await sb.from('properties').select('updated_at').eq('fix_no',String(fixNo)).single();
       if(!tsRes.error&&tsRes.data){
         var remoteTs=tsRes.data.updated_at||'';
         if(remoteTs&&remoteTs!==localTs)needFetch=true; // 更新あり → 再取得
@@ -5690,7 +5690,7 @@ async function _loadCustomGanttIfNeeded(p){
   // 更新あり or キャッシュなし → Supabaseから取得
   if(!sb)return;
   try{
-    var r=await sb.from('properties').select('fix_no,custom_gantt,updated_at').eq('fix_no',fixNo).single();
+    var r=await sb.from('properties').select('fix_no,custom_gantt,updated_at').eq('fix_no',String(fixNo)).single();
     if(!r.error&&r.data){
       if(r.data.updated_at)localStorage.setItem(tsKey,r.data.updated_at);
       if(r.data.custom_gantt){
@@ -6095,7 +6095,7 @@ function _saveGanttToSupabase(p,segsData,cb){
         var idx=DB_PROPS.findIndex(function(dp){return String(dp.fix_no)===String(p.fix_no);});
         if(idx>=0)DB_PROPS[idx].custom_gantt=payload.custom_gantt;
         // LocalStorageキャッシュも更新
-        try{localStorage.setItem('jack_props_cache',JSON.stringify(DB_PROPS));}catch(e){}
+        try{localStorage.setItem('jack_props_cache_v2',JSON.stringify(DB_PROPS));}catch(e){}
       }
       if(cb)cb(!r.error);
     }).catch(function(){if(cb)cb(false);});
@@ -6109,7 +6109,7 @@ function _saveMasterLinkToSupabase(p,masterName,cb){
         var idx=DB_PROPS.findIndex(function(dp){return String(dp.fix_no)===String(p.fix_no);});
         if(idx>=0)DB_PROPS[idx].prop_master=masterName||null;
         // LocalStorageキャッシュも更新
-        try{localStorage.setItem('jack_props_cache',JSON.stringify(DB_PROPS));}catch(e){}
+        try{localStorage.setItem('jack_props_cache_v2',JSON.stringify(DB_PROPS));}catch(e){}
       }
       if(cb)cb(!r.error);
     }).catch(function(){if(cb)cb(false);});
@@ -7055,7 +7055,7 @@ async function loadAdmSec(sec){
       var sb2=getSB();
       var pr=await sb2.from('properties').select('*').order('fix_no',{ascending:true});
       props=pr.data||[];
-      if(props.length>0){DB_PROPS=props;try{localStorage.setItem('jack_props_cache',JSON.stringify(props));}catch(e){}}
+      if(props.length>0){DB_PROPS=props;try{localStorage.setItem('jack_props_cache_v2',JSON.stringify(props));}catch(e){}}
     }
 
     right.innerHTML='<div style="display:flex;flex-direction:column;height:100%">'
