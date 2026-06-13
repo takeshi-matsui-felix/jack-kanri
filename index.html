@@ -5664,6 +5664,8 @@ var _ganttFetchedProps={};
 async function _loadCustomGanttIfNeeded(p){
   var ck=String(p.fix_no||'')+'__'+(p.name||'');
   var fixNo=String(p.fix_no||'');
+  // fix_noが数値文字列でない場合はスキップ（集計行・エリア名等の混入を防ぐ）
+  if(!fixNo||!/^\d+$/.test(fixNo))return;
   var sb=getSB();
   // タイムスタンプ確認: updated_atを1件取得して管理者の更新を即時検知
   var tsKey='jack_gantt_ts_'+fixNo;
