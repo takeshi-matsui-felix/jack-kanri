@@ -1379,24 +1379,26 @@ function getProps() {
   return list;
 }
 function getAllProps(){
-  var base=(DATA.all['全物件進捗']||[]).concat(DATA.all['来期物件']||[]);
-  // DB_PROPSのtantou・status・address等をXLSXデータにマージ
+  var xlsxBase=(DATA.all['\u5168\u7269\u4ef6\u9032\u6357']||[]).concat(DATA.all['\u6765\u671f\u7269\u4ef6']||[]);
+  // XLSXデータをfix_noキーのMapに（segments/master_segsを保持）
+  var xlsxMap={};
+  xlsxBase.forEach(function(p){xlsxMap[String(p.fix_no||'')]=p;});
+  // DB_PROPSが存在する場合はDB_PROPSをベースにXLSXのセグメントをマージ
   if(DB_PROPS&&DB_PROPS.length){
-    var dbMap={};
-    DB_PROPS.forEach(function(d){dbMap[String(d.fix_no||'')]=d;});
-    base=base.map(function(p){
-      var db=dbMap[String(p.fix_no||'')];
-      if(!db)return p;
-      // DB_PROPSのフィールドで上書き（値がある場合のみ）
-      var merged=Object.assign({},p);
-      ['tantou','status','address','custom_gantt','delivery_date',
-       'inspection_date','complete_date','parkings','updated_at'].forEach(function(k){
-        if(db[k]!=null&&db[k]!=='')merged[k]=db[k];
-      });
+    return DB_PROPS.map(function(db){
+      var xlsx=xlsxMap[String(db.fix_no||'')]||{};
+      // XLSXをベースにDB_PROPSで上書き（DB_PROPSが正のデータソース）
+      var merged=Object.assign({},xlsx,db);
+      // segments/master_segsはXLSXから取得（DB_PROPSにはない）
+      if(xlsx.segments)merged.segments=xlsx.segments;
+      if(xlsx.master_segs)merged.master_segs=xlsx.master_segs;
+      // fix_noは必ずstring型に統一
+      merged.fix_no=String(db.fix_no||'');
       return merged;
     });
   }
-  return base;
+  // DB_PROPSがない場合はXLSXデータをそのまま返す
+  return xlsxBase;
 }
 function getDow(d){return d?new Date(d).getDay():-1;}
 // 日付を YYYY/MM/DD に正規化（9/20/24→2024/09/20, 2024-09-20→2024/09/20）
