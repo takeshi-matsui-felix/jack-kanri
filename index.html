@@ -2347,15 +2347,10 @@ function renderBody(){
     var px2=0;
     activePreC.forEach(function(c){
       var rawVal=p[c.key]||'';
-      var val;
-      if(c.key==='status') val=rawVal;
-      else if(c.short) val=fmtDateShort(rawVal);
-      else val=fmtDateShort(rawVal)||normDate(rawVal)||rawVal;
+      var val=c.short?fmtDateShort(rawVal):fmtDateShort(rawVal)||normDate(rawVal)||rawVal;
       var el=document.createElement('div');el.className='info-cell';
       el.style.cssText='left:'+px2+'px;top:'+top+'px;width:'+c.w+'px;height:'+rowH+'px;background:'+(ri%2===0?'rgba(30,58,95,.03)':'rgba(30,58,95,.05)')+';';
-      if(c.key==='tantou'||c.key==='status'){
-        el.innerHTML=val?'<span style="font-size:9px;background:#475569;color:white;padding:1px 5px;border-radius:3px">'+val+'</span>':'';
-      }else{el.textContent=val;if(!val)el.style.color='var(--g200)';}
+      el.textContent=val;if(!val)el.style.color='var(--g200)';
       cv.appendChild(el);px2+=c.w;
     });
 
