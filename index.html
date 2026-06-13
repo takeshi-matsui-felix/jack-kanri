@@ -856,7 +856,7 @@ var POST_COLS = [
   { key:'complete_date',   label:'完成日',         w:56, cls:'hcell-post' },
   { key:'delivery_date',   label:'引渡し日',       w:68, cls:'hcell-post' },
   { key:'delivery_month',  label:'引渡\n月',        w:42, cls:'hcell-post' },
-  { key:'status',          label:'販売\nステータス', w:60, cls:'hcell-post' }
+  { key:'tantou',          label:'担当者', w:60, cls:'hcell-post' }
 ];
 var POST_W = POST_COLS.reduce(function(a,c){return a+c.w;},0);
 
@@ -1378,7 +1378,28 @@ function getProps() {
   });
   return list;
 }
-function getAllProps(){return(DATA.all['全物件進捗']||[]).concat(DATA.all['来期物件']||[]);}
+function getAllProps(){
+  var xlsxBase=(DATA.all['\u5168\u7269\u4ef6\u9032\u6357']||[]).concat(DATA.all['\u6765\u671f\u7269\u4ef6']||[]);
+  // XLSXデータをfix_noキーのMapに（segments/master_segsを保持）
+  var xlsxMap={};
+  xlsxBase.forEach(function(p){xlsxMap[String(p.fix_no||'')]=p;});
+  // DB_PROPSが存在する場合はDB_PROPSをベースにXLSXのセグメントをマージ
+  if(DB_PROPS&&DB_PROPS.length){
+    return DB_PROPS.map(function(db){
+      var xlsx=xlsxMap[String(db.fix_no||'')]||{};
+      // XLSXをベースにDB_PROPSで上書き（DB_PROPSが正のデータソース）
+      var merged=Object.assign({},xlsx,db);
+      // segments/master_segsはXLSXから取得（DB_PROPSにはない）
+      if(xlsx.segments)merged.segments=xlsx.segments;
+      if(xlsx.master_segs)merged.master_segs=xlsx.master_segs;
+      // fix_noは必ずstring型に統一
+      merged.fix_no=String(db.fix_no||'');
+      return merged;
+    });
+  }
+  // DB_PROPSがない場合はXLSXデータをそのまま返す
+  return xlsxBase;
+}
 function getDow(d){return d?new Date(d).getDay():-1;}
 // 日付を YYYY/MM/DD に正規化（9/20/24→2024/09/20, 2024-09-20→2024/09/20）
 // ローカル日付をYYYY-MM-DD形式で返す（toISOString()のUTCずれを防ぐ）
@@ -2295,7 +2316,15 @@ function renderBody(){
         var activePks2=pks.filter(function(pk){return !pk.contract_end||pk.contract_end>=todayStr2;});
         var parkBadge2=activePks2.length?'<span style="font-size:8px;background:#6366f1;color:white;padding:0 3px;border-radius:3px;margin-left:2px">🅿️</span>':'';
         var md=document.createElement('div');md.style.cssText='display:flex;align-items:center;gap:3px;margin-top:1px';
-        md.innerHTML=makeBadge(p.status)+(isUrgent?'<span class="urg-pill">⚡'+days+'日</span>':'')+(fav?'<span style="font-size:9px">⭐</span>':'')+parkBadge2;
+        // 担当者バッジ（販売ステータスの代わりに担当者名を表示）
+        var tantouRaw=(p.tantou||p.staff||'').trim();
+        // statusっぽい値（未公開/未設定/契約済/販売中等）はtantouとして表示しない
+        var statusWords=/^(未公開|未設定|公開中|契約済|販売中|買付|契約予定|販売中断|完工)$/;
+        var tantouName=statusWords.test(tantouRaw)?'':tantouRaw;
+        var tantouBadge=tantouName
+          ?'<span style="font-size:9px;background:#475569;color:white;padding:1px 5px;border-radius:3px;max-width:60px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:inline-block;vertical-align:middle">'+tantouName+'</span>'
+          :'';
+        md.innerHTML=tantouBadge+(isUrgent?'<span class="urg-pill">⚡'+days+'日</span>':'')+(fav?'<span style="font-size:9px">⭐</span>':'')+parkBadge2;
         cell.appendChild(nd);cell.appendChild(md);
       } else { cell.textContent=val;if(!val)cell.style.color='var(--g300)'; }
       fr.appendChild(cell);
@@ -2323,14 +2352,10 @@ function renderBody(){
     var px2=0;
     activePreC.forEach(function(c){
       var rawVal=p[c.key]||'';
-      var val;
-      if(c.key==='status') val=rawVal;
-      else if(c.short) val=fmtDateShort(rawVal);
-      else val=fmtDateShort(rawVal)||normDate(rawVal)||rawVal;
+      var val=c.short?fmtDateShort(rawVal):fmtDateShort(rawVal)||normDate(rawVal)||rawVal;
       var el=document.createElement('div');el.className='info-cell';
       el.style.cssText='left:'+px2+'px;top:'+top+'px;width:'+c.w+'px;height:'+rowH+'px;background:'+(ri%2===0?'rgba(30,58,95,.03)':'rgba(30,58,95,.05)')+';';
-      if(c.key==='status'){el.innerHTML=makeBadge(val);}
-      else{el.textContent=val;if(!val)el.style.color='var(--g200)';}
+      el.textContent=val;if(!val)el.style.color='var(--g200)';
       cv.appendChild(el);px2+=c.w;
     });
 
@@ -2343,8 +2368,11 @@ function renderBody(){
       var val=p[c.key]||'';
       var el=document.createElement('div');el.className='info-cell';
       el.style.cssText='left:'+postX+'px;top:'+top+'px;width:'+c.w+'px;height:'+rowH+'px;';
-      if(c.key==='status'){el.innerHTML=makeBadge(val);}
-      else{
+      if(c.key==='tantou'){
+        // 担当者バッジ
+        var tv=val||'';
+        el.innerHTML=tv?'<span style="font-size:9px;background:#475569;color:white;padding:1px 5px;border-radius:3px">'+tv+'</span>':'';
+      }else{
         var disp=c.key==='delivery_month'?val:fmtDateShort(val);
         el.textContent=disp;if(!disp)el.style.color='var(--g200)';
         if(c.key==='delivery_date'&&isUrgent){el.style.color='var(--danger)';el.style.fontWeight='700';}
@@ -3400,7 +3428,7 @@ function openDetail(p){
     '<div class="dp-hero"><div class="dp-area-tag">'+(p.area||'不明')+'</div>'
     +'<div class="dp-name">'+p.name+'</div>'
     +'<div class="dp-fixno">FiX No.'+p.fix_no+' ／ 通し:'+p.seq_no+'</div>'
-    +'<div class="dp-status-row">'+makeBadge(p.status,true)+(isUrgent?'<span class="urg-pill">⚡ 引渡まで'+days+'日</span>':'')+'</div></div>'
+    +'<div class="dp-status-row">'+(p.tantou||p.staff?'<span style="font-size:10px;background:#475569;color:white;padding:2px 6px;border-radius:4px">'+(p.tantou||p.staff)+'</span>':'')+(isUrgent?'<span class="urg-pill">⚡ 引渡まで'+days+'日</span>':'')+'</div></div>'
     +buildGanttTab(p)
     +'<div class="dp-sec"><div class="dp-sec-head">📅 マイルストーン</div><div class="proc-list">'+procHtml+'</div></div>'
     +buildProgressSection(p)
@@ -3412,7 +3440,7 @@ function openDetail(p){
     +'<div class="dp-sec"><div class="dp-sec-head">📋 土地・契約情報</div>'+mkRow('土地契約日',p.land_contract)+mkRow('土地決済期日',p.land_payment)+'</div>'
     +'<div class="dp-sec"><div class="dp-sec-head">📐 設計・調査情報</div>'+mkRow('確認申請提出日',p.confirm_submit)+mkRow('確認申請完了日',p.confirm_done)+mkRow('地盤調査確定日',p.ground_survey)+'</div>'
     +'<div class="dp-sec"><div class="dp-sec-head">🏁 完了・引渡し情報</div>'+mkRow('完了検査日',p.inspection_date)+mkRow('完成日',p.complete_date)+delivRow+mkRow('引渡月',p.delivery_month)+'</div>'
-    +'<div class="dp-sec"><div class="dp-sec-head">🏦 販売情報</div><div class="dp-row"><span class="dp-label">販売ステータス</span>'+makeBadge(p.status,true)+'</div>'+'</div>'
+    +'<div class="dp-sec"><div class="dp-sec-head">🏦 販売情報</div>'+mkRow('販売ステータス',p.status)+mkRow('担当者',p.tantou||p.staff||'')+'</div>'
     +parkHtml
     +'<div id="detail-vendor-wrap">'+buildVendorSection(p)+'</div>'
     +'<div class="dp-sec" id="weather-sec-'+p.fix_no+'"><div class="dp-sec-head">🌤 週間天気（現場エリア）</div><div id="weather-content-'+p.fix_no+'"></div></div>';
@@ -3984,7 +4012,7 @@ function renderMyPage(){
     return '<div class="mypage-card" onclick="openDetailFromFav(\''+fav.fix_no+'\',\''+encodeURIComponent(fav.name)+'\')">'
       +'<div class="mypc-top"><div class="mypc-area" style="background:'+ac+'">'+ai+'</div>'
       +'<div class="mypc-info"><div class="mypc-name">'+p.name+'</div>'
-      +'<div class="mypc-meta">'+makeBadge(p.status)+'<span class="mypc-date">'+(p.delivery_date||'引渡日未定')+'</span>'+tag+'</div></div>'
+      +'<div class="mypc-meta">'+(p.tantou||p.staff?'<span style="font-size:9px;background:#475569;color:white;padding:1px 5px;border-radius:3px;margin-right:3px">'+(p.tantou||p.staff)+'</span>':'')+'<span class="mypc-date">'+(p.delivery_date||'引渡日未定')+'</span>'+tag+'</div></div>'
       +'<div style="display:flex;flex-direction:column;gap:4px;align-items:flex-end;flex-shrink:0">'
       +rs
       +'<button class="mypc-del" onclick="event.stopPropagation();removeFavCard(\''+fav.fix_no+'\',\''+encodeURIComponent(fav.name)+'\')">✕</button>'
@@ -4624,7 +4652,7 @@ async function applyMasterToAll(){
         var chunk=batch.slice(i,i+50);
         for(var j=0;j<chunk.length;j++){
           var pp=chunk[j];
-          await sb.from('properties').update({prop_master:masterName}).eq('fix_no',pp.fix_no).eq('name',pp.name);
+          await sb.from('properties').update({prop_master:masterName}).eq('fix_no',String(pp.fix_no)).eq('name',pp.name);
         }
       }
       showToast('✅ 全'+allProps.length+'件に「'+masterName+'」を紐付けました（DB保存済み）','success');
@@ -5590,8 +5618,9 @@ function jsonpFetch(url, cbPrefix, onSuccess, onError){
 }
 
 // ========== プロパティキャッシュ ==========
-var PROPS_CACHE_KEY='jack_props_cache';
-var PROPS_CACHE_TS_KEY='jack_props_cache_ts';
+var _JACK_BUILD_VER="20260613-v5"; // ビルドバージョン
+var PROPS_CACHE_KEY='jack_props_cache_v2';
+var PROPS_CACHE_TS_KEY='jack_props_cache_ts_v2';
 
 async function loadPropertiesFromCacheOrDB(forceRefresh){
   var sb=getSB(); if(!sb)return;
@@ -5639,6 +5668,8 @@ var _ganttFetchedProps={};
 async function _loadCustomGanttIfNeeded(p){
   var ck=String(p.fix_no||'')+'__'+(p.name||'');
   var fixNo=String(p.fix_no||'');
+  // fix_noが数値文字列でない場合はスキップ（集計行・エリア名等の混入を防ぐ）
+  if(!fixNo||!/^\d+$/.test(fixNo))return;
   var sb=getSB();
   // タイムスタンプ確認: updated_atを1件取得して管理者の更新を即時検知
   var tsKey='jack_gantt_ts_'+fixNo;
@@ -5646,7 +5677,7 @@ async function _loadCustomGanttIfNeeded(p){
   var needFetch=false;
   if(sb&&fixNo){
     try{
-      var tsRes=await sb.from('properties').select('updated_at').eq('fix_no',fixNo).single();
+      var tsRes=await sb.from('properties').select('updated_at').eq('fix_no',String(fixNo)).maybeSingle();
       if(!tsRes.error&&tsRes.data){
         var remoteTs=tsRes.data.updated_at||'';
         if(remoteTs&&remoteTs!==localTs)needFetch=true; // 更新あり → 再取得
@@ -5665,7 +5696,7 @@ async function _loadCustomGanttIfNeeded(p){
   // 更新あり or キャッシュなし → Supabaseから取得
   if(!sb)return;
   try{
-    var r=await sb.from('properties').select('fix_no,custom_gantt,updated_at').eq('fix_no',fixNo).single();
+    var r=await sb.from('properties').select('fix_no,custom_gantt,updated_at').eq('fix_no',String(fixNo)).maybeSingle();
     if(!r.error&&r.data){
       if(r.data.updated_at)localStorage.setItem(tsKey,r.data.updated_at);
       if(r.data.custom_gantt){
@@ -6070,7 +6101,7 @@ function _saveGanttToSupabase(p,segsData,cb){
         var idx=DB_PROPS.findIndex(function(dp){return String(dp.fix_no)===String(p.fix_no);});
         if(idx>=0)DB_PROPS[idx].custom_gantt=payload.custom_gantt;
         // LocalStorageキャッシュも更新
-        try{localStorage.setItem('jack_props_cache',JSON.stringify(DB_PROPS));}catch(e){}
+        try{localStorage.setItem('jack_props_cache_v2',JSON.stringify(DB_PROPS));}catch(e){}
       }
       if(cb)cb(!r.error);
     }).catch(function(){if(cb)cb(false);});
@@ -6084,7 +6115,7 @@ function _saveMasterLinkToSupabase(p,masterName,cb){
         var idx=DB_PROPS.findIndex(function(dp){return String(dp.fix_no)===String(p.fix_no);});
         if(idx>=0)DB_PROPS[idx].prop_master=masterName||null;
         // LocalStorageキャッシュも更新
-        try{localStorage.setItem('jack_props_cache',JSON.stringify(DB_PROPS));}catch(e){}
+        try{localStorage.setItem('jack_props_cache_v2',JSON.stringify(DB_PROPS));}catch(e){}
       }
       if(cb)cb(!r.error);
     }).catch(function(){if(cb)cb(false);});
@@ -7030,7 +7061,7 @@ async function loadAdmSec(sec){
       var sb2=getSB();
       var pr=await sb2.from('properties').select('*').order('fix_no',{ascending:true});
       props=pr.data||[];
-      if(props.length>0){DB_PROPS=props;try{localStorage.setItem('jack_props_cache',JSON.stringify(props));}catch(e){}}
+      if(props.length>0){DB_PROPS=props;try{localStorage.setItem('jack_props_cache_v2',JSON.stringify(props));}catch(e){}}
     }
 
     right.innerHTML='<div style="display:flex;flex-direction:column;height:100%">'
@@ -8717,7 +8748,7 @@ async function _loadGanttSheetForProp(fixNo){
   if(!data){
     var sb=getSB();if(!sb)return null;
     try{
-      var r=await sb.from('gantt_sheets').select('fix_no,sheet_data,updated_at').eq('fix_no',String(fixNo)).single();
+      var r=await sb.from('gantt_sheets').select('fix_no,sheet_data,updated_at').eq('fix_no',String(fixNo)).maybeSingle();
       if(r.error||!r.data)return null;
       data=r.data.sheet_data;
       // LocalStorageにキャッシュ（canvasDataUrlなし・軽い）
