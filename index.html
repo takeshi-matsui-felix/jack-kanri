@@ -2317,7 +2317,10 @@ function renderBody(){
         var parkBadge2=activePks2.length?'<span style="font-size:8px;background:#6366f1;color:white;padding:0 3px;border-radius:3px;margin-left:2px">🅿️</span>':'';
         var md=document.createElement('div');md.style.cssText='display:flex;align-items:center;gap:3px;margin-top:1px';
         // 担当者バッジ（販売ステータスの代わりに担当者名を表示）
-        var tantouName=(p.tantou||p.staff||'').trim();
+        var tantouRaw=(p.tantou||p.staff||'').trim();
+        // statusっぽい値（未公開/未設定/契約済/販売中等）はtantouとして表示しない
+        var statusWords=/^(未公開|未設定|公開中|契約済|販売中|買付|契約予定|販売中断|完工)$/;
+        var tantouName=statusWords.test(tantouRaw)?'':tantouRaw;
         var tantouBadge=tantouName
           ?'<span style="font-size:9px;background:#475569;color:white;padding:1px 5px;border-radius:3px;max-width:60px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:inline-block;vertical-align:middle">'+tantouName+'</span>'
           :'';
@@ -5615,6 +5618,7 @@ function jsonpFetch(url, cbPrefix, onSuccess, onError){
 }
 
 // ========== プロパティキャッシュ ==========
+var _JACK_BUILD_VER="20260613-v5"; // ビルドバージョン
 var PROPS_CACHE_KEY='jack_props_cache_v2';
 var PROPS_CACHE_TS_KEY='jack_props_cache_ts_v2';
 
@@ -5673,7 +5677,7 @@ async function _loadCustomGanttIfNeeded(p){
   var needFetch=false;
   if(sb&&fixNo){
     try{
-      var tsRes=await sb.from('properties').select('updated_at').eq('fix_no',String(fixNo)).single();
+      var tsRes=await sb.from('properties').select('updated_at').eq('fix_no',String(fixNo)).maybeSingle();
       if(!tsRes.error&&tsRes.data){
         var remoteTs=tsRes.data.updated_at||'';
         if(remoteTs&&remoteTs!==localTs)needFetch=true; // 更新あり → 再取得
@@ -5692,7 +5696,7 @@ async function _loadCustomGanttIfNeeded(p){
   // 更新あり or キャッシュなし → Supabaseから取得
   if(!sb)return;
   try{
-    var r=await sb.from('properties').select('fix_no,custom_gantt,updated_at').eq('fix_no',String(fixNo)).single();
+    var r=await sb.from('properties').select('fix_no,custom_gantt,updated_at').eq('fix_no',String(fixNo)).maybeSingle();
     if(!r.error&&r.data){
       if(r.data.updated_at)localStorage.setItem(tsKey,r.data.updated_at);
       if(r.data.custom_gantt){
@@ -8744,7 +8748,7 @@ async function _loadGanttSheetForProp(fixNo){
   if(!data){
     var sb=getSB();if(!sb)return null;
     try{
-      var r=await sb.from('gantt_sheets').select('fix_no,sheet_data,updated_at').eq('fix_no',String(fixNo)).single();
+      var r=await sb.from('gantt_sheets').select('fix_no,sheet_data,updated_at').eq('fix_no',String(fixNo)).maybeSingle();
       if(r.error||!r.data)return null;
       data=r.data.sheet_data;
       // LocalStorageにキャッシュ（canvasDataUrlなし・軽い）
