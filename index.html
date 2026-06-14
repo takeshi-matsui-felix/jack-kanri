@@ -1379,26 +1379,24 @@ function getProps() {
   return list;
 }
 function getAllProps(){
-  var xlsxBase=(DATA.all['\u5168\u7269\u4ef6\u9032\u6357']||[]).concat(DATA.all['\u6765\u671f\u7269\u4ef6']||[]);
-  // XLSXデータをfix_noキーのMapに（segments/master_segsを保持）
-  var xlsxMap={};
-  xlsxBase.forEach(function(p){xlsxMap[String(p.fix_no||'')]=p;});
-  // DB_PROPSが存在する場合はDB_PROPSをベースにXLSXのセグメントをマージ
+  var base=(DATA.all['全物件進捗']||[]).concat(DATA.all['来期物件']||[]);
+  // DB_PROPSのtantou・status・address等をXLSXデータにマージ
   if(DB_PROPS&&DB_PROPS.length){
-    return DB_PROPS.map(function(db){
-      var xlsx=xlsxMap[String(db.fix_no||'')]||{};
-      // XLSXをベースにDB_PROPSで上書き（DB_PROPSが正のデータソース）
-      var merged=Object.assign({},xlsx,db);
-      // segments/master_segsはXLSXから取得（DB_PROPSにはない）
-      if(xlsx.segments)merged.segments=xlsx.segments;
-      if(xlsx.master_segs)merged.master_segs=xlsx.master_segs;
-      // fix_noは必ずstring型に統一
-      merged.fix_no=String(db.fix_no||'');
+    var dbMap={};
+    DB_PROPS.forEach(function(d){dbMap[String(d.fix_no||'')]=d;});
+    base=base.map(function(p){
+      var db=dbMap[String(p.fix_no||'')];
+      if(!db)return p;
+      // DB_PROPSのフィールドで上書き（値がある場合のみ）
+      var merged=Object.assign({},p);
+      ['tantou','status','address','custom_gantt','delivery_date',
+       'inspection_date','complete_date','parkings','updated_at'].forEach(function(k){
+        if(db[k]!=null&&db[k]!=='')merged[k]=db[k];
+      });
       return merged;
     });
   }
-  // DB_PROPSがない場合はXLSXデータをそのまま返す
-  return xlsxBase;
+  return base;
 }
 function getDow(d){return d?new Date(d).getDay():-1;}
 // 日付を YYYY/MM/DD に正規化（9/20/24→2024/09/20, 2024-09-20→2024/09/20）
@@ -2317,10 +2315,7 @@ function renderBody(){
         var parkBadge2=activePks2.length?'<span style="font-size:8px;background:#6366f1;color:white;padding:0 3px;border-radius:3px;margin-left:2px">🅿️</span>':'';
         var md=document.createElement('div');md.style.cssText='display:flex;align-items:center;gap:3px;margin-top:1px';
         // 担当者バッジ（販売ステータスの代わりに担当者名を表示）
-        var tantouRaw=(p.tantou||p.staff||'').trim();
-        // statusっぽい値（未公開/未設定/契約済/販売中等）はtantouとして表示しない
-        var statusWords=/^(未公開|未設定|公開中|契約済|販売中|買付|契約予定|販売中断|完工)$/;
-        var tantouName=statusWords.test(tantouRaw)?'':tantouRaw;
+        var tantouName=(p.tantou||p.staff||'').trim();
         var tantouBadge=tantouName
           ?'<span style="font-size:9px;background:#475569;color:white;padding:1px 5px;border-radius:3px;max-width:60px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:inline-block;vertical-align:middle">'+tantouName+'</span>'
           :'';
@@ -2352,10 +2347,15 @@ function renderBody(){
     var px2=0;
     activePreC.forEach(function(c){
       var rawVal=p[c.key]||'';
-      var val=c.short?fmtDateShort(rawVal):fmtDateShort(rawVal)||normDate(rawVal)||rawVal;
+      var val;
+      if(c.key==='status') val=rawVal;
+      else if(c.short) val=fmtDateShort(rawVal);
+      else val=fmtDateShort(rawVal)||normDate(rawVal)||rawVal;
       var el=document.createElement('div');el.className='info-cell';
       el.style.cssText='left:'+px2+'px;top:'+top+'px;width:'+c.w+'px;height:'+rowH+'px;background:'+(ri%2===0?'rgba(30,58,95,.03)':'rgba(30,58,95,.05)')+';';
-      el.textContent=val;if(!val)el.style.color='var(--g200)';
+      if(c.key==='tantou'||c.key==='status'){
+        el.innerHTML=val?'<span style="font-size:9px;background:#475569;color:white;padding:1px 5px;border-radius:3px">'+val+'</span>':'';
+      }else{el.textContent=val;if(!val)el.style.color='var(--g200)';}
       cv.appendChild(el);px2+=c.w;
     });
 
@@ -4652,7 +4652,7 @@ async function applyMasterToAll(){
         var chunk=batch.slice(i,i+50);
         for(var j=0;j<chunk.length;j++){
           var pp=chunk[j];
-          await sb.from('properties').update({prop_master:masterName}).eq('fix_no',String(pp.fix_no)).eq('name',pp.name);
+          await sb.from('properties').update({prop_master:masterName}).eq('fix_no',pp.fix_no).eq('name',pp.name);
         }
       }
       showToast('✅ 全'+allProps.length+'件に「'+masterName+'」を紐付けました（DB保存済み）','success');
@@ -5618,9 +5618,8 @@ function jsonpFetch(url, cbPrefix, onSuccess, onError){
 }
 
 // ========== プロパティキャッシュ ==========
-var _JACK_BUILD_VER="20260613-v5"; // ビルドバージョン
-var PROPS_CACHE_KEY='jack_props_cache_v2';
-var PROPS_CACHE_TS_KEY='jack_props_cache_ts_v2';
+var PROPS_CACHE_KEY='jack_props_cache';
+var PROPS_CACHE_TS_KEY='jack_props_cache_ts';
 
 async function loadPropertiesFromCacheOrDB(forceRefresh){
   var sb=getSB(); if(!sb)return;
@@ -5668,8 +5667,6 @@ var _ganttFetchedProps={};
 async function _loadCustomGanttIfNeeded(p){
   var ck=String(p.fix_no||'')+'__'+(p.name||'');
   var fixNo=String(p.fix_no||'');
-  // fix_noが数値文字列でない場合はスキップ（集計行・エリア名等の混入を防ぐ）
-  if(!fixNo||!/^\d+$/.test(fixNo))return;
   var sb=getSB();
   // タイムスタンプ確認: updated_atを1件取得して管理者の更新を即時検知
   var tsKey='jack_gantt_ts_'+fixNo;
@@ -5677,7 +5674,7 @@ async function _loadCustomGanttIfNeeded(p){
   var needFetch=false;
   if(sb&&fixNo){
     try{
-      var tsRes=await sb.from('properties').select('updated_at').eq('fix_no',String(fixNo)).maybeSingle();
+      var tsRes=await sb.from('properties').select('updated_at').eq('fix_no',fixNo).single();
       if(!tsRes.error&&tsRes.data){
         var remoteTs=tsRes.data.updated_at||'';
         if(remoteTs&&remoteTs!==localTs)needFetch=true; // 更新あり → 再取得
@@ -5696,7 +5693,7 @@ async function _loadCustomGanttIfNeeded(p){
   // 更新あり or キャッシュなし → Supabaseから取得
   if(!sb)return;
   try{
-    var r=await sb.from('properties').select('fix_no,custom_gantt,updated_at').eq('fix_no',String(fixNo)).maybeSingle();
+    var r=await sb.from('properties').select('fix_no,custom_gantt,updated_at').eq('fix_no',fixNo).single();
     if(!r.error&&r.data){
       if(r.data.updated_at)localStorage.setItem(tsKey,r.data.updated_at);
       if(r.data.custom_gantt){
@@ -6101,7 +6098,7 @@ function _saveGanttToSupabase(p,segsData,cb){
         var idx=DB_PROPS.findIndex(function(dp){return String(dp.fix_no)===String(p.fix_no);});
         if(idx>=0)DB_PROPS[idx].custom_gantt=payload.custom_gantt;
         // LocalStorageキャッシュも更新
-        try{localStorage.setItem('jack_props_cache_v2',JSON.stringify(DB_PROPS));}catch(e){}
+        try{localStorage.setItem('jack_props_cache',JSON.stringify(DB_PROPS));}catch(e){}
       }
       if(cb)cb(!r.error);
     }).catch(function(){if(cb)cb(false);});
@@ -6115,7 +6112,7 @@ function _saveMasterLinkToSupabase(p,masterName,cb){
         var idx=DB_PROPS.findIndex(function(dp){return String(dp.fix_no)===String(p.fix_no);});
         if(idx>=0)DB_PROPS[idx].prop_master=masterName||null;
         // LocalStorageキャッシュも更新
-        try{localStorage.setItem('jack_props_cache_v2',JSON.stringify(DB_PROPS));}catch(e){}
+        try{localStorage.setItem('jack_props_cache',JSON.stringify(DB_PROPS));}catch(e){}
       }
       if(cb)cb(!r.error);
     }).catch(function(){if(cb)cb(false);});
@@ -7061,7 +7058,7 @@ async function loadAdmSec(sec){
       var sb2=getSB();
       var pr=await sb2.from('properties').select('*').order('fix_no',{ascending:true});
       props=pr.data||[];
-      if(props.length>0){DB_PROPS=props;try{localStorage.setItem('jack_props_cache_v2',JSON.stringify(props));}catch(e){}}
+      if(props.length>0){DB_PROPS=props;try{localStorage.setItem('jack_props_cache',JSON.stringify(props));}catch(e){}}
     }
 
     right.innerHTML='<div style="display:flex;flex-direction:column;height:100%">'
@@ -7072,7 +7069,7 @@ async function loadAdmSec(sec){
         +'</div>'
         // エリアタブ
         +'<div id="admPropAreaTabs" style="display:flex;border-bottom:2px solid #e2e8f0;margin-bottom:8px"></div>'
-        +'<div style="display:flex;gap:6px">'
+        +'<div style="display:flex;gap:6px;margin-bottom:8px">'
           +'<input id="admPropSearch" type="text" placeholder="物件名・FiX No.で絞込..." oninput="admFilterProps()" '
             +'style="flex:1;padding:6px 10px;border:1.5px solid #e2e8f0;border-radius:7px;font-size:12px">'
           +'<select id="admPropStatus" onchange="admFilterProps()" style="padding:6px 8px;border:1.5px solid #e2e8f0;border-radius:7px;font-size:12px;color:#475569">'
@@ -7081,6 +7078,8 @@ async function loadAdmSec(sec){
             +'<option value="未公開">未公開</option><option value="買付">買付</option>'
           +'</select>'
         +'</div>'
+        // 未設定項目で絞込ボタン
+        +'<div id="admMissingFilters" style="display:flex;gap:6px"></div>'
       +'</div>'
       +'<div id="admPropFormWrap" style="display:none;background:#eff6ff;border-bottom:2px solid #bfdbfe;padding:14px;flex-shrink:0">'
         +'<div id="admPropForm"></div>'
@@ -7355,8 +7354,22 @@ async function admSaveField(input,field){
 }
 window.admSaveField=admSaveField;
 
+// 物件の未設定項目チェック（担当者・現場住所・駐車場情報）
+var STATUS_WORDS=/^(未公開|未設定|公開中|契約済|販売中|買付|契約予定|販売中断|完工)$/;
+function admMissingFields(p){
+  var missing=[];
+  var tantouRaw=(p.tantou||p.staff||'').trim();
+  if(!tantouRaw||STATUS_WORDS.test(tantouRaw))missing.push('tantou');
+  if(!(p.address||'').trim())missing.push('address');
+  var pks=p.parkings;
+  if(typeof pks==='string'){try{pks=JSON.parse(pks);}catch(e){pks=[];}}
+  if(!Array.isArray(pks)||!pks.length)missing.push('parkings');
+  return missing;
+}
+
 // 物件リストフィルタ＆描画（エリアタブ付き）
 var _admCurTab='all';
+var _admMissingFilter=''; // '', 'tantou', 'address', 'parkings'
 function admFilterProps(){
   var list=document.getElementById('admPropList'); if(!list)return;
   var props=window._admAllProps||[];
@@ -7374,7 +7387,8 @@ function admFilterProps(){
     else matchTab=!isRaikin(p)&&!isKankou(p); // 全て=今期のみ
     var matchQ=!q||(p.name||'').toLowerCase().indexOf(q)>=0||String(p.fix_no||'').indexOf(q)>=0;
     var matchS=!status||(p.status||'')===status;
-    return matchTab&&matchQ&&matchS;
+    var matchM=!_admMissingFilter||admMissingFields(p).indexOf(_admMissingFilter)>=0;
+    return matchTab&&matchQ&&matchS&&matchM;
   });
   // 引渡し日順ソート
   filtered.sort(function(a,b){
@@ -7392,17 +7406,44 @@ function admFilterProps(){
       return '<button onclick="admSetTab(\''+t.id+'\')" style="flex:1;padding:7px 4px;font-size:11px;font-weight:700;border:none;cursor:pointer;border-bottom:2px solid '+(act?'#1a56db':'transparent')+';color:'+(act?'#1a56db':'#94a3b8')+';background:white">'+t.l+'</button>';
     }).join('');
   }
+  // 未設定項目で絞込ボタン再描画（全件中の未設定数をカウント）
+  var missEl=document.getElementById('admMissingFilters');
+  if(missEl){
+    var allInTab=props.filter(function(p){
+      var area=normalizeArea(p);
+      if(_admCurTab==='東海')return TOKAI_AREAS.indexOf(area)>=0&&!isRaikin(p)&&!isKankou(p);
+      if(_admCurTab==='関東')return KANTO_AREAS.indexOf(area)>=0&&!isRaikin(p)&&!isKankou(p);
+      if(_admCurTab==='来期')return isRaikin(p)&&!isKankou(p);
+      if(_admCurTab==='完工')return isKankou(p);
+      return !isRaikin(p)&&!isKankou(p);
+    });
+    var cnt={tantou:0,address:0,parkings:0};
+    allInTab.forEach(function(p){admMissingFields(p).forEach(function(k){cnt[k]++;});});
+    var mf=[{id:'tantou',l:'👤 担当者未設定'},{id:'address',l:'📍 現場住所未設定'},{id:'parkings',l:'🅿️ 駐車場情報未設定'}];
+    missEl.innerHTML=mf.map(function(m){
+      var act=m.id===_admMissingFilter;
+      return '<button onclick="admSetMissingFilter(\''+m.id+'\')" style="flex:1;padding:6px 4px;font-size:10.5px;font-weight:700;border:1.5px solid '+(act?'#dc2626':'#e2e8f0')+';border-radius:7px;cursor:pointer;background:'+(act?'#fef2f2':'white')+';color:'+(act?'#dc2626':'#64748b')+'">'+m.l+' ('+cnt[m.id]+')</button>';
+    }).join('');
+  }
   if(!filtered.length){list.innerHTML='<div style="text-align:center;padding:20px;color:#94a3b8;font-size:12px">該当する物件がありません</div>';return;}
   list.innerHTML=filtered.map(function(p){return admPropCard(p);}).join('');
 }
 window.admFilterProps=admFilterProps;
 function admSetTab(t){_admCurTab=t;admFilterProps();}
 window.admSetTab=admSetTab;
+function admSetMissingFilter(k){_admMissingFilter=(_admMissingFilter===k)?'':k;admFilterProps();}
+window.admSetMissingFilter=admSetMissingFilter;
 
 function admPropCard(p){
   var st=p.status||'';
   var stColor={'契約済':'#16a34a','販売中':'#1d4ed8','未公開':'#d97706','買付':'#7c3aed'}[st]||'#64748b';
   var stBg={'契約済':'#dcfce7','販売中':'#dbeafe','未公開':'#fef9c3','買付':'#ede9fe'}[st]||'#f1f5f9';
+  // 未設定項目バッジ（担当者・現場住所・駐車場情報）
+  var missing=admMissingFields(p);
+  var missLabels={tantou:'👤担当者',address:'📍住所',parkings:'🅿️駐車場'};
+  var missBadges=missing.map(function(k){
+    return '<span style="font-size:9px;font-weight:700;background:#fef2f2;color:#dc2626;padding:1px 5px;border-radius:4px;border:1px solid #fecaca">'+missLabels[k]+'未設定</span>';
+  }).join(' ');
   return '<div style="background:white;border:1.5px solid #e2e8f0;border-radius:10px;margin-bottom:8px;overflow:hidden">'
     +'<div onclick="admOpenPropEdit(\''+p.fix_no+'\',\''+encodeURIComponent(p.name)+'\')" '
       +'style="display:flex;align-items:center;gap:10px;padding:10px 12px;cursor:pointer;transition:background .1s" '
@@ -7411,6 +7452,7 @@ function admPropCard(p){
       +'<div style="flex:1;min-width:0">'
         +'<div style="font-size:13px;font-weight:700;color:#1e293b;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+(p.name||'')+'</div>'
         +'<div style="font-size:10px;color:#94a3b8;margin-top:1px">'+(p.area||'')+(p.delivery_date?' ／ 引渡: '+p.delivery_date:'')+(p.confirm_done?' ／ 確認申請: '+p.confirm_done:'')+'</div>'
+        +(missBadges?'<div style="margin-top:3px;display:flex;gap:4px;flex-wrap:wrap">'+missBadges+'</div>':'')
       +'</div>'
       +'<div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px;flex-shrink:0">'
         +'<span style="font-size:10px;font-weight:700;background:'+stBg+';color:'+stColor+';padding:2px 7px;border-radius:5px">'+(st||'未設定')+'</span>'
@@ -8748,7 +8790,7 @@ async function _loadGanttSheetForProp(fixNo){
   if(!data){
     var sb=getSB();if(!sb)return null;
     try{
-      var r=await sb.from('gantt_sheets').select('fix_no,sheet_data,updated_at').eq('fix_no',String(fixNo)).maybeSingle();
+      var r=await sb.from('gantt_sheets').select('fix_no,sheet_data,updated_at').eq('fix_no',String(fixNo)).single();
       if(r.error||!r.data)return null;
       data=r.data.sheet_data;
       // LocalStorageにキャッシュ（canvasDataUrlなし・軽い）
