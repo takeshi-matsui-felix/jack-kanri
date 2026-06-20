@@ -833,7 +833,7 @@ function fmtDateShort(raw){
 }
 
 var FREEZE_COLS = [
-  { key:'fix_no', label:'FiX No', w:52 },
+  { key:'fix_no', label:'FiX No', w:72 },
   { key:'name',   label:'物件名', w:150 }
 ];
 var SP_FREEZE_COLS = [
@@ -2302,7 +2302,14 @@ function renderBody(){
       var cell=document.createElement('div');cell.className='fc';
       cell.style.cssText='width:'+c.w+'px;min-width:'+c.w+'px;max-width:'+c.w+'px;height:'+rowH+'px;';
       var val=p[c.key]||'';
-      if(c.key==='name'){
+      if(c.key==='fix_no'){
+        // 通し番号: 全物件タブのみ最終物件=139から逆順、他タブは1から順番
+        // ※10月以降は来期切替のため、最終番号(139)の見直しが必要な場合あり
+        var seqNo=(currentArea==='all')?(139-ri):(ri+1);
+        cell.style.cssText+='flex-direction:column;align-items:center;justify-content:center;gap:1px;padding:0;';
+        cell.innerHTML='<span style=\'font-size:8px;color:var(--g300);font-weight:600;line-height:1\'>'+seqNo+'</span>'
+          +'<span style=\'font-size:10px;font-weight:700;color:var(--g700);line-height:1\'>'+val+'</span>';
+      } else if(c.key==='name'){
         cell.style.cssText+='flex-direction:column;align-items:flex-start;padding:2px 3px;justify-content:center;';
         var nd=document.createElement('div');
         nd.style.cssText='font-size:10px;font-weight:700;color:var(--g800);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:'+(c.w-6)+'px;font-family:var(--font)';
@@ -5481,12 +5488,10 @@ function printPage(){
   var rowLabels='';
   var rowBgs='';
   var barHtml='';
-  var statusCells='';
   var confirmCells='';
 
   props.forEach(function(p,ri){
     var nm=p.name||'';
-    var st=p.status||'';
     var cd=p.confirm_done||'';
     var days=daysUntil(p.delivery_date);
     var isUrgent=days!==null&&days>=0&&days<=30;
@@ -5497,7 +5502,6 @@ function printPage(){
       +(isUrgent?'<div style="font-size:7px;color:#ef4444;font-weight:700;">⚡引渡まで'+days+'日</div>':'')
       +'</div>';
 
-    statusCells+='<div style="height:'+PROW+'px;display:flex;align-items:center;padding:0 4px;background:'+bg+';border-bottom:1px solid #e2e8f0;font-size:8px;font-weight:600;color:#475569;">'+st+'</div>';
     confirmCells+='<div style="height:'+PROW+'px;display:flex;align-items:center;padding:0 4px;background:'+bg+';border-bottom:1px solid #e2e8f0;font-size:8px;color:#475569;">'+cd+'</div>';
 
     rowBgs+='<div style="position:absolute;left:0;top:'+(ri*PROW+28)+'px;width:'+GANTT_W+'px;height:'+PROW+'px;background:'+bg+';border-bottom:1px solid #e2e8f0;"></div>';
@@ -5573,10 +5577,6 @@ function printPage(){
     +'<div style="width:'+LABEL_W+'px;flex-shrink:0;border-right:2px solid #475569;">'
     +'<div style="height:28px;background:#1e3a5f;border-bottom:2px solid #475569;"></div>'
     +rowLabels+'</div>'
-    // ステータス列
-    +'<div style="width:'+STAT_W+'px;flex-shrink:0;border-right:1px solid #e2e8f0;">'
-    +'<div style="height:28px;background:#1e3a5f;display:flex;align-items:center;justify-content:center;font-size:8px;color:white;font-weight:700;border-bottom:2px solid #475569;">状態</div>'
-    +statusCells+'</div>'
     // 確認申請完了日列
     +'<div style="width:'+DATE_W+'px;flex-shrink:0;border-right:2px solid #475569;">'
     +'<div style="height:28px;background:#1e3a5f;display:flex;align-items:center;justify-content:center;font-size:8px;color:white;font-weight:700;border-bottom:2px solid #475569;white-space:pre;">確認申請\n完了日</div>'
@@ -5887,9 +5887,9 @@ function openSettings(){
           +'<button onclick="clearAllCache()" style="width:100%;padding:13px;background:#fee2e2;color:#dc2626;border:2px solid #fca5a5;border-radius:10px;font-size:13px;font-weight:800;cursor:pointer">⚠️ すべてリセット（マスター設定も消える）</button>'
         +'</div>'
       +'</div>'
-      // エリア構成
-      +'<div class="dp-sec" style="margin-bottom:12px">'
-        +'<div class="dp-sec-head">📋 エリアタブ構成</div>'
+      // 使い方ガイド
+      +'<div class="dp-sec" style="margin-bottom:12px">'        +'<div class="dp-sec-head">📖 使い方ガイド</div>'        +'<div style="padding:8px 12px"><button onclick="document.getElementById(\'_settingsModal\').remove();openTutorial(false)" class="btn-primary" style="width:100%;background:#1a56db">📖 使い方ガイドを見る</button></div>'      +'</div>'      // エリア構成
+      +'<div class="dp-sec" style="margin-bottom:12px">'        +'<div class="dp-sec-head">📋 エリアタブ構成</div>'
         +'<div style="padding:10px 12px;font-size:11px;color:#475569;line-height:1.8">'
           +'東海タブ → 愛知・三重・岐阜・静岡<br>関東タブ → 埼玉・東京・神奈川 他'
         +'</div>'
@@ -6172,6 +6172,11 @@ async function onAuthSuccess(isNewLogin){
   if(adminBtn&&currentProfile.role==='admin'&&isPcMode)adminBtn.style.display='';
   loadPropertiesFromCacheOrDB(false);
   if(isNewLogin)showToast('✅ ログインしました','success');
+  // 新規業者: tutorial_doneがfalseなら自動起動
+  setTimeout(function(){
+    var done=currentProfile&&currentProfile.tutorial_done;
+    if(!done) openTutorial(true);
+  }, 1500);
 }
 
 // Patch getAllProps to use DB when available
@@ -7069,7 +7074,7 @@ async function loadAdmSec(sec){
         +'</div>'
         // エリアタブ
         +'<div id="admPropAreaTabs" style="display:flex;border-bottom:2px solid #e2e8f0;margin-bottom:8px"></div>'
-        +'<div style="display:flex;gap:6px;margin-bottom:8px">'
+        +'<div style="display:flex;gap:6px">'
           +'<input id="admPropSearch" type="text" placeholder="物件名・FiX No.で絞込..." oninput="admFilterProps()" '
             +'style="flex:1;padding:6px 10px;border:1.5px solid #e2e8f0;border-radius:7px;font-size:12px">'
           +'<select id="admPropStatus" onchange="admFilterProps()" style="padding:6px 8px;border:1.5px solid #e2e8f0;border-radius:7px;font-size:12px;color:#475569">'
@@ -7078,8 +7083,6 @@ async function loadAdmSec(sec){
             +'<option value="未公開">未公開</option><option value="買付">買付</option>'
           +'</select>'
         +'</div>'
-        // 未設定項目で絞込ボタン
-        +'<div id="admMissingFilters" style="display:flex;gap:6px"></div>'
       +'</div>'
       +'<div id="admPropFormWrap" style="display:none;background:#eff6ff;border-bottom:2px solid #bfdbfe;padding:14px;flex-shrink:0">'
         +'<div id="admPropForm"></div>'
@@ -7354,22 +7357,8 @@ async function admSaveField(input,field){
 }
 window.admSaveField=admSaveField;
 
-// 物件の未設定項目チェック（担当者・現場住所・駐車場情報）
-var STATUS_WORDS=/^(未公開|未設定|公開中|契約済|販売中|買付|契約予定|販売中断|完工)$/;
-function admMissingFields(p){
-  var missing=[];
-  var tantouRaw=(p.tantou||p.staff||'').trim();
-  if(!tantouRaw||STATUS_WORDS.test(tantouRaw))missing.push('tantou');
-  if(!(p.address||'').trim())missing.push('address');
-  var pks=p.parkings;
-  if(typeof pks==='string'){try{pks=JSON.parse(pks);}catch(e){pks=[];}}
-  if(!Array.isArray(pks)||!pks.length)missing.push('parkings');
-  return missing;
-}
-
 // 物件リストフィルタ＆描画（エリアタブ付き）
 var _admCurTab='all';
-var _admMissingFilter=''; // '', 'tantou', 'address', 'parkings'
 function admFilterProps(){
   var list=document.getElementById('admPropList'); if(!list)return;
   var props=window._admAllProps||[];
@@ -7387,8 +7376,7 @@ function admFilterProps(){
     else matchTab=!isRaikin(p)&&!isKankou(p); // 全て=今期のみ
     var matchQ=!q||(p.name||'').toLowerCase().indexOf(q)>=0||String(p.fix_no||'').indexOf(q)>=0;
     var matchS=!status||(p.status||'')===status;
-    var matchM=!_admMissingFilter||admMissingFields(p).indexOf(_admMissingFilter)>=0;
-    return matchTab&&matchQ&&matchS&&matchM;
+    return matchTab&&matchQ&&matchS;
   });
   // 引渡し日順ソート
   filtered.sort(function(a,b){
@@ -7406,44 +7394,17 @@ function admFilterProps(){
       return '<button onclick="admSetTab(\''+t.id+'\')" style="flex:1;padding:7px 4px;font-size:11px;font-weight:700;border:none;cursor:pointer;border-bottom:2px solid '+(act?'#1a56db':'transparent')+';color:'+(act?'#1a56db':'#94a3b8')+';background:white">'+t.l+'</button>';
     }).join('');
   }
-  // 未設定項目で絞込ボタン再描画（全件中の未設定数をカウント）
-  var missEl=document.getElementById('admMissingFilters');
-  if(missEl){
-    var allInTab=props.filter(function(p){
-      var area=normalizeArea(p);
-      if(_admCurTab==='東海')return TOKAI_AREAS.indexOf(area)>=0&&!isRaikin(p)&&!isKankou(p);
-      if(_admCurTab==='関東')return KANTO_AREAS.indexOf(area)>=0&&!isRaikin(p)&&!isKankou(p);
-      if(_admCurTab==='来期')return isRaikin(p)&&!isKankou(p);
-      if(_admCurTab==='完工')return isKankou(p);
-      return !isRaikin(p)&&!isKankou(p);
-    });
-    var cnt={tantou:0,address:0,parkings:0};
-    allInTab.forEach(function(p){admMissingFields(p).forEach(function(k){cnt[k]++;});});
-    var mf=[{id:'tantou',l:'👤 担当者未設定'},{id:'address',l:'📍 現場住所未設定'},{id:'parkings',l:'🅿️ 駐車場情報未設定'}];
-    missEl.innerHTML=mf.map(function(m){
-      var act=m.id===_admMissingFilter;
-      return '<button onclick="admSetMissingFilter(\''+m.id+'\')" style="flex:1;padding:6px 4px;font-size:10.5px;font-weight:700;border:1.5px solid '+(act?'#dc2626':'#e2e8f0')+';border-radius:7px;cursor:pointer;background:'+(act?'#fef2f2':'white')+';color:'+(act?'#dc2626':'#64748b')+'">'+m.l+' ('+cnt[m.id]+')</button>';
-    }).join('');
-  }
   if(!filtered.length){list.innerHTML='<div style="text-align:center;padding:20px;color:#94a3b8;font-size:12px">該当する物件がありません</div>';return;}
   list.innerHTML=filtered.map(function(p){return admPropCard(p);}).join('');
 }
 window.admFilterProps=admFilterProps;
 function admSetTab(t){_admCurTab=t;admFilterProps();}
 window.admSetTab=admSetTab;
-function admSetMissingFilter(k){_admMissingFilter=(_admMissingFilter===k)?'':k;admFilterProps();}
-window.admSetMissingFilter=admSetMissingFilter;
 
 function admPropCard(p){
   var st=p.status||'';
   var stColor={'契約済':'#16a34a','販売中':'#1d4ed8','未公開':'#d97706','買付':'#7c3aed'}[st]||'#64748b';
   var stBg={'契約済':'#dcfce7','販売中':'#dbeafe','未公開':'#fef9c3','買付':'#ede9fe'}[st]||'#f1f5f9';
-  // 未設定項目バッジ（担当者・現場住所・駐車場情報）
-  var missing=admMissingFields(p);
-  var missLabels={tantou:'👤担当者',address:'📍住所',parkings:'🅿️駐車場'};
-  var missBadges=missing.map(function(k){
-    return '<span style="font-size:9px;font-weight:700;background:#fef2f2;color:#dc2626;padding:1px 5px;border-radius:4px;border:1px solid #fecaca">'+missLabels[k]+'未設定</span>';
-  }).join(' ');
   return '<div style="background:white;border:1.5px solid #e2e8f0;border-radius:10px;margin-bottom:8px;overflow:hidden">'
     +'<div onclick="admOpenPropEdit(\''+p.fix_no+'\',\''+encodeURIComponent(p.name)+'\')" '
       +'style="display:flex;align-items:center;gap:10px;padding:10px 12px;cursor:pointer;transition:background .1s" '
@@ -7452,7 +7413,6 @@ function admPropCard(p){
       +'<div style="flex:1;min-width:0">'
         +'<div style="font-size:13px;font-weight:700;color:#1e293b;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+(p.name||'')+'</div>'
         +'<div style="font-size:10px;color:#94a3b8;margin-top:1px">'+(p.area||'')+(p.delivery_date?' ／ 引渡: '+p.delivery_date:'')+(p.confirm_done?' ／ 確認申請: '+p.confirm_done:'')+'</div>'
-        +(missBadges?'<div style="margin-top:3px;display:flex;gap:4px;flex-wrap:wrap">'+missBadges+'</div>':'')
       +'</div>'
       +'<div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px;flex-shrink:0">'
         +'<span style="font-size:10px;font-weight:700;background:'+stBg+';color:'+stColor+';padding:2px 7px;border-radius:5px">'+(st||'未設定')+'</span>'
@@ -8042,18 +8002,13 @@ function admHandleXlsx(input){
         for(var ri=3;ri<rows.length;ri++){
           var row=rows[ri];
           var nameVal=String(row[4]||'').trim();
-          // Only Jack or Walter で始まる物件名のみ取込（集計行・見出し行・都道府県名等を除外）
+          // Only Jack or Walter
           if(!nameVal.startsWith('Jack')&&!nameVal.startsWith('Walter'))continue;
           var fixRaw=String(row[1]||'').trim();
           if(!fixRaw||fixRaw==='false'||fixRaw==='0')continue;
-          // FiX No列が数値形式でない場合は除外（エリア名・「計」等の集計行混入防止）
-          if(!/^-?\d+(\.\d+)?$/.test(fixRaw))continue;
           var fixNo='';
           try{fixNo=String(Math.round(parseFloat(fixRaw)));}catch(x){continue;}
           if(!fixNo||fixNo==='NaN')continue;
-          // FiX Noは妥当な範囲（1～9999）のみ許可（日付シリアル値等の混入防止）
-          var fixNum=parseInt(fixNo,10);
-          if(fixNum<1||fixNum>9999)continue;
           var prop={fix_no:fixNo,name:nameVal,area:String(row[3]||'').trim(),
             hand_kumi:String(row[5]||'').trim(),status:String(row[242]||'').trim(),
             delivery_month:String(row[237]||'').trim(),updated_at:new Date().toISOString()};
