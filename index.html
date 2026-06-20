@@ -6864,7 +6864,8 @@ const totalSlides = 6;
 function setLang(lang) {
   currentLang = lang;
   document.querySelectorAll('.lang-btn').forEach(b => b.classList.remove('active'));
-  document.querySelector(`[onclick="setLang('${lang}')"]`).classList.add('active');
+  var btn=document.querySelector(`[onclick="window._tutSetLang('${lang}')"]`);
+  if(btn)btn.classList.add('active');
   applyLang();
 }
 
