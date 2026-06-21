@@ -7164,32 +7164,56 @@ async function checkAnnouncements(){
     if(r.error||!r.data)return;
     var all=r.data;
     if(!all.length)return;
+
+    var today=new Date();
+    var todayKey=today.getFullYear()+'-'+(today.getMonth()+1)+'-'+today.getDate();
+    var todayDate=today.getDate();
+    var lastDayOfMonth=new Date(today.getFullYear(),today.getMonth()+1,0).getDate();
+
+    // 通常のお知らせ（recurring=false）: IDベース既読
     var lastSeen=(currentProfile&&currentProfile.last_seen_announcement_id)||0;
-    var unread=all.filter(function(a){return a.id>lastSeen;});
+    var normalUnread=all.filter(function(a){return !a.recurring&&a.id>lastSeen;});
+
+    // 定期メッセージ（recurring=true）: 期間内かつ本日未表示のもの
+    var seenRecurMap={};
+    try{seenRecurMap=JSON.parse(localStorage.getItem('jack_recur_seen')||'{}');}catch(e){}
+    var recurDue=all.filter(function(a){
+      if(!a.recurring)return false;
+      var startDay=a.recur_start_day||1;
+      var endDay=(a.recur_end_day===0||a.recur_end_day==null)?lastDayOfMonth:Math.min(a.recur_end_day,lastDayOfMonth);
+      var inRange=(startDay<=endDay)?(todayDate>=startDay&&todayDate<=endDay):(todayDate>=startDay||todayDate<=endDay);
+      if(!inRange)return false;
+      var seenKey=a.id+'_'+todayKey;
+      return !seenRecurMap[seenKey];
+    });
+
+    var unread=normalUnread.concat(recurDue);
     if(unread.length>0){
-      openAnnouncementModal(unread,all);
+      openAnnouncementModal(unread,all,recurDue);
     }
   }catch(e){console.warn('お知らせ確認エラー',e);}
 }
 window.checkAnnouncements=checkAnnouncements;
 
-function openAnnouncementModal(unread,allList){
+function openAnnouncementModal(unread,allList,recurDue){
   var ex=document.getElementById('_announceModal');
   if(ex)ex.remove();
   var wrap=document.createElement('div');
   wrap.id='_announceModal';
   wrap.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:9500;display:flex;align-items:center;justify-content:center;padding:16px';
-  var maxId=Math.max.apply(null,allList.map(function(a){return a.id;}));
+  var normalIds=unread.filter(function(a){return !a.recurring;}).map(function(a){return a.id;});
+  var maxId=normalIds.length?Math.max.apply(null,normalIds):((currentProfile&&currentProfile.last_seen_announcement_id)||0);
+  var recurIds=(recurDue||[]).map(function(a){return a.id;});
   wrap.innerHTML='<div style="background:white;border-radius:14px;max-width:480px;width:100%;max-height:80vh;display:flex;flex-direction:column;overflow:hidden">'
     +'<div style="background:#1a56db;padding:16px 18px;display:flex;align-items:center;justify-content:space-between;flex-shrink:0">'
       +'<div style="color:white;font-size:15px;font-weight:800">📢 お知らせ（'+unread.length+'件）</div>'
-      +'<button onclick="closeAnnouncementModal('+maxId+')" style="background:rgba(255,255,255,.2);border:none;color:white;width:26px;height:26px;border-radius:50%;font-size:14px;cursor:pointer">✕</button>'
+      +'<button onclick="closeAnnouncementModal('+maxId+',['+recurIds.join(',')+'])" style="background:rgba(255,255,255,.2);border:none;color:white;width:26px;height:26px;border-radius:50%;font-size:14px;cursor:pointer">✕</button>'
     +'</div>'
     +'<div style="flex:1;overflow-y:auto;padding:14px 18px">'
       +unread.map(function(a){return announceCard(a);}).join('')
     +'</div>'
     +'<div style="padding:12px 18px;border-top:1px solid #e2e8f0;flex-shrink:0">'
-      +'<button onclick="closeAnnouncementModal('+maxId+')" style="width:100%;background:#1a56db;color:white;border:none;padding:11px;border-radius:9px;font-size:13px;font-weight:700;cursor:pointer">確認しました</button>'
+      +'<button onclick="closeAnnouncementModal('+maxId+',['+recurIds.join(',')+'])" style="width:100%;background:#1a56db;color:white;border:none;padding:11px;border-radius:9px;font-size:13px;font-weight:700;cursor:pointer">確認しました</button>'
     +'</div>'
   +'</div>';
   document.body.appendChild(wrap);
@@ -7198,22 +7222,40 @@ function openAnnouncementModal(unread,allList){
 function announceCard(a){
   var d=a.created_at?new Date(a.created_at):null;
   var dateStr=d?(d.getFullYear()+'/'+(d.getMonth()+1)+'/'+d.getDate()):'';
+  var recurTag=a.recurring?'<span style="font-size:9px;background:#dbeafe;color:#1d4ed8;padding:2px 6px;border-radius:4px;font-weight:700;margin-left:6px">🔁 定期</span>':'';
   return '<div style="background:#f8fafc;border:1.5px solid #e2e8f0;border-radius:10px;padding:12px 14px;margin-bottom:10px">'
-    +'<div style="font-size:10px;color:#94a3b8;margin-bottom:4px">'+dateStr+'</div>'
+    +'<div style="font-size:10px;color:#94a3b8;margin-bottom:4px">'+dateStr+recurTag+'</div>'
     +'<div style="font-size:13px;font-weight:800;color:#1e293b;margin-bottom:6px">'+(a.title||'')+'</div>'
     +'<div style="font-size:12px;color:#475569;line-height:1.7;white-space:pre-wrap">'+(a.body||'')+'</div>'
   +'</div>';
 }
 
-async function closeAnnouncementModal(maxId){
+async function closeAnnouncementModal(maxId,recurIds){
   var m=document.getElementById('_announceModal');
   if(m)m.remove();
   try{
+    // 通常お知らせ: IDベース既読をSupabaseに保存
     if(currentProfile)currentProfile.last_seen_announcement_id=maxId;
     try{localStorage.setItem('jack_profile_cache',JSON.stringify(currentProfile));}catch(e){}
     var sb=getSB();
-    if(sb&&currentUser){
+    if(sb&&currentUser&&maxId>0){
       await sb.from('profiles').update({last_seen_announcement_id:maxId}).eq('id',currentUser.id);
+    }
+    // 定期メッセージ: 本日分の既読をLocalStorageに保存
+    if(recurIds&&recurIds.length){
+      var today=new Date();
+      var todayKey=today.getFullYear()+'-'+(today.getMonth()+1)+'-'+today.getDate();
+      var seenRecurMap={};
+      try{seenRecurMap=JSON.parse(localStorage.getItem('jack_recur_seen')||'{}');}catch(e){}
+      recurIds.forEach(function(id){seenRecurMap[id+'_'+todayKey]=true;});
+      // 古いキーのクリーンアップ（直近3日分以外は削除してLocalStorage肥大化防止）
+      var validKeys={};
+      [0,1,2].forEach(function(off){
+        var dt=new Date();dt.setDate(dt.getDate()-off);
+        var k=dt.getFullYear()+'-'+(dt.getMonth()+1)+'-'+dt.getDate();
+        Object.keys(seenRecurMap).forEach(function(key){if(key.endsWith('_'+k))validKeys[key]=true;});
+      });
+      try{localStorage.setItem('jack_recur_seen',JSON.stringify(validKeys));}catch(e){}
     }
   }catch(e){console.warn('既読保存エラー',e);}
 }
@@ -8100,16 +8142,21 @@ function admAnnounceCard(a){
   var d=a.created_at?new Date(a.created_at):null;
   var dateStr=d?(d.getFullYear()+'/'+(d.getMonth()+1)+'/'+d.getDate()+' '+String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0')):'';
   var activeBadge=a.active?'<span style="font-size:9px;background:#dcfce7;color:#16a34a;padding:2px 7px;border-radius:5px;font-weight:700">公開中</span>':'<span style="font-size:9px;background:#f1f5f9;color:#94a3b8;padding:2px 7px;border-radius:5px;font-weight:700">非公開</span>';
+  var recurBadge='';
+  if(a.recurring){
+    var endLabel=(a.recur_end_day===0||a.recur_end_day==null)?'月末':a.recur_end_day+'日';
+    recurBadge='<span style="font-size:9px;background:#dbeafe;color:#1d4ed8;padding:2px 7px;border-radius:5px;font-weight:700;margin-left:5px">🔁 毎月'+a.recur_start_day+'日〜'+endLabel+'</span>';
+  }
   return '<div style="background:white;border:1.5px solid #e2e8f0;border-radius:10px;padding:14px;margin-bottom:10px">'
-    +'<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">'
+    +'<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;flex-wrap:wrap;gap:4px">'
       +'<div style="font-size:10px;color:#94a3b8">'+dateStr+'</div>'
-      +activeBadge
+      +'<div>'+activeBadge+recurBadge+'</div>'
     +'</div>'
     +'<div style="font-size:13px;font-weight:800;color:#1e293b;margin-bottom:6px">'+(a.title||'')+'</div>'
     +'<div style="font-size:12px;color:#475569;line-height:1.6;white-space:pre-wrap;margin-bottom:10px">'+(a.body||'')+'</div>'
     +'<div style="display:flex;gap:6px">'
       +'<button onclick="admEditAnnouncement('+a.id+')" style="flex:1;background:#eff6ff;color:#1a56db;border:1.5px solid #bfdbfe;padding:7px;border-radius:7px;font-size:11px;font-weight:700;cursor:pointer">✏️ 編集</button>'
-      +'<button onclick="admToggleAnnouncement('+a.id+','+(!a.active)+')" style="flex:1;background:#fff7ed;color:#d97706;border:1.5px solid #fed7aa;padding:7px;border-radius:7px;font-size:11px;font-weight:700;cursor:pointer">'+(a.active?'🙈 非公開にする':'👁️ 公開する')+'</button>'
+      +'<button onclick="admToggleAnnouncement('+a.id+','+(!a.active)+')" style="flex:1;background:#fff7ed;color:#d97706;border:1.5px solid #fed7aa;padding:7px;border-radius:7px;font-size:11px;font-weight:700;cursor:pointer">'+(a.active?(a.recurring?'⏸️ 定期配信を解除':'🙈 非公開にする'):(a.recurring?'▶️ 定期配信を再開':'👁️ 公開する'))+'</button>'
       +'<button onclick="admDeleteAnnouncement('+a.id+')" style="flex:1;background:#fef2f2;color:#dc2626;border:1.5px solid #fecaca;padding:7px;border-radius:7px;font-size:11px;font-weight:700;cursor:pointer">🗑️ 削除</button>'
     +'</div>'
   +'</div>';
@@ -8133,7 +8180,10 @@ function admAnnouncementForm(existing){
   wrap.id='_annFormModal';
   wrap.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:9600;display:flex;align-items:center;justify-content:center;padding:16px';
   var isEdit=!!existing;
-  wrap.innerHTML='<div style="background:white;border-radius:14px;max-width:440px;width:100%;overflow:hidden">'
+  var isRecur=!!(existing&&existing.recurring);
+  var startDay=(existing&&existing.recur_start_day)||25;
+  var endDay=(existing&&existing.recur_end_day!=null)?existing.recur_end_day:0; // 0=月末
+  wrap.innerHTML='<div style="background:white;border-radius:14px;max-width:440px;width:100%;max-height:90vh;overflow-y:auto">'
     +'<div style="background:#16a34a;padding:14px 18px">'
       +'<div style="color:white;font-size:14px;font-weight:800">'+(isEdit?'✏️ お知らせを編集':'📢 新規お知らせ作成')+'</div>'
     +'</div>'
@@ -8141,7 +8191,25 @@ function admAnnouncementForm(existing){
       +'<label style="font-size:11px;font-weight:700;color:#64748b;display:block;margin-bottom:5px">タイトル</label>'
       +'<input id="annTitleInput" type="text" value="'+((existing&&existing.title)||'').replace(/"/g,'&quot;')+'" placeholder="例：システムメンテナンスのお知らせ" style="width:100%;padding:9px 11px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:13px;margin-bottom:14px;box-sizing:border-box">'
       +'<label style="font-size:11px;font-weight:700;color:#64748b;display:block;margin-bottom:5px">本文</label>'
-      +'<textarea id="annBodyInput" rows="6" placeholder="お知らせの内容を入力してください" style="width:100%;padding:9px 11px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:13px;box-sizing:border-box;resize:vertical;font-family:inherit">'+((existing&&existing.body)||'')+'</textarea>'
+      +'<textarea id="annBodyInput" rows="6" placeholder="お知らせの内容を入力してください" style="width:100%;padding:9px 11px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:13px;box-sizing:border-box;resize:vertical;font-family:inherit;margin-bottom:14px">'+((existing&&existing.body)||'')+'</textarea>'
+      +'<div style="background:#f0fdf4;border:1.5px solid #bbf7d0;border-radius:10px;padding:12px">'
+        +'<label style="display:flex;align-items:center;gap:8px;cursor:pointer;margin-bottom:'+(isRecur?'10px':'0')+'">'
+          +'<input type="checkbox" id="annRecurCheck" '+(isRecur?'checked':'')+' onchange="document.getElementById(\'annRecurFields\').style.display=this.checked?\'flex\':\'none\'" style="width:16px;height:16px">'
+          +'<span style="font-size:12px;font-weight:700;color:#166534">🔁 定期メッセージにする（毎月自動で繰り返し表示）</span>'
+        +'</label>'
+        +'<div id="annRecurFields" style="display:'+(isRecur?'flex':'none')+';gap:8px;align-items:center">'
+          +'<span style="font-size:11px;color:#475569">毎月</span>'
+          +'<select id="annRecurStart" style="padding:6px;border:1.5px solid #d1fae5;border-radius:6px;font-size:12px">'
+            +Array.from({length:31},function(_,i){var v=i+1;return '<option value="'+v+'"'+(v===startDay?' selected':'')+'>'+v+'</option>';}).join('')
+          +'</select>'
+          +'<span style="font-size:11px;color:#475569">日 〜</span>'
+          +'<select id="annRecurEnd" style="padding:6px;border:1.5px solid #d1fae5;border-radius:6px;font-size:12px">'
+            +'<option value="0"'+(endDay===0?' selected':'')+'>月末</option>'
+            +Array.from({length:31},function(_,i){var v=i+1;return '<option value="'+v+'"'+(v===endDay?' selected':'')+'>'+v+'</option>';}).join('')
+          +'</select>'
+          +'<span style="font-size:11px;color:#475569">日</span>'
+        +'</div>'
+      +'</div>'
     +'</div>'
     +'<div style="padding:0 18px 18px;display:flex;gap:8px">'
       +'<button onclick="document.getElementById(\'_annFormModal\').remove()" style="flex:1;background:#f1f5f9;color:#475569;border:none;padding:11px;border-radius:9px;font-size:13px;font-weight:700;cursor:pointer">キャンセル</button>'
@@ -8156,13 +8224,18 @@ async function admSaveAnnouncement(id){
   var body=(document.getElementById('annBodyInput')||{}).value||'';
   title=title.trim();body=body.trim();
   if(!title||!body){showToast('タイトルと本文を入力してください','error');return;}
+  var recurring=(document.getElementById('annRecurCheck')||{}).checked||false;
+  var recurStart=recurring?parseInt((document.getElementById('annRecurStart')||{}).value||25,10):null;
+  var recurEnd=recurring?parseInt((document.getElementById('annRecurEnd')||{}).value||0,10):null;
+  var payload={title:title,body:body,recurring:recurring,recur_start_day:recurStart,recur_end_day:recurEnd};
   var sb=getSB();
   try{
     if(id){
-      await sb.from('announcements').update({title:title,body:body}).eq('id',id);
+      await sb.from('announcements').update(payload).eq('id',id);
       showToast('✅ お知らせを更新しました','success');
     }else{
-      await sb.from('announcements').insert({title:title,body:body,active:true});
+      payload.active=true;
+      await sb.from('announcements').insert(payload);
       showToast('✅ お知らせを公開しました','success');
     }
     var m=document.getElementById('_annFormModal');if(m)m.remove();
