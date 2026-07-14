@@ -681,10 +681,13 @@ body.sp-mode .fr-row .fc:last-child{
       <div style="padding:3px 10px 3px 100px;background:#f1f5f9;border-bottom:1px solid #e2e8f0;font-size:9px;color:#64748b;flex-shrink:0">
         📋 マスター工程ガント（稼働日ベース・日曜休工）
       </div>
-      <div id="masterGanttWrap" style="flex:1;overflow:auto;-webkit-overflow-scrolling:touch;padding-left:90px;background:white;">
-        <div id="masterGanttInner" style="position:relative;display:inline-block;min-width:100%">
-          <div id="masterGanttHeader" style="position:sticky;top:0;z-index:10;"></div>
-          <div id="masterGanttCanvas"></div>
+      <div id="masterGanttWrap" style="flex:1;display:flex;overflow:hidden;background:white;">
+        <div id="masterGanttLabelCol" style="width:90px;min-width:90px;flex-shrink:0;background:#1e293b;border-right:2px solid #334155;overflow-y:auto;overflow-x:hidden;scrollbar-width:none;"></div>
+        <div id="masterGanttScroll" style="flex:1;overflow:auto;-webkit-overflow-scrolling:touch;">
+          <div id="masterGanttInner" style="position:relative;display:inline-block;min-width:100%">
+            <div id="masterGanttHeader" style="position:sticky;top:0;z-index:10;"></div>
+            <div id="masterGanttCanvas"></div>
+          </div>
         </div>
       </div>
     </div>
@@ -1001,6 +1004,20 @@ function workdaysFrom(startStr, n) {
 }
 
 // 日曜スキップで startStr から n 稼働日後の日付を返す
+// 開始日から終了日までの稼働日数（日曜除く）を数える
+// fromの翌日〜toの間の稼働日数を返す（offsetDays計算用）
+function countWorkdays(fromStr, toStr){
+  var d=new Date(fromStr.replace(/[/]/g,'-'));
+  var end=new Date(toStr.replace(/[/]/g,'-'));
+  var count=0;
+  var cur=new Date(d.getTime());
+  cur.setDate(cur.getDate()+1);
+  while(cur<=end){
+    if(cur.getDay()!==0)count++;
+    cur.setDate(cur.getDate()+1);
+  }
+  return count;
+}
 function addWorkdays(startStr, n) {
   if(n===0)return startStr;
   var days=workdaysFrom(startStr,n);
@@ -1058,6 +1075,62 @@ var DEFAULT_TMPL=[
 // ★ 基礎大親ロジック: 基礎バーのstart_dateが変わったとき、他全工程を再計算する
 // templateのstep定義: offsetFrom='基礎完了' & offsetDays=n → 基礎end_dateからn稼働日後に開始
 // offsetFromなし → 前工程end_dateの翌稼働日（順次連鎖: 造成→地盤→基礎まで）
+// マスターtemplateのstepsを正規化：基礎完了日を基準にoffsetFrom/offsetDaysを補正
+function _normalizeTmplSteps(steps){
+  if(!steps||!steps.length)return steps;
+  // offsetFrom:'基礎完了'が正しく設定されているstepsはそのまま返す（関東マスター等）
+  var kisoIdx=steps.findIndex(function(s){return (s.name||s.label||'')==='基礎';});
+  if(kisoIdx>=0){
+    var allOk=true;
+    for(var ci=kisoIdx+1;ci<steps.length;ci++){
+      var sn=steps[ci].name||steps[ci].label||'';
+      if(sn==='造成'||sn==='地盤')continue;
+      if(steps[ci].offsetFrom==='基礎完了'&&steps[ci].offsetDays!=null){
+        // OK: 既に正しく設定済み
+      } else {
+        allOk=false; break;
+      }
+    }
+    if(allOk)return steps; // ★全て正しく設定済みならそのまま返す
+  }
+  // offsetFromが設定されていないstepsがある場合のみ補正
+  var baseStr='2000-01-02';
+  var prevEnd=baseStr;
+  var kisoEnd='';
+  var result=steps.map(function(step){return Object.assign({},step);});
+  for(var ti=0;ti<result.length;ti++){
+    var step=result[ti];
+    var nm=step.name||step.label||'';
+    var dur=step.dur||step.days||1;
+    var startDate;
+    if(step.offsetFrom==='基礎完了'&&kisoEnd&&step.offsetDays!=null){
+      // 既存のoffsetDaysをそのまま使う
+      startDate=step.offsetDays>0?addWorkdays(kisoEnd,step.offsetDays):kisoEnd;
+    } else if(kisoEnd&&nm!=='造成'&&nm!=='地盤'){
+      // offsetFromが未設定で基礎より後ろ → prevEndから連鎖して補正
+      startDate=addWorkdays(prevEnd,1);
+      var sd0=new Date(startDate.replace(/[/]/g,'-'));
+      while(sd0.getDay()===0)sd0.setDate(sd0.getDate()+1);
+      startDate=localDateStr(sd0);
+      var endStr0=endOfWorkdays(startDate,dur);
+      result[ti].offsetFrom='基礎完了';
+      result[ti].offsetDays=countWorkdays(kisoEnd,startDate);
+      if(endStr0>prevEnd)prevEnd=endStr0;
+      if(nm==='基礎')kisoEnd=endStr0;
+      continue;
+    } else {
+      startDate=addWorkdays(prevEnd,1);
+    }
+    var sd=new Date(startDate.replace(/[/]/g,'-'));
+    while(sd.getDay()===0)sd.setDate(sd.getDate()+1);
+    startDate=localDateStr(sd);
+    var endStr=endOfWorkdays(startDate,dur);
+    if(nm==='基礎')kisoEnd=endStr;
+    if(!step.offsetFrom||step.offsetFrom!=='基礎完了')prevEnd=endStr;
+  }
+  return result;
+}
+
 function computeMasterSegs(confirmDoneStr, template, handKumi) {
   if (!confirmDoneStr || !String(confirmDoneStr).match(/\d{4}/)) return [];
   var isHandKumi = !!(handKumi && (
@@ -1259,16 +1332,16 @@ function getActiveSegs(p) {
     tmplSteps=myMasters[0].steps;
   }
 
-  // ④ customGantt（手動編集済み）を最優先で返す
-  if(customGantt[ck]&&customGantt[ck].length)return customGantt[ck];
+  // ④ customGantt（手動編集済み）を返す
+  // ただしマスター紐付けがある場合はマスター計算を優先（手動編集はマスター変更後クリアを推奨）
+  if(!masterName&&customGantt[ck]&&customGantt[ck].length)return customGantt[ck];
 
-  // DB_PROPSのcustom_ganttも確認
-  if(typeof DB_PROPS!=='undefined'&&DB_PROPS){
+  // DB_PROPSのcustom_ganttも確認（ただしマスター紐付けがある場合はスキップ）
+  if(!masterName&&typeof DB_PROPS!=='undefined'&&DB_PROPS){
     var dbP=DB_PROPS.find(function(dp){return String(dp.fix_no)===String(p.fix_no);});
     if(dbP&&dbP.custom_gantt){
       var cg=typeof dbP.custom_gantt==='string'?JSON.parse(dbP.custom_gantt):dbP.custom_gantt;
       if(cg&&cg.length){
-        // 日付フォーマットを正規化してcol再計算（toISOStringのUTCずれ対策）
         cg=cg.map(function(s){
           var dk=toDateKey(s.start_date||s.date||'');
           var ek=toDateKey(s.end_date||'');
@@ -1281,7 +1354,23 @@ function getActiveSegs(p) {
   }
 
   // ⑤ confirm_doneがあればマスターから計算
-  if(hasCd)return computeMasterSegs(cd,tmplSteps,p.hand_kumi);
+  // ⑤ confirm_doneがあればマスターから計算（tmplStepsを正規化してからcomputeMasterSegsに渡す）
+  if(hasCd){
+    var normalizedSteps=_normalizeTmplSteps(tmplSteps);
+    var soseStart=cd;
+    var area5=normalizeArea(p);
+    if(KANTO_AREAS.indexOf(area5)>=0){
+      var lp5=normDate(p.land_payment||'')||'';
+      if(lp5){
+        var base5=cd>=lp5?cd:lp5;
+        soseStart=addWorkdays(base5,4);
+        var sdt5=new Date(soseStart.replace(/[/]/g,'-'));
+        while(sdt5.getDay()===0)sdt5.setDate(sdt5.getDate()+1);
+        soseStart=localDateStr(sdt5);
+      }
+    }
+    return computeMasterSegs(soseStart,normalizedSteps,p.hand_kumi);
+  }
 
   // ⑥ confirm_doneなし → セグメントデータにフォールバック
   if(p.master_segs&&p.master_segs.length)return p.master_segs;
@@ -2543,46 +2632,80 @@ function buildGanttTab(p){
   // === MULTI-ROW GANTT (1工種=1行、拡大時に表示) ===
   function buildMultiRow(){
     var GCW2=14;
-    var totalW=(gDates.length-1)*GCW2;
-    var ROW_H=20;
+    var ROW_H=22;
     var numRows=segs.length;
+    // ★表示範囲：着工前10日〜完工後10日
+    var allDts=[];
+    segs.forEach(function(seg){
+      var sd=seg.start_date||seg.date||'';
+      var ed=seg.end_date||'';
+      if(sd)allDts.push(new Date(sd.replace(/\//g,'-')));
+      if(ed)allDts.push(new Date(ed.replace(/[/]/g,'-')));
+    });
+    var rangeStart,rangeEnd;
+    if(allDts.length){
+      var minDt=allDts.reduce(function(a,b){return a<b?a:b;});
+      var maxDt=allDts.reduce(function(a,b){return a>b?a:b;});
+      rangeStart=new Date(minDt.getTime());rangeStart.setDate(rangeStart.getDate()-10);
+      rangeEnd=new Date(maxDt.getTime());rangeEnd.setDate(rangeEnd.getDate()+10);
+    } else {
+      rangeStart=new Date(TODAY);rangeStart.setDate(rangeStart.getDate()-10);
+      rangeEnd=new Date(TODAY);rangeEnd.setDate(rangeEnd.getDate()+60);
+    }
+    var rDates=[''];
+    var cur=new Date(rangeStart.getTime());
+    while(cur<=rangeEnd){rDates.push(localDateStr(cur));cur.setDate(cur.getDate()+1);}
+    var rDateIdx={};
+    rDates.forEach(function(d,i){if(d)rDateIdx[d]=i;});
+    var totalW=(rDates.length-1)*GCW2;
+
     var months={};
-    gDates.forEach(function(d,i){if(!d)return;var m=d.substring(0,7);if(!months[m])months[m]={start:i-1,count:0};months[m].count++;});
+    rDates.forEach(function(d,i){if(!d)return;var m=d.substring(0,7);if(!months[m])months[m]={start:i-1,count:0};months[m].count++;});
     var mn={'01':'1月','02':'2月','03':'3月','04':'4月','05':'5月','06':'6月','07':'7月','08':'8月','09':'9月','10':'10月','11':'11月','12':'12月'};
     var hdrBands='';
     Object.keys(months).forEach(function(m){var v=months[m],mm=m.split('-')[1];hdrBands+='<div style="position:absolute;left:'+(v.start*GCW2)+'px;top:0;width:'+(v.count*GCW2)+'px;height:14px;background:var(--primary);color:white;font-size:7px;font-weight:800;display:flex;align-items:center;justify-content:center;border-right:2px solid rgba(255,255,255,.4);overflow:hidden;">'+(m.split('-')[0])+'年'+(mn[mm]||mm)+'</div>';});
     var dayNums='';
-    gDates.forEach(function(d,i){if(!d)return;var dow=getDow(d),day=parseInt(d.split('-')[2]),isToday=d===TODAY;dayNums+='<div style="position:absolute;left:'+((i-1)*GCW2)+'px;top:14px;width:'+GCW2+'px;height:14px;display:flex;align-items:center;justify-content:center;font-size:6px;font-weight:700;font-family:var(--mono);color:'+(isToday?'#ef4444':dow===0?'#fca5a5':dow===6?'#93c5fd':'rgba(255,255,255,.7)')+';background:'+(isToday?'rgba(239,68,68,.35)':dow===0?'rgba(255,182,193,.22)':dow===6?'rgba(173,216,230,.18)':'transparent')+';border-right:1px solid rgba(255,255,255,.15);">'+day+'</div>';});
-    var todayCol=gDateIdx[TODAY]||0;
+    rDates.forEach(function(d,i){if(!d)return;var dow=getDow(d),day=parseInt(d.split('-')[2]),isToday=d===TODAY;dayNums+='<div style="position:absolute;left:'+((i-1)*GCW2)+'px;top:14px;width:'+GCW2+'px;height:14px;display:flex;align-items:center;justify-content:center;font-size:6px;font-weight:700;color:'+(isToday?'#ef4444':dow===0?'#dc2626':dow===6?'#2563eb':'#475569')+';background:'+(isToday?'rgba(239,68,68,.15)':dow===0?'rgba(255,182,193,.25)':dow===6?'rgba(173,216,230,.25)':'white')+';border-right:1px solid #e2e8f0;">'+day+'</div>';});
+    var todayCol=rDateIdx[TODAY]||0;
     var todayLine=todayCol>0?'<div style="position:absolute;left:'+((todayCol-1)*GCW2)+'px;top:0;width:2px;height:'+(numRows*ROW_H+28)+'px;background:#ef4444;z-index:10;pointer-events:none;"></div>':'';
     var fills='';
-    gDates.forEach(function(d,i){if(!d)return;var dow=getDow(d);if(dow===0||dow===6)fills+='<div style="position:absolute;left:'+((i-1)*GCW2)+'px;top:28px;width:'+GCW2+'px;height:'+(numRows*ROW_H)+'px;background:'+(dow===0?'rgba(255,182,193,.22)':'rgba(173,216,230,.18)')+';pointer-events:none;z-index:0;"></div>';if(d.slice(8)==='01'&&i>1)fills+='<div style="position:absolute;left:'+((i-1)*GCW2)+'px;top:0;width:2px;height:'+(numRows*ROW_H+28)+'px;background:#94a3b8;pointer-events:none;z-index:2;"></div>';fills+='<div style="position:absolute;left:'+((i-1)*GCW2+GCW2-1)+'px;top:28px;width:1px;height:'+(numRows*ROW_H)+'px;background:#e2e8f0;pointer-events:none;z-index:1;"></div>';});
-    var rowBgs='';for(var ri=0;ri<numRows;ri++)rowBgs+='<div style="position:absolute;left:0;top:'+(ri*ROW_H+28)+'px;width:'+totalW+'px;height:'+ROW_H+'px;background:'+(ri%2===0?'rgba(255,255,255,.03)':'rgba(255,255,255,.07)')+';border-bottom:1px solid rgba(255,255,255,.05);"></div>';
+    rDates.forEach(function(d,i){if(!d)return;var dow=getDow(d);if(dow===0||dow===6)fills+='<div style="position:absolute;left:'+((i-1)*GCW2)+'px;top:28px;width:'+GCW2+'px;height:'+(numRows*ROW_H)+'px;background:'+(dow===0?'rgba(255,182,193,.18)':'rgba(173,216,230,.15)')+';pointer-events:none;z-index:0;"></div>';if(d.slice(8)==='01'&&i>1)fills+='<div style="position:absolute;left:'+((i-1)*GCW2)+'px;top:0;width:2px;height:'+(numRows*ROW_H+28)+'px;background:#94a3b8;pointer-events:none;z-index:2;"></div>';fills+='<div style="position:absolute;left:'+((i-1)*GCW2+GCW2-1)+'px;top:28px;width:1px;height:'+(numRows*ROW_H)+'px;background:#e2e8f0;pointer-events:none;z-index:1;"></div>';});
+    // ★明確な罫線
+    var rowBgs='';for(var ri=0;ri<numRows;ri++)rowBgs+='<div style="position:absolute;left:0;top:'+(ri*ROW_H+28)+'px;width:'+totalW+'px;height:'+ROW_H+'px;background:'+(ri%2===0?'#f8fafc':'#f1f5f9')+';border-bottom:1.5px solid #cbd5e1;"></div>';
     var bars='';
     segs.forEach(function(seg,ri){
       var lbl=seg.label||seg.name||'';
       var sd=seg.start_date||seg.date||'';if(!sd)return;
-      var col=gDateIdx[sd];if(!col)return;
+      var col=rDateIdx[sd];if(!col)return;
       var calDur=seg.calendar_dur||(function(){var ed=seg.end_date||'';if(ed)return Math.round((new Date(ed.replace(/[/]/g,'-'))-new Date(sd.replace(/\//g,'-')))/86400000)+1;return seg.dur||1;})();
       var sx=(col-1)*GCW2;
       var bw=Math.max(calDur*GCW2-1,GCW2-1);
       var layer=seg.layer||0;
       var by=ri*ROW_H+28+(layer===1?3:0);
-      var bh=layer===1?ROW_H-7:ROW_H-3;
+      var bh=layer===1?ROW_H-7:ROW_H-4;
       var color=seg.color||EC[lbl]||'#64748b';
-      var isDark=!!DARK_TEXT[lbl]; var tcOvr=seg.textColor||seg.text_color; var tcolor=tcOvr&&tcOvr!=='auto'?tcOvr:(isDark?'#3a2a10':'white');
-
+      var isDark=!!DARK_TEXT[lbl];var tcOvr=seg.textColor||seg.text_color;var tcolor=tcOvr&&tcOvr!=='auto'?tcOvr:(isDark?'#3a2a10':'white');
       var isPast=seg.end_date&&new Date(seg.end_date.replace(/\//g,'-'))<todayDt;
       var isAct=!isPast&&sd&&new Date(sd.replace(/\//g,'-'))<=todayDt;
-      bars+='<div style="position:absolute;left:'+sx+'px;top:'+by+'px;width:'+bw+'px;height:'+bh+'px;background:'+color+';color:'+tcolor+';font-size:6px;font-weight:800;border-radius:2px;display:flex;align-items:center;padding:0 2px;overflow:hidden;white-space:nowrap;box-shadow:0 1px 2px rgba(0,0,0,.2);z-index:'+(layer===1?12:10)+';opacity:'+(isPast?'.6':'1')+';'+(isAct?'outline:2px solid rgba(255,255,0,.5);outline-offset:0;':'')+';">'+(bw>14?lbl:'')+'</div>';
+      // ★3日以内はバー外に工程名表示
+      var lblInside=bw>calDur*GCW2*0.7&&bw>20;
+      var lblHtml='';
+      if(calDur<=3){
+        // バーの右横に工程名
+        lblHtml='<div style="position:absolute;left:'+(sx+bw+2)+'px;top:'+by+'px;height:'+bh+'px;display:flex;align-items:center;font-size:8px;font-weight:700;color:#334155;white-space:nowrap;z-index:15;">'+lbl+'</div>';
+      }
+      bars+='<div style="position:absolute;left:'+sx+'px;top:'+by+'px;width:'+bw+'px;height:'+bh+'px;background:'+color+';color:'+tcolor+';font-size:7px;font-weight:800;border-radius:2px;display:flex;align-items:center;padding:0 3px;overflow:hidden;white-space:nowrap;box-shadow:0 1px 2px rgba(0,0,0,.15);z-index:'+(layer===1?12:10)+';opacity:'+(isPast?'.6':'1')+';'+(isAct?'outline:2px solid rgba(255,255,0,.6);outline-offset:0;':'')+'">'+(lblInside&&calDur>3?lbl:'')+'</div>'+lblHtml;
     });
-    // Labels column (left)
-    var labels='<div style="position:absolute;left:0;top:28px;width:0;height:'+(numRows*ROW_H)+'px;">';
-    segs.forEach(function(seg,ri){labels+='<div style="position:absolute;left:-90px;top:'+(ri*ROW_H)+'px;width:88px;height:'+ROW_H+'px;display:flex;align-items:center;justify-content:flex-end;padding-right:4px;font-size:9px;font-weight:700;color:rgba(255,255,255,.75);overflow:hidden;white-space:nowrap;">'+(seg.label||seg.name||'')+'</div>';});
-    labels+='</div>';
-    return '<div style="overflow-x:auto;-webkit-overflow-scrolling:touch;">'
-      +'<div style="position:relative;width:'+totalW+'px;height:'+(numRows*ROW_H+28)+'px;background:white;">'
-      +hdrBands+dayNums+todayLine+fills+rowBgs+bars+'</div></div>';
+    // ★左固定ラベル列（flexで独立させる）
+    var labelRows='';
+    segs.forEach(function(seg,ri){
+      var nm=seg.label||seg.name||'';
+      if(nm.length>10)nm=nm.slice(0,9)+'…';
+      labelRows+='<div style="height:'+ROW_H+'px;display:flex;align-items:center;padding:0 6px;font-size:9px;font-weight:700;color:#1e293b;overflow:hidden;white-space:nowrap;background:'+(ri%2===0?'#f8fafc':'#f1f5f9')+';border-bottom:1.5px solid #cbd5e1;">'+nm+'</div>';
+    });
+    var labelCol='<div style="flex-shrink:0;width:90px;background:#e2e8f0;border-right:2px solid #94a3b8;"><div style="height:28px;background:var(--primary);"></div>'+labelRows+'</div>';
+    var ganttArea='<div style="flex:1;overflow-x:auto;-webkit-overflow-scrolling:touch;"><div style="position:relative;width:'+totalW+'px;height:'+(numRows*ROW_H+28)+'px;">'+hdrBands+dayNums+todayLine+fills+rowBgs+bars+'</div></div>';
+    return '<div style="display:flex;overflow:hidden;border:1.5px solid #e2e8f0;border-radius:6px;">'+labelCol+ganttArea+'</div>';
   }
 
   // Compact row shown by default, expand button shows multi-row
@@ -2592,10 +2715,10 @@ function buildGanttTab(p){
     +'<div id="detail-gantt-multi" style="display:none">'+multiHtml+'</div>'
     +'<div style="display:flex;gap:6px;padding:5px 12px;background:#f1f5f9;border-top:1px solid #e2e8f0;align-items:center">'
     +'<button id="detail-gantt-expand-btn" onclick="toggleDetailGanttExpand()" style="background:var(--primary);color:white;padding:3px 10px;border-radius:5px;font-size:10px;font-weight:700">🔍 拡大</button>'
+    +'<button id="detail-gantt-edit-btn" onclick="toggleGanttEditMode()" style="background:#f59e0b;color:white;padding:3px 10px;border-radius:5px;font-size:10px;font-weight:700">✏️ 編集</button>'
     +'<div id="detail-gantt-print-btn" style="display:none">'
     +'<button onclick="printDetailGantt()" style="background:#10b981;color:white;padding:3px 10px;border-radius:5px;font-size:10px;font-weight:700">🖨️ 印刷</button>'
     +'</div>'
-    +'<button id="detail-gantt-edit-btn" onclick="toggleGanttEditMode()" style="display:none;background:#f59e0b;color:white;padding:3px 10px;border-radius:5px;font-size:10px;font-weight:700;margin-left:auto">✏️ 編集</button>'
     +'</div>';
 
   return '<div class="dp-sec" id="detail-gantt-sec">'
@@ -2654,7 +2777,17 @@ function toggleGanttEditMode(){
       var sd=(s.start_date||s.date||'').replace(/\//g,'-');
       var ed=(s.end_date||'').replace(/\//g,'-');
       var calDur=s.calendar_dur||(ed&&sd?Math.round((new Date(ed)-new Date(sd))/86400000)+1:s.duration||s.dur||1);
-      return {label:s.label||s.name||'',start_date:sd,date:sd,end_date:ed,calendar_dur:calDur,duration:calDur,color:s.color||EC[s.label||s.name||'']||'#64748b',layer:s.layer||0,textColor:s.textColor||s.text_color||'auto'};
+      var nm=s.label||s.name||'';
+      return {
+        name:nm, label:nm,
+        start_date:sd, date:sd, end_date:ed,
+        calendar_dur:calDur, duration:calDur, dur:s.dur||calDur,
+        color:s.color||EC[nm]||'#64748b',
+        layer:s.layer||0,
+        textColor:s.textColor||s.text_color||'auto',
+        offsetFrom:s.offsetFrom||'',   // ★基礎大親ロジック用
+        offsetDays:s.offsetDays!=null?s.offsetDays:0  // ★基礎大親ロジック用
+      };
     });
     document.getElementById('geNewDate').value=TODAY;
     geInitColorPicker();
@@ -2681,17 +2814,28 @@ function geInitColorPicker(){
 function geRenderBars(){
   var multiEl=document.getElementById('detail-gantt-multi'); if(!multiEl)return;
   // 再描画前にスクロール位置を保存（-1は初回 = TODAY位置に飛ぶ）
-  var prevWrap=multiEl.querySelector('div');
+  var prevWrap=document.getElementById('geScrollWrap');
   var savedScroll=prevWrap?prevWrap.scrollLeft:-1;
   var segs=ganttEditMode?geSegs:getActiveSegs(currentProp)||[];
   var todayDt=new Date(TODAY);
   var GCW=GCW_GE, ROW_H=20;
-  var gStart=new Date(TODAY); gStart.setMonth(gStart.getMonth()-1); gStart.setDate(1);
-  var gEnd=new Date(TODAY);   gEnd.setMonth(gEnd.getMonth()+6);    gEnd.setDate(0);
+  // ★表示範囲：着工前10日〜完工後10日
+  var allDts2=[];
   segs.forEach(function(s){
-    var sd=s.start_date||s.date||''; if(sd){var dt=new Date(sd.replace(/\//g,'-'));if(dt<gStart)gStart=new Date(dt.getFullYear(),dt.getMonth(),1);}
-    var ed=s.end_date||''; if(ed){var dt=new Date(ed.replace(/[/]/g,'-'));if(dt>gEnd)gEnd=new Date(dt.getFullYear(),dt.getMonth()+1,0);}
+    var sd=s.start_date||s.date||'';var ed=s.end_date||'';
+    if(sd)allDts2.push(new Date(sd.replace(/\//g,'-')));
+    if(ed)allDts2.push(new Date(ed.replace(/[/]/g,'-')));
   });
+  var gStart,gEnd;
+  if(allDts2.length){
+    var minDt2=allDts2.reduce(function(a,b){return a<b?a:b;});
+    var maxDt2=allDts2.reduce(function(a,b){return a>b?a:b;});
+    gStart=new Date(minDt2.getTime());gStart.setDate(gStart.getDate()-10);
+    gEnd=new Date(maxDt2.getTime());gEnd.setDate(gEnd.getDate()+10);
+  } else {
+    gStart=new Date(TODAY);gStart.setDate(gStart.getDate()-10);
+    gEnd=new Date(TODAY);gEnd.setDate(gEnd.getDate()+60);
+  }
   var gDates=[''],cur=new Date(gStart);
   while(cur<=gEnd){gDates.push(localDateStr(cur));cur.setDate(cur.getDate()+1);}
   var gDateIdx={}; gDates.forEach(function(d,i){if(d)gDateIdx[d]=i;});
@@ -2703,10 +2847,15 @@ function geRenderBars(){
   var todayCol=gDateIdx[TODAY]||0;
   var todayLine=todayCol>0?'<div style="position:absolute;left:'+((todayCol-1)*GCW)+'px;top:0;width:2px;height:'+(numRows*ROW_H+28)+'px;background:#ef4444;z-index:10;pointer-events:none;"></div>':'';
   var fills=''; gDates.forEach(function(d,i){if(!d)return;var dow=getDow(d);if(dow===0||dow===6)fills+='<div style="position:absolute;left:'+((i-1)*GCW)+'px;top:28px;width:'+GCW+'px;height:'+(numRows*ROW_H)+'px;background:'+(dow===0?'rgba(255,182,193,.22)':'rgba(173,216,230,.18)')+';pointer-events:none;z-index:0;"></div>';if(d.slice(8)==='01'&&i>1)fills+='<div style="position:absolute;left:'+((i-1)*GCW)+'px;top:0;width:2px;height:'+(numRows*ROW_H+28)+'px;background:#94a3b8;pointer-events:none;z-index:2;"></div>';fills+='<div style="position:absolute;left:'+((i-1)*GCW+GCW-1)+'px;top:28px;width:1px;height:'+(numRows*ROW_H)+'px;background:#e2e8f0;pointer-events:none;z-index:1;"></div>';});
-  var rowBgs=''; for(var ri2=0;ri2<numRows;ri2++)rowBgs+='<div style="position:absolute;left:0;top:'+(ri2*ROW_H+28)+'px;width:'+totalW+'px;height:'+ROW_H+'px;background:'+(ri2%2===0?'rgba(255,255,255,.03)':'rgba(255,255,255,.07)')+';border-bottom:1px solid rgba(255,255,255,.05);"></div>';
-  var labels='<div style="position:absolute;left:0;top:28px;width:0;height:'+(numRows*ROW_H)+'px;">';
-  segs.forEach(function(s,ri){labels+='<div style="position:absolute;left:-90px;top:'+(ri*ROW_H)+'px;width:88px;height:'+ROW_H+'px;display:flex;align-items:center;justify-content:flex-end;padding-right:4px;font-size:9px;font-weight:700;color:rgba(255,255,255,.75);overflow:hidden;white-space:nowrap;">'+(s.label||s.name||'')+'</div>';});
-  labels+='</div>';
+  // ★明確な罫線
+  var rowBgs=''; for(var ri2=0;ri2<numRows;ri2++)rowBgs+='<div style="position:absolute;left:0;top:'+(ri2*ROW_H+28)+'px;width:'+totalW+'px;height:'+ROW_H+'px;background:'+(ri2%2===0?'#f8fafc':'#f1f5f9')+';border-bottom:1.5px solid #cbd5e1;"></div>';
+  // ★左固定ラベル列（flexで独立）
+  var geLabels='<div style="flex-shrink:0;width:90px;background:#e2e8f0;border-right:2px solid #94a3b8;"><div style="height:28px;background:var(--primary);"></div>';
+  segs.forEach(function(s,ri){
+    var nm=s.label||s.name||'';if(nm.length>10)nm=nm.slice(0,9)+'…';
+    geLabels+='<div style="height:'+ROW_H+'px;display:flex;align-items:center;padding:0 5px;font-size:9px;font-weight:700;color:#1e293b;overflow:hidden;white-space:nowrap;background:'+(ri%2===0?'#f8fafc':'#f1f5f9')+';border-bottom:1.5px solid #cbd5e1;">'+nm+'</div>';
+  });
+  geLabels+='</div>';
   var bars='';
   segs.forEach(function(seg,idx){
     var lbl=seg.label||seg.name||'';
@@ -2721,14 +2870,17 @@ function geRenderBars(){
     var isDark=!!DARK_TEXT[lbl],tcOvr=seg.textColor||seg.text_color,tcolor=tcOvr&&tcOvr!=='auto'?tcOvr:(isDark?'#3a2a10':'white');
     var isPast=seg.end_date&&new Date(seg.end_date.replace(/[/]/g,'-'))<todayDt;
     var isAct=!isPast&&sdClean&&new Date(sdClean)<=todayDt;
+    // ★3日以内はバー右横に工程名表示
+    var geCalDur=seg.calendar_dur||calDur;
+    var geLblOut=geCalDur<=3?'<div style="position:absolute;left:'+(sx+bw+2)+'px;top:'+by+'px;height:'+bh+'px;display:flex;align-items:center;font-size:8px;font-weight:700;color:#334155;white-space:nowrap;z-index:20;">'+lbl+'</div>':'';
     if(ganttEditMode){
-      bars+='<div id="gebar'+idx+'" data-idx="'+idx+'" style="position:absolute;left:'+sx+'px;top:'+by+'px;width:'+bw+'px;height:'+bh+'px;background:'+color+';color:'+tcolor+';font-size:6px;font-weight:800;border-radius:2px;display:flex;align-items:center;padding:0 2px;overflow:hidden;white-space:nowrap;box-shadow:0 1px 2px rgba(0,0,0,.2);z-index:'+(layer===1?12:10)+';opacity:'+(isPast?'.6':'1')+';cursor:grab;user-select:none;'+(isAct?'outline:2px solid rgba(255,255,0,.5);':'')+';">'
-        +(bw>14?lbl:'')
+      bars+=geLblOut+'<div id="gebar'+idx+'" data-idx="'+idx+'" style="position:absolute;left:'+sx+'px;top:'+by+'px;width:'+bw+'px;height:'+bh+'px;background:'+color+';color:'+tcolor+';font-size:6px;font-weight:800;border-radius:2px;display:flex;align-items:center;padding:0 2px;overflow:hidden;white-space:nowrap;box-shadow:0 1px 2px rgba(0,0,0,.2);z-index:'+(layer===1?12:10)+';opacity:'+(isPast?'.6':'1')+';cursor:grab;user-select:none;'+(isAct?'outline:2px solid rgba(255,255,0,.5);':'')+';">'
+        +(bw>14&&geCalDur>3?lbl:'')
         +'<span class="ge-del" data-idx="'+idx+'" style="position:absolute;right:1px;top:1px;width:11px;height:11px;background:rgba(239,68,68,.9);color:white;border-radius:50%;font-size:8px;display:flex;align-items:center;justify-content:center;cursor:pointer;z-index:20;line-height:1;">x</span>'
         +'<span class="ge-rsz" data-idx="'+idx+'" style="position:absolute;right:0;top:0;width:7px;height:100%;cursor:ew-resize;z-index:15;background:rgba(255,255,255,.2);"></span>'
         +'</div>';
     } else {
-      bars+='<div style="position:absolute;left:'+sx+'px;top:'+by+'px;width:'+bw+'px;height:'+bh+'px;background:'+color+';color:'+tcolor+';font-size:6px;font-weight:800;border-radius:2px;display:flex;align-items:center;padding:0 2px;overflow:hidden;white-space:nowrap;box-shadow:0 1px 2px rgba(0,0,0,.2);z-index:'+(layer===1?12:10)+';opacity:'+(isPast?'.6':'1')+';'+(isAct?'outline:2px solid rgba(255,255,0,.5);':'')+';">'+(bw>14?lbl:'')+'</div>';
+      bars+=geLblOut+'<div style="position:absolute;left:'+sx+'px;top:'+by+'px;width:'+bw+'px;height:'+bh+'px;background:'+color+';color:'+tcolor+';font-size:6px;font-weight:800;border-radius:2px;display:flex;align-items:center;padding:0 2px;overflow:hidden;white-space:nowrap;box-shadow:0 1px 2px rgba(0,0,0,.2);z-index:'+(layer===1?12:10)+';opacity:'+(isPast?'.6':'1')+';'+(isAct?'outline:2px solid rgba(255,255,0,.5);':'')+';">'+(bw>14&&geCalDur>3?lbl:'')+' </div>';
     }
   });
   var totalH=numRows*ROW_H+28; // ← totalHを先に定義
@@ -2744,11 +2896,12 @@ function geRenderBars(){
         +'<div style="position:absolute;left:'+ddX+'px;top:4px;width:'+(GCW*2-1)+'px;height:18px;background:#ef4444;color:white;font-size:6px;font-weight:900;border-radius:2px;display:flex;align-items:center;justify-content:center;z-index:14">引渡</div>';
     }
   }
-  multiEl.innerHTML='<div style="overflow-x:auto;-webkit-overflow-scrolling:touch;padding-left:90px;"><div id="geCanvas" style="position:relative;width:'+totalW+'px;height:'+totalH+'px;background:white;overflow:hidden;">'+labels+hdrBands+dayNums+todayLine+fills+rowBgs+bars+delivBar+'</div></div>';
+  multiEl.innerHTML='<div style="display:flex;overflow:hidden;border:1.5px solid #e2e8f0;border-radius:6px;">'+geLabels+'<div id="geScrollWrap" style="flex:1;overflow-x:auto;-webkit-overflow-scrolling:touch;"><div id="geCanvas" style="position:relative;width:'+totalW+'px;height:'+totalH+'px;background:white;overflow:hidden;">'+hdrBands+dayNums+todayLine+fills+rowBgs+bars+delivBar+'</div></div></div>';
   // スクロール位置を復元（初回はTODAY付近へ）
-  var newWrap=multiEl.querySelector('div');
+  // flex構造: outerDiv > labelCol + scrollDiv > geCanvas
+  var newWrap=document.getElementById('geScrollWrap');
   if(newWrap){
-    if(savedScroll>=0){
+    if(savedScroll>0){
       newWrap.scrollLeft=savedScroll;
     } else if(todayCol>0){
       newWrap.scrollLeft=Math.max(0,(todayCol-5)*GCW);
@@ -2770,8 +2923,7 @@ function geRenderBars(){
 }
 
 function geGetScrollWrap(){
-  var multiEl=document.getElementById('detail-gantt-multi');
-  return multiEl?multiEl.querySelector('div'):null;
+  return document.getElementById('geScrollWrap');
 }
 function geStartDrag(e,idx,bar){
   e.preventDefault();
@@ -2825,41 +2977,26 @@ function geApplyKisoAnchor(movedIdx){
   movedSeg.end_date=endOfWorkdays(movedSeg.start_date, movedSeg.dur||movedSeg.duration||28);
   movedSeg.calendar_dur=calendarDur(movedSeg.start_date,movedSeg.end_date);
   var kisoEnd=movedSeg.end_date;
-
-  // ★新ロジック: 基礎完了日からのオフセットで全工程を再配置
-  // 紐付けマスターのtemplate情報を取得
-  var p=edProp;
-  var ck=p?custKey(p):'';
-  var masterName=propMaster[ck]||'';
-  var tmpl=null;
-  if(masterName){var mt=myMasters.find(function(m){return m.name===masterName;});if(mt)tmpl=mt.steps;}
-  if(!tmpl&&myMasters.length>0)tmpl=myMasters[0].steps;
-  if(!tmpl)tmpl=DEFAULT_TMPL;
-
+  // geSegs自身のoffsetFrom/offsetDaysを使って再配置（マスターtemplateではなくgeSegsの値を使う）
   for(var i=0;i<geSegs.length;i++){
-    if(i===movedIdx)continue; // 基礎自身はスキップ
+    if(i===movedIdx)continue;
     var s=geSegs[i];
     var sn=s.name||s.label||'';
-    if(sn==='造成'||sn==='地盤')continue; // 先行工程はそのまま
-    // templateからoffset情報を取得
-    var stepDef=tmpl.find(function(t){return t.name===sn;});
-    var dur=s.dur||s.duration||1;
-    var startDate;
-    if(stepDef&&stepDef.offsetFrom==='基礎完了'&&stepDef.offsetDays!=null){
-      // templateにoffsetFromが定義されているバーのみ再配置
-      var od=stepDef.offsetDays;
-      startDate=od>0?addWorkdays(kisoEnd,od):kisoEnd;
+    if(sn==='造成'||sn==='地盤')continue;
+    var offsetFrom=s.offsetFrom||'';
+    var offsetDays=s.offsetDays!=null?s.offsetDays:0;
+    if(offsetFrom==='基礎完了'){
+      var startDate=offsetDays>0?addWorkdays(kisoEnd,offsetDays):kisoEnd;
       var sd2=new Date(startDate.replace(/[/]/g,'-'));
       while(sd2.getDay()===0)sd2.setDate(sd2.getDate()+1);
       startDate=localDateStr(sd2);
-      var endStr2=endOfWorkdays(startDate,dur);
-      s.start_date=startDate; s.date=startDate; s.end_date=endStr2;
+      var endStr2=endOfWorkdays(startDate,s.dur||s.duration||1);
+      s.start_date=startDate;s.date=startDate;s.end_date=endStr2;
       s.calendar_dur=calendarDur(startDate,endStr2);
       var nc=FULL_DATE_IDX[startDate];
       if(nc===undefined){var fks=Object.keys(FULL_DATE_IDX);for(var fki=0;fki<fks.length;fki++){if(fks[fki]>=startDate){nc=FULL_DATE_IDX[fks[fki]];break;}}}
       if(nc!==undefined)s.col=nc;
     }
-    // offsetFromなし（手動追加バー等）は start_date をそのまま維持
   }
 }
 
@@ -2871,14 +3008,29 @@ function geStopDrag(){
     geDragBar.bar.style.opacity='';
     geDragBar.bar.style.boxShadow='';
     geDragBar=null;
-    // 基礎を動かした場合のみ後工程追随
-    var dragName=(geSegs[dragIdx]&&(geSegs[dragIdx].name||geSegs[dragIdx].label))||'';
-    if(dragName==='基礎')geApplyKisoAnchor(dragIdx);
+    var dragSeg=geSegs[dragIdx];
+    var dragName=(dragSeg&&(dragSeg.name||dragSeg.label))||'';
+
+    if(dragName==='基礎'){
+      // 基礎を動かした → 後工程全て追随
+      geApplyKisoAnchor(dragIdx);
+    } else {
+      // 基礎以外を動かした → 単体移動確定 + 基礎完了日からのoffsetDaysを再計算して保存
+      var kisoSeg=geSegs.find(function(s){return (s.name||s.label||'')==='基礎';});
+      if(kisoSeg&&kisoSeg.end_date&&dragSeg&&dragSeg.start_date){
+        var sn=dragSeg.name||dragSeg.label||'';
+        if(sn!=='造成'&&sn!=='地盤'){
+          // 基礎完了日からstart_dateまでの稼働日数を計算してoffsetDaysに保存
+          dragSeg.offsetDays=countWorkdays(kisoSeg.end_date, dragSeg.start_date);
+          dragSeg.offsetFrom='基礎完了';
+        }
+      }
+    }
   }
   document.removeEventListener('pointermove',geOnDrag);
   document.removeEventListener('pointerup',geStopDrag);
   geRenderBars();
-  if(typeof geRenderSegList==='function')geRenderSegList(); // ★ 完了日表示を更新
+  if(typeof geRenderSegList==='function')geRenderSegList();
 }
 function geStartResize(e,idx){
   e.preventDefault();
@@ -2899,18 +3051,32 @@ function geStopResize(){
   geResBar=null;
   document.removeEventListener('pointermove',geOnResize);
   document.removeEventListener('pointerup',geStopResize);
-  // 基礎をリサイズした場合のみ後工程追随
   if(resIdx>=0){
     var resName=(geSegs[resIdx]&&(geSegs[resIdx].name||geSegs[resIdx].label))||'';
     if(resName==='基礎'){
+      // 基礎リサイズ → end_date再計算 → 後工程全て追随
       var rs=geSegs[resIdx];
       if(rs&&rs.start_date){
         rs.end_date=endOfWorkdays(rs.start_date, rs.calendar_dur||rs.duration||28);
         rs.calendar_dur=calendarDur(rs.start_date,rs.end_date);
       }
       geApplyKisoAnchor(resIdx);
+    } else {
+      // 基礎以外リサイズ → end_date再計算 + offsetDays更新
+      var rs2=geSegs[resIdx];
+      if(rs2&&rs2.start_date){
+        rs2.end_date=endOfWorkdays(rs2.start_date, rs2.calendar_dur||rs2.duration||1);
+        rs2.calendar_dur=calendarDur(rs2.start_date,rs2.end_date);
+      }
+      var kisoSeg2=geSegs.find(function(s){return (s.name||s.label||'')==='基礎';});
+      if(kisoSeg2&&kisoSeg2.end_date&&rs2&&rs2.start_date){
+        var sn2=rs2.name||rs2.label||'';
+        if(sn2!=='造成'&&sn2!=='地盤'){
+          rs2.offsetDays=countWorkdays(kisoSeg2.end_date, rs2.start_date);
+          rs2.offsetFrom='基礎完了';
+        }
+      }
     }
-    // 基礎以外は追随しない
   }
   geRenderBars();
 }
@@ -3048,7 +3214,17 @@ function resetGanttEdit(){
   geSegs=srcSegs.map(function(s){
     var sd=(s.start_date||s.date||'').replace(/\//g,'-'),ed=(s.end_date||'').replace(/\//g,'-');
     var calDur=s.calendar_dur||(ed&&sd?Math.round((new Date(ed)-new Date(sd))/86400000)+1:s.duration||s.dur||1);
-    return {label:s.label||s.name||'',start_date:sd,date:sd,end_date:ed,calendar_dur:calDur,duration:calDur,color:s.color||EC[s.label||s.name||'']||'#64748b',layer:s.layer||0,textColor:s.textColor||s.text_color||'auto'};
+    var nm=s.label||s.name||'';
+    return {
+      name:nm, label:nm,
+      start_date:sd, date:sd, end_date:ed,
+      calendar_dur:calDur, duration:calDur, dur:s.dur||calDur,
+      color:s.color||EC[nm]||'#64748b',
+      layer:s.layer||0,
+      textColor:s.textColor||s.text_color||'auto',
+      offsetFrom:s.offsetFrom||'',
+      offsetDays:s.offsetDays!=null?s.offsetDays:0
+    };
   });
   geRenderBars(); renderBody(); showToast('リセットしました','');
 }
@@ -4787,11 +4963,38 @@ function startEditMaster(idx){
 function openMasterEditor(){
   document.getElementById('masterEditorTitle').textContent=editingMaster.name;
   buildMasterEditorDates();
+  // ★既存ステップのoffsetFrom/offsetDaysを自動補正（基礎より後のステップを基礎完了日起点に統一）
+  _normalizeMasterStepsToKiso(editingMaster.steps);
   renderMasterStepList();
   renderMasterGantt();
   openPanel('masterEditorPanel');
-  // 新規追加フォームのカラーピッカー初期化
   setTimeout(initMasterNewColorPicker, 50);
+}
+
+// 既存マスターのstepsを「基礎完了日起点」に正規化する
+// 基礎より後ろのstepで offsetFrom が設定されていないものを自動補正
+function _normalizeMasterStepsToKiso(steps){
+  if(!steps||!steps.length)return;
+  // 基礎のインデックスを特定
+  var kisoIdx=steps.findIndex(function(s){return s.name==='基礎';});
+  if(kisoIdx<0)return;
+  // まず一度computeMasterEditorSegsを呼んで現在の配置を確定
+  var segs=computeMasterEditorSegs(steps);
+  var kisoSeg=segs.find(function(s){return s.name==='基礎';});
+  if(!kisoSeg||!kisoSeg.end_date)return;
+  var kisoEnd=kisoSeg.end_date;
+  // 基礎より後ろのstepで、まだoffsetFromが設定されていないものを変換
+  for(var i=kisoIdx+1;i<steps.length;i++){
+    var step=steps[i];
+    // 既にoffsetFrom:'基礎完了'が設定済みならスキップ
+    if(step.offsetFrom==='基礎完了')continue;
+    // segsから対応する計算済みstart_dateを取得
+    var seg=segs.find(function(s){return s.stepIdx===i;});
+    if(!seg||!seg.start_date)continue;
+    step.offsetFrom='基礎完了';
+    step.offsetDays=countWorkdays(kisoEnd, seg.start_date);
+    delete step.start_date; // start_dateの直接指定を解除
+  }
 }
 
 function buildMasterEditorDates(){
@@ -4959,8 +5162,26 @@ function addMasterStepSidebar(){
   if(!nm){showToast('工種名を入力してください','error');return;}
   if(!dv||isNaN(dur)||dur<1){showToast('日数を入力してください','error');return;}
   var color=window._mNewSelColor||'#64748b';
-  // offsetFromを付けないことで「前工程末尾の翌稼働日」連鎖（基礎に強制紐付けしない）
-  editingMaster.steps.push({name:nm,dur:dur,color:color,layer:0,offset:0,offsetFrom:'',offsetDays:0});
+  var kisoIdx=editingMaster.steps.findIndex(function(s){return s.name==='基礎';});
+  // 基礎より後ろに追加する場合は offsetFrom:'基礎完了' で自動紐付け
+  var newStep;
+  if(kisoIdx>=0){
+    // 現在の末尾のsegsから基礎完了日を取得してoffsetDaysを計算
+    var segs=computeMasterEditorSegs(editingMaster.steps);
+    var kisoSeg=segs.find(function(s){return s.name==='基礎';});
+    var lastSeg=segs.length?segs[segs.length-1]:null;
+    var offsetDays=0;
+    if(kisoSeg&&kisoSeg.end_date&&lastSeg&&lastSeg.end_date){
+      // 末尾工程完了日の翌稼働日からの稼働日数
+      var nextStart=addWorkdays(lastSeg.end_date,1);
+      offsetDays=countWorkdays(kisoSeg.end_date, nextStart);
+    }
+    newStep={name:nm,dur:dur,color:color,layer:0,offset:0,offsetFrom:'基礎完了',offsetDays:offsetDays};
+  } else {
+    // 基礎がまだない場合は順次連鎖
+    newStep={name:nm,dur:dur,color:color,layer:0,offset:0,offsetFrom:'',offsetDays:0};
+  }
+  editingMaster.steps.push(newStep);
   document.getElementById('mNewName').value='';
   document.getElementById('mNewDays').value='';
   renderMasterStepList(); renderMasterGantt();
@@ -5047,7 +5268,8 @@ function renderMasterGantt(){
   var segs=computeMasterEditorSegs(editingMaster.steps);
   var cv=document.getElementById('masterGanttCanvas');
   var hdr=document.getElementById('masterGanttHeader');
-  var wrap=document.getElementById('masterGanttWrap');
+  var wrap=document.getElementById('masterGanttScroll'); // スクロール領域
+  var labelCol=document.getElementById('masterGanttLabelCol'); // 固定ラベル列
   if(!cv||!hdr)return;
   // 再描画前にスクロール位置を保存（0は初回扱い→TODAY付近へ）
   var savedScroll=wrap?wrap.scrollLeft:-1;
@@ -5084,16 +5306,39 @@ function renderMasterGantt(){
   // Canvas: 白背景に変更
   cv.style.cssText='width:'+totalW+'px;height:'+(numRows*rowH)+'px;position:relative;background:white;';
 
-  // ラベル列（白背景に合わせてテキスト色変更）
-  var labelsDiv=document.createElement('div');
-  labelsDiv.style.cssText='position:absolute;left:0;top:0;width:0;height:'+(numRows*rowH)+'px;';
-  editingMaster.steps.forEach(function(s,ri){
-    var el=document.createElement('div');
-    el.style.cssText='position:absolute;left:-90px;top:'+(ri*rowH)+'px;width:88px;height:'+rowH+'px;display:flex;align-items:center;justify-content:flex-end;padding-right:4px;font-size:9px;font-weight:700;color:#334155;overflow:hidden;white-space:nowrap;background:'+(ri%2===0?'white':'#f8fafc')+';border-bottom:1px solid #e2e8f0;';
-    el.textContent=s.name;
-    labelsDiv.appendChild(el);
-  });
-  cv.appendChild(labelsDiv);
+  // 左固定ラベル列をlabelColに描画（position:sticky;left:0 でスクロール追随）
+  if(labelCol){
+    labelCol.innerHTML='';
+    labelCol.style.cssText='width:90px;min-width:90px;flex-shrink:0;background:#1e293b;border-right:2px solid #334155;display:flex;flex-direction:column;overflow:hidden;';
+    // ★固定ヘッダー（スクロールしない）
+    var lhdr=document.createElement('div');
+    lhdr.style.cssText='height:28px;min-height:28px;background:#1e3a5f;border-bottom:2px solid #334155;display:flex;align-items:center;justify-content:center;flex-shrink:0;';
+    labelCol.appendChild(lhdr);
+    // ★行リスト（masterGanttScrollと同期してスクロール）
+    var lbody=document.createElement('div');
+    lbody.id='masterLabelBody';
+    lbody.style.cssText='flex:1;overflow:hidden;';
+    editingMaster.steps.forEach(function(s,ri){
+      var el=document.createElement('div');
+      el.style.cssText='height:'+rowH+'px;display:flex;align-items:center;padding:0 5px;font-size:9px;font-weight:700;color:rgba(255,255,255,.85);overflow:hidden;white-space:nowrap;background:'+(ri%2===0?'#1e293b':'#0f172a')+';border-bottom:1px solid #334155;';
+      el.textContent=s.name;
+      lbody.appendChild(el);
+    });
+    // ★横スクロールバー分の空白行を末尾に追加（最下部の1行ずれ解消）
+    var pad=document.createElement('div');
+    pad.style.cssText='height:18px;background:#1e293b;flex-shrink:0;';
+    lbody.appendChild(pad);
+    labelCol.appendChild(lbody);
+    // ★縦スクロール同期: masterGanttScrollの縦スクロールをlabelBodyに反映
+    var sc=document.getElementById('masterGanttScroll');
+    var lbody=document.getElementById('masterLabelBody');
+    if(sc&&lbody){
+      sc.onscroll=null; // 重複登録防止
+      sc.addEventListener('scroll',function(){
+        if(lbody)lbody.scrollTop=sc.scrollTop;
+      });
+    }
+  }
 
   // 週末・月境界塗り
   masterEdDates.forEach(function(d,i){
@@ -5162,7 +5407,7 @@ var mBarDrag=null;
 function startMasterDrag(e,stepIdx,bar,startLeft){
   e.preventDefault();
   bar.setPointerCapture(e.pointerId);
-  var wrap=document.getElementById('masterGanttWrap');
+  var wrap=document.getElementById('masterGanttScroll');
   var scrollX=wrap?wrap.scrollLeft:0;
   // startLeftはcanvas内の絶対座標。clientXとscrollXを組み合わせて正確なdiff計算
   mBarDrag={stepIdx:stepIdx,bar:bar,startLeft:startLeft,startClientX:e.clientX,startScrollX:scrollX,startOffset:editingMaster.steps[stepIdx].offset||0};
@@ -5172,7 +5417,7 @@ function startMasterDrag(e,stepIdx,bar,startLeft){
 }
 function onMasterBarDrag(e){
   if(!mBarDrag)return; e.preventDefault();
-  var wrap=document.getElementById('masterGanttWrap');
+  var wrap=document.getElementById('masterGanttScroll');
   var scrollX=wrap?wrap.scrollLeft:0;
   // クライアント座標の移動量＋スクロール変化量でcanvas内の正確な移動量を計算
   var pxMoved=(e.clientX-mBarDrag.startClientX)+(scrollX-mBarDrag.startScrollX);
@@ -5187,25 +5432,44 @@ function stopMasterBarDrag(){
   if(mBarDrag){
     var stepIdx=mBarDrag.stepIdx;
     mBarDrag.bar.style.cursor='grab';mBarDrag.bar.style.zIndex='';mBarDrag.bar.style.opacity='';
-    // ドラッグ量をステップ定義に永続化
     var step=editingMaster.steps[stepIdx];
     var dayShift=step.offset||0;
+
     if(dayShift!==0){
-      if(step.offsetFrom==='基礎完了'){
-        // offsetDaysに加算してoffsetをリセット
-        step.offsetDays=(step.offsetDays||0)+dayShift;
-      } else {
-        // start_dateを直接更新（前工程連鎖ステップ）
-        // computeMasterEditorSegsで計算されたstart_dateを元にdayShift分ずらす
-        var computedSegs=masterGanttSegs||[];
-        var seg=computedSegs.find(function(s){return s.stepIdx===stepIdx;});
+      // ドラッグ後の実際のstart_dateを計算（offset適用前のsegsから）
+      var computedSegs=masterGanttSegs||[];
+      var seg=computedSegs.find(function(s){return s.stepIdx===stepIdx;});
+
+      if(step.name==='基礎'||step.name==='造成'||step.name==='地盤'){
+        // 基礎・造成・地盤：前工程連鎖のままstart_dateで位置固定
         if(seg&&seg.start_date){
           var d=new Date(seg.start_date.replace(/[/]/g,'-'));
           d.setDate(d.getDate()+dayShift);
           step.start_date=localDateStr(d);
         }
+      } else {
+        // 建て方以降：基礎完了日起点を維持しつつoffsetDaysを更新
+        // まず仮にoffset込みのstart_dateを確定させる
+        if(seg&&seg.start_date){
+          var movedDt=new Date(seg.start_date.replace(/[/]/g,'-'));
+          movedDt.setDate(movedDt.getDate()+dayShift);
+          var movedStart=localDateStr(movedDt);
+
+          // 基礎完了日を取得
+          var kisoSeg=computedSegs.find(function(s){return s.name==='基礎';});
+          if(kisoSeg&&kisoSeg.end_date){
+            // 基礎完了日から新start_dateまでの稼働日数を計算してoffsetDaysに保存
+            step.offsetFrom='基礎完了';
+            step.offsetDays=countWorkdays(kisoSeg.end_date, movedStart);
+            // start_dateはクリア（offsetDaysで管理するため）
+            delete step.start_date;
+          } else {
+            // 基礎が見つからない場合はstart_dateで固定（フォールバック）
+            step.start_date=movedStart;
+          }
+        }
       }
-      step.offset=0; // offsetはリセット
+      step.offset=0;
     }
     mBarDrag=null;
   }
