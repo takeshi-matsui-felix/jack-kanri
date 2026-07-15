@@ -1006,6 +1006,15 @@ function workdaysFrom(startStr, n) {
 // 日曜スキップで startStr から n 稼働日後の日付を返す
 // 開始日から終了日までの稼働日数（日曜除く）を数える
 // fromの翌日〜toの間の稼働日数を返す（offsetDays計算用）
+// 造成バーのテキストラベルを生成（造成工事（M/D～M/D）形式）
+function _soseiBarlabel(startDate, endDate){
+  function md(d){
+    if(!d)return '?';
+    var p=d.replace(/\//g,'-').split('-');
+    return parseInt(p[1])+'/'+(parseInt(p[2])||'?');
+  }
+  return '造成工事（'+md(startDate)+'～'+md(endDate)+'）';
+}
 function countWorkdays(fromStr, toStr){
   var d=new Date(fromStr.replace(/[/]/g,'-'));
   var end=new Date(toStr.replace(/[/]/g,'-'));
@@ -1459,11 +1468,15 @@ function getProps() {
   } else if (currentStatus!=='all') {
     list=list.filter(function(p){return p.status===currentStatus;});
   }
-  // 引渡し日の早い順にソート（未設定は末尾）
+  // ①引渡し日順 ②同じ引渡し月内は基礎着工日順
   list.sort(function(a,b){
     var da=normDate(a.delivery_date||'')||'9999/99/99';
     var db=normDate(b.delivery_date||'')||'9999/99/99';
-    return da<db?-1:da>db?1:0;
+    if(da!==db)return da<db?-1:1;
+    // 引渡し日が同じ場合は基礎着工日（confirm_done）で比較
+    var ca=normDate(a.confirm_done||'')||'9999/99/99';
+    var cb=normDate(b.confirm_done||'')||'9999/99/99';
+    return ca<cb?-1:ca>cb?1:0;
   });
   return list;
 }
@@ -2687,14 +2700,19 @@ function buildGanttTab(p){
       var isDark=!!DARK_TEXT[lbl];var tcOvr=seg.textColor||seg.text_color;var tcolor=tcOvr&&tcOvr!=='auto'?tcOvr:(isDark?'#3a2a10':'white');
       var isPast=seg.end_date&&new Date(seg.end_date.replace(/\//g,'-'))<todayDt;
       var isAct=!isPast&&sd&&new Date(sd.replace(/\//g,'-'))<=todayDt;
-      // ★3日以内はバー外に工程名表示
-      var lblInside=bw>calDur*GCW2*0.7&&bw>20;
-      var lblHtml='';
-      if(calDur<=3){
-        // バーの右横に工程名
-        lblHtml='<div style="position:absolute;left:'+(sx+bw+2)+'px;top:'+by+'px;height:'+bh+'px;display:flex;align-items:center;font-size:8px;font-weight:700;color:#334155;white-space:nowrap;z-index:15;">'+lbl+'</div>';
+      // ★造成バーはテキスト表示（ガントバーなし）
+      if(lbl==='造成'){
+        var soseiTxt=_soseiBarlabel(sd,seg.end_date||sd);
+        bars+='<div style="position:absolute;left:'+sx+'px;top:'+by+'px;height:'+bh+'px;display:flex;align-items:center;font-size:10px;font-weight:800;color:#1e293b;white-space:nowrap;z-index:15;">'+soseiTxt+'</div>';
+      } else {
+        // ★3日以内はバー外に工程名表示
+        var lblInside=bw>calDur*GCW2*0.7&&bw>20;
+        var lblHtml='';
+        if(calDur<=3){
+          lblHtml='<div style="position:absolute;left:'+(sx+bw+2)+'px;top:'+by+'px;height:'+bh+'px;display:flex;align-items:center;font-size:8px;font-weight:700;color:#334155;white-space:nowrap;z-index:15;">'+lbl+'</div>';
+        }
+        bars+='<div style="position:absolute;left:'+sx+'px;top:'+by+'px;width:'+bw+'px;height:'+bh+'px;background:'+color+';color:'+tcolor+';font-size:7px;font-weight:800;border-radius:2px;display:flex;align-items:center;padding:0 3px;overflow:hidden;white-space:nowrap;box-shadow:0 1px 2px rgba(0,0,0,.15);z-index:'+(layer===1?12:10)+';opacity:'+(isPast?'.6':'1')+';'+(isAct?'outline:2px solid rgba(255,255,0,.6);outline-offset:0;':'')+'">'+(lblInside&&calDur>3?lbl:'')+'</div>'+lblHtml;
       }
-      bars+='<div style="position:absolute;left:'+sx+'px;top:'+by+'px;width:'+bw+'px;height:'+bh+'px;background:'+color+';color:'+tcolor+';font-size:7px;font-weight:800;border-radius:2px;display:flex;align-items:center;padding:0 3px;overflow:hidden;white-space:nowrap;box-shadow:0 1px 2px rgba(0,0,0,.15);z-index:'+(layer===1?12:10)+';opacity:'+(isPast?'.6':'1')+';'+(isAct?'outline:2px solid rgba(255,255,0,.6);outline-offset:0;':'')+'">'+(lblInside&&calDur>3?lbl:'')+'</div>'+lblHtml;
     });
     // ★左固定ラベル列（flexで独立させる）
     var labelRows='';
@@ -2870,17 +2888,29 @@ function geRenderBars(){
     var isDark=!!DARK_TEXT[lbl],tcOvr=seg.textColor||seg.text_color,tcolor=tcOvr&&tcOvr!=='auto'?tcOvr:(isDark?'#3a2a10':'white');
     var isPast=seg.end_date&&new Date(seg.end_date.replace(/[/]/g,'-'))<todayDt;
     var isAct=!isPast&&sdClean&&new Date(sdClean)<=todayDt;
-    // ★3日以内はバー右横に工程名表示
+    // ★造成バーはテキスト表示
     var geCalDur=seg.calendar_dur||calDur;
-    var geLblOut=geCalDur<=3?'<div style="position:absolute;left:'+(sx+bw+2)+'px;top:'+by+'px;height:'+bh+'px;display:flex;align-items:center;font-size:8px;font-weight:700;color:#334155;white-space:nowrap;z-index:20;">'+lbl+'</div>':'';
-    if(ganttEditMode){
-      bars+=geLblOut+'<div id="gebar'+idx+'" data-idx="'+idx+'" style="position:absolute;left:'+sx+'px;top:'+by+'px;width:'+bw+'px;height:'+bh+'px;background:'+color+';color:'+tcolor+';font-size:6px;font-weight:800;border-radius:2px;display:flex;align-items:center;padding:0 2px;overflow:hidden;white-space:nowrap;box-shadow:0 1px 2px rgba(0,0,0,.2);z-index:'+(layer===1?12:10)+';opacity:'+(isPast?'.6':'1')+';cursor:grab;user-select:none;'+(isAct?'outline:2px solid rgba(255,255,0,.5);':'')+';">'
-        +(bw>14&&geCalDur>3?lbl:'')
-        +'<span class="ge-del" data-idx="'+idx+'" style="position:absolute;right:1px;top:1px;width:11px;height:11px;background:rgba(239,68,68,.9);color:white;border-radius:50%;font-size:8px;display:flex;align-items:center;justify-content:center;cursor:pointer;z-index:20;line-height:1;">x</span>'
-        +'<span class="ge-rsz" data-idx="'+idx+'" style="position:absolute;right:0;top:0;width:7px;height:100%;cursor:ew-resize;z-index:15;background:rgba(255,255,255,.2);"></span>'
-        +'</div>';
+    if(lbl==='造成'){
+      var soseiTxt2=_soseiBarlabel(seg.start_date||seg.date||'',seg.end_date||'');
+      if(ganttEditMode){
+        bars+='<div id="gebar'+idx+'" data-idx="'+idx+'" style="position:absolute;left:'+sx+'px;top:'+by+'px;width:0;height:'+bh+'px;display:flex;align-items:center;font-size:10px;font-weight:800;color:#1e293b;white-space:nowrap;overflow:visible;cursor:grab;user-select:none;z-index:20;">'+soseiTxt2
+          +'<span class="ge-rsz" data-idx="'+idx+'" style="display:none;"></span>'
+          +'</div>';
+      } else {
+        bars+='<div style="position:absolute;left:'+sx+'px;top:'+by+'px;width:0;height:'+bh+'px;display:flex;align-items:center;font-size:10px;font-weight:800;color:#1e293b;white-space:nowrap;overflow:visible;z-index:20;">'+soseiTxt2+'</div>';
+      }
     } else {
-      bars+=geLblOut+'<div style="position:absolute;left:'+sx+'px;top:'+by+'px;width:'+bw+'px;height:'+bh+'px;background:'+color+';color:'+tcolor+';font-size:6px;font-weight:800;border-radius:2px;display:flex;align-items:center;padding:0 2px;overflow:hidden;white-space:nowrap;box-shadow:0 1px 2px rgba(0,0,0,.2);z-index:'+(layer===1?12:10)+';opacity:'+(isPast?'.6':'1')+';'+(isAct?'outline:2px solid rgba(255,255,0,.5);':'')+';">'+(bw>14&&geCalDur>3?lbl:'')+' </div>';
+      // ★3日以内はバー右横に工程名表示
+      var geLblOut=geCalDur<=3?'<div style="position:absolute;left:'+(sx+bw+2)+'px;top:'+by+'px;height:'+bh+'px;display:flex;align-items:center;font-size:8px;font-weight:700;color:#334155;white-space:nowrap;z-index:20;">'+lbl+'</div>':'';
+      if(ganttEditMode){
+        bars+=geLblOut+'<div id="gebar'+idx+'" data-idx="'+idx+'" style="position:absolute;left:'+sx+'px;top:'+by+'px;width:'+bw+'px;height:'+bh+'px;background:'+color+';color:'+tcolor+';font-size:6px;font-weight:800;border-radius:2px;display:flex;align-items:center;padding:0 2px;overflow:hidden;white-space:nowrap;box-shadow:0 1px 2px rgba(0,0,0,.2);z-index:'+(layer===1?12:10)+';opacity:'+(isPast?'.6':'1')+';cursor:grab;user-select:none;'+(isAct?'outline:2px solid rgba(255,255,0,.5);':'')+';">'
+          +(bw>14&&geCalDur>3?lbl:'')
+          +'<span class="ge-del" data-idx="'+idx+'" style="position:absolute;right:1px;top:1px;width:11px;height:11px;background:rgba(239,68,68,.9);color:white;border-radius:50%;font-size:8px;display:flex;align-items:center;justify-content:center;cursor:pointer;z-index:20;line-height:1;">x</span>'
+          +'<span class="ge-rsz" data-idx="'+idx+'" style="position:absolute;right:0;top:0;width:7px;height:100%;cursor:ew-resize;z-index:15;background:rgba(255,255,255,.2);"></span>'
+          +'</div>';
+      } else {
+        bars+=geLblOut+'<div style="position:absolute;left:'+sx+'px;top:'+by+'px;width:'+bw+'px;height:'+bh+'px;background:'+color+';color:'+tcolor+';font-size:6px;font-weight:800;border-radius:2px;display:flex;align-items:center;padding:0 2px;overflow:hidden;white-space:nowrap;box-shadow:0 1px 2px rgba(0,0,0,.2);z-index:'+(layer===1?12:10)+';opacity:'+(isPast?'.6':'1')+';'+(isAct?'outline:2px solid rgba(255,255,0,.5);':'')+';">'+(bw>14&&geCalDur>3?lbl:'')+' </div>';
+      }
     }
   });
   var totalH=numRows*ROW_H+28; // ← totalHを先に定義
@@ -3034,8 +3064,12 @@ function geStopDrag(){
 }
 function geStartResize(e,idx){
   e.preventDefault();
+  e.stopPropagation();
   geResBar={idx:idx}; geResStartX=e.clientX;
   geResStartDur=geSegs[idx].calendar_dur||geSegs[idx].duration||1;
+  // ★pointerCaptureで指を離してもイベントを追跡
+  var rszEl=e.target;
+  if(rszEl&&rszEl.setPointerCapture)rszEl.setPointerCapture(e.pointerId);
   document.addEventListener('pointermove',geOnResize);
   document.addEventListener('pointerup',geStopResize);
 }
@@ -3125,14 +3159,13 @@ function geUpdateSegDate(input){
   var s=geSegs[idx]; if(!s)return;
   if(field==='start'){
     s.start_date=val; s.date=val;
-    // 完了日から日数再計算
-    var ed=s.end_date||'';
-    if(ed&&ed>=val){
-      s.calendar_dur=Math.round((new Date(ed)-new Date(val))/86400000)+1;
-      s.duration=s.calendar_dur;
-    }
+    // end_dateを稼働日数から再計算
+    var dur0=s.calendar_dur||s.duration||1;
+    s.end_date=endOfWorkdays(val,dur0);
+    s.calendar_dur=calendarDur(val,s.end_date);
+    s.duration=s.calendar_dur;
   } else {
-    // 完了日変更 → 日数再計算
+    // 完了日変更 → 稼働日数再計算
     var sd2=s.start_date||s.date||'';
     if(sd2&&val>=sd2){
       s.end_date=val;
@@ -3140,8 +3173,19 @@ function geUpdateSegDate(input){
       s.duration=s.calendar_dur;
     }
   }
-  // 再描画（入力欄を保持するためgeRenderBarsをやや遅延）
+  // 基礎の日付変更時は後工程を追随させる
+  var sname=s.name||s.label||'';
+  if(sname==='基礎'){
+    geApplyKisoAnchor(idx);
+  } else {
+    var kisoSeg3=geSegs.find(function(seg){return (seg.name||seg.label||'')==='基礎';});
+    if(kisoSeg3&&kisoSeg3.end_date&&s.start_date&&sname!=='造成'&&sname!=='地盤'){
+      s.offsetFrom='基礎完了';
+      s.offsetDays=countWorkdays(kisoSeg3.end_date,s.start_date);
+    }
+  }
   geRenderBars();
+  geRenderSegList();
 }
 window.geUpdateSegDate=geUpdateSegDate;
 
@@ -5372,7 +5416,23 @@ function renderMasterGantt(){
     bar.id='mbar-'+seg.stepIdx;
     bar.setAttribute('data-step',seg.stepIdx);
     bar.style.cssText='position:absolute;left:'+sx+'px;top:'+by+'px;width:'+bw+'px;height:'+bh+'px;background:'+color+';color:'+tcolor+';font-size:6px;font-weight:800;border-radius:2px;display:flex;align-items:center;padding:0 2px;overflow:hidden;white-space:nowrap;box-shadow:0 1px 2px rgba(0,0,0,.2);z-index:'+(layer===1?12:10)+';cursor:grab;user-select:none;';
-    if(bw>14)bar.textContent=seg.name||'';
+    var barNm=seg.name||'';
+    if(barNm==='造成'&&seg.start_date&&seg.end_date){
+      // 造成バーはテキスト表示（ガントバーは透明）
+      bar.style.background='transparent';
+      bar.style.border='none';
+      bar.style.boxShadow='none';
+      bar.style.color='#1e293b';
+      bar.style.fontSize='10px';
+      bar.style.fontWeight='800';
+      bar.style.whiteSpace='nowrap';
+      bar.style.overflow='visible';
+      bar.style.width='0';
+      bar.style.zIndex='20';
+      bar.textContent=_soseiBarlabel(seg.start_date,seg.end_date);
+    } else if(bw>14){
+      bar.textContent=barNm;
+    }
 
     // リサイズハンドル
     var rsz=document.createElement('span');
