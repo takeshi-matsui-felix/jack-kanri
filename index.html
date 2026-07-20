@@ -2771,7 +2771,7 @@ function buildGanttTab(p){
     });
     var labelCol='<div style="flex-shrink:0;width:90px;background:#e2e8f0;border-right:2px solid #94a3b8;"><div style="height:28px;background:var(--primary);"></div>'+labelRows+'</div>';
     // ★ 描画順: fills→rowBgs→hdrBands→dayNums→todayLine→bars
-    var ganttArea='<div style="flex:1;overflow-x:auto;-webkit-overflow-scrolling:touch;"><div style="position:relative;width:'+totalW+'px;height:'+totalHm+'px;">'+fills+rowBgs+hdrBands+dayNums+todayLine+bars+'</div></div>';
+    var ganttArea='<div style="flex:1;overflow-x:auto;-webkit-overflow-scrolling:touch;"><div style="position:relative;width:'+totalW+'px;height:'+totalHm+'px;">'+rowBgs+fills+hdrBands+dayNums+todayLine+bars+'</div></div>';
     return '<div style="display:flex;overflow:hidden;border:1.5px solid #e2e8f0;border-radius:6px;">'+labelCol+ganttArea+'</div>';
   }
 
@@ -2994,7 +2994,7 @@ function geRenderBars(){
     }
   }
   // ★ 描画順序: fills(土日背景)→rowBgs(行背景)→hdrBands(月ヘッダー)→dayNums(日付)→todayLine→bars→delivBar
-  multiEl.innerHTML='<div style="display:flex;overflow:hidden;border:1.5px solid #e2e8f0;border-radius:6px;">'+geLabels+'<div id="geScrollWrap" style="flex:1;overflow-x:auto;-webkit-overflow-scrolling:touch;"><div id="geCanvas" style="position:relative;width:'+totalW+'px;height:'+totalH+'px;background:white;overflow:hidden;">'+fills+rowBgs+hdrBands+dayNums+todayLine+bars+delivBar+'</div></div></div>';
+  multiEl.innerHTML='<div style="display:flex;overflow:hidden;border:1.5px solid #e2e8f0;border-radius:6px;">'+geLabels+'<div id="geScrollWrap" style="flex:1;overflow-x:auto;-webkit-overflow-scrolling:touch;"><div id="geCanvas" style="position:relative;width:'+totalW+'px;height:'+totalH+'px;background:white;overflow:hidden;">'+rowBgs+fills+hdrBands+dayNums+todayLine+bars+delivBar+'</div></div></div>';
   // スクロール位置を復元（初回はTODAY付近へ）
   // flex構造: outerDiv > labelCol + scrollDiv > geCanvas
   var newWrap=document.getElementById('geScrollWrap');
@@ -4579,7 +4579,7 @@ function renderEditorCanvas(){
   cv.style.cssText='position:relative;width:'+totalW+'px;height:'+totalH+'px;background:#1e293b;overflow:hidden;';
   // wrapのpaddingを90pxにして背景色を合わせる
   wrap.style.cssText='flex:1;overflow:auto;-webkit-overflow-scrolling:touch;padding-left:90px;background:#1e293b;';
-  cv.innerHTML=labels+hdrBands+dayNums+todayLine+fills+rowBgs+bars;
+  cv.innerHTML=labels+rowBgs+fills+hdrBands+dayNums+todayLine+bars;
 
   // イベント付与
   cv.querySelectorAll('.ed-bar-el').forEach(function(bar){
