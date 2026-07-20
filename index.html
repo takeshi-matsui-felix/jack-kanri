@@ -741,7 +741,7 @@ body.sp-mode .fr-row .fc:last-child{
   </div>
 </div>
 <div class="menu-overlay" id="menuOverlay" onclick="closeMenu()"></div>
-<div class="side-menu" id="sideMenu"><div class="menu-head"><div class="menu-user">🏗️ 協力業者</div><div class="menu-role">JACK 現場管理アプリ</div></div><div class="menu-body"><div class="menu-section">マイ物件</div><div class="menu-item" onclick="openMyPage()"><span class="mi-icon">⭐</span>マイ物件を見る</div><div class="menu-item" onclick="openSelectProp()"><span class="mi-icon">✅</span>担当物件を選択</div><div class="menu-item sp-hide" onclick="closeMenu();openMasterPanel()"><span class="mi-icon">📋</span>マスター工程</div><div class="menu-divider"></div><div class="menu-section">表示</div><div class="menu-item" onclick="closeMenu();setMode(false)"><span class="mi-icon">📱</span>スマホ表示</div><div class="menu-item" onclick="closeMenu();setMode(true)"><span class="mi-icon">🖥️</span>PC横長表示</div><div class="menu-divider"></div><div class="menu-section">その他</div><div class="menu-item" onclick="closeMenu();doSync()"><span class="mi-icon">🔄</span>今すぐ同期</div><div class="menu-item" onclick="openSettings()"><span class="mi-icon">⚙️</span>設定</div><div class="menu-item" onclick="closeMenu();printPage()"><span class="mi-icon">🖨️</span>印刷</div></div></div>
+<div class="side-menu" id="sideMenu"><div class="menu-head"><div class="menu-user">🏗️ 協力業者</div><div class="menu-role">JACK 現場管理アプリ</div></div><div class="menu-body"><div class="menu-section">マイ物件</div><div class="menu-item" onclick="openMyPage()"><span class="mi-icon">⭐</span>マイ物件を見る</div><div class="menu-item" onclick="openSelectProp()"><span class="mi-icon">✅</span>担当物件を選択</div><div class="menu-item sp-hide" id="sideMasterItem" onclick="closeMenu();openMasterPanel()"><span class="mi-icon">📋</span>マスター工程</div><div class="menu-divider"></div><div class="menu-section">表示</div><div class="menu-item" onclick="closeMenu();setMode(false)"><span class="mi-icon">📱</span>スマホ表示</div><div class="menu-item" onclick="closeMenu();setMode(true)"><span class="mi-icon">🖥️</span>PC横長表示</div><div class="menu-divider"></div><div class="menu-section">その他</div><div class="menu-item" onclick="closeMenu();doSync()"><span class="mi-icon">🔄</span>今すぐ同期</div><div class="menu-item" onclick="openSettings()"><span class="mi-icon">⚙️</span>設定</div><div class="menu-item" onclick="closeMenu();printPage()"><span class="mi-icon">🖨️</span>印刷</div></div></div>
 <div class="popup-overlay" id="updatePopup" style="display:none"><div class="popup-box"><div class="popup-head">🔔 データ更新情報</div><div class="popup-body" id="updateContent"></div><div class="popup-footer"><button class="popup-close" onclick="closeUpdatePopup()">閉じる</button></div></div></div>
 <div class="tooltip" id="tooltip"></div><div class="toast" id="toast"></div>
 
@@ -1037,6 +1037,19 @@ function addWorkdays(startStr, n) {
   return localDateStr(days[days.length-1]);
 }
 
+// ★ addWorkdaysの符号付き版：nが負の場合は稼働日を過去方向に遡る（日曜スキップ）
+function addWorkdaysSigned(startStr, n){
+  if(!n)return startStr;
+  if(n>0)return addWorkdays(startStr,n);
+  var cur=new Date(startStr.replace(/[/]/g,'-'));
+  var remaining=-n;
+  while(remaining>0){
+    cur.setDate(cur.getDate()-1);
+    if(cur.getDay()!==0)remaining--;
+  }
+  return localDateStr(cur);
+}
+
 // startStrを0日目として n 稼働日後（addWorkdaysのエイリアス）
 function addWorkdaysFrom(startStr, n){
   if(n===0)return startStr;
@@ -1152,7 +1165,7 @@ function _normalizeTmplSteps(steps){
   return result;
 }
 
-function computeMasterSegs(confirmDoneStr, template, handKumi) {
+function computeMasterSegs(confirmDoneStr, template, handKumi, masterName) {
   if (!confirmDoneStr || !String(confirmDoneStr).match(/\d{4}/)) return [];
   var isHandKumi = !!(handKumi && (
     String(handKumi).indexOf('〇')>=0 ||
@@ -1324,6 +1337,19 @@ function getAreaMasterName(p){
   return null;
 }
 
+// ★物件に紐付いたマスター名を解決する共通ヘルパー（DB_PROPS優先→ローカルpropMaster）
+function _resolvePropMasterName(p){
+  if(!p)return '';
+  var ck=custKey(p);
+  var mn='';
+  if(typeof DB_PROPS!=='undefined'&&DB_PROPS){
+    var dbMatch=DB_PROPS.find(function(dp){return String(dp.fix_no)===String(p.fix_no)&&dp.name===p.name;});
+    if(dbMatch&&dbMatch.prop_master){mn=dbMatch.prop_master;}
+  }
+  if(!mn){mn=propMaster[ck]||'';}
+  return mn;
+}
+
 function getActiveSegs(p) {
   try{
   var ck=custKey(p);
@@ -1405,7 +1431,7 @@ function getActiveSegs(p) {
         soseStart=localDateStr(sdt5);
       }
     }
-    return computeMasterSegs(soseStart,normalizedSteps,p.hand_kumi);
+    return computeMasterSegs(soseStart,normalizedSteps,p.hand_kumi,masterName);
   }
 
   // ⑥ confirm_doneなし → セグメントデータにフォールバック
@@ -1946,9 +1972,14 @@ function setMode(pc){
 
   // 管理者CPボタン：PCモード＆管理者ロールの時だけ表示
   var adminBtn=document.getElementById('sbAdminBtn');
+  var _isAdminNow=typeof currentProfile!=='undefined'&&currentProfile&&currentProfile.role==='admin';
   if(adminBtn){
-    var isAdmin=typeof currentProfile!=='undefined'&&currentProfile&&currentProfile.role==='admin';
-    adminBtn.style.display=(pc&&isAdmin)?'':'none';
+    adminBtn.style.display=(pc&&_isAdminNow)?'':'none';
+  }
+  // マスター工程メニュー：管理者以外はPCモードでも非表示
+  var masterItem=document.getElementById('sideMasterItem');
+  if(masterItem){
+    masterItem.style.display=(pc&&_isAdminNow)?'':'none';
   }
 
   renderBody();
@@ -2633,13 +2664,13 @@ function buildGanttTab(p){
     var hdrBands='';
     Object.keys(months).forEach(function(m){
       var v=months[m],mm=m.split('-')[1];
-      hdrBands+='<div style="position:absolute;left:'+(v.start*GCW)+'px;top:0;width:'+(v.count*GCW)+'px;height:14px;background:var(--primary);color:white;font-size:7px;font-weight:800;display:flex;align-items:center;justify-content:center;border-right:2px solid rgba(255,255,255,.4);overflow:hidden;">'+(m.split('-')[0])+'年'+(mn[mm]||mm)+'</div>';
+      hdrBands+='<div style="position:absolute;left:'+(v.start*GCW)+'px;top:0;width:'+(v.count*GCW)+'px;height:14px;background:var(--primary);color:white;font-size:7px;font-weight:800;display:flex;align-items:center;justify-content:center;border-right:2px solid rgba(255,255,255,.4);overflow:hidden;z-index:5;">'+(m.split('-')[0])+'年'+(mn[mm]||mm)+'</div>';
     });
     var dayNums='';
     gDates.forEach(function(d,i){
       if(!d)return;
       var dow=getDow(d),day=parseInt(d.split('-')[2]),isToday=d===TODAY;
-      dayNums+='<div style="position:absolute;left:'+((i-1)*GCW)+'px;top:14px;width:'+GCW+'px;height:14px;display:flex;align-items:center;justify-content:center;font-size:6px;font-weight:700;font-family:var(--mono);color:'+(isToday?'#ef4444':dow===0?'#fca5a5':dow===6?'#93c5fd':'rgba(255,255,255,.7)')+';background:'+(isToday?'rgba(239,68,68,.35)':dow===0?'rgba(255,182,193,.22)':dow===6?'rgba(173,216,230,.18)':'transparent')+';border-right:1px solid rgba(255,255,255,.15);">'+day+'</div>';
+      dayNums+='<div style="position:absolute;left:'+((i-1)*GCW)+'px;top:14px;width:'+GCW+'px;height:14px;display:flex;align-items:center;justify-content:center;font-size:6px;font-weight:700;font-family:var(--mono);z-index:5;color:'+(isToday?'#ef4444':dow===0?'#fca5a5':dow===6?'#93c5fd':'rgba(255,255,255,.7)')+';background:'+(isToday?'rgba(239,68,68,.35)':dow===0?'rgba(255,182,193,.22)':dow===6?'rgba(173,216,230,.18)':'transparent')+';border-right:1px solid rgba(255,255,255,.15);">'+day+'</div>';
     });
     var todayCol=gDateIdx[TODAY]||0;
     var todayLine=todayCol>0?'<div style="position:absolute;left:'+((todayCol-1)*GCW)+'px;top:0;width:2px;height:'+(rowH+28)+'px;background:#ef4444;z-index:10;pointer-events:none;"></div>':'';
@@ -2711,7 +2742,7 @@ function buildGanttTab(p){
     rDates.forEach(function(d,i){if(!d)return;var m=d.substring(0,7);if(!months[m])months[m]={start:i-1,count:0};months[m].count++;});
     var mn={'01':'1月','02':'2月','03':'3月','04':'4月','05':'5月','06':'6月','07':'7月','08':'8月','09':'9月','10':'10月','11':'11月','12':'12月'};
     var hdrBands='';
-    Object.keys(months).forEach(function(m){var v=months[m],mm=m.split('-')[1];hdrBands+='<div style="position:absolute;left:'+(v.start*GCW2)+'px;top:0;width:'+(v.count*GCW2)+'px;height:14px;background:var(--primary);color:white;font-size:7px;font-weight:800;display:flex;align-items:center;justify-content:center;border-right:2px solid rgba(255,255,255,.4);overflow:hidden;">'+(m.split('-')[0])+'年'+(mn[mm]||mm)+'</div>';});
+    Object.keys(months).forEach(function(m){var v=months[m],mm=m.split('-')[1];hdrBands+='<div style="position:absolute;left:'+(v.start*GCW2)+'px;top:0;width:'+(v.count*GCW2)+'px;height:14px;background:var(--primary);color:white;font-size:7px;font-weight:800;display:flex;align-items:center;justify-content:center;border-right:2px solid rgba(255,255,255,.4);overflow:hidden;z-index:5;">'+(m.split('-')[0])+'年'+(mn[mm]||mm)+'</div>';});
     var dayNums='';
     rDates.forEach(function(d,i){
       if(!d)return;
@@ -2726,8 +2757,8 @@ function buildGanttTab(p){
     rDates.forEach(function(d,i){
       if(!d)return;var dow=getDow(d);
       // ★土日: top:0 height:totalHm で上から下まで全列
-      if(dow===0)fills+='<div style="position:absolute;left:'+((i-1)*GCW2)+'px;top:0;width:'+GCW2+'px;height:'+totalHm+'px;background:rgba(255,182,193,.25);pointer-events:none;z-index:0;"></div>';
-      else if(dow===6)fills+='<div style="position:absolute;left:'+((i-1)*GCW2)+'px;top:0;width:'+GCW2+'px;height:'+totalHm+'px;background:rgba(173,216,230,.25);pointer-events:none;z-index:0;"></div>';
+      if(dow===0)fills+='<div style="position:absolute;left:'+((i-1)*GCW2)+'px;top:0;width:'+GCW2+'px;height:'+totalHm+'px;background:rgba(255,182,193,.25);pointer-events:none;z-index:1;"></div>';
+      else if(dow===6)fills+='<div style="position:absolute;left:'+((i-1)*GCW2)+'px;top:0;width:'+GCW2+'px;height:'+totalHm+'px;background:rgba(173,216,230,.25);pointer-events:none;z-index:1;"></div>';
       if(d.slice(8)==='01'&&i>1)fills+='<div style="position:absolute;left:'+((i-1)*GCW2)+'px;top:0;width:2px;height:'+totalHm+'px;background:#94a3b8;pointer-events:none;z-index:3;"></div>';
       fills+='<div style="position:absolute;left:'+((i-1)*GCW2+GCW2-1)+'px;top:28px;width:1px;height:'+(numRows*ROW_H)+'px;background:#e2e8f0;pointer-events:none;z-index:1;"></div>';
     });
@@ -2762,16 +2793,21 @@ function buildGanttTab(p){
         bars+='<div style="position:absolute;left:'+sx+'px;top:'+by+'px;width:'+bw+'px;height:'+bh+'px;background:'+color+';color:'+tcolor+';font-size:7px;font-weight:800;border-radius:2px;display:flex;align-items:center;padding:0 3px;overflow:hidden;white-space:nowrap;box-shadow:0 1px 2px rgba(0,0,0,.15);z-index:'+(layer===1?12:10)+';opacity:'+(isPast?'.6':'1')+';'+(isAct?'outline:2px solid rgba(255,255,0,.6);outline-offset:0;':'')+'">'+(lblInside&&calDur>3?lbl:'')+'</div>'+lblHtml;
       }
     });
-    // ★左固定ラベル列（flexで独立させる）
+    // ★左固定ラベル列（上部28pxは固定ヘッダー、行リストは本体の縦スクロールに追随）
     var labelRows='';
     segs.forEach(function(seg,ri){
       var nm=seg.label||seg.name||'';
       if(nm.length>10)nm=nm.slice(0,9)+'…';
       labelRows+='<div style="height:'+ROW_H+'px;display:flex;align-items:center;padding:0 6px;font-size:9px;font-weight:700;color:#1e293b;overflow:hidden;white-space:nowrap;background:'+(ri%2===0?'#f8fafc':'#f1f5f9')+';border-bottom:1.5px solid #cbd5e1;">'+nm+'</div>';
     });
-    var labelCol='<div style="flex-shrink:0;width:90px;background:#e2e8f0;border-right:2px solid #94a3b8;"><div style="height:28px;background:var(--primary);"></div>'+labelRows+'</div>';
-    // ★ 描画順: fills→rowBgs→hdrBands→dayNums→todayLine→bars
-    var ganttArea='<div style="flex:1;overflow-x:auto;-webkit-overflow-scrolling:touch;"><div style="position:relative;width:'+totalW+'px;height:'+totalHm+'px;">'+rowBgs+fills+hdrBands+dayNums+todayLine+bars+'</div></div>';
+    var labelCol='<div style="flex-shrink:0;width:90px;max-height:400px;background:#e2e8f0;border-right:2px solid #94a3b8;display:flex;flex-direction:column;overflow:hidden;">'
+      +'<div style="height:28px;flex-shrink:0;background:var(--primary);"></div>'
+      +'<div id="dgLabelBody" style="flex:1;overflow:hidden;">'+labelRows+'</div>'
+      +'</div>';
+    // ★ 日付ヘッダー(hdrBands+dayNums)をsticky化して常に上部に表示
+    var dgHeaderSticky='<div style="position:sticky;top:0;left:0;z-index:30;height:28px;">'+hdrBands+dayNums+'</div>';
+    // ★ 描画順: dgHeaderSticky(固定ヘッダー)→rowBgs→fills→todayLine→bars
+    var ganttArea='<div id="dgScrollWrap" style="flex:1;max-height:400px;overflow:auto;-webkit-overflow-scrolling:touch;" onscroll="var lb=document.getElementById(\'dgLabelBody\');if(lb)lb.scrollTop=this.scrollTop;"><div style="position:relative;width:'+totalW+'px;height:'+totalHm+'px;">'+dgHeaderSticky+rowBgs+fills+todayLine+bars+'</div></div>';
     return '<div style="display:flex;overflow:hidden;border:1.5px solid #e2e8f0;border-radius:6px;">'+labelCol+ganttArea+'</div>';
   }
 
@@ -2858,6 +2894,30 @@ function toggleGanttEditMode(){
         offsetDays:s.offsetDays!=null?s.offsetDays:0
       };
     });
+    // ★2段階大親ロジック（関東マスター・関東手組マスターのみ）
+    //   A=基礎〜防水未満：基礎完了基準のまま（既存動作）
+    //   B=防水以降（防水自身含む）：防水完了基準に変換し、基礎の移動から完全に独立させる
+    (function(){
+      var _mn=_resolvePropMasterName(currentProp);
+      if(_mn==='関東マスター'||_mn==='関東手組マスター'){
+        var bIdx=geSegs.findIndex(function(s){return (s.name||s.label||'')==='防水';});
+        if(bIdx>=0){
+          var bSeg=geSegs[bIdx];
+          bSeg.offsetFrom=''; // 防水自身はB群の起点。基礎の追随対象から外す
+          if(bSeg.end_date){
+            for(var gi=bIdx+1; gi<geSegs.length; gi++){
+              var gs=geSegs[gi];
+              var gn=gs.name||gs.label||'';
+              if(gn==='造成'||gn==='地盤')continue;
+              if(gs.start_date){
+                gs.offsetFrom='防水完了';
+                gs.offsetDays=countWorkdays(bSeg.end_date, gs.start_date);
+              }
+            }
+          }
+        }
+      }
+    })();
     document.getElementById('geNewDate').value=TODAY;
     geInitColorPicker();
     geRenderBars();
@@ -2916,7 +2976,7 @@ function geRenderBars(){
   var totalW=(gDates.length-1)*GCW, numRows=segs.length;
   var mn={'01':'1月','02':'2月','03':'3月','04':'4月','05':'5月','06':'6月','07':'7月','08':'8月','09':'9月','10':'10月','11':'11月','12':'12月'};
   var months={}; gDates.forEach(function(d,i){if(!d)return;var m=d.substring(0,7);if(!months[m])months[m]={start:i-1,count:0};months[m].count++;});
-  var hdrBands=''; Object.keys(months).forEach(function(m){var v=months[m],mm=m.split('-')[1];hdrBands+='<div style="position:absolute;left:'+(v.start*GCW)+'px;top:0;width:'+(v.count*GCW)+'px;height:14px;background:var(--primary);color:white;font-size:7px;font-weight:800;display:flex;align-items:center;justify-content:center;border-right:2px solid rgba(255,255,255,.4);overflow:hidden;">'+m.split('-')[0]+'年'+(mn[mm]||mm)+'</div>';});
+  var hdrBands=''; Object.keys(months).forEach(function(m){var v=months[m],mm=m.split('-')[1];hdrBands+='<div style="position:absolute;left:'+(v.start*GCW)+'px;top:0;width:'+(v.count*GCW)+'px;height:14px;background:var(--primary);color:white;font-size:7px;font-weight:800;display:flex;align-items:center;justify-content:center;border-right:2px solid rgba(255,255,255,.4);overflow:hidden;z-index:5;">'+m.split('-')[0]+'年'+(mn[mm]||mm)+'</div>';});
   var dayNums=''; gDates.forEach(function(d,i){
     if(!d)return;var dow=getDow(d),day=parseInt(d.split('-')[2]),isToday=d===TODAY;
     // ★ z-index:10で最前面、背景を不透明にして日付を確実に表示
@@ -2927,20 +2987,23 @@ function geRenderBars(){
   var fills=''; gDates.forEach(function(d,i){
     if(!d)return;var dow=getDow(d);
     // ★土日: top:0 height:totalH で上から下まで全列着色（z-index:0）
-    if(dow===0)fills+='<div style="position:absolute;left:'+((i-1)*GCW)+'px;top:0;width:'+GCW+'px;height:'+totalH+'px;background:rgba(255,182,193,.25);pointer-events:none;z-index:0;"></div>';
-    else if(dow===6)fills+='<div style="position:absolute;left:'+((i-1)*GCW)+'px;top:0;width:'+GCW+'px;height:'+totalH+'px;background:rgba(173,216,230,.25);pointer-events:none;z-index:0;"></div>';
+    if(dow===0)fills+='<div style="position:absolute;left:'+((i-1)*GCW)+'px;top:0;width:'+GCW+'px;height:'+totalH+'px;background:rgba(255,182,193,.25);pointer-events:none;z-index:1;"></div>';
+    else if(dow===6)fills+='<div style="position:absolute;left:'+((i-1)*GCW)+'px;top:0;width:'+GCW+'px;height:'+totalH+'px;background:rgba(173,216,230,.25);pointer-events:none;z-index:1;"></div>';
     if(d.slice(8)==='01'&&i>1)fills+='<div style="position:absolute;left:'+((i-1)*GCW)+'px;top:0;width:2px;height:'+totalH+'px;background:#94a3b8;pointer-events:none;z-index:3;"></div>';
     fills+='<div style="position:absolute;left:'+((i-1)*GCW+GCW-1)+'px;top:28px;width:1px;height:'+(numRows*ROW_H)+'px;background:#e2e8f0;pointer-events:none;z-index:1;"></div>';
   });
   // ★明確な罫線
   var rowBgs=''; for(var ri2=0;ri2<numRows;ri2++)rowBgs+='<div style="position:absolute;left:0;top:'+(ri2*ROW_H+28)+'px;width:'+totalW+'px;height:'+ROW_H+'px;background:'+(ri2%2===0?'#f8fafc':'#f1f5f9')+';border-bottom:1.5px solid #cbd5e1;"></div>';
-  // ★左固定ラベル列（flexで独立）
-  var geLabels='<div style="flex-shrink:0;width:90px;background:#e2e8f0;border-right:2px solid #94a3b8;"><div style="height:28px;background:var(--primary);"></div>';
+  // ★左固定ラベル列（上部28pxは固定ヘッダー、行リストはgeScrollWrapの縦スクロールに追随）
+  var geLabelRows='';
   segs.forEach(function(s,ri){
     var nm=s.label||s.name||'';if(nm.length>10)nm=nm.slice(0,9)+'…';
-    geLabels+='<div style="height:'+ROW_H+'px;display:flex;align-items:center;padding:0 5px;font-size:9px;font-weight:700;color:#1e293b;overflow:hidden;white-space:nowrap;background:'+(ri%2===0?'#f8fafc':'#f1f5f9')+';border-bottom:1.5px solid #cbd5e1;">'+nm+'</div>';
+    geLabelRows+='<div style="height:'+ROW_H+'px;display:flex;align-items:center;padding:0 5px;font-size:9px;font-weight:700;color:#1e293b;overflow:hidden;white-space:nowrap;background:'+(ri%2===0?'#f8fafc':'#f1f5f9')+';border-bottom:1.5px solid #cbd5e1;">'+nm+'</div>';
   });
-  geLabels+='</div>';
+  var geLabels='<div style="flex-shrink:0;width:90px;max-height:400px;background:#e2e8f0;border-right:2px solid #94a3b8;display:flex;flex-direction:column;overflow:hidden;">'
+    +'<div style="height:28px;flex-shrink:0;background:var(--primary);"></div>'
+    +'<div id="geLabelBody" style="flex:1;overflow:hidden;">'+geLabelRows+'</div>'
+    +'</div>';
   var bars='';
   segs.forEach(function(seg,idx){
     var lbl=seg.label||seg.name||'';
@@ -2993,8 +3056,18 @@ function geRenderBars(){
         +'<div style="position:absolute;left:'+ddX+'px;top:4px;width:'+(GCW*2-1)+'px;height:18px;background:#ef4444;color:white;font-size:6px;font-weight:900;border-radius:2px;display:flex;align-items:center;justify-content:center;z-index:14">引渡</div>';
     }
   }
-  // ★ 描画順序: fills(土日背景)→rowBgs(行背景)→hdrBands(月ヘッダー)→dayNums(日付)→todayLine→bars→delivBar
-  multiEl.innerHTML='<div style="display:flex;overflow:hidden;border:1.5px solid #e2e8f0;border-radius:6px;">'+geLabels+'<div id="geScrollWrap" style="flex:1;overflow-x:auto;-webkit-overflow-scrolling:touch;"><div id="geCanvas" style="position:relative;width:'+totalW+'px;height:'+totalH+'px;background:white;overflow:hidden;">'+rowBgs+fills+hdrBands+dayNums+todayLine+bars+delivBar+'</div></div></div>';
+  // ★ 日付ヘッダー(hdrBands+dayNums)をsticky化し、上部に固定して表示（縦スクロールしても常に見える）
+  var geHeaderSticky='<div style="position:sticky;top:0;left:0;z-index:30;height:28px;">'+hdrBands+dayNums+'</div>';
+  // ★ 描画順序: geHeaderSticky(固定ヘッダー)→rowBgs(行背景)→fills(土日背景)→todayLine→bars→delivBar
+  multiEl.innerHTML='<div style="display:flex;overflow:hidden;border:1.5px solid #e2e8f0;border-radius:6px;">'+geLabels+'<div id="geScrollWrap" style="flex:1;max-height:400px;overflow:auto;-webkit-overflow-scrolling:touch;"><div id="geCanvas" style="position:relative;width:'+totalW+'px;height:'+totalH+'px;background:white;">'+geHeaderSticky+rowBgs+fills+todayLine+bars+delivBar+'</div></div></div>';
+  // ★ 縦スクロール同期：geScrollWrapのスクロールを左ラベル列(geLabelBody)にも反映
+  var geLabelBodyEl=document.getElementById('geLabelBody');
+  var geScrollSyncEl=document.getElementById('geScrollWrap');
+  if(geScrollSyncEl&&geLabelBodyEl){
+    geScrollSyncEl.addEventListener('scroll',function(){
+      geLabelBodyEl.scrollTop=geScrollSyncEl.scrollTop;
+    });
+  }
   // スクロール位置を復元（初回はTODAY付近へ）
   // flex構造: outerDiv > labelCol + scrollDiv > geCanvas
   var newWrap=document.getElementById('geScrollWrap');
@@ -3119,6 +3192,39 @@ function geApplyKisoAnchor(movedIdx){
   }
 }
 
+// 防水を動かしたら、防水完了基準の工程（B群：防水自身含む以降）を順次再計算
+// ★基礎ロジック(geApplyKisoAnchor)とは完全に独立。offsetFrom==='防水完了'の工程だけを対象にする
+function geApplyBousuiAnchor(movedIdx){
+  var movedSeg=geSegs[movedIdx];
+  if(!movedSeg||(movedSeg.name||movedSeg.label||'')!=='防水')return;
+  if(!movedSeg.start_date)return;
+  var bDur=movedSeg.calendar_dur||movedSeg.duration||1;
+  movedSeg.end_date=addCalendarDays(movedSeg.start_date, bDur);
+  movedSeg.calendar_dur=calendarDur(movedSeg.start_date,movedSeg.end_date);
+  movedSeg.duration=movedSeg.calendar_dur;
+  var bousuiEnd=movedSeg.end_date;
+  for(var i=0;i<geSegs.length;i++){
+    if(i===movedIdx)continue;
+    var s=geSegs[i];
+    var offsetFrom=s.offsetFrom||'';
+    var offsetDays=s.offsetDays!=null?s.offsetDays:0;
+    if(offsetFrom==='防水完了'){
+      var startDate=addWorkdaysSigned(bousuiEnd,offsetDays);
+      var sd2=new Date(startDate.replace(/[/]/g,'-'));
+      while(sd2.getDay()===0)sd2.setDate(sd2.getDate()+1);
+      startDate=localDateStr(sd2);
+      var segDur=s.calendar_dur||s.duration||s.dur||1;
+      var endStr2=addCalendarDays(startDate,segDur);
+      s.start_date=startDate;s.date=startDate;s.end_date=endStr2;
+      s.calendar_dur=calendarDur(startDate,endStr2);
+      s.duration=s.calendar_dur;
+      var nc=FULL_DATE_IDX[startDate];
+      if(nc===undefined){var fks=Object.keys(FULL_DATE_IDX);for(var fki=0;fki<fks.length;fki++){if(fks[fki]>=startDate){nc=FULL_DATE_IDX[fks[fki]];break;}}}
+      if(nc!==undefined)s.col=nc;
+    }
+  }
+}
+
 function geStopDrag(){
   if(geDragBar){
     var dragIdx=geDragBar.idx;
@@ -3131,17 +3237,27 @@ function geStopDrag(){
     var dragName=(dragSeg&&(dragSeg.name||dragSeg.label))||'';
 
     if(dragName==='基礎'){
-      // 基礎を動かした → 後工程全て追随
+      // 基礎を動かした → A群（基礎〜防水未満）のみ追随。B群には一切影響しない
       geApplyKisoAnchor(dragIdx);
+    } else if(dragName==='防水'){
+      // 防水を動かした → B群（防水以降・防水自身含む）のみ追随。A群には一切影響しない
+      geApplyBousuiAnchor(dragIdx);
     } else {
-      // 基礎以外を動かした → 単体移動確定 + 基礎完了日からのoffsetDaysを再計算して保存
-      var kisoSeg=geSegs.find(function(s){return (s.name||s.label||'')==='基礎';});
-      if(kisoSeg&&kisoSeg.end_date&&dragSeg&&dragSeg.start_date){
-        var sn=dragSeg.name||dragSeg.label||'';
-        if(sn!=='造成'&&sn!=='地盤'){
-          // 基礎完了日からstart_dateまでの稼働日数を計算してoffsetDaysに保存
-          dragSeg.offsetDays=countWorkdays(kisoSeg.end_date, dragSeg.start_date);
-          dragSeg.offsetFrom='基礎完了';
+      // 基礎・防水以外を動かした → 単体移動確定。元々属していた群（offsetFrom）を維持したまま基準日を再計算
+      var sn=dragSeg.name||dragSeg.label||'';
+      if(sn!=='造成'&&sn!=='地盤'){
+        if(dragSeg.offsetFrom==='防水完了'){
+          var bousuiSeg=geSegs.find(function(s){return (s.name||s.label||'')==='防水';});
+          if(bousuiSeg&&bousuiSeg.end_date&&dragSeg.start_date){
+            dragSeg.offsetDays=countWorkdays(bousuiSeg.end_date, dragSeg.start_date);
+            dragSeg.offsetFrom='防水完了';
+          }
+        } else {
+          var kisoSeg=geSegs.find(function(s){return (s.name||s.label||'')==='基礎';});
+          if(kisoSeg&&kisoSeg.end_date&&dragSeg.start_date){
+            dragSeg.offsetDays=countWorkdays(kisoSeg.end_date, dragSeg.start_date);
+            dragSeg.offsetFrom='基礎完了';
+          }
         }
       }
     }
@@ -4514,7 +4630,7 @@ function renderEditorCanvas(){
   gDates.forEach(function(d,i){if(!d)return;var m=d.substring(0,7);if(!months[m])months[m]={start:i-1,count:0};months[m].count++;});
   var hdrBands='';
   Object.keys(months).forEach(function(m){var v=months[m],mm=m.split('-')[1];
-    hdrBands+='<div style="position:absolute;left:'+(v.start*GCW)+'px;top:0;width:'+(v.count*GCW)+'px;height:14px;background:#1a56db;color:white;font-size:7px;font-weight:800;display:flex;align-items:center;justify-content:center;border-right:2px solid rgba(255,255,255,.4);overflow:hidden;">'+m.split('-')[0]+'年'+(mn[mm]||mm)+'</div>';});
+    hdrBands+='<div style="position:absolute;left:'+(v.start*GCW)+'px;top:0;width:'+(v.count*GCW)+'px;height:14px;background:#1a56db;color:white;font-size:7px;font-weight:800;display:flex;align-items:center;justify-content:center;border-right:2px solid rgba(255,255,255,.4);overflow:hidden;z-index:5;">'+m.split('-')[0]+'年'+(mn[mm]||mm)+'</div>';});
 
   var dayNums='';
   gDates.forEach(function(d,i){if(!d)return;
@@ -4527,7 +4643,7 @@ function renderEditorCanvas(){
   var fills='';
   gDates.forEach(function(d,i){if(!d)return;
     var dow=getDow(d);
-    if(dow===0||dow===6)fills+='<div style="position:absolute;left:'+((i-1)*GCW)+'px;top:28px;width:'+GCW+'px;height:'+(numRows*ROW_H)+'px;background:'+(dow===0?'rgba(255,182,193,.22)':'rgba(173,216,230,.18)')+';pointer-events:none;z-index:0;"></div>';
+    if(dow===0||dow===6)fills+='<div style="position:absolute;left:'+((i-1)*GCW)+'px;top:28px;width:'+GCW+'px;height:'+(numRows*ROW_H)+'px;background:'+(dow===0?'rgba(255,182,193,.22)':'rgba(173,216,230,.18)')+';pointer-events:none;z-index:1;"></div>';
     if(d.slice(8)==='01'&&i>1)fills+='<div style="position:absolute;left:'+((i-1)*GCW)+'px;top:0;width:2px;height:'+(numRows*ROW_H+28)+'px;background:#94a3b8;pointer-events:none;z-index:2;"></div>';fills+='<div style="position:absolute;left:'+((i-1)*GCW+GCW-1)+'px;top:28px;width:1px;height:'+(numRows*ROW_H)+'px;background:#e2e8f0;pointer-events:none;z-index:1;"></div>';
   });
 
@@ -4968,7 +5084,11 @@ var mResBar=null, mResStartX=0, mResStartDur=0;
 // Master gantt uses step index as row
 var masterGanttSegs = []; // computed segs with stepIdx
 
-function openMasterPanel(){renderMasterPanel();openPanel('masterPanel');}
+function openMasterPanel(){
+  var isAdm=typeof currentProfile!=='undefined'&&currentProfile&&(currentProfile.role==='admin'||currentProfile.is_admin===true);
+  if(!isAdm){showToast('管理者権限が必要です','error');return;}
+  renderMasterPanel();openPanel('masterPanel');
+}
 
 function resetToBuiltinMasters(){
   if(!confirm('全てのマスター工程・紐付け・カスタム工程を削除します。\nよろしいですか？'))return;
@@ -7597,6 +7717,8 @@ async function onAuthSuccess(isNewLogin){
   updateSidebarUser();
   var adminBtn=document.getElementById('sbAdminBtn');
   if(adminBtn&&currentProfile.role==='admin'&&isPcMode)adminBtn.style.display='';
+  var masterItem=document.getElementById('sideMasterItem');
+  if(masterItem)masterItem.style.display=(isPcMode&&currentProfile.role==='admin')?'':'none';
   loadPropertiesFromCacheOrDB(false);
   if(isNewLogin)showToast('✅ ログインしました','success');
   // 新規業者: tutorial_doneがfalseなら自動起動
