@@ -1365,6 +1365,39 @@ function _resolvePropMasterName(p){
 }
 
 function getActiveSegs(p) {
+  var segs=_getActiveSegsRaw(p);
+  return _applyKensaOverrides(p,segs);
+}
+
+// ★検査4種（配筋検査・躯体検査・断熱検査・完了検査）の予約日/ステータスを、
+//   ガント上の同名工程行があればその行の日付・色に直接反映する（非破壊：新しい配列を返す）
+function _applyKensaOverrides(p,segs){
+  if(!p||!segs||!segs.length)return segs;
+  var defs=[
+    {rowName:'配筋検査',dateKey:'haikin_date',statusKey:'haikin_status'},
+    {rowName:'躯体検査',dateKey:'kutai_date',statusKey:'kutai_status'},
+    {rowName:'断熱検査',dateKey:'dannetsu_date',statusKey:'dannetsu_status'},
+    {rowName:'完了検査',dateKey:'inspection_date',statusKey:'inspection_status'}
+  ];
+  var overrideMap={};
+  var found=false;
+  defs.forEach(function(d){
+    var raw=p[d.dateKey]; if(!raw)return;
+    var idx=segs.findIndex(function(s){return String(s.name||s.label||'').trim()===d.rowName;});
+    if(idx<0)return;
+    found=true;
+    var norm=(typeof normDate==='function'?(normDate(raw)||raw):raw);
+    var dateKeyStr=String(norm).replace(/\//g,'-');
+    var isReserved=(p[d.statusKey]||'before')==='reserved';
+    var mm=parseInt(dateKeyStr.slice(5,7),10),dd=parseInt(dateKeyStr.slice(8,10),10);
+    var newLbl=d.rowName+'('+mm+'/'+dd+')';
+    overrideMap[idx]={start_date:dateKeyStr,date:dateKeyStr,end_date:dateKeyStr,calendar_dur:1,duration:1,dur:1,color:isReserved?'#ef4444':'#f97316',name:newLbl,label:newLbl,_kensaDef:d.rowName};
+  });
+  if(!found)return segs;
+  return segs.map(function(s,i){return overrideMap[i]?Object.assign({},s,overrideMap[i]):s;});
+}
+
+function _getActiveSegsRaw(p) {
   try{
   var ck=custKey(p);
 
@@ -2651,7 +2684,8 @@ function setStatus(s){currentStatus=s;renderStats();renderBody();}
 
 // ★検査4種（配筋検査・躯体検査・断熱検査・完了検査）のガント上マーカー生成
 //   予約前=橙／予約済み=赤。日付が入力されている検査のみ表示
-function buildKensaBars(p,gDateIdx,GCW,totalH){
+//   ※同名の工程行がガントに既にある場合はそちらの色/日付が連動済みのため、二重表示を避けてスキップする
+function buildKensaBars(p,segs,gDateIdx,GCW,totalH){
   if(!p)return '';
   var defs=[
     {n:'配筋検査',dateKey:'haikin_date',statusKey:'haikin_status'},
@@ -2662,6 +2696,8 @@ function buildKensaBars(p,gDateIdx,GCW,totalH){
   var out='';
   defs.forEach(function(k){
     var raw=p[k.dateKey]; if(!raw)return;
+    var hasRow=segs&&segs.some(function(s){return s._kensaDef===k.n||String(s.name||s.label||'').trim()===k.n;});
+    if(hasRow)return;
     var norm=(typeof normDate==='function'?(normDate(raw)||raw):raw);
     var clean=String(norm).replace(/\//g,'-');
     var col=gDateIdx[clean];
@@ -2853,7 +2889,7 @@ function buildGanttTab(p){
     // ★ 日付ヘッダー(hdrBands+dayNums)をsticky化して常に上部に表示
     var dgHeaderSticky='<div style="position:sticky;top:0;left:0;z-index:30;height:28px;">'+hdrBands+dayNums+'</div>';
     // ★ 描画順: dgHeaderSticky(固定ヘッダー)→rowBgs→fills→todayLine→bars
-    var kensaBars=buildKensaBars(p,gDateIdx,GCW2,totalHm);
+    var kensaBars=buildKensaBars(p,segs,gDateIdx,GCW2,totalHm);
     var ganttArea='<div style="flex-shrink:0;position:relative;width:'+totalW+'px;height:'+totalHm+'px;">'+dgHeaderSticky+rowBgs+fills+todayLine+bars+kensaBars+'</div>';
     // ★ ラベル列と本体を「同じスクロールコンテナ」に入れ、ラベル列はposition:stickyで左固定
     //   （旧：2つの別スクロール領域をJSで同期→ずれの原因。sticky化でExcelのように完全固定）
@@ -3154,7 +3190,7 @@ function geRenderBars(){
     }
   }
   // ★検査4種（配筋検査・躯体検査・断熱検査・完了検査）のマーカーを追加
-  var kensaBars=buildKensaBars(currentProp,gDateIdx,GCW,totalH);
+  var kensaBars=buildKensaBars(currentProp,segs,gDateIdx,GCW,totalH);
   // ★ 日付ヘッダー(hdrBands+dayNums)をsticky化し、上部に固定して表示（縦スクロールしても常に見える）
   var geHeaderSticky='<div style="position:sticky;top:0;left:0;z-index:30;height:28px;">'+hdrBands+dayNums+'</div>';
   // ★ 描画順序: geHeaderSticky(固定ヘッダー)→rowBgs(行背景)→fills(土日背景)→todayLine→bars→delivBar→kensaBars
@@ -4414,6 +4450,16 @@ function savePropEdit(){
   function applyLocally(){
     Object.assign(currentProp,allUpdates);
     getAllProps().forEach(function(pp){if(pp.fix_no===p.fix_no&&pp.name===p.name)Object.assign(pp,allUpdates);});
+    // ★DB_PROPS本体を更新（これをしないと再読み込み/再オープン時に古い値へ戻ってしまう）
+    if(typeof DB_PROPS!=='undefined'&&DB_PROPS){
+      var dbIdx=DB_PROPS.findIndex(function(dp){return String(dp.fix_no)===String(p.fix_no)&&dp.name===p.name;});
+      if(dbIdx>=0){
+        Object.assign(DB_PROPS[dbIdx],allUpdates);
+      }else{
+        DB_PROPS.push(Object.assign({fix_no:p.fix_no,name:p.name},allUpdates));
+      }
+      try{localStorage.setItem('jack_props_cache',JSON.stringify(DB_PROPS));}catch(e){}
+    }
     // LocalStorageにもフォールバック保存
     var ov=loadLS('jack_prop_overrides',{});
     ov[custKey(p)]=Object.assign(ov[custKey(p)]||{},allUpdates);
