@@ -7966,6 +7966,21 @@ async function onAuthSuccess(isNewLogin){
     try{localStorage.setItem('jack_profile_cache',JSON.stringify(currentProfile));}catch(e){}
   }
   if(!currentProfile||!currentProfile.approved){showPendingScreen();return;}
+  // ★メンテナンスモードチェック（管理者以外はここでブロック）
+  // ページ読み込み時の一度きりのチェックだけに頼らず、ログイン成功のたびに必ずSupabaseへ最新状態を確認する
+  if(currentProfile.role!=='admin'){
+    try{
+      var mchk=await sb.from('app_settings').select('value').eq('key','maintenance').single();
+      var isMaintOn=!mchk.error&&mchk.data&&mchk.data.value==='1';
+      localStorage.setItem('jack_maintenance',isMaintOn?'1':'0');
+      if(isMaintOn){
+        if(typeof window._showMaintenance==='function')window._showMaintenance();
+        return; // メンテナンス中は作業者のログイン処理をここで中断
+      } else if(typeof window._hideMaintenance==='function'){
+        window._hideMaintenance();
+      }
+    }catch(e){/* チェック失敗時は通過させる（メンテ状態不明のままブロックし続けるのを避ける） */}
+  }
   hideAuthScreen();
   updateSidebarUser();
   var adminBtn=document.getElementById('sbAdminBtn');
@@ -9535,6 +9550,8 @@ function admPropCard(p){
       +'<div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px;flex-shrink:0">'
         +'<span style="font-size:10px;font-weight:700;background:'+stBg+';color:'+stColor+';padding:2px 7px;border-radius:5px">'+(st||'未設定')+'</span>'
         +'<span style="font-size:9px;color:#94a3b8">✏️ タップで編集</span>'
+        +'<button onclick="event.stopPropagation();admConfirmDeleteProp(\''+p.id+'\',\''+encodeURIComponent(p.name||'')+'\')" '
+          +'style="background:#fef2f2;color:#dc2626;border:1px solid #fecaca;border-radius:5px;padding:2px 7px;font-size:9px;font-weight:700;cursor:pointer">🗑 削除</button>'
       +'</div>'
     +'</div>'
   +'</div>';
@@ -9609,11 +9626,25 @@ function admClosePropForm(){
 }
 window.admClosePropForm=admClosePropForm;
 
+function admConfirmDeleteProp(pid,encName){
+  var name=decodeURIComponent(encName||'');
+  if(!pid||pid==='undefined'){showToast('削除エラー: 物件IDが取得できません','error');return;}
+  if(!confirm('「'+name+'」を削除します。\nこの操作は取り消せません。\n\n※業者選定データ・工程表データは自動では削除されません。\n\n本当に削除しますか？'))return;
+  admDeleteProp(pid);
+}
+window.admConfirmDeleteProp=admConfirmDeleteProp;
+
 async function admDeleteProp(pid){
   var sb=getSB(); if(!sb)return;
   var r=await sb.from('properties').delete().eq('id',pid);
   if(r.error){showToast('削除エラー: '+r.error.message,'error');return;}
-  showToast('削除しました','');
+  // ★DB_PROPS本体とlocalStorageキャッシュからも削除（削除直後に古い一覧が残る不具合を防ぐ）
+  if(typeof DB_PROPS!=='undefined'&&DB_PROPS){
+    DB_PROPS=DB_PROPS.filter(function(p){return String(p.id)!==String(pid);});
+    try{localStorage.setItem('jack_props_cache',JSON.stringify(DB_PROPS));}catch(e){}
+  }
+  if(window._admAllProps){window._admAllProps=window._admAllProps.filter(function(p){return String(p.id)!==String(pid);});}
+  showToast('🗑 削除しました','success');
   admClosePropForm();
   loadAdmSec('props');
 }
