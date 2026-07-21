@@ -153,6 +153,20 @@ input,textarea,select{font-family:var(--font)}
 .panel-back:hover{background:white;box-shadow:0 3px 12px rgba(0,0,0,.3);}
 .panel-title{font-size:14px;font-weight:800}.panel-sub{font-size:10px;opacity:.7;margin-top:1px}
 .panel-scroll{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;padding-bottom:80px}
+/* ★工程表 全画面モード：物件詳細の他セクションを隠し、工程表をパネルいっぱいに表示 */
+#detailPanel.gantt-fullscreen #dpContent{display:flex;flex-direction:column;overflow:hidden;padding-bottom:0}
+#detailPanel.gantt-fullscreen #dpContent>*{display:none}
+#detailPanel.gantt-fullscreen #dpContent>#detail-gantt-sec{display:flex!important;flex-direction:column;flex:1;min-height:0;margin:0;border-radius:0}
+#detailPanel.gantt-fullscreen #detail-gantt-sec>.dp-sec-head,
+#detailPanel.gantt-fullscreen #detail-gantt-sec>div:nth-child(2){flex-shrink:0}
+#detailPanel.gantt-fullscreen #gantt-pane-custom{display:flex!important;flex-direction:column;flex:1;min-height:0}
+#detailPanel.gantt-fullscreen #detail-gantt-multi{display:flex!important;flex-direction:column;flex:1;min-height:0}
+#detailPanel.gantt-fullscreen #detail-gantt-multi>div{flex:1;min-height:0;display:flex!important}
+#detailPanel.gantt-fullscreen #dgLabelCol,
+#detailPanel.gantt-fullscreen #geLabelCol{max-height:none!important}
+#detailPanel.gantt-fullscreen #dgScrollWrap,
+#detailPanel.gantt-fullscreen #geScrollWrap{max-height:none!important;flex:1;min-height:0}
+#detailPanel.gantt-fullscreen #ganttEditSidebar{max-height:100vh}
 .dp-hero{background:linear-gradient(135deg,var(--primary),#3b82f6);color:white;padding:14px 14px 18px}
 .dp-area-tag{display:inline-block;background:rgba(255,255,255,.2);padding:2px 7px;border-radius:6px;font-size:10px;font-weight:700;margin-bottom:5px}
 .dp-name{font-size:16px;font-weight:800;line-height:1.3}
@@ -665,7 +679,7 @@ body.sp-mode .fr-row .fc:last-child{
   <div class="stats-strip" id="statsStrip"></div>
   <div class="table-wrap"><div class="table-header"><div id="freezeHeaderInner" style="border-right:2px solid #475569;flex-shrink:0;overflow:hidden"></div><div id="scrollHeaderWrap" style="flex:1;overflow:hidden"><div id="scrollHeaderInner"></div></div></div><div class="table-body"><div class="freeze-body" id="freezeBody"></div><div class="scroll-body" id="scrollBody"><div id="ganttCanvas"></div></div></div></div>
 </div>
-<div class="slide-panel" id="detailPanel" style="display:flex;flex-direction:row;overflow:hidden"><div style="flex:1;display:flex;flex-direction:column;overflow:hidden"><div class="panel-header"><button class="panel-back" onclick="closePanel('detailPanel')">← 戻る</button><div style="flex:1"><div class="panel-title">物件詳細</div></div></div><div class="panel-scroll" id="dpContent"></div><div class="panel-action-bar" id="dpActionBar"></div></div><div id="ganttEditSidebar" style="display:none;width:200px;min-width:200px;background:#1e293b;border-left:2px solid #334155;flex-direction:column;overflow-y:auto;flex-shrink:0"><div style="padding:8px;border-bottom:1px solid #334155;display:flex;flex-direction:column;gap:4px"><div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:2px"><div style="font-size:10px;font-weight:800;color:rgba(255,255,255,.5)">✏️ 工程表編集</div><button onclick="closeGanttEditSidebar()" style="background:rgba(255,255,255,.1);border:none;color:rgba(255,255,255,.6);border-radius:4px;padding:2px 7px;font-size:11px;cursor:pointer;font-weight:700">✕</button></div><button onclick="saveGanttEdit()" style="width:100%;padding:7px;background:#1a56db;color:white;border:none;border-radius:7px;font-size:11px;font-weight:800;cursor:pointer">💾 保存</button><div style="display:flex;gap:4px"><button onclick="shiftGanttEdit()" style="flex:1;padding:5px;background:#475569;color:white;border:none;border-radius:6px;font-size:10px;font-weight:700;cursor:pointer">📅 シフト</button><button onclick="resetGanttEdit()" style="flex:1;padding:5px;background:#475569;color:white;border:none;border-radius:6px;font-size:10px;font-weight:700;cursor:pointer">🔄 リセット</button></div></div><div style="padding:8px;border-bottom:1px solid #334155"><div style="font-size:10px;font-weight:800;color:rgba(255,255,255,.7);margin-bottom:6px">＋ 工種追加</div><div style="display:flex;flex-direction:column;gap:5px"><input type="text" id="geNewName" placeholder="工種名" style="padding:5px 7px;border:1.5px solid #475569;border-radius:6px;font-size:11px;background:#0f172a;color:white;width:100%;box-sizing:border-box"><div style="display:flex;align-items:center;gap:4px"><span style="font-size:9px;color:rgba(255,255,255,.5);white-space:nowrap">日数</span><input type="number" id="geNewDays" placeholder="日数" min="1" max="180" style="padding:4px 6px;border:1.5px solid #475569;border-radius:6px;font-size:11px;background:#0f172a;color:white;width:100%;box-sizing:border-box"></div><div style="display:flex;align-items:center;gap:4px"><span style="font-size:9px;color:rgba(255,255,255,.5);white-space:nowrap">開始日</span><input type="date" id="geNewDate" style="padding:4px 4px;border:1.5px solid #475569;border-radius:6px;font-size:10px;background:#0f172a;color:white;width:100%;box-sizing:border-box"></div><div id="geColorPicker" style="display:flex;flex-wrap:wrap;gap:4px;margin:2px 0"></div><button onclick="addGanttBar()" style="width:100%;padding:7px;background:#059669;color:white;border:none;border-radius:7px;font-size:11px;font-weight:800;cursor:pointer">バーを追加</button></div></div><div style="padding:6px 8px;flex:1"><div style="font-size:9px;font-weight:800;color:rgba(255,255,255,.4);margin-bottom:4px">工種一覧</div><div id="geSegList" style="display:flex;flex-direction:column;gap:4px;min-width:0;overflow:hidden"></div></div></div></div>
+<div class="slide-panel" id="detailPanel" style="display:flex;flex-direction:row;overflow:hidden"><div style="flex:1;display:flex;flex-direction:column;overflow:hidden"><div class="panel-header"><button class="panel-back" onclick="closePanel('detailPanel')">← 戻る</button><div style="flex:1"><div class="panel-title">物件詳細</div></div><div id="detailGanttHeaderBtns" style="display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end"></div></div><div class="panel-action-bar" id="dpActionBar" style="position:static;bottom:auto;border-top:none;border-bottom:1px solid var(--g200);box-shadow:0 2px 8px rgba(0,0,0,.06);flex-shrink:0"></div><div class="panel-scroll" id="dpContent" style="padding-bottom:16px"></div></div><div id="ganttEditSidebar" style="display:none;width:200px;min-width:200px;background:#1e293b;border-left:2px solid #334155;flex-direction:column;overflow-y:auto;flex-shrink:0"><div style="padding:8px;border-bottom:1px solid #334155;display:flex;flex-direction:column;gap:4px"><div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:2px"><div style="font-size:10px;font-weight:800;color:rgba(255,255,255,.5)">✏️ 工程表編集</div><button onclick="closeGanttEditSidebar()" style="background:rgba(255,255,255,.1);border:none;color:rgba(255,255,255,.6);border-radius:4px;padding:2px 7px;font-size:11px;cursor:pointer;font-weight:700">✕</button></div><div id="geAnchorDiag" style="font-size:9px;color:#fbbf24;line-height:1.5;background:#0f172a;border-radius:6px;padding:5px 7px;display:none"></div><button onclick="saveGanttEdit()" style="width:100%;padding:7px;background:#1a56db;color:white;border:none;border-radius:7px;font-size:11px;font-weight:800;cursor:pointer">💾 保存</button><div style="display:flex;gap:4px"><button onclick="shiftGanttEdit()" style="flex:1;padding:5px;background:#475569;color:white;border:none;border-radius:6px;font-size:10px;font-weight:700;cursor:pointer">📅 シフト</button><button onclick="resetGanttEdit()" style="flex:1;padding:5px;background:#475569;color:white;border:none;border-radius:6px;font-size:10px;font-weight:700;cursor:pointer">🔄 リセット</button></div></div><div style="padding:8px;border-bottom:1px solid #334155"><div style="font-size:10px;font-weight:800;color:rgba(255,255,255,.7);margin-bottom:6px">＋ 工種追加</div><div style="display:flex;flex-direction:column;gap:5px"><input type="text" id="geNewName" placeholder="工種名" style="padding:5px 7px;border:1.5px solid #475569;border-radius:6px;font-size:11px;background:#0f172a;color:white;width:100%;box-sizing:border-box"><div style="display:flex;align-items:center;gap:4px"><span style="font-size:9px;color:rgba(255,255,255,.5);white-space:nowrap">日数</span><input type="number" id="geNewDays" placeholder="日数" min="1" max="180" style="padding:4px 6px;border:1.5px solid #475569;border-radius:6px;font-size:11px;background:#0f172a;color:white;width:100%;box-sizing:border-box"></div><div style="display:flex;align-items:center;gap:4px"><span style="font-size:9px;color:rgba(255,255,255,.5);white-space:nowrap">開始日</span><input type="date" id="geNewDate" style="padding:4px 4px;border:1.5px solid #475569;border-radius:6px;font-size:10px;background:#0f172a;color:white;width:100%;box-sizing:border-box"></div><div id="geColorPicker" style="display:flex;flex-wrap:wrap;gap:4px;margin:2px 0"></div><button onclick="addGanttBar()" style="width:100%;padding:7px;background:#059669;color:white;border:none;border-radius:7px;font-size:11px;font-weight:800;cursor:pointer">バーを追加</button></div></div><div style="padding:6px 8px;flex:1"><div style="font-size:9px;font-weight:800;color:rgba(255,255,255,.4);margin-bottom:4px">工種一覧</div><div id="geSegList" style="display:flex;flex-direction:column;gap:4px;min-width:0;overflow:hidden"></div></div></div></div>
 <div class="slide-panel" id="myPagePanel"><div class="panel-header"><button class="panel-back" onclick="closePanel('myPagePanel')">← 戻る</button><div style="flex:1"><div class="panel-title">⭐ マイ物件</div></div><button onclick="openSelectProp()" style="background:rgba(255,255,255,.2);color:white;border-radius:6px;padding:4px 9px;font-size:11px;font-weight:700">＋</button><button class="print-btn" onclick="printPage()">🖨️</button></div><div class="mypage-wrap" id="myPageContent"></div></div>
 <div class="slide-panel" id="selectPropPanel"><div class="panel-header"><button class="panel-back" onclick="closePanel('selectPropPanel')">← 戻る</button><div style="flex:1"><div class="panel-title">担当物件を選択</div></div><button onclick="closePanel('selectPropPanel')" style="background:rgba(255,255,255,.2);color:white;border-radius:6px;padding:4px 9px;font-size:11px;font-weight:700">完了</button></div><div class="panel-scroll" id="selectPropContent"></div></div>
 
@@ -2800,7 +2814,7 @@ function buildGanttTab(p){
       if(nm.length>10)nm=nm.slice(0,9)+'…';
       labelRows+='<div style="height:'+ROW_H+'px;display:flex;align-items:center;padding:0 6px;font-size:9px;font-weight:700;color:#1e293b;overflow:hidden;white-space:nowrap;background:'+(ri%2===0?'#f8fafc':'#f1f5f9')+';border-bottom:1.5px solid #cbd5e1;">'+nm+'</div>';
     });
-    var labelCol='<div style="flex-shrink:0;width:90px;max-height:400px;background:#e2e8f0;border-right:2px solid #94a3b8;display:flex;flex-direction:column;overflow:hidden;">'
+    var labelCol='<div id="dgLabelCol" style="flex-shrink:0;width:90px;max-height:400px;background:#e2e8f0;border-right:2px solid #94a3b8;display:flex;flex-direction:column;overflow:hidden;">'
       +'<div style="height:28px;flex-shrink:0;background:var(--primary);"></div>'
       +'<div id="dgLabelBody" style="flex:1;overflow:hidden;">'+labelRows+'</div>'
       +'</div>';
@@ -2816,11 +2830,11 @@ function buildGanttTab(p){
   var multiHtml=buildMultiRow();
   var ganttHtml='<div id="detail-gantt-compact">'+compactHtml+'</div>'
     +'<div id="detail-gantt-multi" style="display:none">'+multiHtml+'</div>'
-    +'<div style="display:flex;gap:6px;padding:5px 12px;background:#f1f5f9;border-top:1px solid #e2e8f0;align-items:center">'
-    +'<button id="detail-gantt-expand-btn" onclick="toggleDetailGanttExpand()" style="background:var(--primary);color:white;padding:3px 10px;border-radius:5px;font-size:10px;font-weight:700">🔍 拡大</button>'
-    +'<button id="detail-gantt-edit-btn" onclick="toggleGanttEditMode()" style="background:#f59e0b;color:white;padding:3px 10px;border-radius:5px;font-size:10px;font-weight:700">✏️ 編集</button>'
+    +'<div id="detailGanttBtnsSource" style="display:none">'
+    +'<button id="detail-gantt-expand-btn" onclick="toggleDetailGanttExpand()" style="background:var(--primary);color:white;padding:3px 10px;border-radius:5px;font-size:10px;font-weight:700;white-space:nowrap">🔍 工程表拡大</button>'
+    +'<button id="detail-gantt-edit-btn" onclick="toggleGanttEditMode()" style="background:#f59e0b;color:white;padding:3px 10px;border-radius:5px;font-size:10px;font-weight:700;white-space:nowrap">✏️ 工程表編集</button>'
     +'<div id="detail-gantt-print-btn" style="display:none">'
-    +'<button onclick="printDetailGantt()" style="background:#10b981;color:white;padding:3px 10px;border-radius:5px;font-size:10px;font-weight:700">🖨️ 印刷</button>'
+    +'<button onclick="printDetailGantt()" style="background:#10b981;color:white;padding:3px 10px;border-radius:5px;font-size:10px;font-weight:700;white-space:nowrap">🖨️ 工程表印刷</button>'
     +'</div>'
     +'</div>';
 
@@ -2836,6 +2850,16 @@ function buildGanttTab(p){
     +'</div>';
 }
 
+// ★工程表ボタン（拡大/編集/印刷）を物件詳細の固定ヘッダーバーへ移動
+function relocateGanttHeaderButtons(){
+  var target=document.getElementById('detailGanttHeaderBtns');
+  var src=document.getElementById('detailGanttBtnsSource');
+  if(!target||!src)return;
+  target.innerHTML='';
+  while(src.firstChild){target.appendChild(src.firstChild);}
+}
+window.relocateGanttHeaderButtons=relocateGanttHeaderButtons;
+
 function toggleDetailGanttExpand(){
   var c=document.getElementById('detail-gantt-compact');
   var m=document.getElementById('detail-gantt-multi');
@@ -2846,17 +2870,25 @@ function toggleDetailGanttExpand(){
   var expanded=m.style.display!=='none';
   if(expanded){
     c.style.display='';m.style.display='none';
-    btn.textContent='🔍 拡大';
+    btn.textContent='🔍 工程表拡大';
     if(printBtn)printBtn.style.display='none';
     if(editBtn)editBtn.style.display='none';
     // 編集モード終了
     if(ganttEditMode)toggleGanttEditMode();
+    setGanttFullscreen(false);
   }else{
     c.style.display='none';m.style.display='';
-    btn.textContent='🗜️ 縮小';
+    btn.textContent='🗜️ 工程表縮小';
     if(printBtn)printBtn.style.display='';
     if(editBtn)editBtn.style.display='';
+    setGanttFullscreen(true);
   }
+}
+
+// ★ガントチャートの全画面表示切替（物件詳細内の他セクションを隠し、工程表をパネルいっぱいに表示）
+function setGanttFullscreen(on){
+  var dp=document.getElementById('detailPanel');
+  if(dp)dp.classList.toggle('gantt-fullscreen',!!on);
 }
 
 // ===== INLINE GANTT EDITOR =====
@@ -2875,8 +2907,9 @@ function toggleGanttEditMode(){
   var isNowEdit=ganttEditMode;
   ganttEditMode=!isNowEdit;
   if(ganttEditMode){
-    btn.textContent='✕ 編集終了'; btn.style.background='#ef4444';
+    btn.textContent='✕ 工程表編集終了'; btn.style.background='#ef4444';
     sb.style.display='flex';
+    setGanttFullscreen(true);
     var srcSegs=getActiveSegs(currentProp)||[];
     geSegs=srcSegs.map(function(s){
       var sd=(s.start_date||s.date||'').replace(/\//g,'-');
@@ -2898,12 +2931,18 @@ function toggleGanttEditMode(){
     //   A=基礎〜防水未満：基礎完了基準のまま（既存動作）
     //   B=防水以降（防水自身含む）：防水完了基準に変換し、基礎の移動から完全に独立させる
     (function(){
-      var _mn=_resolvePropMasterName(currentProp);
-      if(_mn==='関東マスター'||_mn==='関東手組マスター'){
-        var bIdx=geSegs.findIndex(function(s){return (s.name||s.label||'')==='防水';});
+      var _mnRaw=_resolvePropMasterName(currentProp)||'';
+      var _mn=_mnRaw.trim();
+      var _diagEl=document.getElementById('geAnchorDiag');
+      var _stripWs=function(s){return String(s||'').replace(/^[\s\u3000]+|[\s\u3000]+$/g,'');};
+      var _isTarget=(_mn==='関東マスター'||(_mn.indexOf('関東')>=0&&_mn.indexOf('手組')>=0));
+      var _diagLines=['紐付けマスター：「'+(_mn||'(なし/未設定)')+'」'];
+      if(_isTarget){
+        var bIdx=geSegs.findIndex(function(s){return _stripWs(s.name||s.label)==='防水';});
         if(bIdx>=0){
           var bSeg=geSegs[bIdx];
           bSeg.offsetFrom=''; // 防水自身はB群の起点。基礎の追随対象から外す
+          var _cnt=0;
           if(bSeg.end_date){
             for(var gi=bIdx+1; gi<geSegs.length; gi++){
               var gs=geSegs[gi];
@@ -2912,11 +2951,27 @@ function toggleGanttEditMode(){
               if(gs.start_date){
                 gs.offsetFrom='防水完了';
                 gs.offsetDays=countWorkdays(bSeg.end_date, gs.start_date);
+                _cnt++;
               }
             }
+            _diagLines.push('✅ 防水アンカー適用済み（'+_cnt+'工程が防水完了基準）');
+          } else {
+            _diagLines.push('⚠️「防水」工程に終了日が無いため未適用');
+          }
+        } else {
+          var _names=geSegs.map(function(s){return s.name||s.label||'';}).join('、');
+          console.warn('[2段階大親ロジック] マスター「'+_mn+'」に「防水」という名前の工程が見つかりません。現在の工程一覧：'+_names);
+          _diagLines.push('⚠️「防水」という名前の工程が見つかりません');
+          _diagLines.push('現在の工程一覧：'+_names);
+          if(typeof showToast==='function'){
+            showToast('⚠️「'+_mn+'」に「防水」という工程が見つかりません','warn');
           }
         }
+      } else {
+        _diagLines.push('（関東マスター／関東手組マスターに該当しないため2段階大親ロジックは対象外）');
       }
+      if(_diagEl){_diagEl.style.display='block';_diagEl.innerHTML=_diagLines.join('<br>');}
+      console.log('[2段階大親ロジック診断] '+_diagLines.join(' / '));
     })();
     document.getElementById('geNewDate').value=TODAY;
     geInitColorPicker();
@@ -2924,7 +2979,7 @@ function toggleGanttEditMode(){
   } else {
     // ★ 編集終了時：ボタンを戻してサイドバーを確実に閉じる
     ganttEditMode=false;
-    btn.textContent='✏️ 編集'; btn.style.background='#f59e0b';
+    btn.textContent='✏️ 工程表編集'; btn.style.background='#f59e0b';
     sb.style.display='none';
     geRenderBars();
   }
@@ -3000,7 +3055,7 @@ function geRenderBars(){
     var nm=s.label||s.name||'';if(nm.length>10)nm=nm.slice(0,9)+'…';
     geLabelRows+='<div style="height:'+ROW_H+'px;display:flex;align-items:center;padding:0 5px;font-size:9px;font-weight:700;color:#1e293b;overflow:hidden;white-space:nowrap;background:'+(ri%2===0?'#f8fafc':'#f1f5f9')+';border-bottom:1.5px solid #cbd5e1;">'+nm+'</div>';
   });
-  var geLabels='<div style="flex-shrink:0;width:90px;max-height:400px;background:#e2e8f0;border-right:2px solid #94a3b8;display:flex;flex-direction:column;overflow:hidden;">'
+  var geLabels='<div id="geLabelCol" style="flex-shrink:0;width:90px;max-height:400px;background:#e2e8f0;border-right:2px solid #94a3b8;display:flex;flex-direction:column;overflow:hidden;">'
     +'<div style="height:28px;flex-shrink:0;background:var(--primary);"></div>'
     +'<div id="geLabelBody" style="flex:1;overflow:hidden;">'+geLabelRows+'</div>'
     +'</div>';
@@ -3156,7 +3211,7 @@ function geOnDrag(e){
 // 基礎を動かしたら後工程（造成・地盤を除く）を順次再計算
 function geApplyKisoAnchor(movedIdx){
   var movedSeg=geSegs[movedIdx];
-  if(!movedSeg||(movedSeg.name||movedSeg.label||'')!=='基礎')return;
+  if(!movedSeg||String(movedSeg.name||movedSeg.label||'').trim()!=='基礎')return;
   if(!movedSeg.start_date)return;
   // ★ リサイズ後のcalendar_durを優先（durは元テンプレ日数なので使わない）
   var kisoDur=movedSeg.calendar_dur||movedSeg.duration||28;
@@ -3196,7 +3251,7 @@ function geApplyKisoAnchor(movedIdx){
 // ★基礎ロジック(geApplyKisoAnchor)とは完全に独立。offsetFrom==='防水完了'の工程だけを対象にする
 function geApplyBousuiAnchor(movedIdx){
   var movedSeg=geSegs[movedIdx];
-  if(!movedSeg||(movedSeg.name||movedSeg.label||'')!=='防水')return;
+  if(!movedSeg||String(movedSeg.name||movedSeg.label||'').trim()!=='防水')return;
   if(!movedSeg.start_date)return;
   var bDur=movedSeg.calendar_dur||movedSeg.duration||1;
   movedSeg.end_date=addCalendarDays(movedSeg.start_date, bDur);
@@ -3234,7 +3289,7 @@ function geStopDrag(){
     geDragBar.bar.style.boxShadow='';
     geDragBar=null;
     var dragSeg=geSegs[dragIdx];
-    var dragName=(dragSeg&&(dragSeg.name||dragSeg.label))||'';
+    var dragName=String((dragSeg&&(dragSeg.name||dragSeg.label))||'').trim();
 
     if(dragName==='基礎'){
       // 基礎を動かした → A群（基礎〜防水未満）のみ追随。B群には一切影響しない
@@ -3294,7 +3349,7 @@ function geStopResize(){
   document.removeEventListener('pointermove',geOnResize);
   document.removeEventListener('pointerup',geStopResize);
   if(resIdx>=0){
-    var resName=(geSegs[resIdx]&&(geSegs[resIdx].name||geSegs[resIdx].label))||'';
+    var resName=String((geSegs[resIdx]&&(geSegs[resIdx].name||geSegs[resIdx].label))||'').trim();
     if(resName==='基礎'){
       // 基礎リサイズ → ★calendar_durを確定してからend_date再計算 → 後工程追随
       var rs=geSegs[resIdx];
@@ -3306,20 +3361,37 @@ function geStopResize(){
         rs.calendar_dur=calendarDur(rs.start_date,rs.end_date);
       }
       geApplyKisoAnchor(resIdx);
+    } else if(resName==='防水'){
+      // ★防水自身をリサイズ → B群（防水完了基準）を再計算。A群には一切影響しない
+      var rsB=geSegs[resIdx];
+      if(rsB&&rsB.start_date){
+        rsB.duration=rsB.calendar_dur;
+        rsB.end_date=addCalendarDays(rsB.start_date, rsB.calendar_dur);
+        rsB.calendar_dur=calendarDur(rsB.start_date,rsB.end_date);
+      }
+      geApplyBousuiAnchor(resIdx);
     } else {
-      // 基礎以外リサイズ → end_date再計算 + offsetDays更新
+      // 基礎・防水以外リサイズ → end_date再計算 + 元々属していた群（offsetFrom）を維持したままoffsetDays更新
       var rs2=geSegs[resIdx];
       if(rs2&&rs2.start_date){
         // ★ calendar_durはカレンダー日数なのでaddCalendarDaysを使う
         rs2.end_date=addCalendarDays(rs2.start_date, rs2.calendar_dur||rs2.duration||1);
         rs2.calendar_dur=calendarDur(rs2.start_date,rs2.end_date);
       }
-      var kisoSeg2=geSegs.find(function(s){return (s.name||s.label||'')==='基礎';});
-      if(kisoSeg2&&kisoSeg2.end_date&&rs2&&rs2.start_date){
-        var sn2=rs2.name||rs2.label||'';
-        if(sn2!=='造成'&&sn2!=='地盤'){
-          rs2.offsetDays=countWorkdays(kisoSeg2.end_date, rs2.start_date);
-          rs2.offsetFrom='基礎完了';
+      if(rs2&&String(rs2.offsetFrom||'').trim()==='防水完了'){
+        var bousuiSeg2=geSegs.find(function(s){return String(s.name||s.label||'').trim()==='防水';});
+        if(bousuiSeg2&&bousuiSeg2.end_date&&rs2.start_date){
+          rs2.offsetDays=countWorkdays(bousuiSeg2.end_date, rs2.start_date);
+          rs2.offsetFrom='防水完了';
+        }
+      } else {
+        var kisoSeg2=geSegs.find(function(s){return (s.name||s.label||'')==='基礎';});
+        if(kisoSeg2&&kisoSeg2.end_date&&rs2&&rs2.start_date){
+          var sn2=rs2.name||rs2.label||'';
+          if(sn2!=='造成'&&sn2!=='地盤'){
+            rs2.offsetDays=countWorkdays(kisoSeg2.end_date, rs2.start_date);
+            rs2.offsetFrom='基礎完了';
+          }
         }
       }
     }
@@ -3488,7 +3560,7 @@ function closeGanttEditSidebar(){
   // ★ ✕ボタンで閉じた時もモードをリセット
   ganttEditMode=false;
   var btn=document.getElementById('detail-gantt-edit-btn');
-  if(btn){btn.textContent='✏️ 編集';btn.style.background='#f59e0b';}
+  if(btn){btn.textContent='✏️ 工程表編集';btn.style.background='#f59e0b';}
   geRenderBars();
 }
 window.closeGanttEditSidebar=closeGanttEditSidebar;
@@ -3812,6 +3884,7 @@ function printPropInfo(){
 function openDetail(p){
   try{
   currentProp=p;
+  setGanttFullscreen(false);
   // custom_ganttを遅延取得
   if(typeof _loadCustomGanttIfNeeded==='function'){
     _loadCustomGanttIfNeeded(p).then(function(){
@@ -3921,6 +3994,7 @@ function openDetail(p){
       :'<button class="btn-primary" onclick="addFavAction()">⭐ マイ物件に追加</button>')
     +'<button class="btn-secondary" onclick="printPropInfo()" style="font-size:11px;padding:8px 10px">🖨️ この物件を印刷</button>'
     +'<button class="btn-secondary" onclick="showPropQR()" style="font-size:11px;padding:8px 10px">📱 QR</button>';
+  relocateGanttHeaderButtons();
   openPanel('detailPanel');
   if(!isPcMode && typeof spSetupAccordion==='function') spSetupAccordion();
   if(!isPcMode) spSetActiveTab('sp-tab-home');
@@ -4259,6 +4333,10 @@ function openPanel(id){
 }
 function closePanel(id){
   document.getElementById(id).classList.remove('open');
+  if(id==='detailPanel'){
+    var dp=document.getElementById('detailPanel');
+    if(dp)dp.classList.remove('gantt-fullscreen');
+  }
 }
 
 // ===== MENU =====
