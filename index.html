@@ -1559,7 +1559,9 @@ function getAllProps(){
       // DB_PROPSのフィールドで上書き（値がある場合のみ）
       var merged=Object.assign({},p);
       ['tantou','status','address','custom_gantt','delivery_date',
-       'inspection_date','complete_date','parkings','updated_at'].forEach(function(k){
+       'inspection_date','complete_date','haikin_date','haikin_status',
+       'kutai_date','kutai_status','dannetsu_date','dannetsu_status',
+       'inspection_status','parkings','updated_at'].forEach(function(k){
         if(db[k]!=null&&db[k]!=='')merged[k]=db[k];
       });
       return merged;
@@ -2647,6 +2649,34 @@ function setArea(area,btn){
 }
 function setStatus(s){currentStatus=s;renderStats();renderBody();}
 
+// ★検査4種（配筋検査・躯体検査・断熱検査・完了検査）のガント上マーカー生成
+//   予約前=橙／予約済み=赤。日付が入力されている検査のみ表示
+function buildKensaBars(p,gDateIdx,GCW,totalH){
+  if(!p)return '';
+  var defs=[
+    {n:'配筋検査',dateKey:'haikin_date',statusKey:'haikin_status'},
+    {n:'躯体検査',dateKey:'kutai_date',statusKey:'kutai_status'},
+    {n:'断熱検査',dateKey:'dannetsu_date',statusKey:'dannetsu_status'},
+    {n:'完了検査',dateKey:'inspection_date',statusKey:'inspection_status'}
+  ];
+  var out='';
+  defs.forEach(function(k){
+    var raw=p[k.dateKey]; if(!raw)return;
+    var norm=(typeof normDate==='function'?(normDate(raw)||raw):raw);
+    var clean=String(norm).replace(/\//g,'-');
+    var col=gDateIdx[clean];
+    if(col===undefined||col<=0)return;
+    var x=(col-1)*GCW;
+    var isReserved=(p[k.statusKey]||'before')==='reserved';
+    var color=isReserved?'#ef4444':'#f97316';
+    var mm=parseInt(clean.slice(5,7),10),dd=parseInt(clean.slice(8,10),10);
+    var lbl=k.n+'('+mm+'/'+dd+')';
+    out+='<div style="position:absolute;left:'+x+'px;top:0;width:'+GCW+'px;height:'+totalH+'px;background:'+color+';opacity:.12;pointer-events:none;z-index:2"></div>'
+      +'<div style="position:absolute;left:'+x+'px;top:4px;height:16px;background:'+color+';color:white;font-size:6px;font-weight:900;border-radius:2px;display:flex;align-items:center;padding:0 3px;white-space:nowrap;z-index:13;box-shadow:0 1px 2px rgba(0,0,0,.25);pointer-events:none">'+lbl+'</div>';
+  });
+  return out;
+}
+
 // ===== DETAIL PANEL =====
 function buildGanttTab(p){
   var segs=getActiveSegs(p);
@@ -2726,7 +2756,7 @@ function buildGanttTab(p){
   function buildMultiRow(){
     var GCW2=14;
     var ROW_H=22;
-    var numRows=segs.length;
+    var numRows=segs.length+1; // ★最終行の下に空白行を1行追加（文字と表のズレ対策）
     // ★表示範囲：着工前10日〜完工後10日
     var allDts=[];
     segs.forEach(function(seg){
@@ -2814,15 +2844,22 @@ function buildGanttTab(p){
       if(nm.length>10)nm=nm.slice(0,9)+'…';
       labelRows+='<div style="height:'+ROW_H+'px;display:flex;align-items:center;padding:0 6px;font-size:9px;font-weight:700;color:#1e293b;overflow:hidden;white-space:nowrap;background:'+(ri%2===0?'#f8fafc':'#f1f5f9')+';border-bottom:1.5px solid #cbd5e1;">'+nm+'</div>';
     });
-    var labelCol='<div id="dgLabelCol" style="flex-shrink:0;width:90px;max-height:400px;background:#e2e8f0;border-right:2px solid #94a3b8;display:flex;flex-direction:column;overflow:hidden;">'
-      +'<div style="height:28px;flex-shrink:0;background:var(--primary);"></div>'
-      +'<div id="dgLabelBody" style="flex:1;overflow:hidden;">'+labelRows+'</div>'
+    // ★最終行（引渡し等）の下に空白行を1行追加（文字と表がズレるための対策）
+    labelRows+='<div style="height:'+ROW_H+'px;background:'+(segs.length%2===0?'#f8fafc':'#f1f5f9')+';border-bottom:1.5px solid #cbd5e1;"></div>';
+    var labelCol='<div id="dgLabelCol" style="position:sticky;left:0;z-index:20;flex-shrink:0;width:90px;background:#e2e8f0;border-right:2px solid #94a3b8;">'
+      +'<div style="height:28px;background:var(--primary);position:sticky;top:0;z-index:21;"></div>'
+      +labelRows
       +'</div>';
     // ★ 日付ヘッダー(hdrBands+dayNums)をsticky化して常に上部に表示
     var dgHeaderSticky='<div style="position:sticky;top:0;left:0;z-index:30;height:28px;">'+hdrBands+dayNums+'</div>';
     // ★ 描画順: dgHeaderSticky(固定ヘッダー)→rowBgs→fills→todayLine→bars
-    var ganttArea='<div id="dgScrollWrap" style="flex:1;max-height:400px;overflow:auto;-webkit-overflow-scrolling:touch;" onscroll="var lb=document.getElementById(\'dgLabelBody\');if(lb)lb.scrollTop=this.scrollTop;"><div style="position:relative;width:'+totalW+'px;height:'+totalHm+'px;">'+dgHeaderSticky+rowBgs+fills+todayLine+bars+'</div></div>';
-    return '<div style="display:flex;overflow:hidden;border:1.5px solid #e2e8f0;border-radius:6px;">'+labelCol+ganttArea+'</div>';
+    var kensaBars=buildKensaBars(p,gDateIdx,GCW2,totalHm);
+    var ganttArea='<div style="flex-shrink:0;position:relative;width:'+totalW+'px;height:'+totalHm+'px;">'+dgHeaderSticky+rowBgs+fills+todayLine+bars+kensaBars+'</div>';
+    // ★ ラベル列と本体を「同じスクロールコンテナ」に入れ、ラベル列はposition:stickyで左固定
+    //   （旧：2つの別スクロール領域をJSで同期→ずれの原因。sticky化でExcelのように完全固定）
+    return '<div id="dgScrollWrap" style="max-height:400px;overflow:auto;-webkit-overflow-scrolling:touch;border:1.5px solid #e2e8f0;border-radius:6px;">'
+      +'<div style="display:flex;width:max-content;">'+labelCol+ganttArea+'</div>'
+      +'</div>';
   }
 
   // Compact row shown by default, expand button shows multi-row
@@ -3028,7 +3065,7 @@ function geRenderBars(){
   window._geGDateIdx={}; gDates.forEach(function(d,i){if(d)window._geGDateIdx[d]=i;});
   window._geGDates=gDates; window._geGCW=GCW;
   var gDateIdx=window._geGDateIdx;
-  var totalW=(gDates.length-1)*GCW, numRows=segs.length;
+  var totalW=(gDates.length-1)*GCW, numRows=segs.length+1; // ★最終行の下に空白行を1行追加（文字と表のズレ対策）
   var mn={'01':'1月','02':'2月','03':'3月','04':'4月','05':'5月','06':'6月','07':'7月','08':'8月','09':'9月','10':'10月','11':'11月','12':'12月'};
   var months={}; gDates.forEach(function(d,i){if(!d)return;var m=d.substring(0,7);if(!months[m])months[m]={start:i-1,count:0};months[m].count++;});
   var hdrBands=''; Object.keys(months).forEach(function(m){var v=months[m],mm=m.split('-')[1];hdrBands+='<div style="position:absolute;left:'+(v.start*GCW)+'px;top:0;width:'+(v.count*GCW)+'px;height:14px;background:var(--primary);color:white;font-size:7px;font-weight:800;display:flex;align-items:center;justify-content:center;border-right:2px solid rgba(255,255,255,.4);overflow:hidden;z-index:5;">'+m.split('-')[0]+'年'+(mn[mm]||mm)+'</div>';});
@@ -3055,9 +3092,11 @@ function geRenderBars(){
     var nm=s.label||s.name||'';if(nm.length>10)nm=nm.slice(0,9)+'…';
     geLabelRows+='<div style="height:'+ROW_H+'px;display:flex;align-items:center;padding:0 5px;font-size:9px;font-weight:700;color:#1e293b;overflow:hidden;white-space:nowrap;background:'+(ri%2===0?'#f8fafc':'#f1f5f9')+';border-bottom:1.5px solid #cbd5e1;">'+nm+'</div>';
   });
-  var geLabels='<div id="geLabelCol" style="flex-shrink:0;width:90px;max-height:400px;background:#e2e8f0;border-right:2px solid #94a3b8;display:flex;flex-direction:column;overflow:hidden;">'
-    +'<div style="height:28px;flex-shrink:0;background:var(--primary);"></div>'
-    +'<div id="geLabelBody" style="flex:1;overflow:hidden;">'+geLabelRows+'</div>'
+  // ★最終行（引渡し等）の下に空白行を1行追加（文字と表がズレるための対策）
+  geLabelRows+='<div style="height:'+ROW_H+'px;background:'+(segs.length%2===0?'#f8fafc':'#f1f5f9')+';border-bottom:1.5px solid #cbd5e1;"></div>';
+  var geLabels='<div id="geLabelCol" style="position:sticky;left:0;z-index:20;flex-shrink:0;width:90px;background:#e2e8f0;border-right:2px solid #94a3b8;">'
+    +'<div style="height:28px;background:var(--primary);position:sticky;top:0;z-index:21;"></div>'
+    +geLabelRows
     +'</div>';
   var bars='';
   segs.forEach(function(seg,idx){
@@ -3085,12 +3124,15 @@ function geRenderBars(){
         bars+='<div style="position:absolute;left:'+sx+'px;top:'+by+'px;width:0;height:'+bh+'px;display:flex;align-items:center;font-size:10px;font-weight:800;color:#1e293b;white-space:nowrap;overflow:visible;z-index:20;">'+soseiTxt2+'</div>';
       }
     } else {
-      // ★3日以内はバー右横に工程名表示
-      var geLblOut=geCalDur<=3?'<div style="position:absolute;left:'+(sx+bw+2)+'px;top:'+by+'px;height:'+bh+'px;display:flex;align-items:center;font-size:8px;font-weight:700;color:#334155;white-space:nowrap;z-index:20;">'+lbl+'</div>':'';
+      // ★3日以内はバー右横に工程名表示。編集モードでは✕もバーの上ではなく文字の後ろに配置（掴みにくさ対策）
+      var geLblOut=geCalDur<=3?('<div style="position:absolute;left:'+(sx+bw+2)+'px;top:'+by+'px;height:'+bh+'px;display:flex;align-items:center;gap:3px;font-size:8px;font-weight:700;color:#334155;white-space:nowrap;z-index:20;">'
+        +'<span>'+lbl+'</span>'
+        +(ganttEditMode?'<span class="ge-del" data-idx="'+idx+'" style="width:11px;height:11px;flex-shrink:0;background:rgba(239,68,68,.9);color:white;border-radius:50%;font-size:8px;display:flex;align-items:center;justify-content:center;cursor:pointer;line-height:1;">x</span>':'')
+        +'</div>'):'';
       if(ganttEditMode){
         bars+=geLblOut+'<div id="gebar'+idx+'" data-idx="'+idx+'" style="position:absolute;left:'+sx+'px;top:'+by+'px;width:'+bw+'px;height:'+bh+'px;background:'+color+';color:'+tcolor+';font-size:6px;font-weight:800;border-radius:2px;display:flex;align-items:center;padding:0 2px;overflow:hidden;white-space:nowrap;box-shadow:0 1px 2px rgba(0,0,0,.2);z-index:'+(layer===1?12:10)+';opacity:'+(isPast?'.6':'1')+';cursor:grab;user-select:none;'+(isAct?'outline:2px solid rgba(255,255,0,.5);':'')+';">'
           +(bw>14&&geCalDur>3?lbl:'')
-          +'<span class="ge-del" data-idx="'+idx+'" style="position:absolute;right:1px;top:1px;width:11px;height:11px;background:rgba(239,68,68,.9);color:white;border-radius:50%;font-size:8px;display:flex;align-items:center;justify-content:center;cursor:pointer;z-index:20;line-height:1;">x</span>'
+          +(geCalDur>3?'<span class="ge-del" data-idx="'+idx+'" style="position:absolute;right:1px;top:1px;width:11px;height:11px;background:rgba(239,68,68,.9);color:white;border-radius:50%;font-size:8px;display:flex;align-items:center;justify-content:center;cursor:pointer;z-index:20;line-height:1;">x</span>':'')
           +'<span class="ge-rsz" data-idx="'+idx+'" style="position:absolute;right:0;top:0;width:7px;height:100%;cursor:ew-resize;z-index:15;background:rgba(255,255,255,.2);"></span>'
           +'</div>';
       } else {
@@ -3111,18 +3153,14 @@ function geRenderBars(){
         +'<div style="position:absolute;left:'+ddX+'px;top:4px;width:'+(GCW*2-1)+'px;height:18px;background:#ef4444;color:white;font-size:6px;font-weight:900;border-radius:2px;display:flex;align-items:center;justify-content:center;z-index:14">引渡</div>';
     }
   }
+  // ★検査4種（配筋検査・躯体検査・断熱検査・完了検査）のマーカーを追加
+  var kensaBars=buildKensaBars(currentProp,gDateIdx,GCW,totalH);
   // ★ 日付ヘッダー(hdrBands+dayNums)をsticky化し、上部に固定して表示（縦スクロールしても常に見える）
   var geHeaderSticky='<div style="position:sticky;top:0;left:0;z-index:30;height:28px;">'+hdrBands+dayNums+'</div>';
-  // ★ 描画順序: geHeaderSticky(固定ヘッダー)→rowBgs(行背景)→fills(土日背景)→todayLine→bars→delivBar
-  multiEl.innerHTML='<div style="display:flex;overflow:hidden;border:1.5px solid #e2e8f0;border-radius:6px;">'+geLabels+'<div id="geScrollWrap" style="flex:1;max-height:400px;overflow:auto;-webkit-overflow-scrolling:touch;"><div id="geCanvas" style="position:relative;width:'+totalW+'px;height:'+totalH+'px;background:white;">'+geHeaderSticky+rowBgs+fills+todayLine+bars+delivBar+'</div></div></div>';
-  // ★ 縦スクロール同期：geScrollWrapのスクロールを左ラベル列(geLabelBody)にも反映
-  var geLabelBodyEl=document.getElementById('geLabelBody');
-  var geScrollSyncEl=document.getElementById('geScrollWrap');
-  if(geScrollSyncEl&&geLabelBodyEl){
-    geScrollSyncEl.addEventListener('scroll',function(){
-      geLabelBodyEl.scrollTop=geScrollSyncEl.scrollTop;
-    });
-  }
+  // ★ 描画順序: geHeaderSticky(固定ヘッダー)→rowBgs(行背景)→fills(土日背景)→todayLine→bars→delivBar→kensaBars
+  // ★ラベル列と本体を同じスクロールコンテナに入れ、ラベル列はposition:stickyで左固定
+  //   （旧：2つの別スクロール領域をJSで同期→ずれの原因。sticky化でExcelのように完全固定）
+  multiEl.innerHTML='<div id="geScrollWrap" style="max-height:400px;overflow:auto;-webkit-overflow-scrolling:touch;border:1.5px solid #e2e8f0;border-radius:6px;"><div style="display:flex;width:max-content;">'+geLabels+'<div id="geCanvas" style="flex-shrink:0;position:relative;width:'+totalW+'px;height:'+totalH+'px;background:white;">'+geHeaderSticky+rowBgs+fills+todayLine+bars+delivBar+kensaBars+'</div></div></div>';
   // スクロール位置を復元（初回はTODAY付近へ）
   // flex構造: outerDiv > labelCol + scrollDiv > geCanvas
   var newWrap=document.getElementById('geScrollWrap');
@@ -3147,6 +3185,14 @@ function geRenderBars(){
         if(t.classList.contains('ge-del')){e.stopPropagation();geShowDelConfirm(idx,geSegs[idx]?geSegs[idx].label:'');return;}
         if(t.classList.contains('ge-rsz')){e.stopPropagation();geStartResize(e,idx);return;}
         geStartDrag(e,idx,bar);
+      });
+    });
+    // ★短期間バー（3日以内）は✕がバー外（文字の後ろ）にあるため個別にハンドラを登録
+    cv2.querySelectorAll('.ge-del').forEach(function(delBtn){
+      var didx=parseInt(delBtn.getAttribute('data-idx'));
+      delBtn.addEventListener('pointerdown',function(e){
+        e.stopPropagation();
+        geShowDelConfirm(didx,geSegs[didx]?geSegs[didx].label:'');
       });
     });
     geRenderSegList();
@@ -3920,19 +3966,35 @@ function openDetail(p){
   currentProp=p;
 
   var today=new Date(TODAY),days=daysUntil(p.delivery_date),isUrgent=days!==null&&days>=0&&days<=30;
+  // ★検査4種（配筋検査・躯体検査・断熱検査・完了検査）：日付＋予約ステータス（予約前=橙／予約済み=赤）
+  var KENSA_DEFS=[
+    {n:'配筋検査',dateKey:'haikin_date',statusKey:'haikin_status'},
+    {n:'躯体検査',dateKey:'kutai_date',statusKey:'kutai_status'},
+    {n:'断熱検査',dateKey:'dannetsu_date',statusKey:'dannetsu_status'},
+    {n:'完了検査',dateKey:'inspection_date',statusKey:'inspection_status'}
+  ];
   var steps=[
     {n:'土地契約',d:p.land_contract},{n:'土地決済',d:p.land_payment},
     {n:'地盤調査',d:p.ground_survey},{n:'確認申請提出',d:p.confirm_submit},
-    {n:'確認申請完了',d:p.confirm_done},{n:'完了検査',d:p.inspection_date},
+    {n:'確認申請完了',d:p.confirm_done}
+  ].concat(KENSA_DEFS.map(function(k){return {n:k.n,d:p[k.dateKey],isKensa:true,dateKey:k.dateKey,statusKey:k.statusKey,status:p[k.statusKey]||'before'};}))
+  .concat([
     {n:'完成',d:p.complete_date},{n:'引渡し',d:p.delivery_date}
-  ].filter(function(s){return s.d&&/\d{4}\/\d{2}\/\d{2}/.test(s.d);});
+  ]).filter(function(s){return s.d&&/\d{4}\/\d{2}\/\d{2}/.test(s.d);});
   var ff=true;
   var procHtml=steps.map(function(s,i){
     var dt=new Date(s.d.replace(/\//g,'-')),isPast=dt<today;
     var dc=isPast?'pd-done':(ff?'pd-now':'pd-pend');if(!isPast&&ff)ff=false;
+    var rightHtml;
+    if(s.isKensa){
+      var isReserved=s.status==='reserved';
+      rightHtml='<button onclick="toggleKensaStatus(\''+s.statusKey+'\')" style="font-size:9px;font-weight:800;color:white;background:'+(isReserved?'#ef4444':'#f97316')+';border:none;border-radius:12px;padding:4px 11px;cursor:pointer;white-space:nowrap">'+(isReserved?'🔴 予約済み':'🟠 予約前')+'</button>';
+    } else {
+      rightHtml=isPast?'<span style="font-size:9px;color:var(--success);font-weight:700">完了</span>':'';
+    }
     return '<div class="proc-item"><div class="proc-dot '+dc+'">'+(isPast?'✓':(i+1))+'</div>'
       +'<div class="proc-info"><div class="proc-name">'+s.n+'</div><div class="proc-date">'+s.d+'</div></div>'
-      +(isPast?'<span style="font-size:9px;color:var(--success);font-weight:700">完了</span>':'')+'</div>';
+      +rightHtml+'</div>';
   }).join('')||'<div style="padding:8px;color:var(--g300);font-size:10px">データなし</div>';
   function mkRow(label,val,isDate){var em=!val?' empty':'',fc=isDate===false?' txt':'';return '<div class="dp-row"><span class="dp-label">'+label+'</span><span class="dp-val'+em+fc+'">'+(val||'－')+'</span></div>';}
   var dStyle=isUrgent?'" style="color:var(--danger);font-weight:800':'';
@@ -3972,7 +4034,7 @@ function openDetail(p){
     +'<div class="dp-fixno">FiX No.'+p.fix_no+' ／ 通し:'+p.seq_no+'</div>'
     +'<div class="dp-status-row">'+(p.tantou||p.staff?'<span style="font-size:10px;background:#475569;color:white;padding:2px 6px;border-radius:4px">'+(p.tantou||p.staff)+'</span>':'')+(isUrgent?'<span class="urg-pill">⚡ 引渡まで'+days+'日</span>':'')+'</div></div>'
     +buildGanttTab(p)
-    +'<div class="dp-sec"><div class="dp-sec-head">📅 マイルストーン</div><div class="proc-list">'+procHtml+'</div></div>'
+    +'<div class="dp-sec" id="dpMilestoneSec"><div class="dp-sec-head">📅 マイルストーン</div><div class="proc-list" id="dpMilestoneList">'+procHtml+'</div></div>'
     +buildProgressSection(p)
     +'<div class="dp-sec"><div class="dp-sec-head" style="display:flex;align-items:center;">🏠 基本情報'+editBtn+'</div>'
       +mkRow('FiX No.',p.fix_no)+mkRow('通し番号',p.seq_no)+mkRow('エリア',p.area,false)+mkRow('物件名',p.name,false)
@@ -4000,6 +4062,35 @@ function openDetail(p){
   if(!isPcMode) spSetActiveTab('sp-tab-home');
   }catch(e){console.error('openDetail error:',e);showToast('物件詳細エラー: '+e.message,'error');}
 }
+
+// ===== 検査予約ステータス切替（配筋検査・躯体検査・断熱検査・完了検査） =====
+function toggleKensaStatus(statusKey){
+  if(!currentProp)return;
+  var cur=currentProp[statusKey]||'before';
+  var next=cur==='reserved'?'before':'reserved';
+  currentProp[statusKey]=next;
+  var payload={updated_at:new Date().toISOString()};
+  payload[statusKey]=next;
+  var sb=(typeof getSB==='function')?getSB():null;
+  if(sb){
+    sb.from('properties').update(payload).eq('fix_no',String(currentProp.fix_no))
+      .then(function(r){
+        if(!r.error&&typeof DB_PROPS!=='undefined'&&DB_PROPS){
+          var idx=DB_PROPS.findIndex(function(dp){return String(dp.fix_no)===String(currentProp.fix_no);});
+          if(idx>=0)DB_PROPS[idx][statusKey]=next;
+          try{localStorage.setItem('jack_props_cache',JSON.stringify(DB_PROPS));}catch(e){}
+        }
+        if(r.error&&typeof showToast==='function')showToast('保存に失敗しました','error');
+      }).catch(function(){if(typeof showToast==='function')showToast('保存に失敗しました','error');});
+  }
+  // ★スクロール位置を保持したまま再描画（マイルストーン・ガント両方に反映）
+  var ps=document.getElementById('dpContent');
+  var savedScrollTop=ps?ps.scrollTop:0;
+  openDetail(currentProp);
+  var ps2=document.getElementById('dpContent');
+  if(ps2)ps2.scrollTop=savedScrollTop;
+}
+window.toggleKensaStatus=toggleKensaStatus;
 
 // ===== マスター工程紐付けセクション（物件詳細内） =====
 function buildMasterLinkSection(p){
@@ -4181,7 +4272,26 @@ function openPropEditModal(){
       // 日程情報
       +'<div style="font-size:11px;font-weight:800;color:#475569;margin-bottom:8px;padding-bottom:4px;border-bottom:2px solid #e2e8f0">📅 日程情報</div>'
       +'<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:16px">'
-      +['land_contract:土地契約日','land_payment:土地決済','confirm_submit:確認申請提出','confirm_done:確認申請完了','inspection_date:完了検査日','complete_date:完成日','delivery_date:引渡し日'].map(function(pair){
+      +['land_contract:土地契約日','land_payment:土地決済','confirm_submit:確認申請提出','confirm_done:確認申請完了'].map(function(pair){
+        var parts=pair.split(':'),key=parts[0],lbl=parts[1];
+        var val=(cur[key]||'').replace(/\//g,'-');
+        return '<div><label style="font-size:9px;color:#64748b;display:block;margin-bottom:2px">'+lbl+'</label>'
+          +'<input id="pe-'+key+'" type="date" value="'+val+'" style="'+iStyle+'padding:5px 6px;font-size:11px;"></div>';
+      }).join('')
+      +[{n:'配筋検査',dateKey:'haikin_date',statusKey:'haikin_status'},
+        {n:'躯体検査',dateKey:'kutai_date',statusKey:'kutai_status'},
+        {n:'断熱検査',dateKey:'dannetsu_date',statusKey:'dannetsu_status'},
+        {n:'完了検査',dateKey:'inspection_date',statusKey:'inspection_status'}].map(function(k){
+        var val=(cur[k.dateKey]||'').replace(/\//g,'-');
+        var st=cur[k.statusKey]||'before';
+        var isRes=st==='reserved';
+        return '<div><label style="font-size:9px;color:#64748b;display:block;margin-bottom:2px">'+k.n+'</label>'
+          +'<div style="display:flex;gap:4px;align-items:center">'
+          +'<input id="pe-'+k.dateKey+'" type="date" value="'+val+'" style="'+iStyle+'padding:5px 6px;font-size:11px;flex:1;min-width:0">'
+          +'<button type="button" id="pe-'+k.statusKey+'-btn" onclick="peToggleKensaStatus(\''+k.statusKey+'\')" data-status="'+st+'" style="font-size:9px;font-weight:800;color:white;background:'+(isRes?'#ef4444':'#f97316')+';border:none;border-radius:10px;padding:5px 8px;cursor:pointer;white-space:nowrap;flex-shrink:0">'+(isRes?'予約済み':'予約前')+'</button>'
+          +'</div></div>';
+      }).join('')
+      +['complete_date:完成日','delivery_date:引渡し日'].map(function(pair){
         var parts=pair.split(':'),key=parts[0],lbl=parts[1];
         var val=(cur[key]||'').replace(/\//g,'-');
         return '<div><label style="font-size:9px;color:#64748b;display:block;margin-bottom:2px">'+lbl+'</label>'
@@ -4249,6 +4359,17 @@ function _syncParkingsFromDOM(){
   });
 }
 
+function peToggleKensaStatus(statusKey){
+  var btn=document.getElementById('pe-'+statusKey+'-btn');
+  if(!btn)return;
+  var cur=btn.getAttribute('data-status')||'before';
+  var next=cur==='reserved'?'before':'reserved';
+  btn.setAttribute('data-status',next);
+  btn.style.background=next==='reserved'?'#ef4444':'#f97316';
+  btn.textContent=next==='reserved'?'予約済み':'予約前';
+}
+window.peToggleKensaStatus=peToggleKensaStatus;
+
 function savePropEdit(){
   _syncParkingsFromDOM();
   var sb=getSB();
@@ -4278,6 +4399,14 @@ function savePropEdit(){
   var compDate=getDateVal('pe-complete_date');
   if(insDate)dbUpdates.inspection_date=insDate;
   if(compDate)dbUpdates.complete_date=compDate;
+  // ★配筋検査・躯体検査・断熱検査の日付＋4検査の予約ステータス
+  ['haikin_date','kutai_date','dannetsu_date'].forEach(function(k){
+    var v=getDateVal('pe-'+k); if(v)dbUpdates[k]=v;
+  });
+  ['haikin_status','kutai_status','dannetsu_status','inspection_status'].forEach(function(k){
+    var btn=document.getElementById('pe-'+k+'-btn');
+    if(btn)dbUpdates[k]=btn.getAttribute('data-status')||'before';
+  });
 
   var localExtra={};  // ローカルフォールバック用（オフライン時）
   var allUpdates=Object.assign({},dbUpdates);
@@ -6291,7 +6420,7 @@ async function loadPropertiesFromCacheOrDB(forceRefresh){
   }
   // Supabaseから取得してキャッシュ保存
   // 軽量カラムのみ取得（custom_ganttは重いため除外→別途取得）
-  var pr=await sb.from('properties').select('fix_no,seq_no,name,area,status,hand_kumi,tantou,delivery_date,delivery_month,land_contract,land_payment,confirm_submit,confirm_done,inspection_date,complete_date,address,parkings,prop_master,updated_at').order('fix_no');
+  var pr=await sb.from('properties').select('fix_no,seq_no,name,area,status,hand_kumi,tantou,delivery_date,delivery_month,land_contract,land_payment,confirm_submit,confirm_done,inspection_date,complete_date,haikin_date,haikin_status,kutai_date,kutai_status,dannetsu_date,dannetsu_status,inspection_status,address,parkings,prop_master,updated_at').order('fix_no');
   if(!pr.error&&pr.data&&pr.data.length>0){
     DB_PROPS=pr.data;
     try{
@@ -9064,7 +9193,7 @@ async function loadAdmSec(sec){
 
   } else if(sec==='dbsetup'){
     var rlsDisableSql='-- ① まず緊急解除（ログインできない場合はこれだけ実行）\nALTER TABLE profiles DISABLE ROW LEVEL SECURITY;\nALTER TABLE properties DISABLE ROW LEVEL SECURITY;';
-    var rlsFixSql='-- テーブル・カラム追加（何度実行しても安全）\nALTER TABLE properties ADD COLUMN IF NOT EXISTS custom_gantt jsonb;\nALTER TABLE properties ADD COLUMN IF NOT EXISTS prop_master text;\nALTER TABLE properties ADD COLUMN IF NOT EXISTS address text;\nALTER TABLE properties ADD COLUMN IF NOT EXISTS parkings jsonb;\nALTER TABLE properties ADD COLUMN IF NOT EXISTS inspection_date text;\nALTER TABLE properties ADD COLUMN IF NOT EXISTS complete_date text;\n\n-- vendorsテーブル\nCREATE TABLE IF NOT EXISTS vendors (\n  id bigint generated by default as identity primary key,\n  area text,\n  data jsonb,\n  col_order text,\n  created_at timestamptz default now()\n);\n\n-- mastersテーブル\nCREATE TABLE IF NOT EXISTS masters (\n  id bigint generated by default as identity primary key,\n  name text not null,\n  steps jsonb,\n  created_at timestamptz default now(),\n  updated_at timestamptz default now()\n);\n\n-- RLSポリシー（DROP→CREATEで何度実行しても安全）\nDROP POLICY IF EXISTS \"profiles_all\" ON profiles;\nDROP POLICY IF EXISTS \"properties_all\" ON properties;\nDROP POLICY IF EXISTS \"vendors_all\" ON vendors;\nDROP POLICY IF EXISTS \"masters_all\" ON masters;\n\nALTER TABLE profiles ENABLE ROW LEVEL SECURITY;\nALTER TABLE properties ENABLE ROW LEVEL SECURITY;\nALTER TABLE vendors ENABLE ROW LEVEL SECURITY;\nALTER TABLE masters ENABLE ROW LEVEL SECURITY;\n\nCREATE POLICY \"profiles_all\" ON profiles FOR ALL TO authenticated USING (true) WITH CHECK (true);\nCREATE POLICY \"properties_all\" ON properties FOR ALL TO authenticated USING (true) WITH CHECK (true);\nCREATE POLICY \"vendors_all\" ON vendors FOR ALL TO authenticated USING (true) WITH CHECK (true);\nCREATE POLICY \"masters_all\" ON masters FOR ALL TO authenticated USING (true) WITH CHECK (true);\n\n-- 協力業者向け：閲覧のみ公開（書き込みは認証必須のまま）\nDROP POLICY IF EXISTS \"vendors_public_read\" ON vendors;\nDROP POLICY IF EXISTS \"properties_public_read\" ON properties;\nCREATE POLICY \"vendors_public_read\" ON vendors FOR SELECT USING (true);\nCREATE POLICY \"properties_public_read\" ON properties FOR SELECT USING (true);\n\n-- gantt_sheetsテーブル\nCREATE TABLE IF NOT EXISTS gantt_sheets (\n  id bigint generated always as identity primary key,\n  fix_no text not null,\n  sheet_data jsonb,\n  updated_at timestamptz default now()\n);\nALTER TABLE gantt_sheets ENABLE ROW LEVEL SECURITY;\nDROP POLICY IF EXISTS \"gantt_sheets_all\" ON gantt_sheets;\nDROP POLICY IF EXISTS \"gantt_sheets_public_read\" ON gantt_sheets;\nCREATE POLICY \"gantt_sheets_all\" ON gantt_sheets FOR ALL TO authenticated USING (true) WITH CHECK (true);\nCREATE POLICY \"gantt_sheets_public_read\" ON gantt_sheets FOR SELECT USING (true);';
+    var rlsFixSql='-- テーブル・カラム追加（何度実行しても安全）\nALTER TABLE properties ADD COLUMN IF NOT EXISTS custom_gantt jsonb;\nALTER TABLE properties ADD COLUMN IF NOT EXISTS prop_master text;\nALTER TABLE properties ADD COLUMN IF NOT EXISTS address text;\nALTER TABLE properties ADD COLUMN IF NOT EXISTS parkings jsonb;\nALTER TABLE properties ADD COLUMN IF NOT EXISTS inspection_date text;\nALTER TABLE properties ADD COLUMN IF NOT EXISTS complete_date text;\nALTER TABLE properties ADD COLUMN IF NOT EXISTS haikin_date text;\nALTER TABLE properties ADD COLUMN IF NOT EXISTS haikin_status text;\nALTER TABLE properties ADD COLUMN IF NOT EXISTS kutai_date text;\nALTER TABLE properties ADD COLUMN IF NOT EXISTS kutai_status text;\nALTER TABLE properties ADD COLUMN IF NOT EXISTS dannetsu_date text;\nALTER TABLE properties ADD COLUMN IF NOT EXISTS dannetsu_status text;\nALTER TABLE properties ADD COLUMN IF NOT EXISTS inspection_status text;\n\n-- vendorsテーブル\nCREATE TABLE IF NOT EXISTS vendors (\n  id bigint generated by default as identity primary key,\n  area text,\n  data jsonb,\n  col_order text,\n  created_at timestamptz default now()\n);\n\n-- mastersテーブル\nCREATE TABLE IF NOT EXISTS masters (\n  id bigint generated by default as identity primary key,\n  name text not null,\n  steps jsonb,\n  created_at timestamptz default now(),\n  updated_at timestamptz default now()\n);\n\n-- RLSポリシー（DROP→CREATEで何度実行しても安全）\nDROP POLICY IF EXISTS \"profiles_all\" ON profiles;\nDROP POLICY IF EXISTS \"properties_all\" ON properties;\nDROP POLICY IF EXISTS \"vendors_all\" ON vendors;\nDROP POLICY IF EXISTS \"masters_all\" ON masters;\n\nALTER TABLE profiles ENABLE ROW LEVEL SECURITY;\nALTER TABLE properties ENABLE ROW LEVEL SECURITY;\nALTER TABLE vendors ENABLE ROW LEVEL SECURITY;\nALTER TABLE masters ENABLE ROW LEVEL SECURITY;\n\nCREATE POLICY \"profiles_all\" ON profiles FOR ALL TO authenticated USING (true) WITH CHECK (true);\nCREATE POLICY \"properties_all\" ON properties FOR ALL TO authenticated USING (true) WITH CHECK (true);\nCREATE POLICY \"vendors_all\" ON vendors FOR ALL TO authenticated USING (true) WITH CHECK (true);\nCREATE POLICY \"masters_all\" ON masters FOR ALL TO authenticated USING (true) WITH CHECK (true);\n\n-- 協力業者向け：閲覧のみ公開（書き込みは認証必須のまま）\nDROP POLICY IF EXISTS \"vendors_public_read\" ON vendors;\nDROP POLICY IF EXISTS \"properties_public_read\" ON properties;\nCREATE POLICY \"vendors_public_read\" ON vendors FOR SELECT USING (true);\nCREATE POLICY \"properties_public_read\" ON properties FOR SELECT USING (true);\n\n-- gantt_sheetsテーブル\nCREATE TABLE IF NOT EXISTS gantt_sheets (\n  id bigint generated always as identity primary key,\n  fix_no text not null,\n  sheet_data jsonb,\n  updated_at timestamptz default now()\n);\nALTER TABLE gantt_sheets ENABLE ROW LEVEL SECURITY;\nDROP POLICY IF EXISTS \"gantt_sheets_all\" ON gantt_sheets;\nDROP POLICY IF EXISTS \"gantt_sheets_public_read\" ON gantt_sheets;\nCREATE POLICY \"gantt_sheets_all\" ON gantt_sheets FOR ALL TO authenticated USING (true) WITH CHECK (true);\nCREATE POLICY \"gantt_sheets_public_read\" ON gantt_sheets FOR SELECT USING (true);';
     right.innerHTML='<div style="padding:14px">'
       +'<div style="font-size:16px;font-weight:800;color:#ef4444;margin-bottom:4px">🚨 緊急：ログインできない場合</div>'
       +'<div style="background:#fef2f2;border:2px solid #ef4444;border-radius:8px;padding:12px;margin-bottom:14px">'
