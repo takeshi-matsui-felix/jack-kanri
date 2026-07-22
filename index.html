@@ -1033,6 +1033,11 @@ function _soseiBarlabel(startDate, endDate){
   }
   return '造成工事（'+md(startDate)+'～'+md(endDate)+'）';
 }
+// ★「造成」バーかどうかの判定（完全一致「造成」だけでなく、末尾スペースや「造成工事」表記のゆれも吸収する）
+function _isSoseiLabel(lbl){
+  var t=String(lbl||'').trim();
+  return t==='造成'||t.indexOf('造成')===0;
+}
 function countWorkdays(fromStr, toStr){
   var d=new Date(fromStr.replace(/[/]/g,'-'));
   var end=new Date(toStr.replace(/[/]/g,'-'));
@@ -2860,7 +2865,7 @@ function buildGanttTab(p){
       var isPast=seg.end_date&&new Date(seg.end_date.replace(/\//g,'-'))<todayDt;
       var isAct=!isPast&&sd&&new Date(sd.replace(/\//g,'-'))<=todayDt;
       // ★造成バーはテキスト表示（ガントバーなし）
-      if(lbl==='造成'){
+      if(_isSoseiLabel(lbl)){
         var soseiTxt=_soseiBarlabel(sd,seg.end_date||sd);
         bars+='<div style="position:absolute;left:'+sx+'px;top:'+by+'px;height:'+bh+'px;display:flex;align-items:center;font-size:10px;font-weight:800;color:#1e293b;white-space:nowrap;z-index:15;">'+soseiTxt+'</div>';
       } else {
@@ -3150,7 +3155,7 @@ function geRenderBars(){
     var isAct=!isPast&&sdClean&&new Date(sdClean)<=todayDt;
     // ★造成バーはテキスト表示
     var geCalDur=seg.calendar_dur||calDur;
-    if(lbl==='造成'){
+    if(_isSoseiLabel(lbl)){
       var soseiTxt2=_soseiBarlabel(seg.start_date||seg.date||'',seg.end_date||'');
       if(ganttEditMode){
         bars+='<div id="gebar'+idx+'" data-idx="'+idx+'" style="position:absolute;left:'+sx+'px;top:'+by+'px;width:0;height:'+bh+'px;display:flex;align-items:center;font-size:10px;font-weight:800;color:#1e293b;white-space:nowrap;overflow:visible;cursor:grab;user-select:none;z-index:20;">'+soseiTxt2
@@ -3821,6 +3826,12 @@ function printDetailGantt(){
       var layer=sg.layer||0;
       var by=ri*PROW+28+(layer===1?4:2);
       var bh=layer===1?PROW-8:PROW-4;
+      if(_isSoseiLabel(lbl)){
+        // ★造成はガントバーを描かずテキストのみ表示（他画面と統一）
+        var soseiTxtP=_soseiBarlabel(sg.start_date||sg.date||'',sg.end_date||'');
+        barHtml+='<div style="position:absolute;left:'+sx+'px;top:'+by+'px;height:'+bh+'px;display:flex;align-items:center;font-size:7px;font-weight:800;color:#1e293b;white-space:nowrap;z-index:15;">'+soseiTxtP+'</div>';
+        return;
+      }
       barHtml+='<div style="position:absolute;left:'+sx+'px;top:'+by+'px;width:'+bw+'px;height:'+bh+'px;background:'+color+';border-radius:2px;display:flex;align-items:center;padding:0 2px;overflow:hidden;white-space:nowrap;z-index:10;">'
         +'<span style="font-size:7px;font-weight:700;color:white;">'+(bw>20?lbl:'')+'</span></div>';
     });
@@ -4781,7 +4792,14 @@ function printAllGantt(){
       var cd=seg.calendar_dur||seg.duration||1;var sx=(col-1)*GCW,bw=Math.max(cd*GCW-1,GCW-1);
       var layer=seg.layer||0,by=idx*ROW_H+28+(layer?3:0),bh=layer?ROW_H-7:ROW_H-3;
       var color=seg.color||'#64748b';
-      bars+='<div style="position:absolute;left:'+sx+'px;top:'+by+'px;width:'+bw+'px;height:'+bh+'px;background:'+color+';color:white;font-size:6px;font-weight:800;border-radius:2px;display:flex;align-items:center;padding:0 2px;overflow:hidden;white-space:nowrap">'+(bw>14?seg.label||'':'')+'</div>';
+      var lblA=seg.label||seg.name||'';
+      if(_isSoseiLabel(lblA)){
+        // ★造成はガントバーを描かずテキストのみ表示（他画面と統一）
+        var soseiTxtA=_soseiBarlabel(seg.start_date||seg.date||'',seg.end_date||'');
+        bars+='<div style="position:absolute;left:'+sx+'px;top:'+by+'px;height:'+bh+'px;display:flex;align-items:center;font-size:6px;font-weight:800;color:#1e293b;white-space:nowrap">'+soseiTxtA+'</div>';
+        return;
+      }
+      bars+='<div style="position:absolute;left:'+sx+'px;top:'+by+'px;width:'+bw+'px;height:'+bh+'px;background:'+color+';color:white;font-size:6px;font-weight:800;border-radius:2px;display:flex;align-items:center;padding:0 2px;overflow:hidden;white-space:nowrap">'+(bw>14?lblA:'')+'</div>';
     });
     var labels='';segs.forEach(function(s,ri){labels+='<div style="position:absolute;left:-88px;top:'+(ri*ROW_H+28)+'px;width:86px;height:'+ROW_H+'px;display:flex;align-items:center;justify-content:flex-end;padding-right:3px;font-size:8px;font-weight:700;color:#334155;white-space:nowrap;overflow:hidden">'+(s.label||s.name||'')+'</div>';});
     var days2=daysUntil(p.delivery_date);
@@ -5916,7 +5934,7 @@ function renderMasterGantt(){
     bar.setAttribute('data-step',seg.stepIdx);
     bar.style.cssText='position:absolute;left:'+sx+'px;top:'+by+'px;width:'+bw+'px;height:'+bh+'px;background:'+color+';color:'+tcolor+';font-size:6px;font-weight:800;border-radius:2px;display:flex;align-items:center;padding:0 2px;overflow:hidden;white-space:nowrap;box-shadow:0 1px 2px rgba(0,0,0,.2);z-index:'+(layer===1?12:10)+';cursor:grab;user-select:none;';
     var barNm=seg.name||'';
-    if(barNm==='造成'&&seg.start_date&&seg.end_date){
+    if(_isSoseiLabel(barNm)&&seg.start_date&&seg.end_date){
       // 造成バーはテキスト表示（ガントバーは透明）
       bar.style.background='transparent';
       bar.style.border='none';
@@ -6452,7 +6470,9 @@ async function loadPropertiesFromCacheOrDB(forceRefresh){
       var cached=localStorage.getItem(PROPS_CACHE_KEY);
       if(cached){
         var parsed=JSON.parse(cached);
-        if(parsed&&parsed.length>0){
+        // ★古い形式のキャッシュ（id列が無い）は破棄して再取得（削除ボタン等でid未取得になる不具合の対策）
+        var cacheHasId=parsed&&parsed.length>0&&parsed[0]&&Object.prototype.hasOwnProperty.call(parsed[0],'id');
+        if(parsed&&parsed.length>0&&cacheHasId){
           DB_PROPS=parsed;
           _loadSharedGanttFromDB();
           if(typeof renderAll==='function')renderAll();
@@ -6466,7 +6486,7 @@ async function loadPropertiesFromCacheOrDB(forceRefresh){
   }
   // Supabaseから取得してキャッシュ保存
   // 軽量カラムのみ取得（custom_ganttは重いため除外→別途取得）
-  var pr=await sb.from('properties').select('fix_no,seq_no,name,area,status,hand_kumi,tantou,delivery_date,delivery_month,land_contract,land_payment,confirm_submit,confirm_done,inspection_date,complete_date,haikin_date,haikin_status,kutai_date,kutai_status,dannetsu_date,dannetsu_status,inspection_status,address,parkings,prop_master,updated_at').order('fix_no');
+  var pr=await sb.from('properties').select('id,fix_no,seq_no,name,area,status,hand_kumi,tantou,delivery_date,delivery_month,land_contract,land_payment,confirm_submit,confirm_done,inspection_date,complete_date,haikin_date,haikin_status,kutai_date,kutai_status,dannetsu_date,dannetsu_status,inspection_status,address,parkings,prop_master,updated_at').order('fix_no');
   if(!pr.error&&pr.data&&pr.data.length>0){
     DB_PROPS=pr.data;
     try{
@@ -7927,8 +7947,13 @@ function _loadSharedGanttFromDB(){
     // custom_gantt
     if(dbp.custom_gantt){
       try{
-        var segs=typeof dbp.custom_gantt==='string'?JSON.parse(dbp.custom_gantt):dbp.custom_gantt;
-        if(segs&&segs.length){customGantt[ck]=segs;cgChanged=true;}
+        var raw=typeof dbp.custom_gantt==='string'?JSON.parse(dbp.custom_gantt):dbp.custom_gantt;
+        var segsVal=null;
+        if(raw){
+          if(raw.__manual__&&raw.segs&&raw.segs.length){segsVal=raw;} // ★手動編集フラグ付きオブジェクト形式（保存時の形式と一致）
+          else if(Array.isArray(raw)&&raw.length){segsVal=raw;} // 旧形式（配列そのまま）
+        }
+        if(segsVal){customGantt[ck]=segsVal;cgChanged=true;}
       }catch(e){}
     }
     // prop_master
@@ -8183,12 +8208,10 @@ async function retryAuth(){
       var res=await sb.from('profiles').select('approved,role').eq('id',currentUser.id).single();
       if(!res.error&&res.data&&res.data.approved){
         // 承認済み確認 → メイン画面へ
+        // ★onAuthSuccess()を必ず経由させる（メンテナンスモード等の共通チェックを素通りさせないため）
         currentProfile=Object.assign(currentProfile||{},res.data);
-        hideAuthScreen();
-        updateSidebarUser();
-        var adminBtn=document.getElementById('sbAdminBtn');
-        if(adminBtn&&currentProfile.role==='admin'&&isPcMode)adminBtn.style.display='';
-        loadPropertiesFromCacheOrDB(false);
+        try{localStorage.setItem('jack_profile_cache',JSON.stringify(currentProfile));}catch(e){}
+        await onAuthSuccess(true);
         showToast('✅ ログインしました','success');
         return;
       }
@@ -8959,6 +8982,7 @@ function renderAdminCPShell(){
     +'<div id="admLeft" style="width:150px;flex-shrink:0;background:#1e293b;display:flex;flex-direction:column;padding:6px 0">'
       +admMenuItem('users','👥','ユーザー管理')
       +admMenuItem('props','🏠','物件管理')
+      +admMenuItem('kensa','🔍','検査取りまとめ')
       +'<div style="height:1px;background:rgba(255,255,255,.08);margin:3px 10px"></div>'
       +admMenuItem('import','📥','データ取込')
       +admMenuItem('vendors','👷','全業者選定一覧')
@@ -9174,6 +9198,32 @@ async function loadAdmSec(sec){
     window._admAllProps=props;
     _admCurTab='all';
     admFilterProps();
+
+  } else if(sec==='kensa'){
+    var kprops=[];
+    if(typeof DB_PROPS!=='undefined'&&DB_PROPS&&DB_PROPS.length>0){
+      kprops=DB_PROPS;
+    } else {
+      var sbk=getSB();
+      var prk=await sbk.from('properties').select('*').order('fix_no',{ascending:true});
+      kprops=prk.data||[];
+    }
+    window._admKensaAll=kprops;
+    right.innerHTML='<div style="padding:14px">'
+      +'<div style="font-size:16px;font-weight:800;color:#1e293b;margin-bottom:4px">🔍 検査取りまとめ</div>'
+      +'<div style="font-size:11px;color:#64748b;margin-bottom:12px">配筋・躯体・断熱・完了の4検査の予約状況を一覧で確認できます</div>'
+      +'<div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap">'
+        +'<input id="admKensaSearch" placeholder="物件名・FIX No検索" oninput="admRenderKensaTable()" style="flex:1;min-width:160px;padding:7px 10px;border:1px solid #e2e8f0;border-radius:7px;font-size:12px">'
+        +'<select id="admKensaFilter" onchange="admRenderKensaTable()" style="padding:7px 10px;border:1px solid #e2e8f0;border-radius:7px;font-size:12px">'
+          +'<option value="">全て表示</option>'
+          +'<option value="reserved_any">1つ以上予約済み</option>'
+          +'<option value="before_any">1つ以上予約前</option>'
+          +'<option value="unset_any">未設定を含む</option>'
+        +'</select>'
+      +'</div>'
+      +'<div id="admKensaTableWrap" style="overflow-x:auto;background:white;border-radius:10px;border:1px solid #e2e8f0"></div>'
+    +'</div>';
+    admRenderKensaTable();
 
   } else if(sec==='import'){
     right.innerHTML='<div style="padding:14px">'
@@ -9526,6 +9576,58 @@ function admSetTab(t){_admCurTab=t;admFilterProps();}
 window.admSetTab=admSetTab;
 function admSetMissingFilter(k){_admMissingFilter=(_admMissingFilter===k)?'':k;admFilterProps();}
 window.admSetMissingFilter=admSetMissingFilter;
+
+// ===== 検査取りまとめ（管理者CP） =====
+function _kensaBadge(status,dateVal){
+  if(!dateVal)return '<span style="font-size:9px;color:#cbd5e1;font-weight:700">未設定</span>';
+  var isRes=status==='reserved';
+  return '<span style="font-size:9px;font-weight:700;background:'+(isRes?'#fee2e2':'#fff7ed')+';color:'+(isRes?'#dc2626':'#ea580c')+';padding:2px 8px;border-radius:5px;white-space:nowrap">'+(isRes?'予約済み':'予約前')+' '+dateVal+'</span>';
+}
+function admRenderKensaTable(){
+  var wrap=document.getElementById('admKensaTableWrap');if(!wrap)return;
+  var all=window._admKensaAll||[];
+  var q=(document.getElementById('admKensaSearch')||{}).value||'';
+  q=q.trim().toLowerCase();
+  var filterMode=(document.getElementById('admKensaFilter')||{}).value||'';
+  var defs=[
+    {key:'haikin',label:'配筋検査'},
+    {key:'kutai',label:'躯体検査'},
+    {key:'dannetsu',label:'断熱検査'},
+    {key:'inspection',label:'完了検査'}
+  ];
+  var rows=all.filter(function(p){
+    if(q&&!((p.name||'').toLowerCase().indexOf(q)>=0||String(p.fix_no||'').indexOf(q)>=0))return false;
+    if(!filterMode)return true;
+    var statuses=defs.map(function(d){
+      var dv=d.key==='inspection'?p.inspection_date:p[d.key+'_date'];
+      var st=d.key==='inspection'?p.inspection_status:p[d.key+'_status'];
+      return {dv:dv,st:st};
+    });
+    if(filterMode==='reserved_any')return statuses.some(function(s){return s.dv&&s.st==='reserved';});
+    if(filterMode==='before_any')return statuses.some(function(s){return s.dv&&s.st!=='reserved';});
+    if(filterMode==='unset_any')return statuses.some(function(s){return !s.dv;});
+    return true;
+  });
+  if(!rows.length){wrap.innerHTML='<div style="text-align:center;padding:24px;color:#94a3b8;font-size:12px">該当する物件がありません</div>';return;}
+  var html='<table style="width:100%;border-collapse:collapse;font-size:11px">'
+    +'<thead><tr style="background:#f1f5f9">'
+      +'<th style="text-align:left;padding:8px 10px;border-bottom:1.5px solid #e2e8f0;white-space:nowrap">物件名</th>'
+      +defs.map(function(d){return '<th style="text-align:left;padding:8px 10px;border-bottom:1.5px solid #e2e8f0;white-space:nowrap">'+d.label+'</th>';}).join('')
+    +'</tr></thead><tbody>';
+  rows.forEach(function(p,i){
+    html+='<tr style="background:'+(i%2===0?'white':'#f8fafc')+'">'
+      +'<td style="padding:7px 10px;font-weight:700;color:#1e293b;white-space:nowrap"><span style="color:#94a3b8;font-weight:400">'+(p.fix_no||'')+'</span> '+(p.name||'')+'</td>'
+      +defs.map(function(d){
+        var dv=d.key==='inspection'?p.inspection_date:p[d.key+'_date'];
+        var st=d.key==='inspection'?p.inspection_status:p[d.key+'_status'];
+        return '<td style="padding:7px 10px">'+_kensaBadge(st,dv)+'</td>';
+      }).join('')
+    +'</tr>';
+  });
+  html+='</tbody></table>';
+  wrap.innerHTML=html;
+}
+window.admRenderKensaTable=admRenderKensaTable;
 
 function admPropCard(p){
   var st=p.status||'';
@@ -10135,7 +10237,7 @@ function admHandleXlsx(input){
       if(!window.XLSX){if(statusEl){statusEl.innerHTML='<div style="background:#fee2e2;color:#dc2626;padding:10px;border-radius:8px;font-size:12px">SheetJS未ロード</div>';}return;}
       var wb3=window.XLSX.read(e.target.result,{type:'array'});
       var COLS={fix_no:1,seq_no:2,area:3,name:4,hand_kumi:5,land_contract:7,land_payment:8,
-        confirm_submit:14,confirm_done:15,inspection:231,completion:232,delivery_date:236,
+        confirm_submit:14,confirm_done:15,inspection:231,completion:232,delivery_date:237,
         delivery_month:237,status:242};
       var sb=getSB();
       var existing=await sb.from('properties').select('id,fix_no,name');
@@ -10148,6 +10250,14 @@ function admHandleXlsx(input){
         var sn=sheets[si];
         if(!wb3.Sheets[sn])continue;
         var rows=window.XLSX.utils.sheet_to_json(wb3.Sheets[sn],{header:1,defval:'',raw:false});
+        // ★引渡し日列を動的検出：月の日数(30日/31日)により列がIC/ID/IE等にずれるため、
+        //   5行目(ヘッダー行)を実際にスキャンして「引渡」という文字を含む列を特定する
+        var deliveryDateCol=237; // 見つからない場合のデフォルト(ID列)
+        var hdrRow5=rows[4]||[];
+        for(var hc=230;hc<245;hc++){
+          var htxt=String(hdrRow5[hc]||'').trim();
+          if(htxt.indexOf('引渡')>=0){deliveryDateCol=hc;break;}
+        }
         for(var ri=3;ri<rows.length;ri++){
           var row=rows[ri];
           var nameVal=String(row[4]||'').trim();
@@ -10162,7 +10272,7 @@ function admHandleXlsx(input){
             hand_kumi:String(row[5]||'').trim(),status:String(row[242]||'').trim(),
             delivery_month:String(row[237]||'').trim(),updated_at:new Date().toISOString()};
           // Dates
-          var dateIdxs={land_contract:7,land_payment:8,confirm_submit:14,confirm_done:15,delivery_date:236};
+          var dateIdxs={land_contract:7,land_payment:8,confirm_submit:14,confirm_done:15,delivery_date:deliveryDateCol};
           Object.keys(dateIdxs).forEach(function(f){
             var raw=String(row[dateIdxs[f]]||'').trim();
             if(!raw){prop[f]='';return;}
