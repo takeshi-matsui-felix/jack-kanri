@@ -2887,11 +2887,12 @@ function buildGanttTab(p){
         var soseiTxt=_soseiBarlabel(sd,seg.end_date||sd);
         bars+='<div style="position:absolute;left:'+sx+'px;top:'+by+'px;height:'+bh+'px;display:flex;align-items:center;font-size:10px;font-weight:800;color:#1e293b;white-space:nowrap;z-index:15;">'+soseiTxt+'</div>';
       } else {
-        // ★3日以内はバー外に工程名表示
+        // ★3日以内の短い工程：バー外に工程名を表示する（拡大表示でも、左の行ラベルから距離があると分かりにくいため）
+        //   行ラベルと紛らわしくならないよう、白背景+バー色の縁取りのバッジ風デザインにして視覚的に区別する
         var lblInside=bw>calDur*GCW2*0.7&&bw>20;
         var lblHtml='';
         if(calDur<=3){
-          lblHtml='<div style="position:absolute;left:'+(sx+bw+2)+'px;top:'+by+'px;height:'+bh+'px;display:flex;align-items:center;font-size:8px;font-weight:700;color:#334155;white-space:nowrap;z-index:15;">'+lbl+'</div>';
+          lblHtml='<div style="position:absolute;left:'+(sx+bw+3)+'px;top:'+by+'px;height:'+bh+'px;display:flex;align-items:center;font-size:8px;font-weight:700;color:#334155;white-space:nowrap;z-index:15;background:white;border:1px solid '+color+';border-radius:4px;padding:0 5px;box-shadow:0 1px 2px rgba(0,0,0,.12);">'+lbl+'</div>';
         }
         bars+='<div style="position:absolute;left:'+sx+'px;top:'+by+'px;width:'+bw+'px;height:'+bh+'px;background:'+color+';color:'+tcolor+';font-size:7px;font-weight:800;border-radius:2px;display:flex;align-items:center;padding:0 3px;overflow:hidden;white-space:nowrap;box-shadow:0 1px 2px rgba(0,0,0,.15);z-index:'+(layer===1?12:10)+';opacity:'+(isPast?'.6':'1')+';'+(isAct?'outline:2px solid rgba(255,255,0,.6);outline-offset:0;':'')+'">'+(lblInside&&calDur>3?lbl:'')+'</div>'+lblHtml;
       }
@@ -3010,11 +3011,19 @@ function toggleGanttEditMode(){
     sb.style.display='flex';
     setGanttFullscreen(true);
     var srcSegs=getActiveSegs(currentProp)||[];
+    var _kisoSegForFix=srcSegs.find(function(s){return (s.label||s.name||'')==='基礎';});
     geSegs=srcSegs.map(function(s){
       var sd=(s.start_date||s.date||'').replace(/\//g,'-');
       var ed=(s.end_date||'').replace(/\//g,'-');
       var calDur=s.calendar_dur||(ed&&sd?Math.round((new Date(ed)-new Date(sd))/86400000)+1:s.duration||s.dur||1);
       var nm=s.label||s.name||'';
+      var offF=s.offsetFrom||'', offD=s.offsetDays!=null?s.offsetDays:0;
+      // ★以前のバージョンで保存され、基礎連動情報(offsetFrom)が失われてしまっている工程を自動修復
+      //   （造成・地盤・基礎・防水自身を除き、基礎完了からの実際の日数差を逆算して補完する）
+      if(!offF&&nm!=='造成'&&nm!=='地盤'&&nm!=='基礎'&&nm!=='防水'&&_kisoSegForFix&&_kisoSegForFix.end_date&&sd){
+        offF='基礎完了';
+        offD=countWorkdays((_kisoSegForFix.end_date||'').replace(/\//g,'-'),sd);
+      }
       return {
         name:nm, label:nm,
         start_date:sd, date:sd, end_date:ed,
@@ -3022,8 +3031,8 @@ function toggleGanttEditMode(){
         color:s.color||EC[nm]||'#64748b',
         layer:s.layer||0,
         textColor:s.textColor||s.text_color||'auto',
-        offsetFrom:s.offsetFrom||'',
-        offsetDays:s.offsetDays!=null?s.offsetDays:0
+        offsetFrom:offF,
+        offsetDays:offD
       };
     });
     // ★2段階大親ロジック（関東マスター・関東手組マスターのみ）
@@ -3101,6 +3110,7 @@ function geRenderBars(){
   // 再描画前にスクロール位置を保存（-1は初回 = TODAY位置に飛ぶ）
   var prevWrap=document.getElementById('geScrollWrap');
   var savedScroll=prevWrap?prevWrap.scrollLeft:-1;
+  var savedScrollTop=prevWrap?prevWrap.scrollTop:0; // ★縦スクロール位置も保存（これが無く常に一番上に戻されていた）
   var segs=ganttEditMode?geSegs:getActiveSegs(currentProp)||[];
   var todayDt=new Date(TODAY);
   var GCW=GCW_GE, ROW_H=20;
@@ -3227,11 +3237,12 @@ function geRenderBars(){
   // flex構造: outerDiv > labelCol + scrollDiv > geCanvas
   var newWrap=document.getElementById('geScrollWrap');
   if(newWrap){
-    if(savedScroll>0){
+    if(savedScroll>=0){
       newWrap.scrollLeft=savedScroll;
     } else if(todayCol>0){
       newWrap.scrollLeft=Math.max(0,(todayCol-5)*GCW);
     }
+    newWrap.scrollTop=savedScrollTop; // ★縦スクロール位置を復元（バーを動かすたびに一番上へ戻されていた不具合の修正）
   }
   // ★ panel-scrollの縦スクロール位置も復元（ガント移動後に画面が戻る問題対策）
   if(window._gePanelScrollTop!==undefined){
@@ -3512,7 +3523,8 @@ function geStopResize(){
         var dk2=toDateKey(sd2);
         return {col:FULL_DATE_IDX[dk2]||0,date:dk2,start_date:dk2,end_date:toDateKey(ed2),
           label:s.label,color:s.color,calendar_dur:cd2,duration:cd2,dur:cd2,
-          layer:s.layer||0,textColor:s.textColor||'auto'};
+          layer:s.layer||0,textColor:s.textColor||'auto',
+          offsetFrom:s.offsetFrom||'',offsetDays:s.offsetDays!=null?s.offsetDays:0};
       });
       customGantt[_ck]={__manual__:true,segs:_sd};
       saveLS('jack_custom_gantt',customGantt);
@@ -3631,7 +3643,8 @@ function saveGanttEdit(){
   var segsData=geSegs.map(function(s){
     var sd=s.start_date||s.date||'',cd=s.calendar_dur||s.duration||1,ed=s.end_date||'';
     if(!ed&&sd){var d=new Date(sd);d.setDate(d.getDate()+cd-1);ed=localDateStr(d);}
-    var dk=toDateKey(sd);return {col:FULL_DATE_IDX[dk]||0,date:dk,start_date:dk,end_date:toDateKey(ed),label:s.label,color:s.color,calendar_dur:cd,duration:cd,dur:cd,layer:s.layer||0,textColor:s.textColor||'auto'};
+    var dk=toDateKey(sd);return {col:FULL_DATE_IDX[dk]||0,date:dk,start_date:dk,end_date:toDateKey(ed),label:s.label,color:s.color,calendar_dur:cd,duration:cd,dur:cd,layer:s.layer||0,textColor:s.textColor||'auto',
+      offsetFrom:s.offsetFrom||'',offsetDays:s.offsetDays!=null?s.offsetDays:0};
   });
   // ★ 手動編集フラグを付加（getActiveSegsでマスターより優先させるため）
   var segsDataWithFlag={__manual__:true, segs:segsData};
@@ -5016,7 +5029,7 @@ function renderEditorCanvas(){
 
   // スクロール位置を復元（初回のみTODAY付近へ）
   setTimeout(function(){
-    if(savedScroll>0){
+    if(savedScroll>=0){
       wrap.scrollLeft=savedScroll;
     } else {
       var sd0=segs.length?(segs[0].start_date||segs[0].date||''):'';
@@ -5343,9 +5356,10 @@ function saveEditorChanges(){
     var ed=s.end_date||'';
     if(!ed&&sd){var d=new Date(sd.replace(/\//g,'-'));d.setDate(d.getDate()+cd-1);ed=localDateStr(d);}
     var dk=toDateKey(sd);var col=FULL_DATE_IDX[dk]||0;
-    return {col:col,date:dk,start_date:dk,end_date:toDateKey(ed),label:s.label,color:s.color,calendar_dur:cd,duration:cd,dur:cd,layer:s.layer||0,textColor:s.textColor||'auto'};
+    return {col:col,date:dk,start_date:dk,end_date:toDateKey(ed),label:s.label,color:s.color,calendar_dur:cd,duration:cd,dur:cd,layer:s.layer||0,textColor:s.textColor||'auto',
+      offsetFrom:s.offsetFrom||'',offsetDays:s.offsetDays!=null?s.offsetDays:0};
   });
-  customGantt[ck]=segsData;
+  customGantt[ck]={__manual__:true,segs:segsData};
   saveLS('jack_custom_gantt',customGantt);
   renderBody();
   if(typeof renderMyPage==='function')renderMyPage();
@@ -6005,7 +6019,7 @@ function renderMasterGantt(){
   // スクロール位置を復元（初回は先頭へ・架空日付のためTODAYは無効）
   if(wrap){
     setTimeout(function(){
-      if(savedScroll>0){
+      if(savedScroll>=0){
         wrap.scrollLeft=savedScroll;
       } else {
         wrap.scrollLeft=0; // 架空1月1日の先頭から表示
