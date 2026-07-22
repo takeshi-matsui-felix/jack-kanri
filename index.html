@@ -1356,7 +1356,22 @@ function getAreaMasterName(p){
   return null;
 }
 
-// ★物件に紐付いたマスター名を解決する共通ヘルパー（DB_PROPS優先→ローカルpropMaster）
+// ★手動での紐付けが無い物件に対し、エリア（東海/関東）に応じてマスター工程を自動選択する
+//   東海エリアの物件には名前に「東海」を含むマスター、関東エリアには「関東」を含むマスターを自動適用する
+function _autoAreaMasterName(p){
+  if(!p||typeof myMasters==='undefined'||!myMasters||!myMasters.length)return '';
+  var area=normalizeArea(p);
+  if(TOKAI_AREAS.indexOf(area)>=0){
+    var mt=myMasters.find(function(m){return (m.name||'').indexOf('東海')>=0;});
+    if(mt)return mt.name;
+  } else if(KANTO_AREAS.indexOf(area)>=0){
+    var mk=myMasters.find(function(m){return (m.name||'').indexOf('関東')>=0;});
+    if(mk)return mk.name;
+  }
+  return '';
+}
+
+// ★物件に紐付いたマスター名を解決する共通ヘルパー（DB_PROPS優先→ローカルpropMaster→エリア自動紐付け）
 function _resolvePropMasterName(p){
   if(!p)return '';
   var ck=custKey(p);
@@ -1366,6 +1381,7 @@ function _resolvePropMasterName(p){
     if(dbMatch&&dbMatch.prop_master){mn=dbMatch.prop_master;}
   }
   if(!mn){mn=propMaster[ck]||'';}
+  if(!mn){mn=_autoAreaMasterName(p);} // ★手動紐付けが無ければエリアで自動選択
   return mn;
 }
 
@@ -1419,6 +1435,8 @@ function _getActiveSegsRaw(p) {
   }
   // DB_PROPSにない場合はローカルのpropMasterを参照
   if(!masterName){masterName=propMaster[ck]||'';}
+  // ★手動紐付けが無ければ、エリア（東海/関東）に応じて自動選択
+  if(!masterName){masterName=_autoAreaMasterName(p);}
 
   // ③ 紐付けマスターのstepsを取得
   var tmplSteps=null;
@@ -1426,7 +1444,7 @@ function _getActiveSegsRaw(p) {
     var mt=myMasters.find(function(m){return m.name===masterName;});
     if(mt&&mt.steps&&mt.steps.length)tmplSteps=mt.steps;
   }
-  // 紐付けなし→myMasters[0]を自動適用
+  // 紐付け・エリア一致マスターともに無し→myMasters[0]を最終フォールバックとして自動適用
   if(!tmplSteps&&myMasters.length>0&&myMasters[0].steps&&myMasters[0].steps.length){
     tmplSteps=myMasters[0].steps;
   }
@@ -2907,14 +2925,7 @@ function buildGanttTab(p){
   var compactHtml=buildCompactRow();
   var multiHtml=buildMultiRow();
   var ganttHtml='<div id="detail-gantt-compact">'+compactHtml+'</div>'
-    +'<div id="detail-gantt-multi" style="display:none">'+multiHtml+'</div>'
-    +'<div id="detailGanttBtnsSource" style="display:none">'
-    +'<button id="detail-gantt-expand-btn" onclick="toggleDetailGanttExpand()" style="background:white;color:var(--primary);padding:4px 12px;border-radius:16px;font-size:10px;font-weight:800;white-space:nowrap;border:none;box-shadow:0 1px 3px rgba(0,0,0,.25)">🔍 工程表拡大</button>'
-    +'<button id="detail-gantt-edit-btn" onclick="toggleGanttEditMode()" style="background:#f59e0b;color:white;padding:3px 10px;border-radius:5px;font-size:10px;font-weight:700;white-space:nowrap">✏️ 工程表編集</button>'
-    +'<div id="detail-gantt-print-btn" style="display:none">'
-    +'<button onclick="printDetailGantt()" style="background:#10b981;color:white;padding:3px 10px;border-radius:5px;font-size:10px;font-weight:700;white-space:nowrap">🖨️ 工程表印刷</button>'
-    +'</div>'
-    +'</div>';
+    +'<div id="detail-gantt-multi" style="display:none">'+multiHtml+'</div>';
 
   return '<div class="dp-sec" id="detail-gantt-sec">'
     +'<div class="dp-sec-head">🏗️ 工程表（6ヶ月カレンダー）'
@@ -2928,39 +2939,50 @@ function buildGanttTab(p){
     +'</div>';
 }
 
-// ★工程表ボタン（拡大/編集/印刷）を物件詳細の固定ヘッダーバーへ移動
+// ★工程表ヘッダーボタン（拡大/編集/印刷）を状態に応じて直接描画する
+//   （旧方式：DOM要素を物理的に移動していたため、詳細画面の再描画タイミング次第でボタンが迷子になり消える不具合があった。
+//    現在は常に最新の状態から作り直す方式にして、消失が構造的に起こらないようにしている）
+var _ganttDetailExpanded=false;
+function renderGanttHeaderBtns(){
+  var el=document.getElementById('detailGanttHeaderBtns');
+  if(!el)return;
+  var expanded=!!_ganttDetailExpanded;
+  var editing=!!ganttEditMode;
+  var html='<button id="detail-gantt-expand-btn" onclick="toggleDetailGanttExpand()" style="background:white;color:var(--primary);padding:4px 12px;border-radius:16px;font-size:10px;font-weight:800;white-space:nowrap;border:none;box-shadow:0 1px 3px rgba(0,0,0,.25)">'
+    +(expanded?'🗜️ 工程表縮小':'🔍 工程表拡大')+'</button>';
+  if(expanded){
+    html+='<button id="detail-gantt-edit-btn" onclick="toggleGanttEditMode()" style="background:'+(editing?'#ef4444':'#f59e0b')+';color:white;padding:3px 10px;border-radius:5px;font-size:10px;font-weight:700;white-space:nowrap">'
+      +(editing?'✕ 工程表編集終了':'✏️ 工程表編集')+'</button>'
+      +'<div id="detail-gantt-print-btn"><button onclick="printDetailGantt()" style="background:#10b981;color:white;padding:3px 10px;border-radius:5px;font-size:10px;font-weight:700;white-space:nowrap">🖨️ 工程表印刷</button></div>';
+  }
+  el.innerHTML=html;
+}
+window.renderGanttHeaderBtns=renderGanttHeaderBtns;
+
+// ★旧：工程表ボタンをDOM移動していた関数（廃止・renderGanttHeaderBtns()に統一）
+// 後方互換のため関数自体は残すが、内容は新方式の呼び出しにする
 function relocateGanttHeaderButtons(){
-  var target=document.getElementById('detailGanttHeaderBtns');
-  var src=document.getElementById('detailGanttBtnsSource');
-  if(!target||!src)return;
-  target.innerHTML='';
-  while(src.firstChild){target.appendChild(src.firstChild);}
+  renderGanttHeaderBtns();
 }
 window.relocateGanttHeaderButtons=relocateGanttHeaderButtons;
 
 function toggleDetailGanttExpand(){
   var c=document.getElementById('detail-gantt-compact');
   var m=document.getElementById('detail-gantt-multi');
-  var btn=document.getElementById('detail-gantt-expand-btn');
-  var printBtn=document.getElementById('detail-gantt-print-btn');
-  var editBtn=document.getElementById('detail-gantt-edit-btn');
   if(!c||!m)return;
   var expanded=m.style.display!=='none';
   if(expanded){
     c.style.display='';m.style.display='none';
-    btn.textContent='🔍 工程表拡大';
-    if(printBtn)printBtn.style.display='none';
-    if(editBtn)editBtn.style.display='none';
+    _ganttDetailExpanded=false;
     // 編集モード終了
     if(ganttEditMode)toggleGanttEditMode();
     setGanttFullscreen(false);
   }else{
     c.style.display='none';m.style.display='';
-    btn.textContent='🗜️ 工程表縮小';
-    if(printBtn)printBtn.style.display='';
-    if(editBtn)editBtn.style.display='';
+    _ganttDetailExpanded=true;
     setGanttFullscreen(true);
   }
+  renderGanttHeaderBtns();
 }
 
 // ★ガントチャートの全画面表示切替（物件詳細内の他セクションを隠し、工程表をパネルいっぱいに表示）
@@ -2978,14 +3000,13 @@ var geResBar=null,geResStartX=0,geResStartDur=0;
 var GCW_GE=14;
 
 function toggleGanttEditMode(){
-  var btn=document.getElementById('detail-gantt-edit-btn');
   var sb=document.getElementById('ganttEditSidebar');
-  if(!currentProp||!btn||!sb)return;
+  if(!currentProp||!sb)return;
   // ★ 既に編集中なら終了、そうでなければ開始（2回押し問題の修正）
   var isNowEdit=ganttEditMode;
   ganttEditMode=!isNowEdit;
+  renderGanttHeaderBtns();
   if(ganttEditMode){
-    btn.textContent='✕ 工程表編集終了'; btn.style.background='#ef4444';
     sb.style.display='flex';
     setGanttFullscreen(true);
     var srcSegs=getActiveSegs(currentProp)||[];
@@ -3057,7 +3078,7 @@ function toggleGanttEditMode(){
   } else {
     // ★ 編集終了時：ボタンを戻してサイドバーを確実に閉じる
     ganttEditMode=false;
-    btn.textContent='✏️ 工程表編集'; btn.style.background='#f59e0b';
+    renderGanttHeaderBtns();
     sb.style.display='none';
     geRenderBars();
   }
@@ -3646,8 +3667,7 @@ function closeGanttEditSidebar(){
   if(sb)sb.style.display='none';
   // ★ ✕ボタンで閉じた時もモードをリセット
   ganttEditMode=false;
-  var btn=document.getElementById('detail-gantt-edit-btn');
-  if(btn){btn.textContent='✏️ 工程表編集';btn.style.background='#f59e0b';}
+  renderGanttHeaderBtns();
   geRenderBars();
 }
 window.closeGanttEditSidebar=closeGanttEditSidebar;
@@ -4103,6 +4123,8 @@ function openDetail(p){
       :'<button class="btn-primary" onclick="addFavAction()">⭐ マイ物件に追加</button>')
     +'<button class="btn-secondary" onclick="printPropInfo()" style="font-size:11px;padding:8px 10px">🖨️ この物件を印刷</button>'
     +'<button class="btn-secondary" onclick="showPropQR()" style="font-size:11px;padding:8px 10px">📱 QR</button>';
+  _ganttDetailExpanded=false;
+  ganttEditMode=false;
   relocateGanttHeaderButtons();
   openPanel('detailPanel');
   if(!isPcMode && typeof spSetupAccordion==='function') spSetupAccordion();
@@ -4142,14 +4164,20 @@ window.toggleKensaStatus=toggleKensaStatus;
 // ===== マスター工程紐付けセクション（物件詳細内） =====
 function buildMasterLinkSection(p){
   var ck=custKey(p);
-  var currentMaster=propMaster[ck]||'';
+  var manualMaster=propMaster[ck]||'';
+  var resolvedMaster=_resolvePropMasterName(p);
   var isAdmin=(typeof currentProfile!=='undefined'&&currentProfile&&currentProfile.role==='admin');
   var linkBtn=isAdmin
     ?'<button onclick="openMasterLinkModal()" style="margin-left:auto;background:#8b5cf6;color:white;padding:4px 12px;border-radius:6px;font-size:10px;font-weight:700;border:none;cursor:pointer">🔗 紐付け変更</button>'
     :'';
-  var masterInfo=currentMaster
-    ?'<div class="dp-row"><span class="dp-label">適用マスター</span><span class="dp-val txt" style="color:#7c3aed;font-weight:700">📋 '+currentMaster+'</span></div>'
-    :'<div class="dp-row"><span class="dp-label">適用マスター</span><span class="dp-val txt" style="color:var(--g400)">デフォルト（日曜休工）</span></div>';
+  var masterInfo;
+  if(manualMaster){
+    masterInfo='<div class="dp-row"><span class="dp-label">適用マスター</span><span class="dp-val txt" style="color:#7c3aed;font-weight:700">📋 '+manualMaster+'</span></div>';
+  } else if(resolvedMaster){
+    masterInfo='<div class="dp-row"><span class="dp-label">適用マスター</span><span class="dp-val txt" style="color:#7c3aed;font-weight:700">📋 '+resolvedMaster+' <span style="font-size:9px;color:#94a3b8;font-weight:400">（エリア自動）</span></span></div>';
+  } else {
+    masterInfo='<div class="dp-row"><span class="dp-label">適用マスター</span><span class="dp-val txt" style="color:var(--g400)">デフォルト（日曜休工）</span></div>';
+  }
   return '<div class="dp-sec"><div class="dp-sec-head" style="display:flex;align-items:center;">📋 マスター工程'+linkBtn+'</div>'
     +masterInfo+'</div>';
 }
