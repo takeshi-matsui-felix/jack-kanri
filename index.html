@@ -2909,7 +2909,7 @@ function buildGanttTab(p){
   var ganttHtml='<div id="detail-gantt-compact">'+compactHtml+'</div>'
     +'<div id="detail-gantt-multi" style="display:none">'+multiHtml+'</div>'
     +'<div id="detailGanttBtnsSource" style="display:none">'
-    +'<button id="detail-gantt-expand-btn" onclick="toggleDetailGanttExpand()" style="background:var(--primary);color:white;padding:3px 10px;border-radius:5px;font-size:10px;font-weight:700;white-space:nowrap">🔍 工程表拡大</button>'
+    +'<button id="detail-gantt-expand-btn" onclick="toggleDetailGanttExpand()" style="background:white;color:var(--primary);padding:4px 12px;border-radius:16px;font-size:10px;font-weight:800;white-space:nowrap;border:none;box-shadow:0 1px 3px rgba(0,0,0,.25)">🔍 工程表拡大</button>'
     +'<button id="detail-gantt-edit-btn" onclick="toggleGanttEditMode()" style="background:#f59e0b;color:white;padding:3px 10px;border-radius:5px;font-size:10px;font-weight:700;white-space:nowrap">✏️ 工程表編集</button>'
     +'<div id="detail-gantt-print-btn" style="display:none">'
     +'<button onclick="printDetailGantt()" style="background:#10b981;color:white;padding:3px 10px;border-radius:5px;font-size:10px;font-weight:700;white-space:nowrap">🖨️ 工程表印刷</button>'
@@ -6547,7 +6547,13 @@ async function _loadCustomGanttIfNeeded(p){
     if(!r.error&&r.data){
       if(r.data.updated_at)localStorage.setItem(tsKey,r.data.updated_at);
       if(r.data.custom_gantt){
-        var cg=typeof r.data.custom_gantt==='string'?JSON.parse(r.data.custom_gantt):r.data.custom_gantt;
+        var rawCg=typeof r.data.custom_gantt==='string'?JSON.parse(r.data.custom_gantt):r.data.custom_gantt;
+        // ★{__manual__:true,segs:[...]}形式のオブジェクトと、配列そのままの旧形式の両方に対応
+        var cg=null;
+        if(rawCg){
+          if(rawCg.__manual__&&rawCg.segs&&rawCg.segs.length){cg=rawCg.segs;}
+          else if(Array.isArray(rawCg)&&rawCg.length){cg=rawCg;}
+        }
         if(cg&&cg.length){
           // DBのstart_dateをFULL_DATE_IDXのキー形式に統一
           cg=cg.map(function(s){
