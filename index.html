@@ -1008,6 +1008,14 @@ function isFav(p){return myFavProps.some(function(f){return f.fix_no===p.fix_no&
 function addFav(p){if(!isFav(p)){myFavProps.push({fix_no:p.fix_no,name:p.name,area:p.area});saveLS('jack_myfavs',myFavProps);}}
 function removeFav(p){myFavProps=myFavProps.filter(function(f){return!(f.fix_no===p.fix_no&&f.name===p.name);});saveLS('jack_myfavs',myFavProps);}
 function custKey(p){return String(p.fix_no||'')+'__'+(p.name||'');}
+// ★customGantt[ck]は{__manual__:true,segs:[...]}形式と配列そのままの旧形式が混在しうるため、
+//   実際のsegs配列を安全に取り出す共通ヘルパー（直接.lengthを見ると形式次第で誤判定するため必ずこれを使う）
+function _cgSegsArr(cg){
+  if(!cg)return null;
+  if(cg.__manual__&&Array.isArray(cg.segs))return cg.segs;
+  if(Array.isArray(cg))return cg;
+  return null;
+}
 
 // ===== MASTER SCHEDULE =====
 // 日曜スキップで n 稼働日を返す（startStr の翌日から）
@@ -4199,6 +4207,7 @@ function openMasterLinkModal(){
   var p=currentProp; if(!p)return;
   var ck=custKey(p);
   var currentMaster=propMaster[ck]||'';
+  var autoMaster=_autoAreaMasterName(p); // ★手動紐付けが無い場合にエリアから自動選択されるマスター
   var modal=document.getElementById('_masterLinkModal');
   if(!modal){
     modal=document.createElement('div');
@@ -4208,10 +4217,16 @@ function openMasterLinkModal(){
     document.body.appendChild(modal);
   }
   var sn=p.name.replace(/^(Jack|Walter)\s*/i,'');
+  var defaultLabel=autoMaster
+    ?('デフォルト（エリア自動：'+autoMaster+'）')
+    :'デフォルト（日曜休工）';
+  var defaultSub=autoMaster
+    ?'東海/関東エリアに応じて自動的にこのマスターが適用されています'
+    :'確認申請完了日を起点に自動生成';
   var options='<label style="display:flex;align-items:center;gap:10px;padding:10px 14px;border-bottom:1px solid #e2e8f0;cursor:pointer;">'
     +'<input type="radio" name="masterLink" value="" '+(currentMaster===''?'checked':'')+' style="width:16px;height:16px;accent-color:#1a56db;">'
-    +'<div><div style="font-size:12px;font-weight:700;color:#1e293b;">デフォルト（日曜休工）</div>'
-    +'<div style="font-size:10px;color:#94a3b8;">確認申請完了日を起点に自動生成</div></div></label>';
+    +'<div><div style="font-size:12px;font-weight:700;color:#1e293b;">'+defaultLabel+'</div>'
+    +'<div style="font-size:10px;color:#94a3b8;">'+defaultSub+'</div></div></label>';
   myMasters.forEach(function(m){
     options+='<label style="display:flex;align-items:center;gap:10px;padding:10px 14px;border-bottom:1px solid #e2e8f0;cursor:pointer;">'
       +'<input type="radio" name="masterLink" value="'+encodeURIComponent(m.name)+'" '+(currentMaster===m.name?'checked':'')+' style="width:16px;height:16px;accent-color:#7c3aed;">'
@@ -6576,7 +6591,7 @@ async function _loadCustomGanttIfNeeded(p){
   // TS一致かつキャッシュあり → そのまま（追加通信なし）
   if(!needFetch){
     if(_ganttFetchedProps[ck])return;
-    if(customGantt[ck]&&customGantt[ck].length){_ganttFetchedProps[ck]=true;return;}
+    if(_cgSegsArr(customGantt[ck])){_ganttFetchedProps[ck]=true;return;}
     if(DB_PROPS){
       var dbp=DB_PROPS.find(function(d){return String(d.fix_no)===String(p.fix_no);});
       if(dbp&&dbp.custom_gantt){_ganttFetchedProps[ck]=true;return;}
@@ -6591,9 +6606,9 @@ async function _loadCustomGanttIfNeeded(p){
       if(r.data.custom_gantt){
         var rawCg=typeof r.data.custom_gantt==='string'?JSON.parse(r.data.custom_gantt):r.data.custom_gantt;
         // ★{__manual__:true,segs:[...]}形式のオブジェクトと、配列そのままの旧形式の両方に対応
-        var cg=null;
+        var cg=null, wasManual=false;
         if(rawCg){
-          if(rawCg.__manual__&&rawCg.segs&&rawCg.segs.length){cg=rawCg.segs;}
+          if(rawCg.__manual__&&rawCg.segs&&rawCg.segs.length){cg=rawCg.segs;wasManual=true;}
           else if(Array.isArray(rawCg)&&rawCg.length){cg=rawCg;}
         }
         if(cg&&cg.length){
@@ -6604,8 +6619,10 @@ async function _loadCustomGanttIfNeeded(p){
             var col=FULL_DATE_IDX[dk]||0;
             return Object.assign({},s,{start_date:dk,date:dk,end_date:ek,col:col});
           });
-          var changed=JSON.stringify(customGantt[ck])!==JSON.stringify(cg);
-          customGantt[ck]=cg;
+          // ★他の保存箇所と形式を統一（__manual__フラグ付きはオブジェクトのまま保持）
+          var cgToStore=wasManual?{__manual__:true,segs:cg}:cg;
+          var changed=JSON.stringify(customGantt[ck])!==JSON.stringify(cgToStore);
+          customGantt[ck]=cgToStore;
           saveLS('jack_custom_gantt',customGantt);
           if(DB_PROPS){
             var idx=DB_PROPS.findIndex(function(d){return String(d.fix_no)===String(p.fix_no);});
