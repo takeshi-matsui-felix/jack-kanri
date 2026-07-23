@@ -9727,6 +9727,47 @@ function admRenderKensaTable(){
 }
 window.admRenderKensaTable=admRenderKensaTable;
 
+// ★物件診断：ガントが表示されない等の問い合わせ時に、必要データの有無を即座に確認する
+function admDiagProp(fixNo,encName){
+  var name=decodeURIComponent(encName||'');
+  var p=(window._admAllProps||[]).find(function(x){return String(x.fix_no)===String(fixNo)&&x.name===name;})
+    ||(DB_PROPS||[]).find(function(x){return String(x.fix_no)===String(fixNo)&&x.name===name;});
+  if(!p){showToast('診断対象の物件データが見つかりません','error');return;}
+  var area=normalizeArea(p);
+  var masterName=_resolvePropMasterName(p);
+  var segs=[];
+  try{segs=getActiveSegs(p)||[];}catch(e){}
+  var segCount=segs.length;
+  var rows=[
+    ['FiX No / 物件名', (p.fix_no||'')+' / '+(p.name||'')],
+    ['エリア', (p.area||'（未設定）')+'　→判定：'+(area||'不明（東海/関東どちらにも該当せず）')],
+    ['確認申請完了日（confirm_done）', p.confirm_done||'（未入力）★これが無いとマスターからの自動計算がされません'],
+    ['引渡し日（delivery_date）', p.delivery_date||'（未入力）※ガント表示には影響しません'],
+    ['紐付けマスター', masterName||'（紐付けなし・自動選択もされていません）'],
+    ['元データ:segments件数', (p.segments&&p.segments.length)||0],
+    ['元データ:master_segs件数', (p.master_segs&&p.master_segs.length)||0],
+    ['手動編集(customGantt)', customGantt[custKey(p)]?'あり':'なし'],
+    ['結果：getActiveSegs()の件数', segCount+'件'+(segCount===0?'　★これが0件のため大工程ガントに何も表示されません':'')]
+  ];
+  var html='<div style="background:white;border-radius:14px;width:90%;max-width:480px;max-height:80vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,.3)">'
+    +'<div style="padding:14px 16px;border-bottom:1px solid #e2e8f0;display:flex;align-items:center;">'
+      +'<div style="font-size:13px;font-weight:800;color:#1e293b;flex:1">🔍 物件診断</div>'
+      +'<button onclick="document.getElementById(\'_diagModal\').remove()" style="padding:4px 10px;background:#f1f5f9;border:none;border-radius:5px;cursor:pointer;font-size:12px;">x</button>'
+    +'</div>'
+    +'<div style="padding:14px 16px">'
+    +rows.map(function(r){
+      return '<div style="padding:8px 0;border-bottom:1px solid #f1f5f9"><div style="font-size:10px;color:#94a3b8;margin-bottom:2px">'+r[0]+'</div><div style="font-size:12px;font-weight:700;color:#1e293b">'+r[1]+'</div></div>';
+    }).join('')
+    +'</div></div>';
+  var modal=document.createElement('div');
+  modal.id='_diagModal';
+  modal.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:9999;display:flex;align-items:center;justify-content:center;';
+  modal.addEventListener('click',function(e){if(e.target===modal)modal.remove();});
+  modal.innerHTML=html;
+  document.body.appendChild(modal);
+}
+window.admDiagProp=admDiagProp;
+
 function admPropCard(p){
   var st=p.status||'';
   var stColor={'契約済':'#16a34a','販売中':'#1d4ed8','未公開':'#d97706','買付':'#7c3aed'}[st]||'#64748b';
@@ -9750,6 +9791,8 @@ function admPropCard(p){
       +'<div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px;flex-shrink:0">'
         +'<span style="font-size:10px;font-weight:700;background:'+stBg+';color:'+stColor+';padding:2px 7px;border-radius:5px">'+(st||'未設定')+'</span>'
         +'<span style="font-size:9px;color:#94a3b8">✏️ タップで編集</span>'
+        +'<button onclick="event.stopPropagation();admDiagProp(\''+p.fix_no+'\',\''+encodeURIComponent(p.name||'')+'\')" '
+          +'style="background:#eff6ff;color:#1d4ed8;border:1px solid #bfdbfe;border-radius:5px;padding:2px 7px;font-size:9px;font-weight:700;cursor:pointer">🔍 診断</button>'
         +'<button onclick="event.stopPropagation();admConfirmDeleteProp(\''+p.id+'\',\''+encodeURIComponent(p.name||'')+'\')" '
           +'style="background:#fef2f2;color:#dc2626;border:1px solid #fecaca;border-radius:5px;padding:2px 7px;font-size:9px;font-weight:700;cursor:pointer">🗑 削除</button>'
       +'</div>'
