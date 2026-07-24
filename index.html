@@ -1364,6 +1364,38 @@ function getAreaMasterName(p){
   return null;
 }
 
+// ★ホーム画面 大工程表（東海物件限定）の表示工種フィルター
+//   ここに無い工種はホーム画面の帯からは非表示になる（物件詳細の工程表には影響しない）
+var HOME_GANTT_TOKAI_ALLOW=['造成','地盤','基礎','配筋検査','躯体検査','造作','断熱検査','内装','器具付け','外構','完了検査','土間打設','解体'];
+function isTokaiProp(p){return TOKAI_AREAS.indexOf(normalizeArea(p))>=0;}
+function _filterHomeGanttSegs(p, segs){
+  if(!isTokaiProp(p))return segs; // 東海物件以外は従来通り全表示
+  var out=[];
+  segs.forEach(function(s){
+    var nm=s.label||s.name||'';
+    if(nm==='建て方'||nm==='建方'){
+      // ★建て方はレッカー日のみを単日マーカーとして表示（稼働日カウント・日曜は飛ばす）
+      //   1日目=土台　3日目=①レッカー　5日目=②レッカー　8日目=③レッカー　9日目=④レッカー
+      var sd=(s.start_date||s.date||'').replace(/\//g,'-');
+      if(!sd)return;
+      var craneDefs=[
+        {n:1,l:'土台',    c:'#16a34a'},
+        {n:3,l:'①レッカー',c:'#16a34a'},
+        {n:5,l:'②レッカー',c:'#16a34a'},
+        {n:8,l:'③レッカー',c:'#16a34a'},
+        {n:9,l:'④レッカー',c:'#16a34a'}
+      ];
+      craneDefs.forEach(function(cd){
+        var dk=addWorkdaysFrom(sd, cd.n-1); // 1日目(n=1)=開始日そのもの、以降は稼働日カウント（日曜スキップ）
+        out.push({label:cd.l,name:cd.l,start_date:dk,date:dk,end_date:dk,calendar_dur:1,duration:1,color:cd.c,layer:0});
+      });
+      return;
+    }
+    if(HOME_GANTT_TOKAI_ALLOW.indexOf(nm)>=0)out.push(s);
+  });
+  return out;
+}
+
 // ★手動での紐付けが無い物件に対し、エリア（東海/関東）に応じてマスター工程を自動選択する
 //   東海エリアの物件には名前に「東海」を含むマスター、関東エリアには「関東」を含むマスターを自動適用する
 function _autoAreaMasterName(p){
@@ -2384,6 +2416,21 @@ function renderBars(cv, p, segs, gx, top, rowH) {
     }
   }
 
+  // ★東海物件限定：土地決済・確認完了日のマイルストーン縦ラインを描画
+  if(isTokaiProp(p)){
+    [{v:p.land_payment,c:'rgba(59,130,246,.4)'},{v:p.confirm_done,c:'rgba(168,85,247,.4)'}].forEach(function(ms){
+      var raw=ms.v||'';
+      if(!raw||/REF|#/.test(raw))return;
+      var norm=normDate(raw)||raw;
+      var mx=_dateToPx(norm);
+      if(mx===null||mx<vStartPx-2||mx>vEndPx+2)return;
+      var mLine=document.createElement('div');
+      mLine.style.cssText='position:absolute;left:'+mx+'px;top:'+top+'px;width:2px;height:'+rowH+'px;'
+        +'background:'+ms.c+';pointer-events:none;z-index:5;';
+      cv.appendChild(mLine);
+    });
+  }
+
   segs.forEach(function(seg, si){
     var lbl   = seg.label || seg.name || '';
     var calDur = seg.calendar_dur || seg.duration || seg.dur || 1;
@@ -2400,8 +2447,7 @@ function renderBars(cv, p, segs, gx, top, rowH) {
       sPx = gx + (col - FULL_VIS_OFFSET) * COL_W;
     }
     var color = seg.color || EC[lbl] || '#64748b';
-    var tcOverride = seg.textColor;
-    var tcolor = tcOverride && tcOverride !== 'auto' ? tcOverride : (DARK_TEXT[lbl] ? '#3a2a10' : 'white');
+    var tcolor = '#000'; // ★全てのラベルを黒文字に統一（白抜き等で見えなくなる問題の対策）
 
     var ePx = sPx + calDur * COL_W - 2;
 
@@ -2438,7 +2484,19 @@ function renderBars(cv, p, segs, gx, top, rowH) {
       +'background:'+color+';color:'+tcolor+';font-size:7px;font-weight:800;'
       +'border-radius:3px;z-index:'+zIdx+';opacity:'+(slot>0?'0.92':'1')+';'
       +(isPartLeft?'border-left:2px dashed rgba(255,255,255,.6);':'');
-    if (rw>14) bar.textContent=lbl;
+    // ★実際に文字が収まる幅かを見積もって判定（収まらない場合は必ず外側ラベルにする＝途中で切れる表示を防ぐ）
+    var neededW=lbl.length*7.2+6;
+    if (rw>=neededW){
+      bar.textContent=lbl;
+    } else if(lbl) {
+      // バーが狭くて文字が入らない場合、外側にラベルを表示する
+      var outLbl=document.createElement('div');
+      outLbl.style.cssText='position:absolute;left:'+(rsPx+rw+3)+'px;top:'+by+'px;height:'+bh+'px;display:flex;align-items:center;'
+        +'font-size:5px;font-weight:800;color:#000;white-space:nowrap;z-index:'+(zIdx+1)+';'
+        +'background:white;border:1px solid '+color+';border-radius:3px;padding:0 2px;pointer-events:none;';
+      outLbl.textContent=lbl;
+      cv.appendChild(outLbl);
+    }
     (function(l,dt){bar.onclick=function(e){e.stopPropagation();showTip(e,l+': '+(dt||''));};})(lbl,seg.date||seg.start_date||'');
     cv.appendChild(bar);
   });
@@ -2607,7 +2665,7 @@ function renderBody(){
     });
 
     // BARS
-    renderBars(cv, p, getActiveSegs(p), gx, top, rowH);
+    renderBars(cv, p, _filterHomeGanttSegs(p, getActiveSegs(p)), gx, top, rowH);
 
     // POST-GANTT
     var postX=gx+(VIS_DATES.length*COL_W);
@@ -2804,7 +2862,13 @@ function buildGanttTab(p){
       var isDark=!!DARK_TEXT[lbl]; var tcOvr=seg.textColor||seg.text_color; var tcolor=tcOvr&&tcOvr!=='auto'?tcOvr:(isDark?'#3a2a10':'white');
 
       var isPast=seg.end_date&&new Date(seg.end_date.replace(/\//g,'-'))<todayDt;
-      bars+='<div style="position:absolute;left:'+sx+'px;top:'+by+'px;width:'+bw+'px;height:'+bh+'px;background:'+color+';color:'+tcolor+';font-size:6px;font-weight:800;border-radius:2px;display:flex;align-items:center;padding:0 2px;overflow:hidden;white-space:nowrap;box-shadow:0 1px 2px rgba(0,0,0,.2);z-index:'+(layer===1?12:10)+';opacity:'+(isPast?'.65':'1')+';">'+(bw>18?lbl:'')+'</div>';
+      var neededW2=lbl.length*7.2+4;
+      if(bw>=neededW2){
+        bars+='<div style="position:absolute;left:'+sx+'px;top:'+by+'px;width:'+bw+'px;height:'+bh+'px;background:'+color+';color:#000;font-size:6px;font-weight:800;border-radius:2px;display:flex;align-items:center;padding:0 2px;overflow:hidden;white-space:nowrap;box-shadow:0 1px 2px rgba(0,0,0,.2);z-index:'+(layer===1?12:10)+';opacity:'+(isPast?'.65':'1')+';">'+lbl+'</div>';
+      } else {
+        bars+='<div style="position:absolute;left:'+sx+'px;top:'+by+'px;width:'+bw+'px;height:'+bh+'px;background:'+color+';border-radius:2px;box-shadow:0 1px 2px rgba(0,0,0,.2);z-index:'+(layer===1?12:10)+';opacity:'+(isPast?'.65':'1')+';"></div>';
+        if(lbl)bars+='<div style="position:absolute;left:'+(sx+bw+2)+'px;top:'+by+'px;height:'+bh+'px;display:flex;align-items:center;font-size:6px;font-weight:800;color:#000;white-space:nowrap;background:white;border:1px solid '+color+';border-radius:2px;padding:0 2px;z-index:'+(layer===1?13:11)+';">'+lbl+'</div>';
+      }
     });
     // ★ 土日着色（表示画面）
     var weekendFills='';
@@ -3874,7 +3938,7 @@ function printDetailGantt(){
         return;
       }
       barHtml+='<div style="position:absolute;left:'+sx+'px;top:'+by+'px;width:'+bw+'px;height:'+bh+'px;background:'+color+';border-radius:2px;display:flex;align-items:center;padding:0 2px;overflow:hidden;white-space:nowrap;z-index:10;">'
-        +'<span style="font-size:7px;font-weight:700;color:white;">'+(bw>20?lbl:'')+'</span></div>';
+        +'<span style="font-size:7px;font-weight:700;color:#000;">'+(bw>20?lbl:'')+'</span></div>';
     });
 
     // TODAY縦線
@@ -4829,7 +4893,7 @@ function printAllGantt(){
   var gStart=new Date(TODAY);gStart.setMonth(gStart.getMonth()-1);gStart.setDate(1);
   var gEnd=new Date(TODAY);gEnd.setMonth(gEnd.getMonth()+7);gEnd.setDate(0);
   favs.forEach(function(p){
-    var segs=getActiveSegs(p)||[];
+    var segs=_filterHomeGanttSegs(p, getActiveSegs(p)||[]);
     segs.forEach(function(s){
       var sd=s.start_date||s.date||'';if(sd){var dt=new Date(sd.replace(/\//g,'-'));if(dt<gStart)gStart=new Date(dt.getFullYear(),dt.getMonth(),1);}
       var ed=s.end_date||'';if(ed){var dt=new Date(ed.replace(/\//g,'-'));if(dt>gEnd)gEnd=new Date(dt.getFullYear(),dt.getMonth()+1,0);}
@@ -4842,7 +4906,7 @@ function printAllGantt(){
   var mn={'01':'1月','02':'2月','03':'3月','04':'4月','05':'5月','06':'6月','07':'7月','08':'8月','09':'9月','10':'10月','11':'11月','12':'12月'};
 
   function buildPropHtml(p){
-    var segs=getActiveSegs(p)||[];
+    var segs=_filterHomeGanttSegs(p, getActiveSegs(p)||[]);
     var numRows=segs.length;
     var totalH=numRows*ROW_H+28;
     var months={};dates.forEach(function(d,i){if(!d)return;var m=d.substring(0,7);if(!months[m])months[m]={start:i-1,count:0};months[m].count++;});
@@ -4862,7 +4926,14 @@ function printAllGantt(){
         bars+='<div style="position:absolute;left:'+sx+'px;top:'+by+'px;height:'+bh+'px;display:flex;align-items:center;font-size:6px;font-weight:800;color:#1e293b;white-space:nowrap">'+soseiTxtA+'</div>';
         return;
       }
-      bars+='<div style="position:absolute;left:'+sx+'px;top:'+by+'px;width:'+bw+'px;height:'+bh+'px;background:'+color+';color:white;font-size:6px;font-weight:800;border-radius:2px;display:flex;align-items:center;padding:0 2px;overflow:hidden;white-space:nowrap">'+(bw>14?lblA:'')+'</div>';
+      var neededW3=lblA.length*6.2+4;
+      if(bw>=neededW3){
+        bars+='<div style="position:absolute;left:'+sx+'px;top:'+by+'px;width:'+bw+'px;height:'+bh+'px;background:'+color+';color:#000;font-size:6px;font-weight:800;border-radius:2px;display:flex;align-items:center;padding:0 2px;overflow:hidden;white-space:nowrap">'+lblA+'</div>';
+      } else {
+        // ★狭いバーは外側にラベルを表示（見えなくなるのを防ぐ・印刷なので小さめに）
+        bars+='<div style="position:absolute;left:'+sx+'px;top:'+by+'px;width:'+bw+'px;height:'+bh+'px;background:'+color+';border-radius:2px"></div>'
+          +'<div style="position:absolute;left:'+(sx+bw+2)+'px;top:'+by+'px;height:'+bh+'px;display:flex;align-items:center;font-size:6px;font-weight:700;color:#000;white-space:nowrap;background:white;border:1px solid '+color+';border-radius:2px;padding:0 2px;">'+lblA+'</div>';
+      }
     });
     var labels='';segs.forEach(function(s,ri){labels+='<div style="position:absolute;left:-88px;top:'+(ri*ROW_H+28)+'px;width:86px;height:'+ROW_H+'px;display:flex;align-items:center;justify-content:flex-end;padding-right:3px;font-size:8px;font-weight:700;color:#334155;white-space:nowrap;overflow:hidden">'+(s.label||s.name||'')+'</div>';});
     var days2=daysUntil(p.delivery_date);
@@ -6421,7 +6492,7 @@ function printPage(){
     });
 
     // バー描画（今月以前に始まり今月中に続くバーもクリップして表示）
-    var segs=getActiveSegs(p)||[];
+    var segs=_filterHomeGanttSegs(p, getActiveSegs(p)||[]);
     var printStart=printDates[1]||''; // 印刷開始日（printDates[0]は空文字）
     var printEnd=printDates[printDates.length-1]||'';
     segs.forEach(function(seg){
@@ -6458,8 +6529,15 @@ function printPage(){
       var by=ri*PROW+28+(layer===1?4:2);
       var bh=layer===1?PROW-9:PROW-4;
       var lbl=seg.label||seg.name||'';
-      barHtml+='<div style="position:absolute;left:'+sx+'px;top:'+by+'px;width:'+bw+'px;height:'+bh+'px;background:'+color+';border-radius:2px;display:flex;align-items:center;padding:0 2px;overflow:hidden;white-space:nowrap;z-index:10;">'
-        +'<span style="font-size:7px;font-weight:700;color:white;">'+(bw>18?lbl:'')+'</span></div>';
+      var neededW4=lbl.length*7+4;
+      if(bw>=neededW4){
+        barHtml+='<div style="position:absolute;left:'+sx+'px;top:'+by+'px;width:'+bw+'px;height:'+bh+'px;background:'+color+';border-radius:2px;display:flex;align-items:center;padding:0 2px;overflow:hidden;white-space:nowrap;z-index:10;">'
+          +'<span style="font-size:7px;font-weight:700;color:#000;">'+lbl+'</span></div>';
+      } else {
+        // ★狭いバーは外側にラベルを表示（見えなくなるのを防ぐ・印刷なので小さめに）
+        barHtml+='<div style="position:absolute;left:'+sx+'px;top:'+by+'px;width:'+bw+'px;height:'+bh+'px;background:'+color+';border-radius:2px;z-index:10;"></div>'
+          +'<div style="position:absolute;left:'+(sx+bw+2)+'px;top:'+by+'px;height:'+bh+'px;display:flex;align-items:center;font-size:6px;font-weight:700;color:#000;white-space:nowrap;background:white;border:1px solid '+color+';border-radius:2px;padding:0 2px;z-index:11;">'+lbl+'</div>';
+      }
     });
 
     // today line
