@@ -2451,19 +2451,21 @@ function _gbComputeBarLayout(segs, gx){
     slot=slot%3;
     var isPartLeft=sPx<vStartPx;
     var neededW=lbl.length*7.2+6;
-    barLayouts.push({lbl:lbl,color:color,rsPx:rsPx,rePx:rePx,rw:rw,sPx:sPx,ePx:ePx,slot:slot,isPartLeft:isPartLeft,inline:rw>=neededW,seg:seg});
+    // ★1〜2日の短い工程（土台・レッカー等）は常に外側チップ表示に統一する（配筋検査・土台等が塗りつぶし文字になり見た目がバラバラになるのを防ぐ）
+    var inlineOk=calDur>=3&&rw>=neededW;
+    barLayouts.push({lbl:lbl,color:color,rsPx:rsPx,rePx:rePx,rw:rw,sPx:sPx,ePx:ePx,slot:slot,isPartLeft:isPartLeft,inline:inlineOk,seg:seg});
   });
-  // ラベル段(tier)割当：狭いバーのみ対象。段数に上限は設けず、渋滞具合に応じて必要なだけ確保する
+  // ラベル段(tier)割当：狭いバーのみ対象。高さは3段階までに統一する（ガントと文字の両方が分かるように）
+  var GB_MAXTIERS=3;
   var narrow=barLayouts.filter(function(b){return !b.inline&&b.lbl;}).sort(function(a,b){return a.rsPx-b.rsPx;});
-  var tierEnd=[];
+  var tierEnd=[]; for(var gti=0;gti<GB_MAXTIERS;gti++)tierEnd.push(-999999);
   narrow.forEach(function(b){
     var labelStartX=b.rsPx+b.rw+3;
     var labelEndX=labelStartX+(b.lbl.length*5.5+8);
-    var placed=-1;
-    for(var t=0;t<tierEnd.length;t++){
+    var placed=GB_MAXTIERS-1;
+    for(var t=0;t<GB_MAXTIERS;t++){
       if(tierEnd[t]+2<=labelStartX){placed=t;break;}
     }
-    if(placed===-1){placed=tierEnd.length;tierEnd.push(-999999);}
     tierEnd[placed]=labelEndX;
     b.labelTier=placed;
   });
@@ -5877,69 +5879,63 @@ function buildMasterEditorDates(){
   }
 }
 
-// Compute master gantt: sequential workday scheduling with step offsets
+// Compute master gantt: sequential scheduling with step offsets
 // offset = manual day offset applied to this step's start (positive = later)
+// ★masterEdDatesは既に日曜日を含まない配列なので、日付の曜日を見て飛ばす処理は一切不要。
+//   「index位置」だけで完結させることで、日曜スキップ処理との二重適用によるズレ（3日設定が4日になる等）を防ぐ
 function computeMasterEditorSegs(steps){
   if(!steps||!steps.length)return [];
-  // 架空カレンダー：1月2日（2000-01-02）を造成スタート基準日とする
-  var baseDateStr=masterEdDates[2]||masterEdDates[1]||'2000-01-02';
-  var bd=new Date(baseDateStr.replace(/[/]/g,'-'));
-  while(bd.getDay()===0)bd.setDate(bd.getDate()+1);
-  baseDateStr=localDateStr(bd);
+  var baseIdx=2; // ★造成スタート基準：masterEdDatesの2番目のインデックス
+  if(baseIdx>=masterEdDates.length)baseIdx=1;
 
   var segs=[];
-  var prevEnd=baseDateStr;
-  var kisoEndDate='';
+  var prevEndIdx=baseIdx-1;
+  var kisoEndIdx=-1;
 
   for(var ti=0;ti<steps.length;ti++){
     var step=steps[ti];
     var nm=step.name||step.label||'';
     var dur=step.dur||step.days||1;
-    var startDate;
+    var startIdx;
 
-    if(step.offsetFrom==='基礎完了'&&kisoEndDate&&step.offsetDays!=null){
-      // 基礎完了からのオフセット
+    if(step.offsetFrom==='基礎完了'&&kisoEndIdx>=0&&step.offsetDays!=null){
+      // 基礎完了からのオフセット（インデックス加算のみ・曜日判定なし）
       var od=step.offsetDays;
-      startDate=od>0?addWorkdays(kisoEndDate,od):kisoEndDate;
+      startIdx=od>0?kisoEndIdx+od:kisoEndIdx;
     } else if(step.start_date&&step.offsetFrom!=='基礎完了'){
-      // 手動移動で固定されたstart_date（前工程連鎖しない）
-      startDate=step.start_date;
+      // 手動移動で固定されたstart_date（前工程連鎖しない）→ masterEdDates内の対応indexを探す
+      var fixedIdx=masterEdDates.indexOf(step.start_date);
+      if(fixedIdx<0){for(var fi3=1;fi3<masterEdDates.length;fi3++){if(masterEdDates[fi3]>=step.start_date){fixedIdx=fi3;break;}}}
+      startIdx=fixedIdx>=0?fixedIdx:prevEndIdx+1;
     } else {
       // 前工程連鎖
-      startDate=addWorkdays(prevEnd,1);
+      startIdx=prevEndIdx+1;
     }
 
-    var sfDt=new Date(startDate.replace(/[/]/g,'-'));
-    while(sfDt.getDay()===0)sfDt.setDate(sfDt.getDate()+1);
-    startDate=localDateStr(sfDt);
+    // step.offset: ドラッグで付いたコマ数ずれを加算（インデックスそのものをずらす）
+    if(step.offset)startIdx+=step.offset;
 
-    // step.offset: ドラッグで付いた日数ずれを加算
-    if(step.offset){
-      var offDt=new Date(startDate.replace(/[/]/g,'-'));
-      offDt.setDate(offDt.getDate()+step.offset);
-      startDate=localDateStr(offDt);
-    }
+    if(startIdx<1)startIdx=1;
+    if(startIdx>=masterEdDates.length)continue;
+    var endIdx=startIdx+dur-1;
+    if(endIdx>=masterEdDates.length)endIdx=masterEdDates.length-1;
 
-    var days=workdaysFrom(startDate,dur);
-    if(!days.length)continue;
-    var sd=localDateStr(days[0]);
-    var ed=localDateStr(days[days.length-1]);
-    var calDur=Math.round((days[days.length-1]-days[0])/86400000)+1;
-    var col=masterEdDates.indexOf(sd);
-    if(col<0){for(var fi2=1;fi2<masterEdDates.length;fi2++){if(masterEdDates[fi2]>=sd){col=fi2;break;}}}
-    if(col<0)col=1;
+    var sd=masterEdDates[startIdx];
+    var ed=masterEdDates[endIdx];
+    if(!sd||!ed)continue;
+
     segs.push({
       name:nm, label:nm,
-      dur:dur, calendar_dur:calDur,
+      dur:dur, calendar_dur:dur, // ★列幅は常にdur（日曜を含まないので実日付差ではなくコマ数そのもの）
       color:step.color||EC[nm]||'#64748b',
-      layer:0, col:col,
+      layer:0, col:startIdx,
       start_date:sd, end_date:ed,
       stepIdx:ti,
       offsetFrom:step.offsetFrom||'', offsetDays:step.offsetDays!=null?step.offsetDays:0
     });
-    if(nm==='基礎')kisoEndDate=ed;
-    // prevEndは全ステップで更新（新規追加バーが末尾の後に来るように）
-    if(ed>prevEnd)prevEnd=ed;
+    if(nm==='基礎')kisoEndIdx=endIdx;
+    // prevEndIdxは全ステップで更新（新規追加バーが末尾の後に来るように）
+    if(endIdx>prevEndIdx)prevEndIdx=endIdx;
   }
   masterGanttSegs=segs;
   return segs;
@@ -6326,25 +6322,30 @@ function stopMasterBarDrag(){
 
       if(step.name==='基礎'||step.name==='造成'||step.name==='地盤'){
         // 基礎・造成・地盤：前工程連鎖のままstart_dateで位置固定
+        // ★masterEdDatesの「インデックス」をそのままdayShift分ずらす（日曜を含まないので実日付加算は使わない＝ズレの原因だった）
         if(seg&&seg.start_date){
-          var d=new Date(seg.start_date.replace(/[/]/g,'-'));
-          d.setDate(d.getDate()+dayShift);
-          step.start_date=localDateStr(d);
+          var curIdx=masterEdDates.indexOf(seg.start_date);
+          var newIdx=(curIdx>=0?curIdx:1)+dayShift;
+          if(newIdx<1)newIdx=1;
+          if(newIdx>=masterEdDates.length)newIdx=masterEdDates.length-1;
+          step.start_date=masterEdDates[newIdx];
         }
       } else {
         // 建て方以降：基礎完了日起点を維持しつつoffsetDaysを更新
-        // まず仮にoffset込みのstart_dateを確定させる
         if(seg&&seg.start_date){
-          var movedDt=new Date(seg.start_date.replace(/[/]/g,'-'));
-          movedDt.setDate(movedDt.getDate()+dayShift);
-          var movedStart=localDateStr(movedDt);
+          var curIdx2=masterEdDates.indexOf(seg.start_date);
+          var newIdx2=(curIdx2>=0?curIdx2:1)+dayShift;
+          if(newIdx2<1)newIdx2=1;
+          if(newIdx2>=masterEdDates.length)newIdx2=masterEdDates.length-1;
+          var movedStart=masterEdDates[newIdx2];
 
           // 基礎完了日を取得
           var kisoSeg=computedSegs.find(function(s){return s.name==='基礎';});
           if(kisoSeg&&kisoSeg.end_date){
-            // 基礎完了日から新start_dateまでの稼働日数を計算してoffsetDaysに保存
+            // ★基礎完了日から新start_dateまでのオフセットは、実日付ではなくmasterEdDates上のインデックス差で算出する
+            var kisoIdx=masterEdDates.indexOf(kisoSeg.end_date);
             step.offsetFrom='基礎完了';
-            step.offsetDays=countWorkdays(kisoSeg.end_date, movedStart);
+            step.offsetDays=(kisoIdx>=0)?(newIdx2-kisoIdx):countWorkdays(kisoSeg.end_date, movedStart);
             // start_dateはクリア（offsetDaysで管理するため）
             delete step.start_date;
           } else {
@@ -6591,7 +6592,7 @@ function printPage(){
   // ★ラベルが渋滞（1〜2日間に工程が密集）した場合、行の下に段(tier)を追加して縮小表示する
   var LABEL_TIER_H=9;   // 追加段1つあたりの高さ(px)
   var LABEL_GAP=2;      // ラベル同士の最小間隔(px)
-  var LABEL_MAXTIERS=6; // 安全上限（これ以上は最終段に重ねて表示）
+  var LABEL_MAXTIERS=3; // ★高さは3段階までに統一（ガントと文字の両方が分かるように）
   var LABEL_CHAR_W=5;   // 渋滞時の縮小ラベル：1文字あたりの推定幅(px)（通常表示より小さめ）
 
   // ★印刷範囲：開始は従来通り「今月1日」。終わりは1年後まで延長する（全物件を1枚に収めるため後段でスケール縮小する）
@@ -6677,7 +6678,10 @@ function printPage(){
       var bw=Math.max((ei-si+1)*PCOL-1,2);
       var lbl=seg.label||seg.name||'';
       var neededW4=lbl.length*7+4;
-      items.push({sx:sx,bw:bw,color:seg.color||'#94a3b8',layer:seg.layer||0,lbl:lbl,inline:bw>=neededW4});
+      // ★1〜2日の短い工程（土台・レッカー等）は、文字が収まる幅があっても常に外側チップ表示に統一する
+      //   （バーに収まる時だけ塗りつぶし文字にすると、同じ種類の項目なのに見た目がバラバラになるため）
+      var inline4=calDur>=3&&bw>=neededW4;
+      items.push({sx:sx,bw:bw,color:seg.color||'#94a3b8',layer:seg.layer||0,lbl:lbl,inline:inline4});
     });
     // バー自身の占有区間（外側ラベルがバーの上に重なって隠すのを防ぐための障害物）
     var barObstacles=items.map(function(it){return [it.sx,it.sx+it.bw];});
@@ -6770,11 +6774,12 @@ function printPage(){
   var STAT_W=50;
   var totalContentW=LABEL_W+DATE_W+GANTT_W;
 
-  // ★全物件・1年分を確実に1枚(A3横)に収めるため、実際のページ印字可能サイズに合わせて縮小率を計算する
+  // ★全物件・1年分を確実にA3横1枚いっぱいに引き伸ばす（縦横それぞれ別に伸ばして余白を無くす）
   //   A3横向き(420×297mm)・余白5mmでの印字可能領域をCSS px換算（96px/inch, 25.4mm/inch）
   var PAGE_W_PX=Math.round((420-10)/25.4*96); // ≒1550px
   var PAGE_H_PX=Math.round((297-10)/25.4*96); // ≒1085px
-  var printScale=Math.min(PAGE_W_PX/totalContentW, PAGE_H_PX/totalH, 1);
+  var printScaleX=PAGE_W_PX/totalContentW;
+  var printScaleY=PAGE_H_PX/totalH;
 
   var html='<!DOCTYPE html><html><head><meta charset="UTF-8">'
     +'<title>工程一覧印刷</title>'
@@ -6784,7 +6789,7 @@ function printPage(){
     +'@media print{@page{size:A3 landscape;margin:5mm}body{padding:0}}'
     +'</style></head><body>'
     +'<div style="width:'+PAGE_W_PX+'px;height:'+PAGE_H_PX+'px;overflow:hidden;">'
-    +'<div style="transform:scale('+printScale+');transform-origin:top left;width:'+totalContentW+'px;height:'+totalH+'px;display:flex;">'
+    +'<div style="transform:scale('+printScaleX+','+printScaleY+');transform-origin:top left;width:'+totalContentW+'px;height:'+totalH+'px;display:flex;">'
     // 物件名列
     +'<div style="width:'+LABEL_W+'px;flex-shrink:0;border-right:2px solid #475569;">'
     +'<div style="height:28px;background:#1e3a5f;border-bottom:2px solid #475569;"></div>'
