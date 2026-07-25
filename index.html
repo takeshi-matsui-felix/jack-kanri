@@ -1381,7 +1381,7 @@ function getAreaMasterName(p){
 // ★ホーム画面 大工程表（東海・関東物件）の表示工種フィルター
 //   ここに無い工種はホーム画面の帯からは非表示になる（物件詳細の工程表には影響しない）
 //   ★東海・関東とも同じロジック・同じ許可リストを使う（社内検査期間も両エリア共通で追加）
-var HOME_GANTT_ALLOW=['造成','地盤','基礎','配筋検査','躯体検査','造作','断熱検査','内装','器具付け','外構','完了検査','土間打設','解体','社内検査期間'];
+var HOME_GANTT_ALLOW=['造成','地盤','基礎','配筋検査','躯体検査','造作','断熱検査','内装','器具付け','外構','完了検査','土間打設','解体','社内検査期間','土台','①レッカー','②レッカー','③レッカー','④レッカー'];
 function isTokaiProp(p){return TOKAI_AREAS.indexOf(normalizeArea(p))>=0;}
 function isKantoProp(p){return KANTO_AREAS.indexOf(normalizeArea(p))>=0;}
 function _filterHomeGanttSegs(p, segs){
@@ -5869,7 +5869,12 @@ function buildMasterEditorDates(){
   var end=new Date(BASE_YEAR, BASE_MONTH-1+7, 0); // 7ヶ月後の月末
   masterEdDates=[''];
   var cur=new Date(start.getTime());
-  while(cur<=end){masterEdDates.push(localDateStr(cur));cur.setDate(cur.getDate()+1);}
+  while(cur<=end){
+    // ★マスター工程は実日付に紐付かない架空カレンダーなので、日曜休工ロジックで飛ばすのではなく
+    //   そもそも日曜日をカレンダー自体に含めない（物件詳細・大工程表は実日付を扱うため対象外）
+    if(cur.getDay()!==0)masterEdDates.push(localDateStr(cur));
+    cur.setDate(cur.getDate()+1);
+  }
 }
 
 // Compute master gantt: sequential workday scheduling with step offsets
@@ -6589,15 +6594,17 @@ function printPage(){
   var LABEL_MAXTIERS=6; // 安全上限（これ以上は最終段に重ねて表示）
   var LABEL_CHAR_W=5;   // 渋滞時の縮小ラベル：1文字あたりの推定幅(px)（通常表示より小さめ）
 
-  // VIS_DATESから日付範囲取得
-  var visDates=window.VIS_DATES||[];
-  if(!visDates.length){showToast('工程データがありません','error');return;}
-
-  // 今月1日をスタートとしてvisDatesをフィルタリング
+  // ★印刷範囲：開始は従来通り「今月1日」。終わりは1年後まで延長する（全物件を1枚に収めるため後段でスケール縮小する）
   var todayDt=new Date(TODAY);
-  var monthStart=todayDt.getFullYear()+'-'+('0'+(todayDt.getMonth()+1)).slice(-2)+'-01';
-  // monthStart以降の日付のみ使用
-  var printDates=visDates.filter(function(d){return !d||d>=monthStart;});
+  var startDt=new Date(todayDt.getFullYear(), todayDt.getMonth(), 1); // 今月1日（ローカル時刻）
+  var monthStart=localDateStr(startDt);
+  var PRINT_DAYS=366; // 1年分
+  var printDates=['']; // printDates[0]は空文字（既存の+1オフセットに合わせる）
+  var _pcur=new Date(startDt.getTime());
+  for(var _pi=0;_pi<PRINT_DAYS;_pi++){
+    printDates.push(localDateStr(_pcur));
+    _pcur.setDate(_pcur.getDate()+1);
+  }
   // インデックスを再構築
   var dIdx={};
   printDates.forEach(function(d,i){if(d)dIdx[d]=i;});
@@ -6761,6 +6768,13 @@ function printPage(){
   if(todayI)barHtml+='<div style="position:absolute;left:'+((todayI-1)*PCOL)+'px;top:0;width:2px;height:'+totalH+'px;background:#ef4444;z-index:20;opacity:.7;"></div>';
 
   var STAT_W=50;
+  var totalContentW=LABEL_W+DATE_W+GANTT_W;
+
+  // ★全物件・1年分を確実に1枚(A3横)に収めるため、実際のページ印字可能サイズに合わせて縮小率を計算する
+  //   A3横向き(420×297mm)・余白5mmでの印字可能領域をCSS px換算（96px/inch, 25.4mm/inch）
+  var PAGE_W_PX=Math.round((420-10)/25.4*96); // ≒1550px
+  var PAGE_H_PX=Math.round((297-10)/25.4*96); // ≒1085px
+  var printScale=Math.min(PAGE_W_PX/totalContentW, PAGE_H_PX/totalH, 1);
 
   var html='<!DOCTYPE html><html><head><meta charset="UTF-8">'
     +'<title>工程一覧印刷</title>'
@@ -6769,7 +6783,8 @@ function printPage(){
     +'body{font-family:"Hiragino Sans","Meiryo",sans-serif;background:white;}'
     +'@media print{@page{size:A3 landscape;margin:5mm}body{padding:0}}'
     +'</style></head><body>'
-    +'<div style="display:flex;height:'+totalH+'px;">'
+    +'<div style="width:'+PAGE_W_PX+'px;height:'+PAGE_H_PX+'px;overflow:hidden;">'
+    +'<div style="transform:scale('+printScale+');transform-origin:top left;width:'+totalContentW+'px;height:'+totalH+'px;display:flex;">'
     // 物件名列
     +'<div style="width:'+LABEL_W+'px;flex-shrink:0;border-right:2px solid #475569;">'
     +'<div style="height:28px;background:#1e3a5f;border-bottom:2px solid #475569;"></div>'
@@ -6785,7 +6800,7 @@ function printPage(){
     +'<div style="position:absolute;top:0;left:0;width:'+GANTT_W+'px;height:28px;">'+dayHtml+'</div>'
     +rowBgs+barHtml
     +'</div></div>'
-    +'</div>'
+    +'</div></div>'
     +'<scr'+'ipt>setTimeout(function(){window.print();},600);<\/scr'+'ipt>'
     +'</body></html>';
 
@@ -9536,6 +9551,7 @@ async function loadAdmSec(sec){
         +'<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">'
           +'<div style="font-size:14px;font-weight:800;color:#1e293b">🏠 物件管理 <span id="admPropCount" style="font-size:11px;color:#94a3b8;font-weight:400"></span></div>'
           +'<div style="display:flex;gap:6px">'
+            +'<button onclick="admSyncNewMasterSteps()" style="background:#059669;color:white;padding:5px 12px;border-radius:7px;font-size:11px;font-weight:700;border:none;cursor:pointer">🆕 新規工程を全物件に反映</button>'
             +'<button onclick="admShowMasterSummary()" style="background:#8b5cf6;color:white;padding:5px 12px;border-radius:7px;font-size:11px;font-weight:700;border:none;cursor:pointer">🔗 紐付けサマリー</button>'
             +'<button onclick="admNewProp()" style="background:#1a56db;color:white;padding:5px 12px;border-radius:7px;font-size:11px;font-weight:700;border:none;cursor:pointer">＋ 新規追加</button>'
           +'</div>'
@@ -10064,6 +10080,121 @@ function admDiagProp(fixNo,encName){
 window.admDiagProp=admDiagProp;
 
 // ★マスター紐付けサマリー：全物件のマスター紐付け結果を集計表示（1件ずつ確認する手間を省く）
+// ★新規工程を全物件に反映：マスター工程に新しく追加された項目を、既に手動編集済み（customGantt）の物件にも追加する
+//   （手動編集済みの物件はgetActiveSegsでcustomGanttがマスターより優先されるため、
+//   　マスターに項目を追加しただけでは既存物件に反映されない。これを補うための一括同期ツール）
+//   ・既に存在する工程（名前一致）の日付・調整は一切変更しない
+//   ・マスターにあって、その物件のキャッシュに無い工程だけを新規追加する
+async function admSyncNewMasterSteps(){
+  if(!confirm('マスター工程に新しく追加された項目を、既に手動編集済みの物件にも追加します。\n（既存の調整済み日付・工程は変更されません。新規項目だけを追加します）\n\n実行しますか？'))return;
+  showToast('🔍 新規工程を確認中…','');
+
+  var props=getProps();
+  var updated=[];
+  var noMasterCount=0;
+
+  for(var i=0;i<props.length;i++){
+    var p=props[i];
+    var ck=custKey(p);
+
+    // 手動編集済み（customGantt/DB custom_gantt に __manual__ フラグ付きデータがある）物件だけが対象
+    // ★ 未編集の物件はgetActiveSegsが毎回マスターから直接計算するため、マスター変更が既に自動反映される
+    var cachedSegs=null;
+    var cg=customGantt[ck];
+    if(cg&&cg.__manual__&&cg.segs&&cg.segs.length)cachedSegs=cg.segs;
+    if(!cachedSegs&&typeof DB_PROPS!=='undefined'&&DB_PROPS){
+      var dbP=DB_PROPS.find(function(dp){return String(dp.fix_no)===String(p.fix_no);});
+      if(dbP&&dbP.custom_gantt){
+        try{
+          var cg2=typeof dbP.custom_gantt==='string'?JSON.parse(dbP.custom_gantt):dbP.custom_gantt;
+          if(cg2&&cg2.__manual__&&cg2.segs&&cg2.segs.length)cachedSegs=cg2.segs;
+        }catch(e){}
+      }
+    }
+    if(!cachedSegs)continue; // 手動編集なし→対象外（マスター変更は自動反映される）
+
+    var cd=normDate(p.confirm_done||'')||p.confirm_done||'';
+    if(!cd||!String(cd).match(/\d{4}/))continue; // 確認完了日が無いと計算不可
+
+    var masterName=_resolvePropMasterName(p);
+    var mt=masterName?myMasters.find(function(m){return m.name===masterName;}):null;
+    if(!mt||!mt.steps||!mt.steps.length){noMasterCount++;continue;}
+
+    var normalizedSteps=_normalizeTmplSteps(mt.steps);
+    var existingByName={};
+    cachedSegs.forEach(function(s){existingByName[String(s.name||s.label||'').trim()]=s;});
+    var newStepNames=normalizedSteps.filter(function(st){
+      return !existingByName[String(st.name||st.label||'').trim()];
+    }).map(function(st){return st.name||st.label;});
+    if(!newStepNames.length)continue; // 新規項目なし→対象外
+
+    // ★マスター全体をこの物件の確認完了日で再計算し、新規項目の初期配置日を算出する
+    var soseStart=cd;
+    var area5=normalizeArea(p);
+    if(KANTO_AREAS.indexOf(area5)>=0){
+      var lp5=normDate(p.land_payment||'')||'';
+      if(lp5){
+        var base5=cd>=lp5?cd:lp5;
+        soseStart=addWorkdays(base5,4);
+        var sdt5=new Date(soseStart.replace(/[/]/g,'-'));
+        while(sdt5.getDay()===0)sdt5.setDate(sdt5.getDate()+1);
+        soseStart=localDateStr(sdt5);
+      }
+    }
+    var freshSegs=computeMasterSegs(soseStart,normalizedSteps,p.hand_kumi,masterName);
+    if(!freshSegs||!freshSegs.length)continue;
+
+    // ★マージ：既存工程（手動調整済み）はそのまま維持し、新規工程だけマスターの初期計算値を採用
+    //   （マスターの並び順で再構築するため、基礎/防水/内装の3段階大親ロジックの並び順判定にも支障が出ない）
+    var mergedSegs=freshSegs.map(function(fs){
+      var nm=String(fs.name||fs.label||'').trim();
+      var ex=existingByName[nm];
+      var src=ex||fs;
+      var sd=src.start_date||src.date||'';
+      var ed=src.end_date||'';
+      var dk=toDateKey(sd), ek=toDateKey(ed);
+      var dur=src.calendar_dur||src.duration||1;
+      return {
+        col:(typeof FULL_DATE_IDX!=='undefined'&&FULL_DATE_IDX[dk])||0,
+        date:dk, start_date:dk, end_date:ek,
+        label:src.label||nm, color:src.color||fs.color,
+        calendar_dur:dur, duration:dur, dur:src.dur||dur,
+        layer:src.layer||0, textColor:(ex?(ex.textColor||'auto'):'auto'),
+        offsetFrom:src.offsetFrom||'', offsetDays:src.offsetDays!=null?src.offsetDays:0
+      };
+    });
+
+    customGantt[ck]={__manual__:true,segs:mergedSegs};
+    updated.push({p:p,addedNames:newStepNames});
+  }
+
+  saveLS('jack_custom_gantt',customGantt);
+  renderBody(); if(typeof renderMyPage==='function')renderMyPage();
+
+  if(!updated.length){
+    showToast('新しく追加された工程は見つかりませんでした','');
+    return;
+  }
+
+  var isAdm=(currentProfile&&(currentProfile.role==='admin'||currentProfile.is_admin===true));
+  if(isAdm){
+    showToast('💾 '+updated.length+'件をSupabaseに保存中…','');
+    for(var j=0;j<updated.length;j++){
+      await new Promise(function(resolve){
+        _saveGanttToSupabase(updated[j].p, customGantt[custKey(updated[j].p)].segs, function(){resolve();});
+      });
+    }
+    showToast('✅ '+updated.length+'件の物件に新規工程を反映しました（全共有）','success');
+  } else {
+    showToast('✅ '+updated.length+'件の物件に新規工程を反映しました（ローカル）','success');
+  }
+
+  var detail=updated.map(function(u){return '・'+(u.p.name||u.p.fix_no)+'：'+u.addedNames.join('、');}).join('\n');
+  console.log('[新規工程反映]\n'+detail);
+  alert('以下の物件に新規工程を追加しました（'+updated.length+'件）:\n\n'+detail);
+}
+window.admSyncNewMasterSteps=admSyncNewMasterSteps;
+
 function admShowMasterSummary(){
   var all=(window._admAllProps&&window._admAllProps.length)?window._admAllProps:(DB_PROPS||[]);
   if(!all.length){showToast('物件データがありません','error');return;}
