@@ -912,6 +912,20 @@ var EC = {
 };
 var DARK_TEXT = {'造成':1,'地盤':1,'基礎':1,'建て方':1,'造作':1,'外構':1};
 
+// ★工程バーの背景色の明るさから自動で読みやすい文字色（黒/白）を判定する
+//   物件詳細の工程表は「基本は黒文字に統一」だが、外壁のように濃い色の背景では黒文字だと見えなくなるため、
+//   背景色の輝度を計算して暗い背景の時だけ自動的に白文字にする（DARK_TEXTの固定リストより正確・汎用的）
+function _ganttTextColor(hex){
+  if(!hex)return '#000';
+  var h=String(hex).trim().replace('#','');
+  if(h.length===3)h=h.split('').map(function(c){return c+c;}).join('');
+  if(h.length!==6)return '#000';
+  var r=parseInt(h.substr(0,2),16),g=parseInt(h.substr(2,2),16),b=parseInt(h.substr(4,2),16);
+  if(isNaN(r)||isNaN(g)||isNaN(b))return '#000';
+  var lum=(0.299*r+0.587*g+0.114*b)/255; // 知覚輝度（簡易式）
+  return lum>0.55?'#000':'#fff'; // 明るい背景→黒文字／暗い背景→白文字
+}
+
 // Visible dates: TODAYを基準に15日スライドで8ヶ月表示
 // 開始日: 直近の15日区切り（1日または16日）
 // 例: 今日=4/19 → 4/1起点, 今日=5/1 → 4/15起点, 今日=5/16 → 5/1起点
@@ -1364,12 +1378,14 @@ function getAreaMasterName(p){
   return null;
 }
 
-// ★ホーム画面 大工程表（東海物件限定）の表示工種フィルター
+// ★ホーム画面 大工程表（東海・関東物件）の表示工種フィルター
 //   ここに無い工種はホーム画面の帯からは非表示になる（物件詳細の工程表には影響しない）
-var HOME_GANTT_TOKAI_ALLOW=['造成','地盤','基礎','配筋検査','躯体検査','造作','断熱検査','内装','器具付け','外構','完了検査','土間打設','解体'];
+//   ★東海・関東とも同じロジック・同じ許可リストを使う（社内検査期間も両エリア共通で追加）
+var HOME_GANTT_ALLOW=['造成','地盤','基礎','配筋検査','躯体検査','造作','断熱検査','内装','器具付け','外構','完了検査','土間打設','解体','社内検査期間'];
 function isTokaiProp(p){return TOKAI_AREAS.indexOf(normalizeArea(p))>=0;}
+function isKantoProp(p){return KANTO_AREAS.indexOf(normalizeArea(p))>=0;}
 function _filterHomeGanttSegs(p, segs){
-  if(!isTokaiProp(p))return segs; // 東海物件以外は従来通り全表示
+  if(!isTokaiProp(p)&&!isKantoProp(p))return segs; // 東海・関東以外の物件は従来通り全表示
   var out=[];
   segs.forEach(function(s){
     var nm=s.label||s.name||'';
@@ -1391,7 +1407,17 @@ function _filterHomeGanttSegs(p, segs){
       });
       return;
     }
-    if(HOME_GANTT_TOKAI_ALLOW.indexOf(nm)>=0)out.push(s);
+    if(HOME_GANTT_ALLOW.indexOf(nm)>=0)out.push(s);
+  });
+  // ★土地決済・確認完了日は期間ではなく単日イベントなので、他の単日マーカー（レッカー等）と同様に
+  //   ガントバー＋ラベル文字で表示する（従来は縦の線だけで意味が分かりにくいとの指摘を受けて変更）
+  //   ★東海・関東どちらの物件にも表示する
+  [{v:p.land_payment,l:'土地決済',c:'#3b82f6'},{v:p.confirm_done,l:'確認完了',c:'#a855f7'}].forEach(function(ms){
+    var raw=ms.v||'';
+    if(!raw||/REF|#/.test(raw))return;
+    var norm=(normDate(raw)||raw).replace(/\//g,'-');
+    if(!norm)return;
+    out.push({label:ms.l,name:ms.l,start_date:norm,date:norm,end_date:norm,calendar_dur:1,duration:1,color:ms.c,layer:0});
   });
   return out;
 }
@@ -2384,11 +2410,76 @@ function renderHeader(){
 }
 
 // ===== RENDER BARS =====
+// ★ホーム画面ガント：バー位置とラベルの段(tier)を計算する共通ヘルパー（X座標のみに依存する純粋関数）
+//   renderBody()の行高さ事前計算と、renderBars()の実描画の両方で同じ結果を使うことで、
+//   1〜2日間に工程が密集する行だけ自動的に段を増やして縦に伸ばせるようにする（印刷画面と同じ考え方）
+function _gbComputeBarLayout(segs, gx){
+  var vStartPx = gx + VIS_START_COL * COL_W;
+  var vEndPx   = gx + VIS_END_COL   * COL_W;
+  var _dateToPx=function(dateStr){
+    var dk=(dateStr||'').replace(/\//g,'-').slice(0,10);
+    if(!dk)return null;
+    var pp=dk.split('-');
+    if(pp.length!==3)return null;
+    var obj=new Date(parseInt(pp[0]),parseInt(pp[1])-1,parseInt(pp[2]));
+    var diff=Math.round((obj-VIS_START_DATE_OBJ)/86400000);
+    return gx+(diff+1)*COL_W;
+  };
+  var barLayouts=[];
+  segs.forEach(function(seg){
+    var lbl=seg.label||seg.name||'';
+    var calDur=seg.calendar_dur||seg.duration||seg.dur||1;
+    var _sd=seg.start_date||seg.date||'';
+    var _dk=_sd.replace(/\//g,'-').slice(0,10);
+    var sPx;
+    var _datePx=_dk?_dateToPx(_dk):null;
+    if(_datePx!==null){sPx=_datePx;}
+    else{var col=typeof seg.col==='number'?seg.col:0; sPx=gx+(col-FULL_VIS_OFFSET)*COL_W;}
+    var color=seg.color||EC[lbl]||'#64748b';
+    var ePx=sPx+calDur*COL_W-2;
+    if(sPx>vEndPx||ePx<vStartPx)return;
+    var rsPx=Math.max(sPx,vStartPx);
+    var rePx=Math.min(ePx,vEndPx);
+    var rw=rePx-rsPx;
+    if(rw<2)return;
+    // 重なり検出：前のバーと時間的に重なる場合は縦位置をずらす（最大3スロット）
+    var slot=0;
+    for(var sj=0;sj<barLayouts.length;sj++){
+      var pl=barLayouts[sj];
+      if(pl.sPx<=ePx&&pl.ePx>=sPx)slot++;
+    }
+    slot=slot%3;
+    var isPartLeft=sPx<vStartPx;
+    var neededW=lbl.length*7.2+6;
+    barLayouts.push({lbl:lbl,color:color,rsPx:rsPx,rePx:rePx,rw:rw,sPx:sPx,ePx:ePx,slot:slot,isPartLeft:isPartLeft,inline:rw>=neededW,seg:seg});
+  });
+  // ラベル段(tier)割当：狭いバーのみ対象。段数に上限は設けず、渋滞具合に応じて必要なだけ確保する
+  var narrow=barLayouts.filter(function(b){return !b.inline&&b.lbl;}).sort(function(a,b){return a.rsPx-b.rsPx;});
+  var tierEnd=[];
+  narrow.forEach(function(b){
+    var labelStartX=b.rsPx+b.rw+3;
+    var labelEndX=labelStartX+(b.lbl.length*5.5+8);
+    var placed=-1;
+    for(var t=0;t<tierEnd.length;t++){
+      if(tierEnd[t]+2<=labelStartX){placed=t;break;}
+    }
+    if(placed===-1){placed=tierEnd.length;tierEnd.push(-999999);}
+    tierEnd[placed]=labelEndX;
+    b.labelTier=placed;
+  });
+  var maxTier=0;
+  narrow.forEach(function(b){if(b.labelTier>maxTier)maxTier=b.labelTier;});
+  return {barLayouts:barLayouts, maxTier:maxTier};
+}
+// ★渋滞時に追加する段1つあたりの高さ(px)。行の高さはこの分だけ自動で伸びる
+var GB_LABEL_TIER_H = 10;
+
 function renderBars(cv, p, segs, gx, top, rowH) {
   var vStartPx = gx + VIS_START_COL * COL_W;
   var vEndPx   = gx + VIS_END_COL   * COL_W;
-  var barH = rowH === 32 ? 18 : 20;
-  var barY = top + Math.floor((rowH-barH)/2);
+  var baseRowH = isPcMode ? 32 : 52; // ★行の基準高さ（渋滞で伸びていてもバーの太さ自体は基準値で計算する）
+  var barH = baseRowH === 32 ? 18 : 20;
+  var barY = top + Math.floor((baseRowH-barH)/2);
 
   // 日付文字列→ピクセル変換ヘルパー（VIS_DATES[0]=''の+1補正込み）
   var _dateToPx=function(dateStr){
@@ -2416,88 +2507,49 @@ function renderBars(cv, p, segs, gx, top, rowH) {
     }
   }
 
-  // ★東海物件限定：土地決済・確認完了日のマイルストーン縦ラインを描画
-  if(isTokaiProp(p)){
-    [{v:p.land_payment,c:'rgba(59,130,246,.4)'},{v:p.confirm_done,c:'rgba(168,85,247,.4)'}].forEach(function(ms){
-      var raw=ms.v||'';
-      if(!raw||/REF|#/.test(raw))return;
-      var norm=normDate(raw)||raw;
-      var mx=_dateToPx(norm);
-      if(mx===null||mx<vStartPx-2||mx>vEndPx+2)return;
-      var mLine=document.createElement('div');
-      mLine.style.cssText='position:absolute;left:'+mx+'px;top:'+top+'px;width:2px;height:'+rowH+'px;'
-        +'background:'+ms.c+';pointer-events:none;z-index:5;';
-      cv.appendChild(mLine);
-    });
-  }
+  // ★土地決済・確認完了日は_filterHomeGanttSegs()で単日ガントバー化して segs に含まれるため、
+  //   ここでの縦ライン描画は不要になった（バー＋ラベルで表示する方式に変更）
 
-  segs.forEach(function(seg, si){
-    var lbl   = seg.label || seg.name || '';
-    var calDur = seg.calendar_dur || seg.duration || seg.dur || 1;
-    var layer = seg.layer || 0;
-    // start_dateから直接ピクセルを計算（colを経由しない・確実にずれない）
-    var _sd=seg.start_date||seg.date||'';
-    var _dk=_sd.replace(/\//g,'-').slice(0,10);
-    var sPx;
-    var _datePx=_dk?_dateToPx(_dk):null;
-    if(_datePx!==null){
-      sPx=_datePx;
-    }else{
-      var col=typeof seg.col==='number'?seg.col:0;
-      sPx = gx + (col - FULL_VIS_OFFSET) * COL_W;
-    }
-    var color = seg.color || EC[lbl] || '#64748b';
-    var tcolor = '#000'; // ★全てのラベルを黒文字に統一（白抜き等で見えなくなる問題の対策）
+  // ★バー位置・ラベル段(tier)を共通ヘルパーで計算（renderBody()の行高さ事前計算と同じ結果になる）
+  var _layout=_gbComputeBarLayout(segs, gx);
+  var barLayouts=_layout.barLayouts.map(function(bl){
+    var bh = Math.max(Math.floor(barH*(bl.slot>0?0.75:1)),8);
+    var by = barY + bl.slot*Math.floor(barH/3);
+    if(by+bh>top+baseRowH-1)by=top+baseRowH-1-bh;
+    var zIdx = 10 + bl.slot;
+    var labelY = bl.labelTier!=null&&bl.labelTier>0
+      ? (top+baseRowH+(bl.labelTier-1)*GB_LABEL_TIER_H)
+      : by;
+    return Object.assign({},bl,{bh:bh,by:by,zIdx:zIdx,labelY:labelY,tcolor:'#000'});
+  });
 
-    var ePx = sPx + calDur * COL_W - 2;
-
-    if (sPx > vEndPx || ePx < vStartPx) return;
-    var rsPx = Math.max(sPx, vStartPx);
-    var rePx = Math.min(ePx, vEndPx);
-    var rw   = rePx - rsPx;
-    if (rw < 2) return;
-
-    // 重なり検出：前のバーと時間的に重なる場合は縦位置をずらす
-    var slotH = Math.floor(barH / 2); // 半分の高さでずらす
-    var slot = 0;
-    for(var sj=0;sj<si;sj++){
-      var ps=segs[sj];
-      var _psd=(ps.start_date||ps.date||'').replace(/\//g,'-').slice(0,10);
-      var psPx=_psd?_dateToPx(_psd):(gx+((typeof ps.col==='number'?ps.col:0)-FULL_VIS_OFFSET)*COL_W);
-      var pDur=ps.calendar_dur||ps.duration||ps.dur||1;
-      var pePx=psPx+pDur*COL_W-2;
-      if(psPx<=ePx&&pePx>=sPx){slot++;} // 重なっている
-    }
-    // slotが増えすぎたら行内に収める（最大3スロット）
-    slot=slot%3;
-
-    var bh = Math.max(Math.floor(barH*(slot>0?0.75:1)),8);
-    var by = barY + slot*Math.floor(barH/3);
-    // 行内に収まるよう制限
-    if(by+bh>top+rowH-1)by=top+rowH-1-bh;
-    var zIdx = 10 + slot;
-
-    var isPartLeft = sPx < vStartPx;
+  barLayouts.forEach(function(bl){
     var bar = document.createElement('div');
     bar.className='bar';
-    bar.style.cssText='left:'+rsPx+'px;top:'+by+'px;width:'+rw+'px;height:'+bh+'px;'
-      +'background:'+color+';color:'+tcolor+';font-size:7px;font-weight:800;'
-      +'border-radius:3px;z-index:'+zIdx+';opacity:'+(slot>0?'0.92':'1')+';'
-      +(isPartLeft?'border-left:2px dashed rgba(255,255,255,.6);':'');
+    bar.style.cssText='left:'+bl.rsPx+'px;top:'+bl.by+'px;width:'+bl.rw+'px;height:'+bl.bh+'px;'
+      +'background:'+bl.color+';color:'+bl.tcolor+';font-size:7px;font-weight:800;'
+      +'border-radius:3px;z-index:'+bl.zIdx+';opacity:'+(bl.slot>0?'0.92':'1')+';'
+      +(bl.isPartLeft?'border-left:2px dashed rgba(255,255,255,.6);':'');
     // ★実際に文字が収まる幅かを見積もって判定（収まらない場合は必ず外側ラベルにする＝途中で切れる表示を防ぐ）
-    var neededW=lbl.length*7.2+6;
-    if (rw>=neededW){
-      bar.textContent=lbl;
-    } else if(lbl) {
-      // バーが狭くて文字が入らない場合、外側にラベルを表示する
+    if (bl.inline){
+      bar.textContent=bl.lbl;
+    } else if(bl.lbl) {
+      // バーが狭くて文字が入らない場合、外側にラベルを表示する（渋滞時は行の下に段を追加して縦にずらす）
       var outLbl=document.createElement('div');
-      outLbl.style.cssText='position:absolute;left:'+(rsPx+rw+3)+'px;top:'+by+'px;height:'+bh+'px;display:flex;align-items:center;'
-        +'font-size:5px;font-weight:800;color:#000;white-space:nowrap;z-index:'+(zIdx+1)+';'
-        +'background:white;border:1px solid '+color+';border-radius:3px;padding:0 2px;pointer-events:none;';
-      outLbl.textContent=lbl;
+      if(bl.labelTier>0){
+        // ★渋滞時：行の下の追加スペースに小さめラベルを表示
+        outLbl.style.cssText='position:absolute;left:'+bl.rsPx+'px;top:'+(bl.labelY+1)+'px;height:'+(GB_LABEL_TIER_H-2)+'px;display:flex;align-items:center;'
+          +'font-size:5px;font-weight:800;color:#000;white-space:nowrap;z-index:'+(bl.zIdx+1)+';'
+          +'background:white;border:1px solid '+bl.color+';border-radius:3px;padding:0 2px;pointer-events:none;';
+      } else {
+        outLbl.style.cssText='position:absolute;left:'+(bl.rsPx+bl.rw+3)+'px;top:'+bl.labelY+'px;height:'+bl.bh+'px;display:flex;align-items:center;'
+          +'font-size:5px;font-weight:800;color:#000;white-space:nowrap;z-index:'+(bl.zIdx+1)+';'
+          +'background:white;border:1px solid '+bl.color+';border-radius:3px;padding:0 2px;pointer-events:none;';
+      }
+      outLbl.textContent=bl.lbl;
       cv.appendChild(outLbl);
     }
-    (function(l,dt){bar.onclick=function(e){e.stopPropagation();showTip(e,l+': '+(dt||''));};})(lbl,seg.date||seg.start_date||'');
+    (function(l,dt){bar.onclick=function(e){e.stopPropagation();showTip(e,l+': '+(dt||''));};})(bl.lbl,bl.seg.date||bl.seg.start_date||'');
     cv.appendChild(bar);
   });
 
@@ -2537,14 +2589,13 @@ function renderBody(){
   var activePreC=isPcMode?PRE_COLS:SP_PRE_COLS;
   var activeFreezeW=activeFreezeC.reduce(function(a,c){return a+c.w;},0);
   var activePreW=activePreC.reduce(function(a,c){return a+c.w;},0);
-  var rowH = isPcMode ? 32 : 52;
-  document.documentElement.style.setProperty('--row-h',rowH+'px');
+  var baseRowH = isPcMode ? 32 : 52;
+  document.documentElement.style.setProperty('--row-h',baseRowH+'px');
   var props=getProps();
   var fb=document.getElementById('freezeBody');
   var cv=document.getElementById('ganttCanvas');
   fb.innerHTML='';cv.innerHTML='';
   var activeTotalW = activePreW + GANTT_W + POST_W;
-  cv.style.cssText='width:'+activeTotalW+'px;height:'+(props.length*rowH)+'px;position:relative;';
 
   // 全業者選定一覧のサイドバータイムスタンプを初期表示
   setTimeout(function(){if(typeof _updateVendorSbTs==='function')_updateVendorSbTs();},300);
@@ -2565,19 +2616,31 @@ function renderBody(){
   var gx=activePreW;
   var nRows=props.length;
 
+  // ★事前計算パス：各行のバー配置とラベル渋滞状況を先に調べ、必要な行だけ高さを伸ばす（印刷画面と同じ考え方）
+  var rowPlans=props.map(function(p){
+    var segs=_filterHomeGanttSegs(p, getActiveSegs(p));
+    var lay=_gbComputeBarLayout(segs, gx);
+    var rh=baseRowH+(lay.maxTier>0?lay.maxTier*GB_LABEL_TIER_H:0);
+    return {p:p, segs:segs, rowH:rh};
+  });
+  var rowTops=[]; var yCursor=0;
+  rowPlans.forEach(function(rp){rowTops.push(yCursor); yCursor+=rp.rowH;});
+  var totalH=yCursor;
+  cv.style.cssText='width:'+activeTotalW+'px;height:'+totalH+'px;position:relative;';
+
   // Pre-draw month boundary lines & today line first
   VIS_DATES.forEach(function(d,i){
     if(!d)return;
     if(i>1 && VIS_DATES[i-1] && d.slice(8)==='01'){
       var ml=document.createElement('div');
       ml.className='g-line g-line-month';
-      ml.style.cssText='left:'+(gx+i*COL_W)+'px;height:'+(nRows*rowH)+'px;';
+      ml.style.cssText='left:'+(gx+i*COL_W)+'px;height:'+totalH+'px;';
       cv.appendChild(ml);
     }
     if(d===TODAY){
       var tl=document.createElement('div');
       tl.className='g-line g-line-today';
-      tl.style.cssText='left:'+(gx+i*COL_W)+'px;height:'+(nRows*rowH)+'px;';
+      tl.style.cssText='left:'+(gx+i*COL_W)+'px;height:'+totalH+'px;';
       cv.appendChild(tl);
     }
   });
@@ -2585,8 +2648,10 @@ function renderBody(){
   var sunCols=[], satCols=[];
   VIS_DATES.forEach(function(d,i){if(!d)return;var dow=getDow(d);if(dow===0)sunCols.push(i);else if(dow===6)satCols.push(i);});
 
-  props.forEach(function(p,ri){
-    var top=ri*rowH;
+  rowPlans.forEach(function(rp,ri){
+    var p=rp.p;
+    var top=rowTops[ri];
+    var rowH=rp.rowH;
     var days=daysUntil(p.delivery_date);
     var isUrgent=days!==null&&days>=0&&days<=30;
     var isSoon=days!==null&&days>30&&days<=60;
@@ -2595,6 +2660,7 @@ function renderBody(){
     // FREEZE ROW
     var fr=document.createElement('div');
     fr.className='fr-row'+(isUrgent?' urgent':isSoon?' soon':'')+(fav?' myfav-row':'');
+    fr.style.height=rowH+'px'; // ★行ごとに高さが異なる場合があるためCSS変数(--row-h)ではなくインライン指定で上書き
     (function(pp){fr.onclick=function(){window.openDetail(pp);};})(p);
     activeFreezeC.forEach(function(c){
       var cell=document.createElement('div');cell.className='fc';
@@ -2665,7 +2731,7 @@ function renderBody(){
     });
 
     // BARS
-    renderBars(cv, p, _filterHomeGanttSegs(p, getActiveSegs(p)), gx, top, rowH);
+    renderBars(cv, p, rp.segs, gx, top, rowH);
 
     // POST-GANTT
     var postX=gx+(VIS_DATES.length*COL_W);
@@ -2859,12 +2925,12 @@ function buildGanttTab(p){
       var by=28+2+(layer===1?3:0);
       var bh=layer===1?rowH-8:rowH-4;
       var color=seg.color||EC[lbl]||'#64748b';
-      var isDark=!!DARK_TEXT[lbl]; var tcOvr=seg.textColor||seg.text_color; var tcolor=tcOvr&&tcOvr!=='auto'?tcOvr:(isDark?'#3a2a10':'white');
+      var isDark=!!DARK_TEXT[lbl]; var tcOvr=seg.textColor||seg.text_color; var tcolor=tcOvr&&tcOvr!=='auto'?tcOvr:_ganttTextColor(color);
 
       var isPast=seg.end_date&&new Date(seg.end_date.replace(/\//g,'-'))<todayDt;
       var neededW2=lbl.length*7.2+4;
       if(bw>=neededW2){
-        bars+='<div style="position:absolute;left:'+sx+'px;top:'+by+'px;width:'+bw+'px;height:'+bh+'px;background:'+color+';color:#000;font-size:6px;font-weight:800;border-radius:2px;display:flex;align-items:center;padding:0 2px;overflow:hidden;white-space:nowrap;box-shadow:0 1px 2px rgba(0,0,0,.2);z-index:'+(layer===1?12:10)+';opacity:'+(isPast?'.65':'1')+';">'+lbl+'</div>';
+        bars+='<div style="position:absolute;left:'+sx+'px;top:'+by+'px;width:'+bw+'px;height:'+bh+'px;background:'+color+';color:'+tcolor+';font-size:6px;font-weight:800;border-radius:2px;display:flex;align-items:center;padding:0 2px;overflow:hidden;white-space:nowrap;box-shadow:0 1px 2px rgba(0,0,0,.2);z-index:'+(layer===1?12:10)+';opacity:'+(isPast?'.65':'1')+';">'+lbl+'</div>';
       } else {
         bars+='<div style="position:absolute;left:'+sx+'px;top:'+by+'px;width:'+bw+'px;height:'+bh+'px;background:'+color+';border-radius:2px;box-shadow:0 1px 2px rgba(0,0,0,.2);z-index:'+(layer===1?12:10)+';opacity:'+(isPast?'.65':'1')+';"></div>';
         if(lbl)bars+='<div style="position:absolute;left:'+(sx+bw+2)+'px;top:'+by+'px;height:'+bh+'px;display:flex;align-items:center;font-size:6px;font-weight:800;color:#000;white-space:nowrap;background:white;border:1px solid '+color+';border-radius:2px;padding:0 2px;z-index:'+(layer===1?13:11)+';">'+lbl+'</div>';
@@ -2951,7 +3017,7 @@ function buildGanttTab(p){
       var by=ri*ROW_H+28+(layer===1?3:0);
       var bh=layer===1?ROW_H-7:ROW_H-4;
       var color=seg.color||EC[lbl]||'#64748b';
-      var isDark=!!DARK_TEXT[lbl];var tcOvr=seg.textColor||seg.text_color;var tcolor=tcOvr&&tcOvr!=='auto'?tcOvr:(isDark?'#3a2a10':'white');
+      var isDark=!!DARK_TEXT[lbl];var tcOvr=seg.textColor||seg.text_color;var tcolor=tcOvr&&tcOvr!=='auto'?tcOvr:_ganttTextColor(color);
       var isPast=seg.end_date&&new Date(seg.end_date.replace(/\//g,'-'))<todayDt;
       var isAct=!isPast&&sd&&new Date(sd.replace(/\//g,'-'))<=todayDt;
       // ★造成バーはテキスト表示（ガントバーなし）
@@ -3107,9 +3173,10 @@ function toggleGanttEditMode(){
         offsetDays:offD
       };
     });
-    // ★2段階大親ロジック（関東マスター・関東手組マスターのみ）
+    // ★3段階大親ロジック（関東マスター・関東手組マスターのみ）
     //   A=基礎〜防水未満：基礎完了基準のまま（既存動作）
-    //   B=防水以降（防水自身含む）：防水完了基準に変換し、基礎の移動から完全に独立させる
+    //   B=防水〜内装未満：防水完了基準に変換し、基礎の移動から完全に独立させる
+    //   C=内装以降（内装自身含む）：内装完了基準に変換し、基礎・防水の移動から完全に独立させる
     (function(){
       var _mnRaw=_resolvePropMasterName(currentProp)||'';
       var _mn=_mnRaw.trim();
@@ -3122,19 +3189,37 @@ function toggleGanttEditMode(){
         if(bIdx>=0){
           var bSeg=geSegs[bIdx];
           bSeg.offsetFrom=''; // 防水自身はB群の起点。基礎の追随対象から外す
-          var _cnt=0;
+          var _cnt=0, _cntC=0;
           if(bSeg.end_date){
+            // ★内装（防水より後ろにあれば）をC群の起点として切り離す
+            var nIdx=-1;
+            for(var ni=bIdx+1; ni<geSegs.length; ni++){
+              if(_stripWs(geSegs[ni].name||geSegs[ni].label)==='内装'){nIdx=ni;break;}
+            }
+            var nSeg=(nIdx>=0)?geSegs[nIdx]:null;
+            var _naisouOk=!!(nSeg&&nSeg.end_date);
+            if(nSeg&&_naisouOk)nSeg.offsetFrom=''; // 内装自身はC群の起点。防水の追随対象から外す
             for(var gi=bIdx+1; gi<geSegs.length; gi++){
+              if(gi===nIdx)continue; // 内装自身は起点として上で処理済み
               var gs=geSegs[gi];
               var gn=gs.name||gs.label||'';
               if(gn==='造成'||gn==='地盤')continue;
-              if(gs.start_date){
+              if(!gs.start_date)continue;
+              if(_naisouOk&&gi>nIdx){
+                // 内装より後ろ → C群（内装完了基準）
+                gs.offsetFrom='内装完了';
+                gs.offsetDays=countWorkdays(nSeg.end_date, gs.start_date);
+                _cntC++;
+              } else {
+                // 防水〜内装未満（内装が無い場合は防水以降すべて）→ B群（防水完了基準）
                 gs.offsetFrom='防水完了';
                 gs.offsetDays=countWorkdays(bSeg.end_date, gs.start_date);
                 _cnt++;
               }
             }
             _diagLines.push('✅ 防水アンカー適用済み（'+_cnt+'工程が防水完了基準）');
+            if(_naisouOk)_diagLines.push('✅ 内装アンカー適用済み（'+_cntC+'工程が内装完了基準）');
+            else _diagLines.push('（「内装」工程が見つからないため内装アンカーは未適用）');
           } else {
             _diagLines.push('⚠️「防水」工程に終了日が無いため未適用');
           }
@@ -3151,7 +3236,7 @@ function toggleGanttEditMode(){
         _diagLines.push('（関東マスター／関東手組マスターに該当しないため2段階大親ロジックは対象外）');
       }
       if(_diagEl){_diagEl.style.display='block';_diagEl.innerHTML=_diagLines.join('<br>');}
-      console.log('[2段階大親ロジック診断] '+_diagLines.join(' / '));
+      console.log('[3段階大親ロジック診断] '+_diagLines.join(' / '));
     })();
     document.getElementById('geNewDate').value=TODAY;
     geInitColorPicker();
@@ -3253,7 +3338,7 @@ function geRenderBars(){
     var sx=(col-1)*GCW, bw=Math.max(calDur*GCW-1,GCW-1);
     var layer=seg.layer||0, by=idx*ROW_H+28+(layer===1?3:0), bh=layer===1?ROW_H-7:ROW_H-3;
     var color=seg.color||EC[lbl]||'#64748b';
-    var isDark=!!DARK_TEXT[lbl],tcOvr=seg.textColor||seg.text_color,tcolor=tcOvr&&tcOvr!=='auto'?tcOvr:(isDark?'#3a2a10':'white');
+    var isDark=!!DARK_TEXT[lbl],tcOvr=seg.textColor||seg.text_color,tcolor=tcOvr&&tcOvr!=='auto'?tcOvr:_ganttTextColor(color);
     var isPast=seg.end_date&&new Date(seg.end_date.replace(/[/]/g,'-'))<todayDt;
     var isAct=!isPast&&sdClean&&new Date(sdClean)<=todayDt;
     // ★造成バーはテキスト表示
@@ -3453,9 +3538,46 @@ function geApplyBousuiAnchor(movedIdx){
     if(i===movedIdx)continue;
     var s=geSegs[i];
     var offsetFrom=s.offsetFrom||'';
-    var offsetDays=s.offsetDays!=null?s.offsetDays:0;
-    if(offsetFrom==='防水完了'){
+    if(offsetFrom!=='防水完了')continue;
+    if(s.offsetDays==null)continue; // ★オフセット未確定の項目は動かさない
+    var offsetDays=s.offsetDays;
+    {
       var startDate=addWorkdaysSigned(bousuiEnd,offsetDays);
+      var sd2=new Date(startDate.replace(/[/]/g,'-'));
+      while(sd2.getDay()===0)sd2.setDate(sd2.getDate()+1);
+      startDate=localDateStr(sd2);
+      var segDur=s.calendar_dur||s.duration||s.dur||1;
+      var endStr2=addCalendarDays(startDate,segDur);
+      s.start_date=startDate;s.date=startDate;s.end_date=endStr2;
+      s.calendar_dur=calendarDur(startDate,endStr2);
+      s.duration=s.calendar_dur;
+      var nc=FULL_DATE_IDX[startDate];
+      if(nc===undefined){var fks=Object.keys(FULL_DATE_IDX);for(var fki=0;fki<fks.length;fki++){if(fks[fki]>=startDate){nc=FULL_DATE_IDX[fks[fki]];break;}}}
+      if(nc!==undefined)s.col=nc;
+    }
+  }
+}
+
+// 内装を動かしたら、内装完了基準の工程（C群：内装自身含む以降）を順次再計算
+// ★基礎ロジック(geApplyKisoAnchor)・防水ロジック(geApplyBousuiAnchor)とは完全に独立。offsetFrom==='内装完了'の工程だけを対象にする
+function geApplyNaisouAnchor(movedIdx){
+  var movedSeg=geSegs[movedIdx];
+  if(!movedSeg||String(movedSeg.name||movedSeg.label||'').trim()!=='内装')return;
+  if(!movedSeg.start_date)return;
+  var nDur=movedSeg.calendar_dur||movedSeg.duration||1;
+  movedSeg.end_date=addCalendarDays(movedSeg.start_date, nDur);
+  movedSeg.calendar_dur=calendarDur(movedSeg.start_date,movedSeg.end_date);
+  movedSeg.duration=movedSeg.calendar_dur;
+  var naisouEnd=movedSeg.end_date;
+  for(var i=0;i<geSegs.length;i++){
+    if(i===movedIdx)continue;
+    var s=geSegs[i];
+    var offsetFrom=s.offsetFrom||'';
+    if(offsetFrom!=='内装完了')continue;
+    if(s.offsetDays==null)continue; // ★オフセット未確定の項目は動かさない（内装完了日に不用意に揃うのを防ぐ）
+    var offsetDays=s.offsetDays;
+    {
+      var startDate=addWorkdaysSigned(naisouEnd,offsetDays);
       var sd2=new Date(startDate.replace(/[/]/g,'-'));
       while(sd2.getDay()===0)sd2.setDate(sd2.getDate()+1);
       startDate=localDateStr(sd2);
@@ -3483,16 +3605,25 @@ function geStopDrag(){
     var dragName=String((dragSeg&&(dragSeg.name||dragSeg.label))||'').trim();
 
     if(dragName==='基礎'){
-      // 基礎を動かした → A群（基礎〜防水未満）のみ追随。B群には一切影響しない
+      // 基礎を動かした → A群（基礎〜防水未満）のみ追随。B群・C群には一切影響しない
       geApplyKisoAnchor(dragIdx);
     } else if(dragName==='防水'){
-      // 防水を動かした → B群（防水以降・防水自身含む）のみ追随。A群には一切影響しない
+      // 防水を動かした → B群（防水〜内装未満）のみ追随。A群・C群には一切影響しない
       geApplyBousuiAnchor(dragIdx);
+    } else if(dragName==='内装'){
+      // 内装を動かした → C群（内装以降・内装自身含む）のみ追随。A群・B群には一切影響しない
+      geApplyNaisouAnchor(dragIdx);
     } else {
-      // 基礎・防水以外を動かした → 単体移動確定。元々属していた群（offsetFrom）を維持したまま基準日を再計算
+      // 基礎・防水・内装以外を動かした → 単体移動確定。元々属していた群（offsetFrom）を維持したまま基準日を再計算
       var sn=dragSeg.name||dragSeg.label||'';
       if(sn!=='造成'&&sn!=='地盤'){
-        if(dragSeg.offsetFrom==='防水完了'){
+        if(dragSeg.offsetFrom==='内装完了'){
+          var naisouSeg=geSegs.find(function(s){return (s.name||s.label||'')==='内装';});
+          if(naisouSeg&&naisouSeg.end_date&&dragSeg.start_date){
+            dragSeg.offsetDays=countWorkdays(naisouSeg.end_date, dragSeg.start_date);
+            dragSeg.offsetFrom='内装完了';
+          }
+        } else if(dragSeg.offsetFrom==='防水完了'){
           var bousuiSeg=geSegs.find(function(s){return (s.name||s.label||'')==='防水';});
           if(bousuiSeg&&bousuiSeg.end_date&&dragSeg.start_date){
             dragSeg.offsetDays=countWorkdays(bousuiSeg.end_date, dragSeg.start_date);
@@ -3553,7 +3684,7 @@ function geStopResize(){
       }
       geApplyKisoAnchor(resIdx);
     } else if(resName==='防水'){
-      // ★防水自身をリサイズ → B群（防水完了基準）を再計算。A群には一切影響しない
+      // ★防水自身をリサイズ → B群（防水完了基準）を再計算。A群・C群には一切影響しない
       var rsB=geSegs[resIdx];
       if(rsB&&rsB.start_date){
         rsB.duration=rsB.calendar_dur;
@@ -3561,15 +3692,30 @@ function geStopResize(){
         rsB.calendar_dur=calendarDur(rsB.start_date,rsB.end_date);
       }
       geApplyBousuiAnchor(resIdx);
+    } else if(resName==='内装'){
+      // ★内装自身をリサイズ → C群（内装完了基準）を再計算。A群・B群には一切影響しない
+      var rsC=geSegs[resIdx];
+      if(rsC&&rsC.start_date){
+        rsC.duration=rsC.calendar_dur;
+        rsC.end_date=addCalendarDays(rsC.start_date, rsC.calendar_dur);
+        rsC.calendar_dur=calendarDur(rsC.start_date,rsC.end_date);
+      }
+      geApplyNaisouAnchor(resIdx);
     } else {
-      // 基礎・防水以外リサイズ → end_date再計算 + 元々属していた群（offsetFrom）を維持したままoffsetDays更新
+      // 基礎・防水・内装以外リサイズ → end_date再計算 + 元々属していた群（offsetFrom）を維持したままoffsetDays更新
       var rs2=geSegs[resIdx];
       if(rs2&&rs2.start_date){
         // ★ calendar_durはカレンダー日数なのでaddCalendarDaysを使う
         rs2.end_date=addCalendarDays(rs2.start_date, rs2.calendar_dur||rs2.duration||1);
         rs2.calendar_dur=calendarDur(rs2.start_date,rs2.end_date);
       }
-      if(rs2&&String(rs2.offsetFrom||'').trim()==='防水完了'){
+      if(rs2&&String(rs2.offsetFrom||'').trim()==='内装完了'){
+        var naisouSeg2=geSegs.find(function(s){return String(s.name||s.label||'').trim()==='内装';});
+        if(naisouSeg2&&naisouSeg2.end_date&&rs2.start_date){
+          rs2.offsetDays=countWorkdays(naisouSeg2.end_date, rs2.start_date);
+          rs2.offsetFrom='内装完了';
+        }
+      } else if(rs2&&String(rs2.offsetFrom||'').trim()==='防水完了'){
         var bousuiSeg2=geSegs.find(function(s){return String(s.name||s.label||'').trim()==='防水';});
         if(bousuiSeg2&&bousuiSeg2.end_date&&rs2.start_date){
           rs2.offsetDays=countWorkdays(bousuiSeg2.end_date, rs2.start_date);
@@ -3665,17 +3811,38 @@ function geUpdateSegDate(input){
       s.duration=s.calendar_dur;
     }
   }
-  // 基礎の日付変更時は後工程を追随させる
+  // ★基礎・防水・内装の日付変更時は、それぞれの群（A/B/C）を追随させる
   var sname=s.name||s.label||'';
   if(sname==='基礎'){
     // ★ calendar_durをdurationにも同期してからアンカー適用
     s.duration=s.calendar_dur;
     geApplyKisoAnchor(idx);
-  } else {
-    var kisoSeg3=geSegs.find(function(seg){return (seg.name||seg.label||'')==='基礎';});
-    if(kisoSeg3&&kisoSeg3.end_date&&s.start_date&&sname!=='造成'&&sname!=='地盤'){
-      s.offsetFrom='基礎完了';
-      s.offsetDays=countWorkdays(kisoSeg3.end_date,s.start_date);
+  } else if(sname==='防水'){
+    s.duration=s.calendar_dur;
+    geApplyBousuiAnchor(idx);
+  } else if(sname==='内装'){
+    s.duration=s.calendar_dur;
+    geApplyNaisouAnchor(idx);
+  } else if(sname!=='造成'&&sname!=='地盤'){
+    // ★単体項目の日付変更 → 元々属していた群（内装完了／防水完了／基礎完了）を維持したまま基準日を再計算
+    if(s.offsetFrom==='内装完了'){
+      var naisouSeg3=geSegs.find(function(seg){return (seg.name||seg.label||'')==='内装';});
+      if(naisouSeg3&&naisouSeg3.end_date&&s.start_date){
+        s.offsetDays=countWorkdays(naisouSeg3.end_date,s.start_date);
+        s.offsetFrom='内装完了';
+      }
+    } else if(s.offsetFrom==='防水完了'){
+      var bousuiSeg3=geSegs.find(function(seg){return (seg.name||seg.label||'')==='防水';});
+      if(bousuiSeg3&&bousuiSeg3.end_date&&s.start_date){
+        s.offsetDays=countWorkdays(bousuiSeg3.end_date,s.start_date);
+        s.offsetFrom='防水完了';
+      }
+    } else {
+      var kisoSeg3=geSegs.find(function(seg){return (seg.name||seg.label||'')==='基礎';});
+      if(kisoSeg3&&kisoSeg3.end_date&&s.start_date){
+        s.offsetFrom='基礎完了';
+        s.offsetDays=countWorkdays(kisoSeg3.end_date,s.start_date);
+      }
     }
   }
   geRenderBars();
@@ -6413,9 +6580,14 @@ function printPage(){
   if(!props||!props.length){showToast('印刷対象の物件がありません','error');return;}
 
   var PCOL=14; // 1日の幅(px)
-  var PROW=22; // 行高さ(px)
+  var PROW=22; // 行高さ(px)・基準（バー本体＋渋滞なしラベル分）
   var LABEL_W=160; // 物件名列幅
   var DATE_W=70;   // 確認申請完了日列幅
+  // ★ラベルが渋滞（1〜2日間に工程が密集）した場合、行の下に段(tier)を追加して縮小表示する
+  var LABEL_TIER_H=9;   // 追加段1つあたりの高さ(px)
+  var LABEL_GAP=2;      // ラベル同士の最小間隔(px)
+  var LABEL_MAXTIERS=6; // 安全上限（これ以上は最終段に重ねて表示）
+  var LABEL_CHAR_W=5;   // 渋滞時の縮小ラベル：1文字あたりの推定幅(px)（通常表示より小さめ）
 
   // VIS_DATESから日付範囲取得
   var visDates=window.VIS_DATES||[];
@@ -6460,41 +6632,15 @@ function printPage(){
     dayHtml+='<div style="position:absolute;left:'+((i-1)*PCOL)+'px;top:14px;width:'+PCOL+'px;height:14px;display:flex;align-items:center;justify-content:center;font-size:7px;font-weight:'+(day===1?'800':'400')+';color:'+fc+';background:'+bg+';border-right:1px solid #e2e8f0;">' +day+'</div>';
   });
 
-  // 物件行
-  var rowLabels='';
-  var rowBgs='';
-  var barHtml='';
-  var confirmCells='';
+  var printStart=printDates[1]||''; // 印刷開始日（printDates[0]は空文字）
+  var printEnd=printDates[printDates.length-1]||'';
 
-  props.forEach(function(p,ri){
-    var nm=p.name||'';
-    var cd=p.confirm_done||'';
-    var days=daysUntil(p.delivery_date);
-    var isUrgent=days!==null&&days>=0&&days<=30;
-    var bg=ri%2===0?'#f8fafc':'white';
-
-    rowLabels+='<div style="height:'+PROW+'px;display:flex;flex-direction:column;justify-content:center;padding:0 6px;background:'+bg+';border-bottom:1px solid #e2e8f0;overflow:hidden;">'
-      +'<div style="font-size:9px;font-weight:700;color:#1e293b;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">'+nm+'</div>'
-      +(isUrgent?'<div style="font-size:7px;color:#ef4444;font-weight:700;">⚡引渡まで'+days+'日</div>':'')
-      +'</div>';
-
-    confirmCells+='<div style="height:'+PROW+'px;display:flex;align-items:center;padding:0 4px;background:'+bg+';border-bottom:1px solid #e2e8f0;font-size:8px;color:#475569;">'+cd+'</div>';
-
-    rowBgs+='<div style="position:absolute;left:0;top:'+(ri*PROW+28)+'px;width:'+GANTT_W+'px;height:'+PROW+'px;background:'+bg+';border-bottom:1px solid #e2e8f0;"></div>';
-
-    // weekend fills
-    printDates.forEach(function(d,di){
-      if(!d)return;
-      var dow=new Date(d).getDay();
-      if(dow===0||dow===6){
-        rowBgs+='<div style="position:absolute;left:'+((di-1)*PCOL)+'px;top:'+(ri*PROW+28)+'px;width:'+PCOL+'px;height:'+PROW+'px;background:'+(dow===0?'rgba(255,100,100,.1)':'rgba(100,150,255,.1)')+';"></div>';
-      }
-    });
-
-    // バー描画（今月以前に始まり今月中に続くバーもクリップして表示）
+  // ★Pass1：各物件行のバー・ラベル配置を先に計算する。
+  //   1〜2日間に工程が密集してラベルが重なる（渋滞する）行だけ、下に段(tier)を追加して縦に逃がす。
+  //   渋滞していない行は従来通りの高さ・見た目のまま変わらない。
+  var rowLayouts=props.map(function(p){
     var segs=_filterHomeGanttSegs(p, getActiveSegs(p)||[]);
-    var printStart=printDates[1]||''; // 印刷開始日（printDates[0]は空文字）
-    var printEnd=printDates[printDates.length-1]||'';
+    var items=[];
     segs.forEach(function(seg){
       var sd=seg.start_date||seg.date||''; if(!sd)return;
       var calDur=seg.calendar_dur||seg.dur||1;
@@ -6507,13 +6653,11 @@ function printPage(){
       var clipSd=sd<printStart?printStart:sd;
       var si=dIdx[clipSd];
       if(!si){
-        // printDatesに完全一致がない場合、最近傍を探す
         for(var di=1;di<printDates.length;di++){
           if(printDates[di]>=clipSd){si=di;break;}
         }
       }
       if(!si)return;
-      // クリップされた幅を計算
       var clipEd=ed>printEnd?printEnd:ed;
       var ei=dIdx[clipEd];
       if(!ei){
@@ -6524,28 +6668,98 @@ function printPage(){
       if(!ei)ei=si;
       var sx=(si-1)*PCOL;
       var bw=Math.max((ei-si+1)*PCOL-1,2);
-      var color=seg.color||'#94a3b8';
-      var layer=seg.layer||0;
-      var by=ri*PROW+28+(layer===1?4:2);
-      var bh=layer===1?PROW-9:PROW-4;
       var lbl=seg.label||seg.name||'';
       var neededW4=lbl.length*7+4;
-      if(bw>=neededW4){
-        barHtml+='<div style="position:absolute;left:'+sx+'px;top:'+by+'px;width:'+bw+'px;height:'+bh+'px;background:'+color+';border-radius:2px;display:flex;align-items:center;padding:0 2px;overflow:hidden;white-space:nowrap;z-index:10;">'
-          +'<span style="font-size:7px;font-weight:700;color:#000;">'+lbl+'</span></div>';
-      } else {
-        // ★狭いバーは外側にラベルを表示（見えなくなるのを防ぐ・印刷なので小さめに）
-        barHtml+='<div style="position:absolute;left:'+sx+'px;top:'+by+'px;width:'+bw+'px;height:'+bh+'px;background:'+color+';border-radius:2px;z-index:10;"></div>'
-          +'<div style="position:absolute;left:'+(sx+bw+2)+'px;top:'+by+'px;height:'+bh+'px;display:flex;align-items:center;font-size:6px;font-weight:700;color:#000;white-space:nowrap;background:white;border:1px solid '+color+';border-radius:2px;padding:0 2px;z-index:11;">'+lbl+'</div>';
+      items.push({sx:sx,bw:bw,color:seg.color||'#94a3b8',layer:seg.layer||0,lbl:lbl,inline:bw>=neededW4});
+    });
+    // バー自身の占有区間（外側ラベルがバーの上に重なって隠すのを防ぐための障害物）
+    var barObstacles=items.map(function(it){return [it.sx,it.sx+it.bw];});
+    // 外側ラベルが必要な項目だけを開始位置順に並べ、貪欲法で段(tier)へ振り分ける
+    var narrowItems=items.filter(function(it){return !it.inline;}).sort(function(a,b){return a.sx-b.sx;});
+    var tierEnd=[]; for(var ti=0;ti<LABEL_MAXTIERS;ti++)tierEnd.push(-99999);
+    narrowItems.forEach(function(it){
+      var labelStartX=it.sx+it.bw+2;
+      var labelEndX=labelStartX+(it.lbl.length*LABEL_CHAR_W+4);
+      var placedTier=LABEL_MAXTIERS-1;
+      for(var t=0;t<LABEL_MAXTIERS;t++){
+        if(tierEnd[t]+LABEL_GAP>labelStartX)continue; // 同じ段の直前ラベルとぶつかる
+        if(t===0){
+          // ★段0はバー本体と同じ高さに表示するため、他のバーを覆い隠さないかも確認する
+          var hitsBar=barObstacles.some(function(ob){return ob[0]<labelEndX&&ob[1]>labelStartX;});
+          if(hitsBar)continue;
+        }
+        placedTier=t;break;
+      }
+      tierEnd[placedTier]=labelEndX;
+      it.tier=placedTier;
+    });
+    var maxTier=0;
+    narrowItems.forEach(function(it){if(it.tier>maxTier)maxTier=it.tier;});
+    var rowH=maxTier>0?(PROW+maxTier*LABEL_TIER_H):PROW;
+    return {p:p, items:items, rowH:rowH};
+  });
+
+  var rowYs=[]; var yCursor=28;
+  rowLayouts.forEach(function(rl){rowYs.push(yCursor); yCursor+=rl.rowH;});
+  var totalH=yCursor;
+
+  // 物件行
+  var rowLabels='';
+  var rowBgs='';
+  var barHtml='';
+  var confirmCells='';
+
+  rowLayouts.forEach(function(rl,ri){
+    var p=rl.p, rowY=rowYs[ri], rowH=rl.rowH;
+    var nm=p.name||'';
+    var cd=p.confirm_done||'';
+    var days=daysUntil(p.delivery_date);
+    var isUrgent=days!==null&&days>=0&&days<=30;
+    var bg=ri%2===0?'#f8fafc':'white';
+
+    rowLabels+='<div style="height:'+rowH+'px;display:flex;flex-direction:column;justify-content:center;padding:0 6px;background:'+bg+';border-bottom:1px solid #e2e8f0;overflow:hidden;">'
+      +'<div style="font-size:9px;font-weight:700;color:#1e293b;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">'+nm+'</div>'
+      +(isUrgent?'<div style="font-size:7px;color:#ef4444;font-weight:700;">⚡引渡まで'+days+'日</div>':'')
+      +'</div>';
+
+    confirmCells+='<div style="height:'+rowH+'px;display:flex;align-items:center;padding:0 4px;background:'+bg+';border-bottom:1px solid #e2e8f0;font-size:8px;color:#475569;">'+cd+'</div>';
+
+    rowBgs+='<div style="position:absolute;left:0;top:'+rowY+'px;width:'+GANTT_W+'px;height:'+rowH+'px;background:'+bg+';border-bottom:1px solid #e2e8f0;"></div>';
+
+    // weekend fills
+    printDates.forEach(function(d,di){
+      if(!d)return;
+      var dow=new Date(d).getDay();
+      if(dow===0||dow===6){
+        rowBgs+='<div style="position:absolute;left:'+((di-1)*PCOL)+'px;top:'+rowY+'px;width:'+PCOL+'px;height:'+rowH+'px;background:'+(dow===0?'rgba(255,100,100,.1)':'rgba(100,150,255,.1)')+';"></div>';
       }
     });
 
-    // today line
-    var todayI=dIdx[TODAY];
-    if(todayI)barHtml+='<div style="position:absolute;left:'+((todayI-1)*PCOL)+'px;top:0;width:2px;height:'+(props.length*PROW+28)+'px;background:#ef4444;z-index:20;opacity:.7;"></div>';
+    // バー・ラベル描画
+    rl.items.forEach(function(it){
+      var by=rowY+(it.layer===1?4:2), bh=it.layer===1?PROW-9:PROW-4;
+      if(it.inline){
+        barHtml+='<div style="position:absolute;left:'+it.sx+'px;top:'+by+'px;width:'+it.bw+'px;height:'+bh+'px;background:'+it.color+';border-radius:2px;display:flex;align-items:center;padding:0 2px;overflow:hidden;white-space:nowrap;z-index:10;">'
+          +'<span style="font-size:7px;font-weight:700;color:#000;">'+it.lbl+'</span></div>';
+        return;
+      }
+      // ★狭いバー本体は常に日付通りの位置に表示（見た目・位置は従来通り）
+      barHtml+='<div style="position:absolute;left:'+it.sx+'px;top:'+by+'px;width:'+it.bw+'px;height:'+bh+'px;background:'+it.color+';border-radius:2px;z-index:10;"></div>';
+      if(it.tier===0){
+        // 渋滞していない場合は従来通りバーの右横に表示
+        barHtml+='<div style="position:absolute;left:'+(it.sx+it.bw+2)+'px;top:'+by+'px;height:'+bh+'px;display:flex;align-items:center;font-size:6px;font-weight:700;color:#000;white-space:nowrap;background:white;border:1px solid '+it.color+';border-radius:2px;padding:0 2px;z-index:11;">'+it.lbl+'</div>';
+      } else {
+        // ★渋滞時：バーの下に段を分けて縮小ラベルを表示（重なって見えなくなるのを防ぐ）
+        var tierY=rowY+PROW+(it.tier-1)*LABEL_TIER_H;
+        barHtml+='<div style="position:absolute;left:'+it.sx+'px;top:'+(tierY+1)+'px;height:'+(LABEL_TIER_H-2)+'px;display:flex;align-items:center;font-size:5px;font-weight:700;color:#000;white-space:nowrap;background:white;border:1px solid '+it.color+';border-radius:2px;padding:0 1px;z-index:11;">'+it.lbl+'</div>';
+      }
+    });
   });
 
-  var totalH=props.length*PROW+28;
+  // today line（渋滞対応で行の高さが物件ごとに変わるため、全行分の高さが確定した後にまとめて1本だけ描画）
+  var todayI=dIdx[TODAY];
+  if(todayI)barHtml+='<div style="position:absolute;left:'+((todayI-1)*PCOL)+'px;top:0;width:2px;height:'+totalH+'px;background:#ef4444;z-index:20;opacity:.7;"></div>';
+
   var STAT_W=50;
 
   var html='<!DOCTYPE html><html><head><meta charset="UTF-8">'
