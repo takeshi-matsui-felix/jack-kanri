@@ -3054,19 +3054,19 @@ function buildGanttTab(p){
       dayNums+='<div style="position:absolute;left:'+((i-1)*GCW2)+'px;top:14px;width:'+GCW2+'px;height:14px;display:flex;align-items:center;justify-content:center;font-size:6px;font-weight:700;z-index:10;color:'+(isToday?'#ef4444':dow===0?'#dc2626':dow===6?'#1d4ed8':'#334155')+';background:'+(isToday?'rgba(239,68,68,.3)':dow===0?'rgba(255,150,150,.8)':dow===6?'rgba(120,190,230,.8)':'white')+';border-right:1px solid #e2e8f0;">'+day+'</div>';
     });
     var todayCol=rDateIdx[TODAY]||0;
-    var todayLine=todayCol>0?'<div style="position:absolute;left:'+((todayCol-1)*GCW2)+'px;top:0;width:2px;height:'+(numRows*ROW_H+28)+'px;background:#ef4444;z-index:10;pointer-events:none;"></div>':'';
+    var bodyH=numRows*ROW_H; // ★ヘッダーを本体スクロール領域の外に出したため、本体の高さから28px分を除く
+    var todayLine=todayCol>0?'<div style="position:absolute;left:'+((todayCol-1)*GCW2)+'px;top:0;width:2px;height:'+bodyH+'px;background:#ef4444;z-index:10;pointer-events:none;"></div>':'';
     var fills='';
-    var totalHm=numRows*ROW_H+28;
     rDates.forEach(function(d,i){
       if(!d)return;var dow=getDow(d);
-      // ★土日: top:0 height:totalHm で上から下まで全列
-      if(dow===0)fills+='<div style="position:absolute;left:'+((i-1)*GCW2)+'px;top:0;width:'+GCW2+'px;height:'+totalHm+'px;background:rgba(255,182,193,.25);pointer-events:none;z-index:1;"></div>';
-      else if(dow===6)fills+='<div style="position:absolute;left:'+((i-1)*GCW2)+'px;top:0;width:'+GCW2+'px;height:'+totalHm+'px;background:rgba(173,216,230,.25);pointer-events:none;z-index:1;"></div>';
-      if(d.slice(8)==='01'&&i>1)fills+='<div style="position:absolute;left:'+((i-1)*GCW2)+'px;top:0;width:2px;height:'+totalHm+'px;background:#94a3b8;pointer-events:none;z-index:3;"></div>';
-      fills+='<div style="position:absolute;left:'+((i-1)*GCW2+GCW2-1)+'px;top:28px;width:1px;height:'+(numRows*ROW_H)+'px;background:#e2e8f0;pointer-events:none;z-index:1;"></div>';
+      // ★土日: top:0 height:bodyH で上から下まで全列
+      if(dow===0)fills+='<div style="position:absolute;left:'+((i-1)*GCW2)+'px;top:0;width:'+GCW2+'px;height:'+bodyH+'px;background:rgba(255,182,193,.25);pointer-events:none;z-index:1;"></div>';
+      else if(dow===6)fills+='<div style="position:absolute;left:'+((i-1)*GCW2)+'px;top:0;width:'+GCW2+'px;height:'+bodyH+'px;background:rgba(173,216,230,.25);pointer-events:none;z-index:1;"></div>';
+      if(d.slice(8)==='01'&&i>1)fills+='<div style="position:absolute;left:'+((i-1)*GCW2)+'px;top:0;width:2px;height:'+bodyH+'px;background:#94a3b8;pointer-events:none;z-index:3;"></div>';
+      fills+='<div style="position:absolute;left:'+((i-1)*GCW2+GCW2-1)+'px;top:0;width:1px;height:'+(numRows*ROW_H)+'px;background:#e2e8f0;pointer-events:none;z-index:1;"></div>';
     });
     // ★明確な罫線
-    var rowBgs='';for(var ri=0;ri<numRows;ri++)rowBgs+='<div style="position:absolute;left:0;top:'+(ri*ROW_H+28)+'px;width:'+totalW+'px;height:'+ROW_H+'px;background:'+(ri%2===0?'#f8fafc':'#f1f5f9')+';border-bottom:1.5px solid #cbd5e1;"></div>';
+    var rowBgs='';for(var ri=0;ri<numRows;ri++)rowBgs+='<div style="position:absolute;left:0;top:'+(ri*ROW_H)+'px;width:'+totalW+'px;height:'+ROW_H+'px;background:'+(ri%2===0?'#f8fafc':'#f1f5f9')+';border-bottom:1.5px solid #cbd5e1;"></div>';
     var bars='';
     segs.forEach(function(seg,ri){
       var lbl=seg.label||seg.name||'';
@@ -3076,7 +3076,7 @@ function buildGanttTab(p){
       var sx=(col-1)*GCW2;
       var bw=Math.max(calDur*GCW2-1,GCW2-1);
       var layer=seg.layer||0;
-      var by=ri*ROW_H+28+(layer===1?3:0);
+      var by=ri*ROW_H+(layer===1?3:0);
       var bh=layer===1?ROW_H-7:ROW_H-4;
       var color=seg.color||EC[lbl]||'#64748b';
       var isDark=!!DARK_TEXT[lbl];var tcOvr=seg.textColor||seg.text_color;var tcolor=tcOvr&&tcOvr!=='auto'?tcOvr:_ganttTextColor(color);
@@ -3097,7 +3097,7 @@ function buildGanttTab(p){
         bars+='<div style="position:absolute;left:'+sx+'px;top:'+by+'px;width:'+bw+'px;height:'+bh+'px;background:'+color+';color:'+tcolor+';font-size:7px;font-weight:800;border-radius:2px;display:flex;align-items:center;padding:0 3px;overflow:hidden;white-space:nowrap;box-shadow:0 1px 2px rgba(0,0,0,.15);z-index:'+(layer===1?12:10)+';opacity:'+(isPast?'.6':'1')+';'+(isAct?'outline:2px solid rgba(255,255,0,.6);outline-offset:0;':'')+'">'+(lblInside&&calDur>3?lbl:'')+'</div>'+lblHtml;
       }
     });
-    // ★左固定ラベル列（上部28pxは固定ヘッダー、行リストは本体の縦スクロールに追随）
+    // ★左固定ラベル列（横スクロールのみsticky。縦方向はヘッダーごと外に出したので単純な行リストでOK）
     var labelRows='';
     segs.forEach(function(seg,ri){
       var nm=seg.label||seg.name||'';
@@ -3107,19 +3107,24 @@ function buildGanttTab(p){
     // ★最終行（引渡し等）の下に空白行を1行追加（文字と表がズレるための対策）
     labelRows+='<div style="height:'+ROW_H+'px;background:'+(segs.length%2===0?'#f8fafc':'#f1f5f9')+';border-bottom:1.5px solid #cbd5e1;"></div>';
     var labelCol='<div id="dgLabelCol" style="position:sticky;left:0;z-index:20;flex-shrink:0;width:90px;background:#e2e8f0;border-right:2px solid #94a3b8;">'
-      +'<div style="height:28px;background:var(--primary);position:sticky;top:0;z-index:21;"></div>'
       +labelRows
       +'</div>';
-    // ★ 日付ヘッダー(hdrBands+dayNums)をsticky化して常に上部に表示
-    var dgHeaderSticky='<div style="position:sticky;top:0;left:0;z-index:30;height:28px;">'+hdrBands+dayNums+'</div>';
-    // ★ 描画順: dgHeaderSticky(固定ヘッダー)→rowBgs→fills→todayLine→bars
-    var kensaBars=buildKensaBars(p,segs,gDateIdx,GCW2,totalHm);
-    var ganttArea='<div style="flex-shrink:0;position:relative;width:'+totalW+'px;height:'+totalHm+'px;">'+dgHeaderSticky+rowBgs+fills+todayLine+bars+kensaBars+'</div>';
-    // ★ ラベル列と本体を「同じスクロールコンテナ」に入れ、ラベル列はposition:stickyで左固定
-    //   （旧：2つの別スクロール領域をJSで同期→ずれの原因。sticky化でExcelのように完全固定）
-    return '<div id="dgScrollWrap" style="max-height:400px;overflow:auto;-webkit-overflow-scrolling:touch;border:1.5px solid #e2e8f0;border-radius:6px;">'
-      +'<div style="display:flex;width:max-content;">'+labelCol+ganttArea+'</div>'
-      +'</div>';
+    var kensaBars=buildKensaBars(p,segs,gDateIdx,GCW2,bodyH);
+    var ganttArea='<div style="flex-shrink:0;position:relative;width:'+totalW+'px;height:'+bodyH+'px;">'+rowBgs+fills+todayLine+bars+kensaBars+'</div>';
+    // ★日付ヘッダーは縦スクロール領域の外側に独立配置し、横スクロールだけJSで追随させる
+    //   （二重position:stickyだと端末・ブラウザによってスクロール終端付近で消える不具合があったための抜本対策）
+    var headerRow='<div style="display:flex;">'
+      +'<div style="width:90px;flex-shrink:0;height:28px;background:var(--primary);border-right:2px solid #94a3b8;"></div>'
+      +'<div id="dgHeaderClip" style="flex:1;min-width:0;overflow:hidden;height:28px;position:relative;background:var(--primary);">'
+        +'<div id="dgHeaderInner" style="position:absolute;top:0;left:0;width:'+totalW+'px;height:28px;">'+hdrBands+dayNums+'</div>'
+      +'</div>'
+    +'</div>';
+    return '<div style="border:1.5px solid #e2e8f0;border-radius:6px;overflow:hidden;display:flex;flex-direction:column;">'
+      +headerRow
+      +'<div id="dgScrollWrap" onscroll="var h=document.getElementById(\'dgHeaderInner\');if(h)h.style.transform=\'translateX(-\'+this.scrollLeft+\'px)\';" style="max-height:372px;overflow:auto;-webkit-overflow-scrolling:touch;">'
+        +'<div style="display:flex;width:max-content;">'+labelCol+ganttArea+'</div>'
+      +'</div>'
+    +'</div>';
   }
 
   // Compact row shown by default, expand button shows multi-row
@@ -3366,18 +3371,19 @@ function geRenderBars(){
     dayNums+='<div style="position:absolute;left:'+((i-1)*GCW)+'px;top:14px;width:'+GCW+'px;height:14px;display:flex;align-items:center;justify-content:center;font-size:6px;font-weight:700;font-family:var(--mono);z-index:10;color:'+(isToday?'#ef4444':dow===0?'#dc2626':dow===6?'#1d4ed8':'rgba(255,255,255,.9)')+';background:'+(isToday?'rgba(239,68,68,.5)':dow===0?'rgba(255,150,150,.7)':dow===6?'rgba(120,190,230,.7)':'rgba(30,41,59,.6)')+';border-right:1px solid rgba(255,255,255,.2);">'+day+'</div>';
   });
   var todayCol=gDateIdx[TODAY]||0;
-  var todayLine=todayCol>0?'<div style="position:absolute;left:'+((todayCol-1)*GCW)+'px;top:0;width:2px;height:'+(numRows*ROW_H+28)+'px;background:#ef4444;z-index:10;pointer-events:none;"></div>':'';
+  var bodyH=numRows*ROW_H; // ★ヘッダーを縦スクロール領域の外に出したため、本体の高さから28px分を除く
+  var todayLine=todayCol>0?'<div style="position:absolute;left:'+((todayCol-1)*GCW)+'px;top:0;width:2px;height:'+bodyH+'px;background:#ef4444;z-index:10;pointer-events:none;"></div>':'';
   var fills=''; gDates.forEach(function(d,i){
     if(!d)return;var dow=getDow(d);
-    // ★土日: top:0 height:totalH で上から下まで全列着色（z-index:0）
-    if(dow===0)fills+='<div style="position:absolute;left:'+((i-1)*GCW)+'px;top:0;width:'+GCW+'px;height:'+totalH+'px;background:rgba(255,182,193,.25);pointer-events:none;z-index:1;"></div>';
-    else if(dow===6)fills+='<div style="position:absolute;left:'+((i-1)*GCW)+'px;top:0;width:'+GCW+'px;height:'+totalH+'px;background:rgba(173,216,230,.25);pointer-events:none;z-index:1;"></div>';
-    if(d.slice(8)==='01'&&i>1)fills+='<div style="position:absolute;left:'+((i-1)*GCW)+'px;top:0;width:2px;height:'+totalH+'px;background:#94a3b8;pointer-events:none;z-index:3;"></div>';
-    fills+='<div style="position:absolute;left:'+((i-1)*GCW+GCW-1)+'px;top:28px;width:1px;height:'+(numRows*ROW_H)+'px;background:#e2e8f0;pointer-events:none;z-index:1;"></div>';
+    // ★土日: top:0 height:bodyH で上から下まで全列着色（z-index:0）
+    if(dow===0)fills+='<div style="position:absolute;left:'+((i-1)*GCW)+'px;top:0;width:'+GCW+'px;height:'+bodyH+'px;background:rgba(255,182,193,.25);pointer-events:none;z-index:1;"></div>';
+    else if(dow===6)fills+='<div style="position:absolute;left:'+((i-1)*GCW)+'px;top:0;width:'+GCW+'px;height:'+bodyH+'px;background:rgba(173,216,230,.25);pointer-events:none;z-index:1;"></div>';
+    if(d.slice(8)==='01'&&i>1)fills+='<div style="position:absolute;left:'+((i-1)*GCW)+'px;top:0;width:2px;height:'+bodyH+'px;background:#94a3b8;pointer-events:none;z-index:3;"></div>';
+    fills+='<div style="position:absolute;left:'+((i-1)*GCW+GCW-1)+'px;top:0;width:1px;height:'+(numRows*ROW_H)+'px;background:#e2e8f0;pointer-events:none;z-index:1;"></div>';
   });
   // ★明確な罫線
-  var rowBgs=''; for(var ri2=0;ri2<numRows;ri2++)rowBgs+='<div style="position:absolute;left:0;top:'+(ri2*ROW_H+28)+'px;width:'+totalW+'px;height:'+ROW_H+'px;background:'+(ri2%2===0?'#f8fafc':'#f1f5f9')+';border-bottom:1.5px solid #cbd5e1;"></div>';
-  // ★左固定ラベル列（上部28pxは固定ヘッダー、行リストはgeScrollWrapの縦スクロールに追随）
+  var rowBgs=''; for(var ri2=0;ri2<numRows;ri2++)rowBgs+='<div style="position:absolute;left:0;top:'+(ri2*ROW_H)+'px;width:'+totalW+'px;height:'+ROW_H+'px;background:'+(ri2%2===0?'#f8fafc':'#f1f5f9')+';border-bottom:1.5px solid #cbd5e1;"></div>';
+  // ★左固定ラベル列（横スクロールのみsticky。縦方向はヘッダーごと外に出したので単純な行リストでOK）
   var geLabelRows='';
   segs.forEach(function(s,ri){
     var nm=s.label||s.name||'';if(nm.length>10)nm=nm.slice(0,9)+'…';
@@ -3386,7 +3392,6 @@ function geRenderBars(){
   // ★最終行（引渡し等）の下に空白行を1行追加（文字と表がズレるための対策）
   geLabelRows+='<div style="height:'+ROW_H+'px;background:'+(segs.length%2===0?'#f8fafc':'#f1f5f9')+';border-bottom:1.5px solid #cbd5e1;"></div>';
   var geLabels='<div id="geLabelCol" style="position:sticky;left:0;z-index:20;flex-shrink:0;width:90px;background:#e2e8f0;border-right:2px solid #94a3b8;">'
-    +'<div style="height:28px;background:var(--primary);position:sticky;top:0;z-index:21;"></div>'
     +geLabelRows
     +'</div>';
   var bars='';
@@ -3398,7 +3403,7 @@ function geRenderBars(){
     // デバッグ: 最初の2バーのみ
     var calDur=seg.calendar_dur||(function(){var ed=seg.end_date||'';if(ed)return Math.round((new Date(ed.replace(/[/]/g,'-'))-new Date(sdClean))/86400000)+1;return seg.duration||seg.dur||1;})();
     var sx=(col-1)*GCW, bw=Math.max(calDur*GCW-1,GCW-1);
-    var layer=seg.layer||0, by=idx*ROW_H+28+(layer===1?3:0), bh=layer===1?ROW_H-7:ROW_H-3;
+    var layer=seg.layer||0, by=idx*ROW_H+(layer===1?3:0), bh=layer===1?ROW_H-7:ROW_H-3;
     var color=seg.color||EC[lbl]||'#64748b';
     var isDark=!!DARK_TEXT[lbl],tcOvr=seg.textColor||seg.text_color,tcolor=tcOvr&&tcOvr!=='auto'?tcOvr:_ganttTextColor(color);
     var isPast=seg.end_date&&new Date(seg.end_date.replace(/[/]/g,'-'))<todayDt;
@@ -3431,7 +3436,7 @@ function geRenderBars(){
       }
     }
   });
-  var totalH=numRows*ROW_H+28; // ← totalHを先に定義
+  var totalH=bodyH; // ← 本体（行エリア）の高さ。ヘッダーは外側に分離したので28pxを含めない
   // 引渡し日の赤バーを追加
   var delivBar='';
   if(currentProp&&currentProp.delivery_date){
@@ -3446,14 +3451,22 @@ function geRenderBars(){
   }
   // ★検査4種（配筋検査・躯体検査・断熱検査・完了検査）のマーカーを追加
   var kensaBars=buildKensaBars(currentProp,segs,gDateIdx,GCW,totalH);
-  // ★ 日付ヘッダー(hdrBands+dayNums)をsticky化し、上部に固定して表示（縦スクロールしても常に見える）
-  var geHeaderSticky='<div style="position:sticky;top:0;left:0;z-index:30;height:28px;">'+hdrBands+dayNums+'</div>';
-  // ★ 描画順序: geHeaderSticky(固定ヘッダー)→rowBgs(行背景)→fills(土日背景)→todayLine→bars→delivBar→kensaBars
-  // ★ラベル列と本体を同じスクロールコンテナに入れ、ラベル列はposition:stickyで左固定
-  //   （旧：2つの別スクロール領域をJSで同期→ずれの原因。sticky化でExcelのように完全固定）
-  multiEl.innerHTML='<div id="geScrollWrap" style="max-height:400px;overflow:auto;-webkit-overflow-scrolling:touch;border:1.5px solid #e2e8f0;border-radius:6px;"><div style="display:flex;width:max-content;">'+geLabels+'<div id="geCanvas" style="flex-shrink:0;position:relative;width:'+totalW+'px;height:'+totalH+'px;background:white;">'+geHeaderSticky+rowBgs+fills+todayLine+bars+delivBar+kensaBars+'</div></div></div>';
+  // ★日付ヘッダーは縦スクロール領域の外側に独立配置し、横スクロールだけJSで追随させる
+  //   （二重position:stickyだと端末・ブラウザによってスクロール終端付近で消える不具合があったための抜本対策）
+  var geHeaderRow='<div style="display:flex;">'
+    +'<div style="width:90px;flex-shrink:0;height:28px;background:var(--primary);border-right:2px solid #94a3b8;"></div>'
+    +'<div id="geHeaderClip" style="flex:1;min-width:0;overflow:hidden;height:28px;position:relative;background:var(--primary);">'
+      +'<div id="geHeaderInner" style="position:absolute;top:0;left:0;width:'+totalW+'px;height:28px;">'+hdrBands+dayNums+'</div>'
+    +'</div>'
+  +'</div>';
+  multiEl.innerHTML='<div style="border:1.5px solid #e2e8f0;border-radius:6px;overflow:hidden;display:flex;flex-direction:column;">'
+    +geHeaderRow
+    +'<div id="geScrollWrap" onscroll="var h=document.getElementById(\'geHeaderInner\');if(h)h.style.transform=\'translateX(-\'+this.scrollLeft+\'px)\';" style="max-height:372px;overflow:auto;-webkit-overflow-scrolling:touch;">'
+      +'<div style="display:flex;width:max-content;">'+geLabels+'<div id="geCanvas" style="flex-shrink:0;position:relative;width:'+totalW+'px;height:'+totalH+'px;background:white;">'+rowBgs+fills+todayLine+bars+delivBar+kensaBars+'</div></div>'
+    +'</div>'
+  +'</div>';
   // スクロール位置を復元（初回はTODAY付近へ）
-  // flex構造: outerDiv > labelCol + scrollDiv > geCanvas
+  // flex構造: outerDiv > headerRow, outerDiv > scrollWrap > (labelCol + geCanvas)
   var newWrap=document.getElementById('geScrollWrap');
   if(newWrap){
     if(savedScroll>=0){
@@ -3462,6 +3475,8 @@ function geRenderBars(){
       newWrap.scrollLeft=Math.max(0,(todayCol-5)*GCW);
     }
     newWrap.scrollTop=savedScrollTop; // ★縦スクロール位置を復元（バーを動かすたびに一番上へ戻されていた不具合の修正）
+    var hInner=document.getElementById('geHeaderInner');
+    if(hInner)hInner.style.transform='translateX(-'+newWrap.scrollLeft+'px)'; // ★プログラムによるscrollLeft変更でも確実にヘッダーを追随させる
   }
   // ★ panel-scrollの縦スクロール位置も復元（ガント移動後に画面が戻る問題対策）
   if(window._gePanelScrollTop!==undefined){
@@ -6216,7 +6231,7 @@ function renderMasterGantt(){
   cv.innerHTML=''; hdr.innerHTML='';
 
   // ヘッダー
-  hdr.style.cssText='width:'+totalW+'px;height:28px;position:relative;background:#1e293b;';
+  hdr.style.cssText='width:'+totalW+'px;height:28px;position:sticky;top:0;left:0;z-index:10;background:#1e293b;-webkit-transform:translateZ(0);transform:translateZ(0);';
   var months={};
   masterEdDates.forEach(function(d,i){if(!d)return;var m=d.substring(0,7);if(!months[m])months[m]={start:i-1,count:0};months[m].count++;});
   var mn2={'01':'1月','02':'2月','03':'3月','04':'4月','05':'5月','06':'6月','07':'7月','08':'8月','09':'9月','10':'10月','11':'11月','12':'12月'};
