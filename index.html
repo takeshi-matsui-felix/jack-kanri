@@ -127,6 +127,7 @@ input,textarea,select{font-family:var(--font)}
 .g-line-sat{background:rgba(173,216,230,.35)}
 .g-line-norm{background:rgba(0,0,0,.04)}
 .g-line-month{background:#475569;width:2px;z-index:5} /* month boundary */
+.g-line-day{background:rgba(100,116,139,.12);width:1px;z-index:4} /* ★日ごとの薄い縦罫線 */
 /* Weekend column fill */
 .g-col-sun{position:absolute;top:0;bottom:0;background:rgba(255,182,193,.25);pointer-events:none;z-index:0}
 .g-col-sat{position:absolute;top:0;bottom:0;background:rgba(173,216,230,.22);pointer-events:none;z-index:0}
@@ -1395,8 +1396,13 @@ function getAreaMasterName(p){
 var HOME_GANTT_ALLOW=['造成','地盤','基礎','配筋検査','躯体検査','造作','断熱検査','内装','器具付け','外構','完了検査','土間打設','解体','社内検査期間','土台','①レッカー','②レッカー','③レッカー','④レッカー',
   // ★関東手組マスター：建て方の内訳工程（大工程表にもそのまま表示する）
   '足場3層','足場３層','最終足場','1F壁','１F壁','2F床','２F床','階段組','階段組み','2F壁','２F壁','3F壁','３F壁','天井・妻','小屋・屋根','共用下地','共用床下地'];
-// ★渋滞の有無に関わらず、常に最小サイズの外側チップ表示に統一する項目（土台・レッカーは同じ見た目で並べたいため）
-var HOME_GANTT_FORCE_CHIP={'土台':1,'①レッカー':1,'②レッカー':1,'③レッカー':1,'④レッカー':1};
+// ★渋滞の有無に関わらず、常に最小サイズの外側チップ表示に統一する項目（土台・レッカー・関東手組の建て方内訳）
+var HOME_GANTT_FORCE_CHIP={
+  '土台':1,'①レッカー':1,'②レッカー':1,'③レッカー':1,'④レッカー':1,
+  '足場3層':1,'足場３層':1,'最終足場':1,'解体':1,
+  '1F壁':1,'１F壁':1,'2F床':1,'２F床':1,'階段組':1,'階段組み':1,
+  '2F壁':1,'２F壁':1,'3F壁':1,'３F壁':1,'天井・妻':1,'小屋・屋根':1,'共用下地':1,'共用床下地':1
+};
 function isTokaiProp(p){return TOKAI_AREAS.indexOf(normalizeArea(p))>=0;}
 function isKantoProp(p){return KANTO_AREAS.indexOf(normalizeArea(p))>=0;}
 function _filterHomeGanttSegs(p, segs){
@@ -2469,8 +2475,9 @@ function _gbComputeBarLayout(segs, gx){
     var isPartLeft=sPx<vStartPx;
     var neededW=lbl.length*7.2+6;
     // ★1〜2日の短い工程（土台・レッカー等）は常に外側チップ表示に統一する（配筋検査・土台等が塗りつぶし文字になり見た目がバラバラになるのを防ぐ）
-    var inlineOk=!HOME_GANTT_FORCE_CHIP[lbl]&&calDur>=3&&rw>=neededW;
-    barLayouts.push({lbl:lbl,color:color,rsPx:rsPx,rePx:rePx,rw:rw,sPx:sPx,ePx:ePx,slot:slot,isPartLeft:isPartLeft,inline:inlineOk,seg:seg});
+    var isForceChip=!!HOME_GANTT_FORCE_CHIP[lbl];
+    var inlineOk=!isForceChip&&calDur>=3&&rw>=neededW;
+    barLayouts.push({lbl:lbl,color:color,rsPx:rsPx,rePx:rePx,rw:rw,sPx:sPx,ePx:ePx,slot:slot,isPartLeft:isPartLeft,inline:inlineOk,minSwatch:isForceChip,seg:seg});
   });
   // ラベル段(tier)割当：狭いバーのみ対象。高さは3段階までに統一する（ガントと文字の両方が分かるように）
   var GB_MAXTIERS=3;
@@ -2542,10 +2549,13 @@ function renderBars(cv, p, segs, gx, top, rowH) {
     return Object.assign({},bl,{bh:bh,by:by,zIdx:zIdx,labelY:labelY,tcolor:'#000'});
   });
 
+  var MIN_SWATCH_W=6; // ★常時チップ化する項目のマーカー幅(px)。実際の日数幅ではなく固定の最小サイズにする
+
   barLayouts.forEach(function(bl){
+    var swW=bl.minSwatch?MIN_SWATCH_W:bl.rw;
     var bar = document.createElement('div');
     bar.className='bar';
-    bar.style.cssText='left:'+bl.rsPx+'px;top:'+bl.by+'px;width:'+bl.rw+'px;height:'+bl.bh+'px;'
+    bar.style.cssText='left:'+bl.rsPx+'px;top:'+bl.by+'px;width:'+swW+'px;height:'+bl.bh+'px;'
       +'background:'+bl.color+';color:'+bl.tcolor+';font-size:7px;font-weight:800;'
       +'border-radius:3px;z-index:'+bl.zIdx+';opacity:'+(bl.slot>0?'0.92':'1')+';'
       +(bl.isPartLeft?'border-left:2px dashed rgba(255,255,255,.6);':'');
@@ -2554,17 +2564,20 @@ function renderBars(cv, p, segs, gx, top, rowH) {
       bar.textContent=bl.lbl;
     } else if(bl.lbl) {
       // バーが狭くて文字が入らない場合、外側にラベルを表示する（渋滞時は行の下に段を追加して縦にずらす）
+      // ★チップの高さ・フォントサイズは、渋滞の有無（tier0かtier>0か）に関わらず完全に同一にする
+      var CHIP_H=GB_LABEL_TIER_H-2;
       var outLbl=document.createElement('div');
+      var chipTop,chipLeft;
       if(bl.labelTier>0){
-        // ★渋滞時：行の下の追加スペースに小さめラベルを表示
-        outLbl.style.cssText='position:absolute;left:'+bl.rsPx+'px;top:'+(bl.labelY+1)+'px;height:'+(GB_LABEL_TIER_H-2)+'px;display:flex;align-items:center;'
-          +'font-size:5px;font-weight:800;color:#000;white-space:nowrap;z-index:'+(bl.zIdx+1)+';'
-          +'background:white;border:1px solid '+bl.color+';border-radius:3px;padding:0 2px;pointer-events:none;';
+        chipTop=bl.labelY+1;
+        chipLeft=bl.rsPx;
       } else {
-        outLbl.style.cssText='position:absolute;left:'+(bl.rsPx+bl.rw+3)+'px;top:'+bl.labelY+'px;height:'+bl.bh+'px;display:flex;align-items:center;'
-          +'font-size:5px;font-weight:800;color:#000;white-space:nowrap;z-index:'+(bl.zIdx+1)+';'
-          +'background:white;border:1px solid '+bl.color+';border-radius:3px;padding:0 2px;pointer-events:none;';
+        chipTop=bl.by+Math.floor((bl.bh-CHIP_H)/2);
+        chipLeft=bl.rsPx+swW+3;
       }
+      outLbl.style.cssText='position:absolute;left:'+chipLeft+'px;top:'+chipTop+'px;height:'+CHIP_H+'px;display:flex;align-items:center;'
+        +'font-size:5px;font-weight:800;color:#000;white-space:nowrap;z-index:'+(bl.zIdx+1)+';'
+        +'background:white;border:1px solid '+bl.color+';border-radius:3px;padding:0 2px;pointer-events:none;';
       outLbl.textContent=bl.lbl;
       cv.appendChild(outLbl);
     }
@@ -2647,9 +2660,14 @@ function renderBody(){
   var totalH=yCursor;
   cv.style.cssText='width:'+activeTotalW+'px;height:'+totalH+'px;position:relative;';
 
-  // Pre-draw month boundary lines & today line first
+  // Pre-draw day gridlines (faint), month boundary lines & today line first
   VIS_DATES.forEach(function(d,i){
     if(!d)return;
+    // ★大工程ガント：日ごとの薄い縦罫線（カレンダーの区切りを見やすくする）
+    var dl=document.createElement('div');
+    dl.className='g-line g-line-day';
+    dl.style.cssText='left:'+(gx+i*COL_W)+'px;height:'+totalH+'px;';
+    cv.appendChild(dl);
     if(i>1 && VIS_DATES[i-1] && d.slice(8)==='01'){
       var ml=document.createElement('div');
       ml.className='g-line g-line-month';
@@ -6698,7 +6716,7 @@ function printPage(){
       // ★1〜2日の短い工程（土台・レッカー等）は、文字が収まる幅があっても常に外側チップ表示に統一する
       //   （バーに収まる時だけ塗りつぶし文字にすると、同じ種類の項目なのに見た目がバラバラになるため）
       var inline4=!HOME_GANTT_FORCE_CHIP[lbl]&&calDur>=3&&bw>=neededW4;
-      items.push({sx:sx,bw:bw,color:seg.color||'#94a3b8',layer:seg.layer||0,lbl:lbl,inline:inline4});
+      items.push({sx:sx,bw:bw,color:seg.color||'#94a3b8',layer:seg.layer||0,lbl:lbl,inline:inline4,minSwatch:!!HOME_GANTT_FORCE_CHIP[lbl]});
     });
     // バー自身の占有区間（外側ラベルがバーの上に重なって隠すのを防ぐための障害物）
     var barObstacles=items.map(function(it){return [it.sx,it.sx+it.bw];});
@@ -6764,22 +6782,26 @@ function printPage(){
     });
 
     // バー・ラベル描画
+    var MIN_SWATCH_W4=5; // ★常時チップ化する項目のマーカー幅(px)。実際の日数幅ではなく固定の最小サイズにする
     rl.items.forEach(function(it){
       var by=rowY+(it.layer===1?4:2), bh=it.layer===1?PROW-9:PROW-4;
+      var swW=it.minSwatch?MIN_SWATCH_W4:it.bw;
       if(it.inline){
-        barHtml+='<div style="position:absolute;left:'+it.sx+'px;top:'+by+'px;width:'+it.bw+'px;height:'+bh+'px;background:'+it.color+';border-radius:2px;display:flex;align-items:center;padding:0 2px;overflow:hidden;white-space:nowrap;z-index:10;">'
+        barHtml+='<div style="position:absolute;left:'+it.sx+'px;top:'+by+'px;width:'+swW+'px;height:'+bh+'px;background:'+it.color+';border-radius:2px;display:flex;align-items:center;padding:0 2px;overflow:hidden;white-space:nowrap;z-index:10;">'
           +'<span style="font-size:7px;font-weight:700;color:#000;">'+it.lbl+'</span></div>';
         return;
       }
       // ★狭いバー本体は常に日付通りの位置に表示（見た目・位置は従来通り）
-      barHtml+='<div style="position:absolute;left:'+it.sx+'px;top:'+by+'px;width:'+it.bw+'px;height:'+bh+'px;background:'+it.color+';border-radius:2px;z-index:10;"></div>';
+      barHtml+='<div style="position:absolute;left:'+it.sx+'px;top:'+by+'px;width:'+swW+'px;height:'+bh+'px;background:'+it.color+';border-radius:2px;z-index:10;"></div>';
+      // ★チップの高さ・フォントサイズは、渋滞の有無（tier0かtier>0か）に関わらず完全に同一にする
+      var CHIP_H4=LABEL_TIER_H-2;
       if(it.tier===0){
-        // 渋滞していない場合は従来通りバーの右横に表示
-        barHtml+='<div style="position:absolute;left:'+(it.sx+it.bw+2)+'px;top:'+by+'px;height:'+bh+'px;display:flex;align-items:center;font-size:6px;font-weight:700;color:#000;white-space:nowrap;background:white;border:1px solid '+it.color+';border-radius:2px;padding:0 2px;z-index:11;">'+it.lbl+'</div>';
+        var chipTop4=by+Math.floor((bh-CHIP_H4)/2);
+        barHtml+='<div style="position:absolute;left:'+(it.sx+swW+2)+'px;top:'+chipTop4+'px;height:'+CHIP_H4+'px;display:flex;align-items:center;font-size:5px;font-weight:700;color:#000;white-space:nowrap;background:white;border:1px solid '+it.color+';border-radius:2px;padding:0 2px;z-index:11;">'+it.lbl+'</div>';
       } else {
-        // ★渋滞時：バーの下に段を分けて縮小ラベルを表示（重なって見えなくなるのを防ぐ）
+        // ★渋滞時：バーの下に段を分けて表示（重なって見えなくなるのを防ぐ）
         var tierY=rowY+PROW+(it.tier-1)*LABEL_TIER_H;
-        barHtml+='<div style="position:absolute;left:'+it.sx+'px;top:'+(tierY+1)+'px;height:'+(LABEL_TIER_H-2)+'px;display:flex;align-items:center;font-size:5px;font-weight:700;color:#000;white-space:nowrap;background:white;border:1px solid '+it.color+';border-radius:2px;padding:0 1px;z-index:11;">'+it.lbl+'</div>';
+        barHtml+='<div style="position:absolute;left:'+it.sx+'px;top:'+(tierY+1)+'px;height:'+CHIP_H4+'px;display:flex;align-items:center;font-size:5px;font-weight:700;color:#000;white-space:nowrap;background:white;border:1px solid '+it.color+';border-radius:2px;padding:0 1px;z-index:11;">'+it.lbl+'</div>';
       }
     });
   });
