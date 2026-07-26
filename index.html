@@ -104,7 +104,7 @@ input,textarea,select{font-family:var(--font)}
 /* TABLE BODY */
 .table-body{flex:1;display:flex;overflow-x:hidden;overflow-y:auto;-webkit-overflow-scrolling:touch;min-height:0;touch-action:pan-x pan-y}
 .freeze-body{width:var(--freeze-w);min-width:var(--freeze-w);max-width:var(--freeze-w);flex-shrink:0;overflow-x:clip;overflow-y:visible;border-right:2px solid #475569;flex-shrink:0;align-self:flex-start}
-.scroll-body{flex:1;overflow-x:auto;overflow-y:visible;touch-action:pan-x;overscroll-behavior-x:contain;align-self:flex-start}
+.scroll-body{flex:1;overflow-x:auto;overflow-y:visible;touch-action:pan-x pan-y;overscroll-behavior-x:contain;align-self:flex-start}
 .scroll-body::-webkit-scrollbar{height:4px;width:4px}
 .scroll-body::-webkit-scrollbar-thumb{background:var(--g300);border-radius:2px}
 
@@ -885,11 +885,11 @@ var SP_PRE_COLS = [
 var PRE_W = PRE_COLS.reduce(function(a,c){return a+c.w;},0);
 
 var POST_COLS = [
-  { key:'inspection_date', label:'完了\n検査日',    w:58, cls:'hcell-post' },
-  { key:'complete_date',   label:'完成日',         w:56, cls:'hcell-post' },
   { key:'delivery_date',   label:'引渡し日',       w:68, cls:'hcell-post' },
-  { key:'delivery_month',  label:'引渡\n月',        w:42, cls:'hcell-post' },
-  { key:'tantou',          label:'担当者', w:60, cls:'hcell-post' }
+  { key:'haikin_date',     label:'配筋\n検査',      w:54, cls:'hcell-post', kensa:'配筋検査', statusKey:'haikin_status' },
+  { key:'kutai_date',      label:'躯体\n検査',      w:54, cls:'hcell-post', kensa:'躯体検査', statusKey:'kutai_status' },
+  { key:'dannetsu_date',   label:'断熱\n検査',      w:54, cls:'hcell-post', kensa:'断熱検査', statusKey:'dannetsu_status' },
+  { key:'inspection_date', label:'完了\n検査',      w:54, cls:'hcell-post', kensa:'完了検査', statusKey:'inspection_status' }
 ];
 var POST_W = POST_COLS.reduce(function(a,c){return a+c.w;},0);
 
@@ -2727,7 +2727,9 @@ function renderBody(){
         var tantouBadge=tantouName
           ?'<span style="font-size:9px;background:#475569;color:white;padding:1px 5px;border-radius:3px;max-width:60px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:inline-block;vertical-align:middle">'+tantouName+'</span>'
           :'';
-        md.innerHTML=tantouBadge+(isUrgent?'<span class="urg-pill">⚡'+days+'日</span>':'')+(fav?'<span style="font-size:9px">⭐</span>':'')+parkBadge2;
+        // 審査機関バッジ（ハウスプラス→ハウス／住宅センター→住宅セ、に省略）
+        var shinsaBadge2=_shinsaBadgeAbbr(p.shinsa_kikan);
+        md.innerHTML=tantouBadge+shinsaBadge2+(isUrgent?'<span class="urg-pill">⚡'+days+'日</span>':'')+(fav?'<span style="font-size:9px">⭐</span>':'')+parkBadge2;
         cell.appendChild(nd);cell.appendChild(md);
       } else { cell.textContent=val;if(!val)cell.style.color='var(--g300)'; }
       fr.appendChild(cell);
@@ -2776,7 +2778,19 @@ function renderBody(){
       var val=p[c.key]||'';
       var el=document.createElement('div');el.className='info-cell';
       el.style.cssText='left:'+postX+'px;top:'+top+'px;width:'+c.w+'px;height:'+rowH+'px;';
-      if(c.key==='tantou'){
+      if(c.kensa){
+        // ★検査4種（配筋・躯体・断熱・完了）：CP内検査取りまとめと同じ色分け（橙=予約前／赤=予約済み）で日付をセル背景色に反映（省スペース版）
+        if(val){
+          var isRes=(p[c.statusKey]||'before')==='reserved';
+          var dispK=fmtDateShort(val);
+          el.style.cssText+='display:flex;align-items:center;justify-content:center;font-weight:700;'
+            +'background:'+(isRes?'#fee2e2':'#fff7ed')+';color:'+(isRes?'#dc2626':'#ea580c')+';';
+          el.textContent=dispK;
+          el.title=c.kensa+'：'+(isRes?'予約済み':'予約前')+' '+dispK;
+        } else {
+          el.style.color='var(--g200)';
+        }
+      }else if(c.key==='tantou'){
         // 担当者バッジ
         var tv=val||'';
         el.innerHTML=tv?'<span style="font-size:9px;background:#475569;color:white;padding:1px 5px;border-radius:3px">'+tv+'</span>':'';
@@ -6806,6 +6820,14 @@ function printPage(){
     });
   });
 
+  // ★日ごとの薄い縦罫線（渋滞対応で行の高さが確定した後にまとめて描画）
+  var dayLineHtml='';
+  printDates.forEach(function(d,di){
+    if(!d||di<1)return;
+    dayLineHtml+='<div style="position:absolute;left:'+((di-1)*PCOL)+'px;top:0;width:1px;height:'+totalH+'px;background:rgba(100,116,139,.15);z-index:2;"></div>';
+  });
+  barHtml=dayLineHtml+barHtml;
+
   // today line（渋滞対応で行の高さが物件ごとに変わるため、全行分の高さが確定した後にまとめて1本だけ描画）
   var todayI=dIdx[TODAY];
   if(todayI)barHtml+='<div style="position:absolute;left:'+((todayI-1)*PCOL)+'px;top:0;width:2px;height:'+totalH+'px;background:#ef4444;z-index:20;opacity:.7;"></div>';
@@ -10018,6 +10040,14 @@ function _shinsaBadge(v){
   var bg=v==='住宅センター'?'#eef2ff':'#ecfdf5';
   var col=v==='住宅センター'?'#4338ca':'#059669';
   return '<span style="font-size:9px;font-weight:700;background:'+bg+';color:'+col+';padding:2px 7px;border-radius:5px;white-space:nowrap;margin-left:6px">'+v+'</span>';
+}
+// ★物件名下の省スペース表示用：ハウスプラス→「ハウス」／住宅センター→「住宅セ」に省略したバッジ
+function _shinsaBadgeAbbr(v){
+  if(!v)return '';
+  var abbr=v==='住宅センター'?'住宅セ':(v==='ハウスプラス'?'ハウス':v);
+  var bg=v==='住宅センター'?'#eef2ff':'#ecfdf5';
+  var col=v==='住宅センター'?'#4338ca':'#059669';
+  return '<span style="font-size:8px;font-weight:700;background:'+bg+';color:'+col+';padding:1px 4px;border-radius:4px;white-space:nowrap;display:inline-block;vertical-align:middle">'+abbr+'</span>';
 }
 function admSetKensaShinsa(v){window._admKensaShinsa=v;admRenderKensaTable();}
 window.admSetKensaShinsa=admSetKensaShinsa;
