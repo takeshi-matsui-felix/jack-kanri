@@ -1428,7 +1428,12 @@ function _filterHomeGanttSegs(p, segs){
       });
       return;
     }
-    if(HOME_GANTT_ALLOW.indexOf(nm)>=0)out.push(s);
+    // ★配筋検査・躯体検査・断熱検査・完了検査は、予約日が入ると_applyKensaOverridesにより
+    //   「配筋検査(7/24)」のように末尾へ日付が付与される。ここで完全一致だけを見ていると
+    //   予約日を設定・変更した瞬間にホーム画面の帯から消えてしまうため、末尾の「(m/d)」を
+    //   取り除いた素の工種名でも許可リストと照合する（_kensaDefが付いていればそれも優先使用）
+    var nmBase=(s._kensaDef||nm).replace(/\s*[\(（][^)）]*[\)）]\s*$/,'');
+    if(HOME_GANTT_ALLOW.indexOf(nm)>=0||HOME_GANTT_ALLOW.indexOf(nmBase)>=0)out.push(s);
   });
   // ★土地決済・確認完了日は期間ではなく単日イベントなので、他の単日マーカー（レッカー等）と同様に
   //   ガントバー＋ラベル文字で表示する（従来は縦の線だけで意味が分かりにくいとの指摘を受けて変更）
