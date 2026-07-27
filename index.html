@@ -3329,6 +3329,15 @@ function geInitColorPicker(){
   if(el.children[0])el.children[0].style.borderColor='white';
 }
 
+// ★配筋検査・躯体検査・断熱検査・完了検査の4行は、予約日の正データが物件編集画面（haikin_date等）に
+//   一元化されているため、工程表編集サイドバー側では常に編集不可にする（予約日が未設定の物件だけ
+//   ドラッグ・保存できてしまい、後から予約日を入れても位置がズレる不具合の対策）
+var _KENSA_ROW_NAMES=['配筋検査','躯体検査','断熱検査','完了検査'];
+function _geIsKensaRow(seg){
+  if(!seg)return false;
+  var nm=String(seg._kensaDef||seg.label||seg.name||'').trim().replace(/\s*[\(（][^)）]*[\)）]\s*$/,'');
+  return _KENSA_ROW_NAMES.indexOf(nm)>=0;
+}
 function geRenderBars(){
   var multiEl=document.getElementById('detail-gantt-multi'); if(!multiEl)return;
   // 再描画前にスクロール位置を保存（-1は初回 = TODAY位置に飛ぶ）
@@ -3420,12 +3429,18 @@ function geRenderBars(){
         bars+='<div style="position:absolute;left:'+sx+'px;top:'+by+'px;width:0;height:'+bh+'px;display:flex;align-items:center;font-size:10px;font-weight:800;color:#1e293b;white-space:nowrap;overflow:visible;z-index:20;">'+soseiTxt2+'</div>';
       }
     } else {
+      var isKensaLocked=ganttEditMode&&_geIsKensaRow(seg);
       // ★3日以内はバー右横に工程名表示。編集モードでは✕もバーの上ではなく文字の後ろに配置（掴みにくさ対策）
       var geLblOut=geCalDur<=3?('<div style="position:absolute;left:'+(sx+bw+2)+'px;top:'+by+'px;height:'+bh+'px;display:flex;align-items:center;gap:3px;font-size:8px;font-weight:700;color:#334155;white-space:nowrap;z-index:20;">'
         +'<span>'+lbl+'</span>'
-        +(ganttEditMode?'<span class="ge-del" data-idx="'+idx+'" style="width:11px;height:11px;flex-shrink:0;background:rgba(239,68,68,.9);color:white;border-radius:50%;font-size:8px;display:flex;align-items:center;justify-content:center;cursor:pointer;line-height:1;">x</span>':'')
+        +(ganttEditMode&&!isKensaLocked?'<span class="ge-del" data-idx="'+idx+'" style="width:11px;height:11px;flex-shrink:0;background:rgba(239,68,68,.9);color:white;border-radius:50%;font-size:8px;display:flex;align-items:center;justify-content:center;cursor:pointer;line-height:1;">x</span>':'')
         +'</div>'):'';
-      if(ganttEditMode){
+      if(ganttEditMode&&isKensaLocked){
+        // ★予約日は物件編集画面でのみ設定可能：ドラッグ・リサイズ・削除ハンドル無し、鍵アイコンのみ表示
+        bars+=geLblOut+'<div id="gebar'+idx+'" data-idx="'+idx+'" title="予約日は物件編集画面から設定してください" style="position:absolute;left:'+sx+'px;top:'+by+'px;width:'+bw+'px;height:'+bh+'px;background:'+color+';color:'+tcolor+';font-size:6px;font-weight:800;border-radius:2px;display:flex;align-items:center;padding:0 2px;overflow:hidden;white-space:nowrap;box-shadow:0 1px 2px rgba(0,0,0,.2);z-index:'+(layer===1?12:10)+';opacity:'+(isPast?'.6':'1')+';cursor:not-allowed;user-select:none;'+(isAct?'outline:2px solid rgba(255,255,0,.5);':'')+';">'
+          +(bw>14&&geCalDur>3?'🔒'+lbl:'🔒')
+          +'</div>';
+      } else if(ganttEditMode){
         bars+=geLblOut+'<div id="gebar'+idx+'" data-idx="'+idx+'" style="position:absolute;left:'+sx+'px;top:'+by+'px;width:'+bw+'px;height:'+bh+'px;background:'+color+';color:'+tcolor+';font-size:6px;font-weight:800;border-radius:2px;display:flex;align-items:center;padding:0 2px;overflow:hidden;white-space:nowrap;box-shadow:0 1px 2px rgba(0,0,0,.2);z-index:'+(layer===1?12:10)+';opacity:'+(isPast?'.6':'1')+';cursor:grab;user-select:none;'+(isAct?'outline:2px solid rgba(255,255,0,.5);':'')+';">'
           +(bw>14&&geCalDur>3?lbl:'')
           +(geCalDur>3?'<span class="ge-del" data-idx="'+idx+'" style="position:absolute;right:1px;top:1px;width:11px;height:11px;background:rgba(239,68,68,.9);color:white;border-radius:50%;font-size:8px;display:flex;align-items:center;justify-content:center;cursor:pointer;z-index:20;line-height:1;">x</span>':'')
@@ -3489,6 +3504,7 @@ function geRenderBars(){
       var idx=parseInt(bar.getAttribute('data-idx'));
       bar.addEventListener('pointerdown',function(e){
         var t=e.target;
+        if(_geIsKensaRow(geSegs[idx])){showToast('検査予約日は物件編集画面から設定してください','info');return;}
         if(t.classList.contains('ge-del')){e.stopPropagation();geShowDelConfirm(idx,geSegs[idx]?geSegs[idx].label:'');return;}
         if(t.classList.contains('ge-rsz')){e.stopPropagation();geStartResize(e,idx);return;}
         geStartDrag(e,idx,bar);
@@ -3510,6 +3526,7 @@ function geGetScrollWrap(){
   return document.getElementById('geScrollWrap');
 }
 function geStartDrag(e,idx,bar){
+  if(_geIsKensaRow(geSegs[idx]))return; // ★保険：検査行は物件編集画面でのみ日付変更
   e.preventDefault();
   bar.setPointerCapture(e.pointerId);
   var sd=geSegs[idx].start_date||geSegs[idx].date||'';
@@ -3722,6 +3739,7 @@ function geStopDrag(){
   if(typeof geRenderSegList==='function')geRenderSegList();
 }
 function geStartResize(e,idx){
+  if(_geIsKensaRow(geSegs[idx]))return; // ★保険：検査行は物件編集画面でのみ日付変更
   e.preventDefault();
   e.stopPropagation();
   geResBar={idx:idx}; geResStartX=e.clientX;
@@ -3829,6 +3847,7 @@ function geStopResize(){
 }
 
 function geShowDelConfirm(idx,lbl){
+  if(_geIsKensaRow(geSegs[idx])){showToast('検査行は削除できません（物件編集画面で管理されています）','info');return;}
   var ov=document.getElementById('_geDelOv');
   if(!ov){ov=document.createElement('div');ov.id='_geDelOv';ov.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:9999;display:flex;align-items:center;justify-content:center;';document.body.appendChild(ov);}
   ov.innerHTML='<div style="background:#fff;border-radius:14px;padding:22px 24px;max-width:280px;width:90%;text-align:center"><div style="font-size:28px;margin-bottom:8px">?</div><div style="font-size:13px;font-weight:800;color:#1e293b;margin-bottom:12px">'+lbl+'を削除</div><div style="display:flex;gap:8px"><button onclick="document.getElementById(\'_geDelOv\').style.display=\'none\'" style="flex:1;padding:9px;background:#f1f5f9;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;border:none">キャンセル</button><button id="_geDelOk" style="flex:1;padding:9px;background:#ef4444;color:#fff;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;border:none">削除</button></div></div>';
@@ -3840,6 +3859,7 @@ function geRenderSegList(){
   var el=document.getElementById('geSegList'); if(!el)return;
   el.innerHTML=geSegs.map(function(s,i){
     var lbl=s.label||'';
+    var locked=_geIsKensaRow(s);
     // ★ input[type=date]はYYYY-MM-DD形式のみ受け付けるのでスラッシュをハイフンに変換
     var sd=(s.start_date||s.date||'').replace(/\//g,'-');
     var dur=s.calendar_dur||s.duration||1;
@@ -3850,6 +3870,14 @@ function geRenderSegList(){
       edVal=localDateStr(d);
     }
     var inputStyle='padding:3px 4px;border:1px solid #334155;border-radius:4px;font-size:10px;background:#0f172a;color:white;width:100%;box-sizing:border-box;';
+    if(locked){
+      return '<div style="display:flex;flex-direction:column;gap:4px;padding:6px 6px;background:#0f172a;border-radius:6px;border-left:3px solid '+(s.color||'#64748b')+';opacity:.75;">'
+        +'<div style="display:flex;align-items:center;gap:4px;">'
+        +'<div style="flex:1;font-size:10px;font-weight:700;color:rgba(255,255,255,.9);overflow:hidden;white-space:nowrap;">🔒 '+lbl+'</div>'
+        +'</div>'
+        +'<div style="font-size:8px;color:#fbbf24;line-height:1.4;">予約日は物件編集画面から設定してください</div>'
+        +'</div>';
+    }
     return '<div style="display:flex;flex-direction:column;gap:4px;padding:6px 6px;background:#0f172a;border-radius:6px;border-left:3px solid '+(s.color||'#64748b')+';">'
       +'<div style="display:flex;align-items:center;gap:4px;">'
       +'<div style="flex:1;font-size:10px;font-weight:700;color:rgba(255,255,255,.9);overflow:hidden;white-space:nowrap;">'+lbl+'</div>'
@@ -3871,6 +3899,7 @@ function geUpdateSegDate(input){
   var field=input.getAttribute('data-field');
   var val=input.value; if(!val)return;
   var s=geSegs[idx]; if(!s)return;
+  if(_geIsKensaRow(s)){showToast('検査予約日は物件編集画面から設定してください','info');geRenderSegList();return;} // ★保険：万一この入力欄が呼ばれても無視
   if(field==='start'){
     s.start_date=val; s.date=val;
     // end_dateを稼働日数から再計算（★calendar_durを保持）
