@@ -50,6 +50,8 @@ input,textarea,select{font-family:var(--font)}
 .th-right{display:flex;align-items:center;gap:5px}
 .th-today{background:rgba(255,255,255,.2);padding:2px 7px;border-radius:6px;font-size:10px;font-weight:700;font-family:var(--mono)}
 .th-icon-btn{color:white;font-size:14px;width:28px;height:28px;border-radius:50%;background:rgba(255,255,255,.15);display:flex;align-items:center;justify-content:center}
+.vendor-toggle-btn{color:white;font-size:11px;font-weight:600;height:26px;padding:0 10px;border-radius:13px;background:rgba(255,255,255,.15);display:flex;align-items:center;gap:4px;white-space:nowrap;border:1px solid rgba(255,255,255,.25);transition:opacity .15s;}
+.vendor-toggle-btn:hover{background:rgba(255,255,255,.25);}
 .th-icon-btn:hover{background:rgba(255,255,255,.3)}
 .print-btn{background:rgba(255,255,255,.2);color:white;padding:3px 8px;border-radius:5px;font-size:10px;font-weight:700;display:flex;align-items:center;gap:3px}
 .print-btn:hover{background:rgba(255,255,255,.35)}
@@ -671,7 +673,7 @@ body.sp-mode #areaTabsBtns{ display:none !important; }
 <div id="jackMainWrap">
 <div id="loading"><div class="ld-logo">JACK</div><div class="ld-sub">現場管理システム</div><div class="ld-dots"><span></span><span></span><span></span></div></div>
 <div id="app" class="mobile-mode">
-  <div class="top-header"><div class="th-left"><div><div class="th-logo">JACK<span id="areaBadge"></span></div><div class="th-sub">新築AP 現場管理</div></div></div><div class="th-right"><button class="th-icon-btn" onclick="togglePropSearch()" title="物件検索" id="propSearchBtn">🔍</button><button class="th-icon-btn" id="modeToggleBtn" onclick="toggleMode()">🖥️</button><div class="th-today" id="todayBadge"></div><button class="print-btn" onclick="printPage()">🖨️</button><button class="th-icon-btn" onclick="openMenu()">☰</button></div></div>
+  <div class="top-header"><div class="th-left"><div><div class="th-logo">JACK<span id="areaBadge"></span></div><div class="th-sub">新築AP 現場管理</div></div></div><div class="th-right"><button class="th-icon-btn" onclick="togglePropSearch()" title="物件検索" id="propSearchBtn">🔍</button><button class="th-icon-btn" id="vendorColToggleBtnSp" onclick="_setVendorColOn(!_vendorColOn())" title="業者選定の表示切替">🏢</button><button class="th-icon-btn" id="modeToggleBtn" onclick="toggleMode()">🖥️</button><div class="th-today" id="todayBadge"></div><button class="print-btn" onclick="printPage()">🖨️</button><button class="th-icon-btn" onclick="openMenu()">☰</button></div></div>
   <div id="propSearchBar" style="display:none;background:#1e293b;padding:6px 10px;border-bottom:1px solid #334155;flex-shrink:0;">
     <div style="display:flex;gap:6px;align-items:center;">
       <input id="propSearchInput" type="text" placeholder="物件名・FiX No・エリアで検索…" oninput="doPropSearch(this.value)" style="flex:1;padding:6px 10px;border-radius:7px;border:1.5px solid #475569;background:#0f172a;color:white;font-size:12px;outline:none;">
@@ -684,6 +686,7 @@ body.sp-mode #areaTabsBtns{ display:none !important; }
     <div class="area-tabs" id="areaTabs" style="flex:1;min-width:0;border-bottom:none"></div>
     <div id="areaTabsBtns" style="display:flex;align-items:center;gap:5px;padding:0 8px;flex-shrink:0">
       <button class="th-icon-btn" onclick="togglePropSearch()" title="物件検索" id="propSearchBtn2">🔍</button>
+      <button class="vendor-toggle-btn" id="vendorColToggleBtn" onclick="_setVendorColOn(!_vendorColOn())" title="業者選定の表示切替">🏢 業者選定</button>
       <button class="th-icon-btn" id="modeToggleBtn2" onclick="toggleMode()">🖥️</button>
     </div>
   </div>
@@ -874,6 +877,21 @@ var SP_FREEZE_COLS = [
 ];
 var FREEZE_W = FREEZE_COLS.reduce(function(a,c){return a+c.w;},0);
 
+// ★大工程表：業者選定グリッドを物件名の隣（フリーズ列＝常に左に固定表示される列）に表示する/しないの切替
+function _vendorColOn(){var v=loadLS('jack_show_vendor_freeze',null);return v===null?true:!!v;}
+function _setVendorColOn(v){
+  saveLS('jack_show_vendor_freeze',v);
+  if(typeof setMode==='function')setMode(isPcMode); // --freeze-w再計算 + renderBody()
+  if(typeof renderHeader==='function')renderHeader(); // ★ヘッダー側は setMode/renderBody からは呼ばれないため個別に再描画（呼び忘れるとヘッダーと本文の列がズレる）
+  ['vendorColToggleBtn','vendorColToggleBtnSp'].forEach(function(id){
+    var btn=document.getElementById(id);
+    if(btn)btn.style.opacity=v?'1':'.45';
+  });
+}
+function _activeFreezeCols(base){
+  return _vendorColOn()?base.concat([{key:'_vendorGrid',label:'業者選定',w:VENDOR_COL_W}]):base;
+}
+
 var PRE_COLS = [
   { key:'confirm_done',  label:'確認申請\n完了日', w:56, cls:'hcell-darker' },
   { key:'delivery_date', label:'引渡し日',         w:56, cls:'hcell-darker' }
@@ -892,6 +910,7 @@ var POST_COLS = [
   { key:'inspection_date', label:'完了\n検査',      w:54, cls:'hcell-post', kensa:'完了検査', statusKey:'inspection_status' }
 ];
 var POST_W = POST_COLS.reduce(function(a,c){return a+c.w;},0);
+var VENDOR_COL_W = 200; // ★大工程表：業者選定グリッド列（2段×5列）の幅
 
 var AREA_TABS = [
   { id:'マイ物件', label:'⭐ マイ物件', cls:'myfav', areas:null },
@@ -1938,6 +1957,89 @@ function _vendorTextColor(hex){
 }
 window._vendorTextColor=_vendorTextColor;
 
+// ★大工程表・印刷画面用：物件に紐づく業者選定列(FIX ID一致)を探す
+//   （findVendorForPropと似ているが、こちらは「列(col)そのもの」と「カテゴリ列名(catCol)」を返す点が異なる）
+function _vendorDataCols(areaRows){
+  var colSet={};
+  areaRows.forEach(function(r){Object.keys(r).forEach(function(k){
+    if(k!=='id'&&k!=='area'&&k!=='created_at'&&k!=='col_order'&&k.indexOf('_bg_')!==0&&k.indexOf('_fixno_')!==0)colSet[k]=1;
+  });});
+  var allCols=Object.keys(colSet);
+  var savedOrder=null;
+  if(areaRows[0]&&areaRows[0].col_order){try{savedOrder=JSON.parse(areaRows[0].col_order);}catch(x){}}
+  var dataCols;
+  if(savedOrder&&savedOrder.length){
+    var ord=savedOrder.filter(function(c){return allCols.indexOf(c)>=0;});
+    dataCols=ord.concat(allCols.filter(function(c){return ord.indexOf(c)<0;}));
+  }else dataCols=allCols;
+  return dataCols;
+}
+function _findPropVendorLoc(p){
+  var vld=window._VENDOR_LIST_DATA||{};
+  var areas=Object.keys(vld);
+  for(var ai=0;ai<areas.length;ai++){
+    var areaRows=vld[areas[ai]]||[];
+    if(!areaRows.length)continue;
+    var dataCols=_vendorDataCols(areaRows);
+    var propCols=dataCols.slice(1);
+    for(var ci=0;ci<propCols.length;ci++){
+      var c=propCols[ci];
+      var fk='_fixno_'+c;
+      var found=areaRows.some(function(r){return String(r[fk]||'').trim()&&String(r[fk]||'').trim()===String(p.fix_no||'').trim();});
+      if(found)return {area:areas[ai],col:c,catCol:dataCols[0]};
+    }
+    for(var ci2=0;ci2<propCols.length;ci2++){
+      if(normalizeForMatch(propCols[ci2])===normalizeForMatch(p.name))return {area:areas[ai],col:propCols[ci2],catCol:dataCols[0]};
+    }
+  }
+  return null;
+}
+// ★大工程表に表示する7工種。tokai/kantoはエリアによって全業者選定一覧の列名（カテゴリ名）が異なるための対応表
+var VENDOR_TRADES=[
+  {label:'外構',tokai:['造成工事'],kanto:['土工事','造成工事']},
+  {label:'基礎',tokai:['基礎工事'],kanto:['基礎工事']},
+  {label:'建方',tokai:['フレーミング工事'],kanto:['大工 フレーミング','大工','フレーミング']},
+  {label:'電気',tokai:['電気工事'],kanto:['電気工事']},
+  {label:'水道',tokai:['水道'],kanto:['水道工事']},
+  {label:'内装',tokai:['内装仕上げ'],kanto:['内装仕上げ']},
+  {label:'外装',tokai:['外壁サイディング工事'],kanto:['外壁サイディング工事']},
+  {label:'造作',tokai:['造作工事'],kanto:['大工 造作工事','造作工事']},
+  {label:'産廃',tokai:['産廃'],kanto:['産廃処理']}
+];
+function getVendorGrid(p){
+  var loc=_findPropVendorLoc(p);
+  var isKanto=isKantoProp(p);
+  return VENDOR_TRADES.map(function(t){
+    var cands=isKanto?t.kanto:t.tokai;
+    var vendor='';
+    if(loc){
+      var rows=(window._VENDOR_LIST_DATA||{})[loc.area]||[];
+      for(var i=0;i<rows.length;i++){
+        var cat=String(rows[i][loc.catCol]||'').trim();
+        if(cands.indexOf(cat)>=0){vendor=String(rows[i][loc.col]||'').trim();break;}
+      }
+    }
+    // ★noData: 全業者選定一覧の中にこの物件自体が見つからなかった（＝データ未取得 or まだ選定一覧に未登録）
+    //   一方vendorが空でloc有り＝物件は見つかったがその工種だけ未選定、という状態を区別する
+    return {label:t.label, vendor:vendor, noData:!loc};
+  });
+}
+// ★大工程表・印刷共通：業者選定2段グリッドのHTML断片を作る
+function _vendorGridHtml(p, cellW, fontSize){
+  cellW=cellW||34; fontSize=fontSize||5;
+  var g=getVendorGrid(p);
+  var row1=g.slice(0,5), row2=g.slice(5,9);
+  function cell(it){
+    var filled=!!it.vendor;
+    var bg=filled?'#dbeafe':(it.noData?'#f1f5f9':'#fff7ed');
+    var fc=filled?'#1e40af':(it.noData?'#94a3b8':'#ea580c');
+    var txt=filled?it.vendor:(it.noData?'－':'未選定');
+    return '<div style="width:'+cellW+'px;background:'+bg+';color:'+fc+';border-radius:2px;padding:1px 2px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;font-size:'+fontSize+'px;font-weight:700;line-height:1.5;" title="'+it.label+'：'+(filled?it.vendor:(it.noData?'全業者選定一覧に未登録':'未選定'))+'">'+it.label+' '+txt+'</div>';
+  }
+  return '<div style="display:flex;gap:2px;margin-bottom:2px;">'+row1.map(cell).join('')+'</div>'
+    +'<div style="display:flex;gap:2px;">'+row2.map(cell).join('')+'</div>';
+}
+
 function findVendorForProp(p){
   if(!p)return null;
   // 新形式(_VENDOR_LIST_DATA)からfix_no・物件名でマッチング
@@ -2113,9 +2215,13 @@ function setMode(pc){
   isPcMode=pc;
   localStorage.setItem('jack_mode', pc?'pc':'sp');
   document.documentElement.style.setProperty('--row-h',(pc?32:52)+'px');
-  var activeFreezeC=pc?FREEZE_COLS:SP_FREEZE_COLS;
+  var activeFreezeC=_activeFreezeCols(pc?FREEZE_COLS:SP_FREEZE_COLS);
   var fw=activeFreezeC.reduce(function(a,c){return a+c.w;},0);
   document.documentElement.style.setProperty('--freeze-w',fw+'px');
+  ['vendorColToggleBtn','vendorColToggleBtnSp'].forEach(function(id){
+    var btn=document.getElementById(id);
+    if(btn)btn.style.opacity=_vendorColOn()?'1':'.45';
+  });
 
   // body.sp-modeクラスで全CSS制御
   if(pc){ document.body.classList.remove('sp-mode'); }
@@ -2377,7 +2483,7 @@ function renderStats(){
 
 // ===== RENDER HEADER =====
 function renderHeader(){
-  var activeFreezeC=isPcMode?FREEZE_COLS:SP_FREEZE_COLS;
+  var activeFreezeC=_activeFreezeCols(isPcMode?FREEZE_COLS:SP_FREEZE_COLS);
   var activePreC=isPcMode?PRE_COLS:SP_PRE_COLS;
   var activeFreezeW2=activeFreezeC.reduce(function(a,c){return a+c.w;},0);
   var activeTotalW2=activePreC.reduce(function(a,c){return a+c.w;},0)+GANTT_W+POST_W;
@@ -2628,7 +2734,7 @@ function renderBars(cv, p, segs, gx, top, rowH) {
 
 // ===== RENDER BODY =====
 function renderBody(){
-  var activeFreezeC=isPcMode?FREEZE_COLS:SP_FREEZE_COLS;
+  var activeFreezeC=_activeFreezeCols(isPcMode?FREEZE_COLS:SP_FREEZE_COLS);
   var activePreC=isPcMode?PRE_COLS:SP_PRE_COLS;
   var activeFreezeW=activeFreezeC.reduce(function(a,c){return a+c.w;},0);
   var activePreW=activePreC.reduce(function(a,c){return a+c.w;},0);
@@ -2642,6 +2748,17 @@ function renderBody(){
 
   // 全業者選定一覧のサイドバータイムスタンプを初期表示
   setTimeout(function(){if(typeof _updateVendorSbTs==='function')_updateVendorSbTs();},300);
+
+  // ★大工程表の業者選定グリッド用：vendorsが未ロードならバックグラウンドで取得して再描画
+  if(!window._VENDOR_LIST_DATA||!Object.keys(window._VENDOR_LIST_DATA).length){
+    if(typeof _loadVendorsFromCacheOrDB==='function'&&!window._vendorLoadingForHome){
+      window._vendorLoadingForHome=true;
+      _loadVendorsFromCacheOrDB(false).then(function(){
+        window._vendorLoadingForHome=false;
+        if(Object.keys(window._VENDOR_LIST_DATA||{}).length)renderBody();
+      });
+    }
+  }
 
   // ★ バックグラウンドでTS確認（更新があれば自動再描画される）
   if(typeof _loadCustomGanttIfNeeded==='function'){
@@ -2742,6 +2859,9 @@ function renderBody(){
         var shinsaBadge2=_shinsaBadgeAbbr(p.shinsa_kikan);
         md.innerHTML=tantouBadge+shinsaBadge2+(isUrgent?'<span class="urg-pill">⚡'+days+'日</span>':'')+(fav?'<span style="font-size:9px">⭐</span>':'')+parkBadge2;
         cell.appendChild(nd);cell.appendChild(md);
+      } else if(c.key==='_vendorGrid'){
+        cell.style.cssText+='flex-direction:column;align-items:flex-start;justify-content:center;padding:2px 3px;';
+        cell.innerHTML=_vendorGridHtml(p,32,7);
       } else { cell.textContent=val;if(!val)cell.style.color='var(--g300)'; }
       fr.appendChild(cell);
     });
@@ -6696,10 +6816,10 @@ function showPropQR(){
   ov2.onclick=function(e){if(e.target===ov2)ov2.remove();};
 }
 window.showPropQR=showPropQR;
-function printPage(){
+function _printPageImpl(existingWin){
   // ホーム画面を別ウィンドウで印刷（freeze列+ganttを結合してA3横に収める）
   var props=getProps();
-  if(!props||!props.length){showToast('印刷対象の物件がありません','error');return;}
+  if(!props||!props.length){showToast('印刷対象の物件がありません','error');if(existingWin)existingWin.close();return;}
 
   var PCOL=14; // 1日の幅(px)
   var PROW=22; // 行高さ(px)・基準（バー本体＋渋滞なしラベル分）
@@ -6715,7 +6835,7 @@ function printPage(){
   var todayDt=new Date(TODAY);
   var startDt=new Date(todayDt.getFullYear(), todayDt.getMonth(), 1); // 今月1日（ローカル時刻）
   var monthStart=localDateStr(startDt);
-  var PRINT_DAYS=366; // 1年分
+  var PRINT_DAYS=305; // ★12ヶ月→10ヶ月に短縮（業者選定グリッド列の横幅を確保するため）
   var printDates=['']; // printDates[0]は空文字（既存の+1オフセットに合わせる）
   var _pcur=new Date(startDt.getTime());
   for(var _pi=0;_pi<PRINT_DAYS;_pi++){
@@ -6759,187 +6879,200 @@ function printPage(){
   var printStart=printDates[1]||''; // 印刷開始日（printDates[0]は空文字）
   var printEnd=printDates[printDates.length-1]||'';
 
-  // ★Pass1：各物件行のバー・ラベル配置を先に計算する。
-  //   1〜2日間に工程が密集してラベルが重なる（渋滞する）行だけ、下に段(tier)を追加して縦に逃がす。
-  //   渋滞していない行は従来通りの高さ・見た目のまま変わらない。
-  var rowLayouts=props.map(function(p){
-    var segs=_filterHomeGanttSegs(p, getActiveSegs(p)||[]);
-    var items=[];
-    segs.forEach(function(seg){
-      var sd=seg.start_date||seg.date||''; if(!sd)return;
-      var calDur=seg.calendar_dur||seg.dur||1;
-      // バー終了日を計算
-      var segEndDt=new Date(sd); segEndDt.setDate(segEndDt.getDate()+calDur-1);
-      var ed=localDateStr(segEndDt);
-      // 印刷範囲外なら完全スキップ
-      if(ed<printStart||sd>printEnd)return;
-      // クリップ：印刷範囲内にかかる部分だけ表示
-      var clipSd=sd<printStart?printStart:sd;
-      var si=dIdx[clipSd];
-      if(!si){
-        for(var di=1;di<printDates.length;di++){
-          if(printDates[di]>=clipSd){si=di;break;}
-        }
-      }
-      if(!si)return;
-      var clipEd=ed>printEnd?printEnd:ed;
-      var ei=dIdx[clipEd];
-      if(!ei){
-        for(var di2=printDates.length-1;di2>=1;di2--){
-          if(printDates[di2]<=clipEd){ei=di2;break;}
-        }
-      }
-      if(!ei)ei=si;
-      var sx=(si-1)*PCOL;
-      var bw=Math.max((ei-si+1)*PCOL-1,2);
-      var lbl=seg.label||seg.name||'';
-      var neededW4=lbl.length*7+4;
-      // ★1〜2日の短い工程（土台・レッカー等）は、文字が収まる幅があっても常に外側チップ表示に統一する
-      //   （バーに収まる時だけ塗りつぶし文字にすると、同じ種類の項目なのに見た目がバラバラになるため）
-      var inline4=!HOME_GANTT_FORCE_CHIP[lbl]&&calDur>=3&&bw>=neededW4;
-      items.push({sx:sx,bw:bw,color:seg.color||'#94a3b8',layer:seg.layer||0,lbl:lbl,inline:inline4,minSwatch:!!HOME_GANTT_FORCE_CHIP[lbl]});
-    });
-    // バー自身の占有区間（外側ラベルがバーの上に重なって隠すのを防ぐための障害物）
-    var barObstacles=items.map(function(it){return [it.sx,it.sx+it.bw];});
-    // 外側ラベルが必要な項目だけを開始位置順に並べ、貪欲法で段(tier)へ振り分ける
-    var narrowItems=items.filter(function(it){return !it.inline;}).sort(function(a,b){return a.sx-b.sx;});
-    var tierEnd=[]; for(var ti=0;ti<LABEL_MAXTIERS;ti++)tierEnd.push(-99999);
-    narrowItems.forEach(function(it){
-      var labelStartX=it.sx+it.bw+2;
-      var labelEndX=labelStartX+(it.lbl.length*LABEL_CHAR_W+4);
-      var placedTier=LABEL_MAXTIERS-1;
-      for(var t=0;t<LABEL_MAXTIERS;t++){
-        if(tierEnd[t]+LABEL_GAP>labelStartX)continue; // 同じ段の直前ラベルとぶつかる
-        if(t===0){
-          // ★段0はバー本体と同じ高さに表示するため、他のバーを覆い隠さないかも確認する
-          var hitsBar=barObstacles.some(function(ob){return ob[0]<labelEndX&&ob[1]>labelStartX;});
-          if(hitsBar)continue;
-        }
-        placedTier=t;break;
-      }
-      tierEnd[placedTier]=labelEndX;
-      it.tier=placedTier;
-    });
-    var maxTier=0;
-    narrowItems.forEach(function(it){if(it.tier>maxTier)maxTier=it.tier;});
-    var rowH=maxTier>0?(PROW+maxTier*LABEL_TIER_H):PROW;
-    return {p:p, items:items, rowH:rowH};
-  });
-
-  var rowYs=[]; var yCursor=28;
-  rowLayouts.forEach(function(rl){rowYs.push(yCursor); yCursor+=rl.rowH;});
-  var totalH=yCursor;
-
-  // 物件行
-  var rowLabels='';
-  var rowBgs='';
-  var barHtml='';
-  var confirmCells='';
-
-  rowLayouts.forEach(function(rl,ri){
-    var p=rl.p, rowY=rowYs[ri], rowH=rl.rowH;
-    var nm=p.name||'';
-    var cd=p.confirm_done||'';
-    var days=daysUntil(p.delivery_date);
-    var isUrgent=days!==null&&days>=0&&days<=30;
-    var bg=ri%2===0?'#f8fafc':'white';
-
-    rowLabels+='<div style="height:'+rowH+'px;display:flex;flex-direction:column;justify-content:center;padding:0 6px;background:'+bg+';border-bottom:1px solid #e2e8f0;overflow:hidden;">'
-      +'<div style="font-size:9px;font-weight:700;color:#1e293b;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">'+nm+'</div>'
-      +(isUrgent?'<div style="font-size:7px;color:#ef4444;font-weight:700;">⚡引渡まで'+days+'日</div>':'')
-      +'</div>';
-
-    confirmCells+='<div style="height:'+rowH+'px;display:flex;align-items:center;padding:0 4px;background:'+bg+';border-bottom:1px solid #e2e8f0;font-size:8px;color:#475569;">'+cd+'</div>';
-
-    rowBgs+='<div style="position:absolute;left:0;top:'+rowY+'px;width:'+GANTT_W+'px;height:'+rowH+'px;background:'+bg+';border-bottom:1px solid #e2e8f0;"></div>';
-
-    // weekend fills
-    printDates.forEach(function(d,di){
-      if(!d)return;
-      var dow=new Date(d).getDay();
-      if(dow===0||dow===6){
-        rowBgs+='<div style="position:absolute;left:'+((di-1)*PCOL)+'px;top:'+rowY+'px;width:'+PCOL+'px;height:'+rowH+'px;background:'+(dow===0?'rgba(255,100,100,.1)':'rgba(100,150,255,.1)')+';"></div>';
-      }
-    });
-
-    // バー・ラベル描画
-    var MIN_SWATCH_W4=5; // ★常時チップ化する項目のマーカー幅(px)。実際の日数幅ではなく固定の最小サイズにする
-    rl.items.forEach(function(it){
-      var by=rowY+(it.layer===1?4:2), bh=it.layer===1?PROW-9:PROW-4;
-      var swW=it.minSwatch?MIN_SWATCH_W4:it.bw;
-      if(it.inline){
-        barHtml+='<div style="position:absolute;left:'+it.sx+'px;top:'+by+'px;width:'+swW+'px;height:'+bh+'px;background:'+it.color+';border-radius:2px;display:flex;align-items:center;padding:0 2px;overflow:hidden;white-space:nowrap;z-index:10;">'
-          +'<span style="font-size:7px;font-weight:700;color:#000;">'+it.lbl+'</span></div>';
-        return;
-      }
-      // ★狭いバー本体は常に日付通りの位置に表示（見た目・位置は従来通り）
-      barHtml+='<div style="position:absolute;left:'+it.sx+'px;top:'+by+'px;width:'+swW+'px;height:'+bh+'px;background:'+it.color+';border-radius:2px;z-index:10;"></div>';
-      // ★チップの高さ・フォントサイズは、渋滞の有無（tier0かtier>0か）に関わらず完全に同一にする
-      var CHIP_H4=LABEL_TIER_H-2;
-      if(it.tier===0){
-        var chipTop4=by+Math.floor((bh-CHIP_H4)/2);
-        barHtml+='<div style="position:absolute;left:'+(it.sx+swW+2)+'px;top:'+chipTop4+'px;height:'+CHIP_H4+'px;display:flex;align-items:center;font-size:5px;font-weight:700;color:#000;white-space:nowrap;background:white;border:1px solid '+it.color+';border-radius:2px;padding:0 2px;z-index:11;">'+it.lbl+'</div>';
-      } else {
-        // ★渋滞時：バーの下に段を分けて表示（重なって見えなくなるのを防ぐ）
-        var tierY=rowY+PROW+(it.tier-1)*LABEL_TIER_H;
-        barHtml+='<div style="position:absolute;left:'+it.sx+'px;top:'+(tierY+1)+'px;height:'+CHIP_H4+'px;display:flex;align-items:center;font-size:5px;font-weight:700;color:#000;white-space:nowrap;background:white;border:1px solid '+it.color+';border-radius:2px;padding:0 1px;z-index:11;">'+it.lbl+'</div>';
-      }
-    });
-  });
-
-  // ★日ごとの薄い縦罫線（渋滞対応で行の高さが確定した後にまとめて描画）
-  var dayLineHtml='';
-  printDates.forEach(function(d,di){
-    if(!d||di<1)return;
-    dayLineHtml+='<div style="position:absolute;left:'+((di-1)*PCOL)+'px;top:0;width:1px;height:'+totalH+'px;background:rgba(100,116,139,.15);z-index:2;"></div>';
-  });
-  barHtml=dayLineHtml+barHtml;
-
-  // today line（渋滞対応で行の高さが物件ごとに変わるため、全行分の高さが確定した後にまとめて1本だけ描画）
-  var todayI=dIdx[TODAY];
-  if(todayI)barHtml+='<div style="position:absolute;left:'+((todayI-1)*PCOL)+'px;top:0;width:2px;height:'+totalH+'px;background:#ef4444;z-index:20;opacity:.7;"></div>';
-
   var STAT_W=50;
-  var totalContentW=LABEL_W+DATE_W+GANTT_W;
+  var totalContentW=LABEL_W+VENDOR_COL_W+DATE_W+GANTT_W;
 
-  // ★全物件・1年分を確実にA3横1枚いっぱいに引き伸ばす（縦横それぞれ別に伸ばして余白を無くす）
-  //   A3横向き(420×297mm)・余白5mmでの印字可能領域をCSS px換算（96px/inch, 25.4mm/inch）
-  var PAGE_W_PX=Math.round((420-10)/25.4*96); // ≒1550px
-  var PAGE_H_PX=Math.round((297-10)/25.4*96); // ≒1085px
-  var printScaleX=PAGE_W_PX/totalContentW;
-  var printScaleY=PAGE_H_PX/totalH;
+  // ★1ページ25物件に区切る（物件が多いと1枚に収めようとして文字が潰れて読めなくなるため）
+  var PAGE_SIZE=25;
+  var pages=[];
+  for(var pi=0;pi<props.length;pi+=PAGE_SIZE)pages.push(props.slice(pi,pi+PAGE_SIZE));
+
+  // ★1ページ分の物件について、行レイアウト（バー・ラベル渋滞対応）を計算してHTMLを組み立てる
+  function buildPageBody(pageProps){
+    var rowLayouts=pageProps.map(function(p){
+      var segs=_filterHomeGanttSegs(p, getActiveSegs(p)||[]);
+      var items=[];
+      segs.forEach(function(seg){
+        var sd=seg.start_date||seg.date||''; if(!sd)return;
+        var calDur=seg.calendar_dur||seg.dur||1;
+        var segEndDt=new Date(sd); segEndDt.setDate(segEndDt.getDate()+calDur-1);
+        var ed=localDateStr(segEndDt);
+        if(ed<printStart||sd>printEnd)return;
+        var clipSd=sd<printStart?printStart:sd;
+        var si=dIdx[clipSd];
+        if(!si){for(var di=1;di<printDates.length;di++){if(printDates[di]>=clipSd){si=di;break;}}}
+        if(!si)return;
+        var clipEd=ed>printEnd?printEnd:ed;
+        var ei=dIdx[clipEd];
+        if(!ei){for(var di2=printDates.length-1;di2>=1;di2--){if(printDates[di2]<=clipEd){ei=di2;break;}}}
+        if(!ei)ei=si;
+        var sx=(si-1)*PCOL;
+        var bw=Math.max((ei-si+1)*PCOL-1,2);
+        var lbl=seg.label||seg.name||'';
+        var neededW4=lbl.length*7+4;
+        var inline4=!HOME_GANTT_FORCE_CHIP[lbl]&&calDur>=3&&bw>=neededW4;
+        items.push({sx:sx,bw:bw,color:seg.color||'#94a3b8',layer:seg.layer||0,lbl:lbl,inline:inline4,minSwatch:!!HOME_GANTT_FORCE_CHIP[lbl]});
+      });
+      var barObstacles=items.map(function(it){return [it.sx,it.sx+it.bw];});
+      var narrowItems=items.filter(function(it){return !it.inline;}).sort(function(a,b){return a.sx-b.sx;});
+      var tierEnd=[]; for(var ti=0;ti<LABEL_MAXTIERS;ti++)tierEnd.push(-99999);
+      narrowItems.forEach(function(it){
+        var labelStartX=it.sx+it.bw+2;
+        var labelEndX=labelStartX+(it.lbl.length*LABEL_CHAR_W+4);
+        var placedTier=LABEL_MAXTIERS-1;
+        for(var t=0;t<LABEL_MAXTIERS;t++){
+          if(tierEnd[t]+LABEL_GAP>labelStartX)continue;
+          if(t===0){
+            var hitsBar=barObstacles.some(function(ob){return ob[0]<labelEndX&&ob[1]>labelStartX;});
+            if(hitsBar)continue;
+          }
+          placedTier=t;break;
+        }
+        tierEnd[placedTier]=labelEndX;
+        it.tier=placedTier;
+      });
+      var maxTier=0;
+      narrowItems.forEach(function(it){if(it.tier>maxTier)maxTier=it.tier;});
+      var rowH=maxTier>0?(PROW+maxTier*LABEL_TIER_H):PROW;
+      return {p:p, items:items, rowH:rowH};
+    });
+
+    var rowYs=[]; var yCursor=28;
+    rowLayouts.forEach(function(rl){rowYs.push(yCursor); yCursor+=rl.rowH;});
+    var totalH=yCursor;
+
+    var rowLabels='', rowBgs='', barHtml='', confirmCells='', vendorCells='';
+    rowLayouts.forEach(function(rl,ri){
+      var p=rl.p, rowY=rowYs[ri], rowH=rl.rowH;
+      var nm=p.name||'';
+      var cd=p.confirm_done||'';
+      var days=daysUntil(p.delivery_date);
+      var isUrgent=days!==null&&days>=0&&days<=30;
+      var bg=ri%2===0?'#f8fafc':'white';
+
+      rowLabels+='<div style="height:'+rowH+'px;display:flex;flex-direction:column;justify-content:center;padding:0 6px;background:'+bg+';border-bottom:1px solid #e2e8f0;overflow:hidden;">'
+        +'<div style="font-size:9px;font-weight:700;color:#1e293b;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">'+nm+'</div>'
+        +(isUrgent?'<div style="font-size:7px;color:#ef4444;font-weight:700;">⚡引渡まで'+days+'日</div>':'')
+        +'</div>';
+
+      confirmCells+='<div style="height:'+rowH+'px;display:flex;align-items:center;padding:0 4px;background:'+bg+';border-bottom:1px solid #e2e8f0;font-size:8px;color:#475569;">'+cd+'</div>';
+
+      vendorCells+='<div style="height:'+rowH+'px;display:flex;flex-direction:column;justify-content:center;padding:2px 4px;background:'+bg+';border-bottom:1px solid #e2e8f0;overflow:hidden;">'+_vendorGridHtml(p,32,5)+'</div>';
+
+      rowBgs+='<div style="position:absolute;left:0;top:'+rowY+'px;width:'+GANTT_W+'px;height:'+rowH+'px;background:'+bg+';border-bottom:1px solid #e2e8f0;"></div>';
+
+      printDates.forEach(function(d,di){
+        if(!d)return;
+        var dow=new Date(d).getDay();
+        if(dow===0||dow===6){
+          rowBgs+='<div style="position:absolute;left:'+((di-1)*PCOL)+'px;top:'+rowY+'px;width:'+PCOL+'px;height:'+rowH+'px;background:'+(dow===0?'rgba(255,100,100,.1)':'rgba(100,150,255,.1)')+';"></div>';
+        }
+      });
+
+      var MIN_SWATCH_W4=5;
+      rl.items.forEach(function(it){
+        var by=rowY+(it.layer===1?4:2), bh=it.layer===1?PROW-9:PROW-4;
+        var swW=it.minSwatch?MIN_SWATCH_W4:it.bw;
+        if(it.inline){
+          barHtml+='<div style="position:absolute;left:'+it.sx+'px;top:'+by+'px;width:'+swW+'px;height:'+bh+'px;background:'+it.color+';border-radius:2px;display:flex;align-items:center;padding:0 2px;overflow:hidden;white-space:nowrap;z-index:10;">'
+            +'<span style="font-size:7px;font-weight:700;color:#000;">'+it.lbl+'</span></div>';
+          return;
+        }
+        barHtml+='<div style="position:absolute;left:'+it.sx+'px;top:'+by+'px;width:'+swW+'px;height:'+bh+'px;background:'+it.color+';border-radius:2px;z-index:10;"></div>';
+        var CHIP_H4=LABEL_TIER_H-2;
+        if(it.tier===0){
+          var chipTop4=by+Math.floor((bh-CHIP_H4)/2);
+          barHtml+='<div style="position:absolute;left:'+(it.sx+swW+2)+'px;top:'+chipTop4+'px;height:'+CHIP_H4+'px;display:flex;align-items:center;font-size:5px;font-weight:700;color:#000;white-space:nowrap;background:white;border:1px solid '+it.color+';border-radius:2px;padding:0 2px;z-index:11;">'+it.lbl+'</div>';
+        } else {
+          var tierY=rowY+PROW+(it.tier-1)*LABEL_TIER_H;
+          barHtml+='<div style="position:absolute;left:'+it.sx+'px;top:'+(tierY+1)+'px;height:'+CHIP_H4+'px;display:flex;align-items:center;font-size:5px;font-weight:700;color:#000;white-space:nowrap;background:white;border:1px solid '+it.color+';border-radius:2px;padding:0 1px;z-index:11;">'+it.lbl+'</div>';
+        }
+      });
+    });
+
+    var dayLineHtml='';
+    printDates.forEach(function(d,di){
+      if(!d||di<1)return;
+      dayLineHtml+='<div style="position:absolute;left:'+((di-1)*PCOL)+'px;top:0;width:1px;height:'+totalH+'px;background:rgba(100,116,139,.15);z-index:2;"></div>';
+    });
+    barHtml=dayLineHtml+barHtml;
+
+    var todayI=dIdx[TODAY];
+    if(todayI)barHtml+='<div style="position:absolute;left:'+((todayI-1)*PCOL)+'px;top:0;width:2px;height:'+totalH+'px;background:#ef4444;z-index:20;opacity:.7;"></div>';
+
+    return {rowLabels:rowLabels, confirmCells:confirmCells, vendorCells:vendorCells, rowBgs:rowBgs, barHtml:barHtml, totalH:totalH};
+  }
+
+  // ★各ページを個別に組み立てる。縦方向は各ページの内容量に合わせて用紙いっぱいまで独立に引き伸ばす
+  //   （横方向は表示日数が全ページ共通なのでスケールも共通）
+  var pagesHtml=pages.map(function(pageProps,pIdx){
+    var pg=buildPageBody(pageProps);
+    var isLast=pIdx===pages.length-1;
+    return '<div class="pg" data-cw="'+totalContentW+'" data-ch="'+pg.totalH+'" style="width:410mm;height:287mm;overflow:hidden;position:relative;'+(isLast?'':'page-break-after:always;')+'">'
+      +'<div class="pgc" style="transform-origin:top left;width:'+totalContentW+'px;height:'+pg.totalH+'px;display:flex;position:absolute;top:0;left:0;">'
+      +'<div style="width:'+LABEL_W+'px;flex-shrink:0;border-right:2px solid #475569;">'
+      +'<div style="height:28px;background:#1e3a5f;border-bottom:2px solid #475569;"></div>'
+      +pg.rowLabels+'</div>'
+      +'<div style="width:'+VENDOR_COL_W+'px;flex-shrink:0;border-right:2px solid #475569;">'
+      +'<div style="height:28px;background:#1e3a5f;display:flex;align-items:center;justify-content:center;font-size:8px;color:white;font-weight:700;border-bottom:2px solid #475569;">業者選定</div>'
+      +pg.vendorCells+'</div>'
+      +'<div style="width:'+DATE_W+'px;flex-shrink:0;border-right:2px solid #475569;">'
+      +'<div style="height:28px;background:#1e3a5f;display:flex;align-items:center;justify-content:center;font-size:8px;color:white;font-weight:700;border-bottom:2px solid #475569;white-space:pre;">確認申請\n完了日</div>'
+      +pg.confirmCells+'</div>'
+      +'<div style="flex:1;overflow:visible;">'
+      +'<div style="position:relative;width:'+GANTT_W+'px;height:'+pg.totalH+'px;">'
+      +'<div style="position:absolute;top:0;left:0;width:'+GANTT_W+'px;height:14px;">'+monthHtml+'</div>'
+      +'<div style="position:absolute;top:0;left:0;width:'+GANTT_W+'px;height:28px;">'+dayHtml+'</div>'
+      +pg.rowBgs+pg.barHtml
+      +'</div></div>'
+      +'</div></div>';
+  }).join('');
 
   var html='<!DOCTYPE html><html><head><meta charset="UTF-8">'
     +'<title>工程一覧印刷</title>'
     +'<style>'
     +'*{box-sizing:border-box;margin:0;padding:0;-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important}'
+    +'html,body{width:100%;height:100%;}'
     +'body{font-family:"Hiragino Sans","Meiryo",sans-serif;background:white;}'
-    +'@media print{@page{size:A3 landscape;margin:5mm}body{padding:0}}'
+    +'@media print{@page{size:420mm 297mm;margin:5mm}body{padding:0}}'
     +'</style></head><body>'
-    +'<div style="width:'+PAGE_W_PX+'px;height:'+PAGE_H_PX+'px;overflow:hidden;">'
-    +'<div style="transform:scale('+printScaleX+','+printScaleY+');transform-origin:top left;width:'+totalContentW+'px;height:'+totalH+'px;display:flex;">'
-    // 物件名列
-    +'<div style="width:'+LABEL_W+'px;flex-shrink:0;border-right:2px solid #475569;">'
-    +'<div style="height:28px;background:#1e3a5f;border-bottom:2px solid #475569;"></div>'
-    +rowLabels+'</div>'
-    // 確認申請完了日列
-    +'<div style="width:'+DATE_W+'px;flex-shrink:0;border-right:2px solid #475569;">'
-    +'<div style="height:28px;background:#1e3a5f;display:flex;align-items:center;justify-content:center;font-size:8px;color:white;font-weight:700;border-bottom:2px solid #475569;white-space:pre;">確認申請\n完了日</div>'
-    +confirmCells+'</div>'
-    // ガント列
-    +'<div style="flex:1;overflow:visible;">'
-    +'<div style="position:relative;width:'+GANTT_W+'px;height:'+totalH+'px;">'
-    +'<div style="position:absolute;top:0;left:0;width:'+GANTT_W+'px;height:14px;">'+monthHtml+'</div>'
-    +'<div style="position:absolute;top:0;left:0;width:'+GANTT_W+'px;height:28px;">'+dayHtml+'</div>'
-    +rowBgs+barHtml
-    +'</div></div>'
-    +'</div></div>'
-    +'<scr'+'ipt>setTimeout(function(){window.print();},600);<\/scr'+'ipt>'
+    +pagesHtml
+    +'<scr'+'ipt>'
+    // ★ページのmm指定→px換算は端末・ブラウザ・印刷DPI設定によって解釈が変わることがあり、
+    //   固定の換算値で計算するとページの一部にしか印刷内容が収まらない不具合が起きていた。
+    //   そこで、実際にブラウザが描画したページ枠のサイズを直接測ってから拡大率を決める方式にする。
+    +'function fitAndPrint(){'
+    +'document.querySelectorAll(".pg").forEach(function(pg){'
+    +'var cw=parseFloat(pg.getAttribute("data-cw")),ch=parseFloat(pg.getAttribute("data-ch"));'
+    +'var r=pg.getBoundingClientRect();'
+    +'var sx=r.width/cw, sy=r.height/ch;'
+    +'var pgc=pg.querySelector(".pgc");'
+    +'if(pgc)pgc.style.transform="scale("+sx+","+sy+")";'
+    +'});'
+    +'setTimeout(function(){window.print();},150);'
+    +'}'
+    +'if(document.readyState==="complete")setTimeout(fitAndPrint,300);'
+    +'else window.addEventListener("load",function(){setTimeout(fitAndPrint,300);});'
+    +'<\/scr'+'ipt>'
     +'</body></html>';
 
-  var w=window.open('','_blank','width=1200,height=900');
-  if(w){w.document.write(html);w.document.close();}
+  var w=existingWin||window.open('','_blank','width=1200,height=900');
+  if(w){w.document.open();w.document.write(html);w.document.close();}
   else showToast('ポップアップを許可してください','error');
+}
+
+// ★印刷ボタンから呼ばれる入口：ポップアップブロック対策のためクリック直後に空ウィンドウを開いておき、
+//   業者選定データ(vendors)が未ロードならバックグラウンドで取得してから実際の印刷内容を書き込む
+function printPage(){
+  var w=window.open('','_blank','width=1200,height=900');
+  if(w){w.document.write('<!DOCTYPE html><html><head><meta charset="UTF-8"><title>工程一覧印刷</title></head><body style="font-family:sans-serif;padding:40px;color:#64748b;">読み込み中…</body></html>');}
+  if(!window._VENDOR_LIST_DATA||!Object.keys(window._VENDOR_LIST_DATA).length){
+    if(typeof _loadVendorsFromCacheOrDB==='function'){
+      _loadVendorsFromCacheOrDB(false).then(function(){_printPageImpl(w);}).catch(function(){_printPageImpl(w);});
+      return;
+    }
+  }
+  _printPageImpl(w);
 }
 
 // ===== SYNC =====
