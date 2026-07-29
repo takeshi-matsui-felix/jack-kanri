@@ -2024,20 +2024,28 @@ function getVendorGrid(p){
     return {label:t.label, vendor:vendor, noData:!loc};
   });
 }
-// ★大工程表・印刷共通：業者選定2段グリッドのHTML断片を作る
+function _escHtml(s){
+  return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+}
+// ★大工程表・印刷共通：業者選定3段×3列グリッドのHTML断片を作る
+//   （旧：2段×5列で1セル32px幅に「工種名+社名」を詰め込んでいたため、社名がほぼ表示できていなかった。
+//    工種名は上段に小さく、社名は下段に大きめで表示する2行スタック方式に変更し可読性を確保）
 function _vendorGridHtml(p, cellW, fontSize){
-  cellW=cellW||34; fontSize=fontSize||5;
+  cellW=cellW||36; fontSize=fontSize||7;
   var g=getVendorGrid(p);
-  var row1=g.slice(0,5), row2=g.slice(5,9);
+  var rows=[g.slice(0,5),g.slice(5,9)];
   function cell(it){
     var filled=!!it.vendor;
     var bg=filled?'#dbeafe':(it.noData?'#f1f5f9':'#fff7ed');
     var fc=filled?'#1e40af':(it.noData?'#94a3b8':'#ea580c');
     var txt=filled?it.vendor:(it.noData?'－':'未選定');
-    return '<div style="width:'+cellW+'px;background:'+bg+';color:'+fc+';border-radius:2px;padding:1px 2px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;font-size:'+fontSize+'px;font-weight:700;line-height:1.5;" title="'+it.label+'：'+(filled?it.vendor:(it.noData?'全業者選定一覧に未登録':'未選定'))+'">'+it.label+' '+txt+'</div>';
+    var tip=it.label+'：'+(filled?it.vendor:(it.noData?'全業者選定一覧に未登録':'未選定'));
+    return '<div style="width:'+cellW+'px;background:'+bg+';border-radius:2px;padding:1px 3px;overflow:hidden;" title="'+_escHtml(tip)+'">'
+      +'<div style="font-size:'+Math.max(fontSize-3,4)+'px;color:#64748b;line-height:1.3;white-space:nowrap;">'+_escHtml(it.label)+'</div>'
+      +'<div style="font-size:'+fontSize+'px;font-weight:700;color:'+fc+';line-height:1.3;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">'+_escHtml(txt)+'</div>'
+      +'</div>';
   }
-  return '<div style="display:flex;gap:2px;margin-bottom:2px;">'+row1.map(cell).join('')+'</div>'
-    +'<div style="display:flex;gap:2px;">'+row2.map(cell).join('')+'</div>';
+  return rows.map(function(r){return '<div style="display:flex;gap:2px;margin-bottom:2px;">'+r.map(cell).join('')+'</div>';}).join('');
 }
 
 function findVendorForProp(p){
@@ -2214,7 +2222,7 @@ function showToast(msg,type){
 function setMode(pc){
   isPcMode=pc;
   localStorage.setItem('jack_mode', pc?'pc':'sp');
-  document.documentElement.style.setProperty('--row-h',(pc?32:52)+'px');
+  document.documentElement.style.setProperty('--row-h',(_vendorColOn()?(pc?40:58):(pc?32:52))+'px'); // ★業者選定グリッド(2段)を表示中はセル内の文字が収まるよう行を少し高くする
   var activeFreezeC=_activeFreezeCols(pc?FREEZE_COLS:SP_FREEZE_COLS);
   var fw=activeFreezeC.reduce(function(a,c){return a+c.w;},0);
   document.documentElement.style.setProperty('--freeze-w',fw+'px');
@@ -2738,7 +2746,7 @@ function renderBody(){
   var activePreC=isPcMode?PRE_COLS:SP_PRE_COLS;
   var activeFreezeW=activeFreezeC.reduce(function(a,c){return a+c.w;},0);
   var activePreW=activePreC.reduce(function(a,c){return a+c.w;},0);
-  var baseRowH = isPcMode ? 32 : 52;
+  var baseRowH = _vendorColOn()?(isPcMode?40:58):(isPcMode?32:52); // ★業者選定グリッド(2段)を表示中はセル内の文字が収まるよう行を少し高くする
   document.documentElement.style.setProperty('--row-h',baseRowH+'px');
   var props=getProps();
   var fb=document.getElementById('freezeBody');
@@ -2861,7 +2869,7 @@ function renderBody(){
         cell.appendChild(nd);cell.appendChild(md);
       } else if(c.key==='_vendorGrid'){
         cell.style.cssText+='flex-direction:column;align-items:flex-start;justify-content:center;padding:2px 3px;';
-        cell.innerHTML=_vendorGridHtml(p,32,7);
+        cell.innerHTML=_vendorGridHtml(p,36,7);
       } else { cell.textContent=val;if(!val)cell.style.color='var(--g300)'; }
       fr.appendChild(cell);
     });
@@ -6881,6 +6889,15 @@ function _printPageImpl(existingWin){
 
   var STAT_W=50;
   var totalContentW=LABEL_W+VENDOR_COL_W+DATE_W+GANTT_W;
+  // ★A3横向き(420×297mm)・余白5mmの印字可能領域をCSS px換算(96px/inch, 25.4mm/inch)
+  // ★実機検証の結果、この計算値どおりだと印刷ダイアログの倍率100%では小さすぎ、
+  //   ユーザーが手動で150%に上げるとちょうど良いサイズになることが分かった（ただし手動150%は
+  //   このコード側の拡大率の上にさらに重ねがけされるため文字が歪んで見える副作用があった）。
+  //   そこで、ダイアログの倍率を100%のまま正しいサイズになるよう、計算値自体に1.5倍の補正をかける。
+  var PRINT_EMPIRICAL_CORRECTION=1.5;
+  var PAGE_W_PX=Math.round((420-10)/25.4*96*PRINT_EMPIRICAL_CORRECTION); // ≒2325px
+  var PAGE_H_PX=Math.round((297-10)/25.4*96*PRINT_EMPIRICAL_CORRECTION); // ≒1628px
+  var printScaleX=PAGE_W_PX/totalContentW;
 
   // ★1ページ25物件に区切る（物件が多いと1枚に収めようとして文字が潰れて読めなくなるため）
   var PAGE_SIZE=25;
@@ -6957,7 +6974,7 @@ function _printPageImpl(existingWin){
 
       confirmCells+='<div style="height:'+rowH+'px;display:flex;align-items:center;padding:0 4px;background:'+bg+';border-bottom:1px solid #e2e8f0;font-size:8px;color:#475569;">'+cd+'</div>';
 
-      vendorCells+='<div style="height:'+rowH+'px;display:flex;flex-direction:column;justify-content:center;padding:2px 4px;background:'+bg+';border-bottom:1px solid #e2e8f0;overflow:hidden;">'+_vendorGridHtml(p,32,5)+'</div>';
+      vendorCells+='<div style="height:'+rowH+'px;display:flex;flex-direction:column;justify-content:center;padding:2px 4px;background:'+bg+';border-bottom:1px solid #e2e8f0;overflow:hidden;">'+_vendorGridHtml(p,58,7)+'</div>';
 
       rowBgs+='<div style="position:absolute;left:0;top:'+rowY+'px;width:'+GANTT_W+'px;height:'+rowH+'px;background:'+bg+';border-bottom:1px solid #e2e8f0;"></div>';
 
@@ -7003,13 +7020,17 @@ function _printPageImpl(existingWin){
     return {rowLabels:rowLabels, confirmCells:confirmCells, vendorCells:vendorCells, rowBgs:rowBgs, barHtml:barHtml, totalH:totalH};
   }
 
-  // ★各ページを個別に組み立てる。縦方向は各ページの内容量に合わせて用紙いっぱいまで独立に引き伸ばす
-  //   （横方向は表示日数が全ページ共通なのでスケールも共通）
-  var pagesHtml=pages.map(function(pageProps,pIdx){
-    var pg=buildPageBody(pageProps);
-    var isLast=pIdx===pages.length-1;
-    return '<div class="pg" data-cw="'+totalContentW+'" data-ch="'+pg.totalH+'" style="width:410mm;height:287mm;overflow:hidden;position:relative;'+(isLast?'':'page-break-after:always;')+'">'
-      +'<div class="pgc" style="transform-origin:top left;width:'+totalContentW+'px;height:'+pg.totalH+'px;display:flex;position:absolute;top:0;left:0;">'
+  // ★各ページを個別に組み立てる。
+  //   ★縦の拡大率はページごとに個別計算すると、物件数が少ない最終ページ（端数ページ）で
+  //     極端な値になり印刷が崩れる不具合があったため、「1ページ目（フル件数）」の高さを
+  //     基準に1回だけ計算し、全ページで同じ拡大率を使う（最終ページだけ多少余白が出ることはある）
+  var pgList=pages.map(function(pageProps){return buildPageBody(pageProps);});
+  var refTotalH=pgList[0]?pgList[0].totalH:1;
+  var printScaleY=PAGE_H_PX/refTotalH;
+  var pagesHtml=pgList.map(function(pg,pIdx){
+    var isLast=pIdx===pgList.length-1;
+    return '<div style="width:'+PAGE_W_PX+'px;height:'+PAGE_H_PX+'px;overflow:hidden;'+(isLast?'':'page-break-after:always;')+'">'
+      +'<div style="transform:scale('+printScaleX+','+printScaleY+');transform-origin:top left;width:'+totalContentW+'px;height:'+pg.totalH+'px;display:flex;">'
       +'<div style="width:'+LABEL_W+'px;flex-shrink:0;border-right:2px solid #475569;">'
       +'<div style="height:28px;background:#1e3a5f;border-bottom:2px solid #475569;"></div>'
       +pg.rowLabels+'</div>'
@@ -7037,23 +7058,7 @@ function _printPageImpl(existingWin){
     +'@media print{@page{size:420mm 297mm;margin:5mm}body{padding:0}}'
     +'</style></head><body>'
     +pagesHtml
-    +'<scr'+'ipt>'
-    // ★ページのmm指定→px換算は端末・ブラウザ・印刷DPI設定によって解釈が変わることがあり、
-    //   固定の換算値で計算するとページの一部にしか印刷内容が収まらない不具合が起きていた。
-    //   そこで、実際にブラウザが描画したページ枠のサイズを直接測ってから拡大率を決める方式にする。
-    +'function fitAndPrint(){'
-    +'document.querySelectorAll(".pg").forEach(function(pg){'
-    +'var cw=parseFloat(pg.getAttribute("data-cw")),ch=parseFloat(pg.getAttribute("data-ch"));'
-    +'var r=pg.getBoundingClientRect();'
-    +'var sx=r.width/cw, sy=r.height/ch;'
-    +'var pgc=pg.querySelector(".pgc");'
-    +'if(pgc)pgc.style.transform="scale("+sx+","+sy+")";'
-    +'});'
-    +'setTimeout(function(){window.print();},150);'
-    +'}'
-    +'if(document.readyState==="complete")setTimeout(fitAndPrint,300);'
-    +'else window.addEventListener("load",function(){setTimeout(fitAndPrint,300);});'
-    +'<\/scr'+'ipt>'
+    +'<scr'+'ipt>setTimeout(function(){window.print();},500);<\/scr'+'ipt>'
     +'</body></html>';
 
   var w=existingWin||window.open('','_blank','width=1200,height=900');
