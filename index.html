@@ -1994,18 +1994,32 @@ function _findPropVendorLoc(p){
   }
   return null;
 }
-// ★大工程表に表示する7工種。tokai/kantoはエリアによって全業者選定一覧の列名（カテゴリ名）が異なるための対応表
+// ★大工程表に表示する9工種。tokai/kantoはエリアによって全業者選定一覧の列名（カテゴリ名）が異なるための対応表
+//   ★候補文字列は「これが含まれていればその工種」という部分一致キーワードとして扱う（_vendorTradeMatch参照）。
+//     そのため、複数の工種にまたがって出現しうる曖昧な単語（例：「大工」だけ、など）は候補に入れないこと
+//     （「大工」は建方にも造作にも出現するため、両方に誤マッチしてしまう）。
 var VENDOR_TRADES=[
-  {label:'外構',tokai:['造成工事'],kanto:['土工事','造成工事']},
+  {label:'外構',tokai:['造成工事'],kanto:['造成工事','外構工事']},
   {label:'基礎',tokai:['基礎工事'],kanto:['基礎工事']},
-  {label:'建方',tokai:['フレーミング工事'],kanto:['大工 フレーミング','大工','フレーミング']},
+  {label:'建方',tokai:['フレーミング工事'],kanto:['フレーミング']},
   {label:'電気',tokai:['電気工事'],kanto:['電気工事']},
   {label:'水道',tokai:['水道'],kanto:['水道工事']},
   {label:'内装',tokai:['内装仕上げ'],kanto:['内装仕上げ']},
   {label:'外装',tokai:['外壁サイディング工事'],kanto:['外壁サイディング工事']},
-  {label:'造作',tokai:['造作工事'],kanto:['大工 造作工事','造作工事']},
-  {label:'産廃',tokai:['産廃'],kanto:['産廃処理']}
+  {label:'造作',tokai:['造作工事'],kanto:['造作工事']},
+  {label:'産廃',tokai:['産廃'],kanto:['産廃処理','産廃']}
 ];
+// ★全業者選定一覧のカテゴリ名は「土工事　・造成工事」「大工　・フレーミング」のように、
+//   全角スペースや「・」区切りが物件・時期によって混在している。これらの記号を取り除いた上で
+//   部分一致させることで、多少の表記ゆれがあっても正しくマッチするようにする
+function _normCatText(s){
+  return String(s||'').replace(/[\s　]+/g,'').replace(/[・、,，]/g,'');
+}
+function _vendorTradeMatch(cat,cands){
+  var nc=_normCatText(cat);
+  if(!nc)return false;
+  return cands.some(function(cand){var nCand=_normCatText(cand);return !!nCand&&nc.indexOf(nCand)>=0;});
+}
 function getVendorGrid(p){
   var loc=_findPropVendorLoc(p);
   var isKanto=isKantoProp(p);
@@ -2016,7 +2030,7 @@ function getVendorGrid(p){
       var rows=(window._VENDOR_LIST_DATA||{})[loc.area]||[];
       for(var i=0;i<rows.length;i++){
         var cat=String(rows[i][loc.catCol]||'').trim();
-        if(cands.indexOf(cat)>=0){vendor=String(rows[i][loc.col]||'').trim();break;}
+        if(_vendorTradeMatch(cat,cands)){vendor=String(rows[i][loc.col]||'').trim();break;}
       }
     }
     // ★noData: 全業者選定一覧の中にこの物件自体が見つからなかった（＝データ未取得 or まだ選定一覧に未登録）
