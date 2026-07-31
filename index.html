@@ -2040,9 +2040,9 @@ function _vendorGridHtml(p, cellW, fontSize){
     var fc=filled?'#1e40af':(it.noData?'#94a3b8':'#ea580c');
     var txt=filled?it.vendor:(it.noData?'－':'未選定');
     var tip=it.label+'：'+(filled?it.vendor:(it.noData?'全業者選定一覧に未登録':'未選定'));
-    return '<div style="width:'+cellW+'px;background:'+bg+';border-radius:2px;padding:1px 3px;overflow:hidden;" title="'+_escHtml(tip)+'">'
-      +'<div style="font-size:'+Math.max(fontSize-3,4)+'px;color:#64748b;line-height:1.3;white-space:nowrap;">'+_escHtml(it.label)+'</div>'
-      +'<div style="font-size:'+fontSize+'px;font-weight:700;color:'+fc+';line-height:1.3;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">'+_escHtml(txt)+'</div>'
+    return '<div style="width:'+cellW+'px;background:'+bg+';border-radius:2px;padding:0 3px;overflow:hidden;" title="'+_escHtml(tip)+'">'
+      +'<div style="font-size:'+Math.max(fontSize-3,4)+'px;color:#64748b;line-height:1.15;white-space:nowrap;">'+_escHtml(it.label)+'</div>'
+      +'<div style="font-size:'+fontSize+'px;font-weight:700;color:'+fc+';line-height:1.15;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">'+_escHtml(txt)+'</div>'
       +'</div>';
   }
   return rows.map(function(r){return '<div style="display:flex;gap:2px;margin-bottom:2px;">'+r.map(cell).join('')+'</div>';}).join('');
@@ -2222,7 +2222,7 @@ function showToast(msg,type){
 function setMode(pc){
   isPcMode=pc;
   localStorage.setItem('jack_mode', pc?'pc':'sp');
-  document.documentElement.style.setProperty('--row-h',(_vendorColOn()?(pc?40:58):(pc?32:52))+'px'); // ★業者選定グリッド(2段)を表示中はセル内の文字が収まるよう行を少し高くする
+  document.documentElement.style.setProperty('--row-h',(_vendorColOn()?(pc?46:64):(pc?32:52))+'px'); // ★業者選定グリッド(2段)を表示中はセル内の文字が収まるよう行を少し高くする
   var activeFreezeC=_activeFreezeCols(pc?FREEZE_COLS:SP_FREEZE_COLS);
   var fw=activeFreezeC.reduce(function(a,c){return a+c.w;},0);
   document.documentElement.style.setProperty('--freeze-w',fw+'px');
@@ -2746,7 +2746,7 @@ function renderBody(){
   var activePreC=isPcMode?PRE_COLS:SP_PRE_COLS;
   var activeFreezeW=activeFreezeC.reduce(function(a,c){return a+c.w;},0);
   var activePreW=activePreC.reduce(function(a,c){return a+c.w;},0);
-  var baseRowH = _vendorColOn()?(isPcMode?40:58):(isPcMode?32:52); // ★業者選定グリッド(2段)を表示中はセル内の文字が収まるよう行を少し高くする
+  var baseRowH = _vendorColOn()?(isPcMode?46:64):(isPcMode?32:52); // ★業者選定グリッド(2段)を表示中はセル内の文字が収まるよう行を少し高くする
   document.documentElement.style.setProperty('--row-h',baseRowH+'px');
   var props=getProps();
   var fb=document.getElementById('freezeBody');
@@ -2834,6 +2834,10 @@ function renderBody(){
     var fr=document.createElement('div');
     fr.className='fr-row'+(isUrgent?' urgent':isSoon?' soon':'')+(fav?' myfav-row':'');
     fr.style.height=rowH+'px'; // ★行ごとに高さが異なる場合があるためCSS変数(--row-h)ではなくインライン指定で上書き
+    // ★工程表が未編集（デフォルト＝マスター工程のまま）の現場は、FiX No〜業者選定欄（フリーズ列全体）を
+    //   薄い黄色で強調する。本番工程（手動編集済み）になった時点で白に戻す。マイ物件(★)の黄色強調が
+    //   優先されるようCSS側は!importantのため、こちらはインラインstyleで指定する。
+    if(!p.gantt_is_manual)fr.style.background='#fef9c3';
     (function(pp){fr.onclick=function(){window.openDetail(pp);};})(p);
     activeFreezeC.forEach(function(c){
       var cell=document.createElement('div');cell.className='fc';
@@ -2868,7 +2872,7 @@ function renderBody(){
         md.innerHTML=tantouBadge+shinsaBadge2+(isUrgent?'<span class="urg-pill">⚡'+days+'日</span>':'')+(fav?'<span style="font-size:9px">⭐</span>':'')+parkBadge2;
         cell.appendChild(nd);cell.appendChild(md);
       } else if(c.key==='_vendorGrid'){
-        cell.style.cssText+='flex-direction:column;align-items:flex-start;justify-content:center;padding:2px 3px;';
+        cell.style.cssText+='flex-direction:column;align-items:flex-start;justify-content:center;padding:2px 3px;overflow:hidden;';
         cell.innerHTML=_vendorGridHtml(p,36,7);
       } else { cell.textContent=val;if(!val)cell.style.color='var(--g300)'; }
       fr.appendChild(cell);
@@ -4161,6 +4165,9 @@ window.closeGanttEditSidebar=closeGanttEditSidebar;
 function resetGanttEdit(){
   if(!currentProp||!confirm('カスタムをリセットして元データに戻しますか？'))return;
   delete customGantt[custKey(currentProp)]; saveLS('jack_custom_gantt',customGantt);
+  // ★管理者の場合はSupabase側のcustom_gantt/gantt_is_manualもクリア（大工程表の色分けを正しく戻すため）
+  var isAdmRG=(currentProfile&&(currentProfile.role==='admin'||currentProfile.is_admin===true));
+  if(isAdmRG)_saveGanttToSupabase(currentProp,null,function(){});
   var srcSegs=getActiveSegs(currentProp)||[];
   geSegs=srcSegs.map(function(s){
     var sd=(s.start_date||s.date||'').replace(/\//g,'-'),ed=(s.end_date||'').replace(/\//g,'-');
@@ -5881,6 +5888,8 @@ function resetEditorChanges(){
   if(!edProp||!confirm('カスタムをリセットして元データに戻しますか？'))return;
   delete customGantt[custKey(edProp)];
   saveLS('jack_custom_gantt',customGantt);
+  // ★管理者の場合はSupabase側のcustom_gantt/gantt_is_manualもクリア（大工程表の色分けを正しく戻すため）
+  if(currentProfile&&currentProfile.role==='admin')_saveGanttToSupabase(edProp,null,function(){});
   openGanttEditor(edProp.fix_no,encodeURIComponent(edProp.name));
   renderBody();
   showToast('リセットしました','');
@@ -6830,20 +6839,21 @@ function _printPageImpl(existingWin){
   if(!props||!props.length){showToast('印刷対象の物件がありません','error');if(existingWin)existingWin.close();return;}
 
   var PCOL=14; // 1日の幅(px)
-  var PROW=22; // 行高さ(px)・基準（バー本体＋渋滞なしラベル分）
+  var PROW=100; // 行高さ(px)・基準（バー本体＋渋滞なしラベル分）★1ページの物件数を減らした分、行を大きくして文字を読みやすくする（この高さだとページを拡大縮小してもほぼ等倍で済み、左ブロックの文字が縦に歪まない）
   var LABEL_W=160; // 物件名列幅
   var DATE_W=70;   // 確認申請完了日列幅
+  var VENDOR_COL_W=460; // ★印刷専用に業者選定列を大きく確保（ホーム画面側の同名グローバル変数はここではローカルで上書き、画面表示には影響しない）
   // ★ラベルが渋滞（1〜2日間に工程が密集）した場合、行の下に段(tier)を追加して縮小表示する
-  var LABEL_TIER_H=9;   // 追加段1つあたりの高さ(px)
+  var LABEL_TIER_H=14;   // 追加段1つあたりの高さ(px)
   var LABEL_GAP=2;      // ラベル同士の最小間隔(px)
   var LABEL_MAXTIERS=3; // ★高さは3段階までに統一（ガントと文字の両方が分かるように）
-  var LABEL_CHAR_W=5;   // 渋滞時の縮小ラベル：1文字あたりの推定幅(px)（通常表示より小さめ）
+  var LABEL_CHAR_W=6;   // 渋滞時の縮小ラベル：1文字あたりの推定幅(px)（通常表示より小さめ）
 
   // ★印刷範囲：開始は従来通り「今月1日」。終わりは1年後まで延長する（全物件を1枚に収めるため後段でスケール縮小する）
   var todayDt=new Date(TODAY);
   var startDt=new Date(todayDt.getFullYear(), todayDt.getMonth(), 1); // 今月1日（ローカル時刻）
   var monthStart=localDateStr(startDt);
-  var PRINT_DAYS=305; // ★12ヶ月→10ヶ月に短縮（業者選定グリッド列の横幅を確保するため）
+  var PRINT_DAYS=270; // ★物件名・業者名列を独立して縮小しないようにする分、ガント側の月数を少し減らして帳尻を合わせる（10ヶ月→9ヶ月）
   var printDates=['']; // printDates[0]は空文字（既存の+1オフセットに合わせる）
   var _pcur=new Date(startDt.getTime());
   for(var _pi=0;_pi<PRINT_DAYS;_pi++){
@@ -6888,7 +6898,8 @@ function _printPageImpl(existingWin){
   var printEnd=printDates[printDates.length-1]||'';
 
   var STAT_W=50;
-  var totalContentW=LABEL_W+VENDOR_COL_W+DATE_W+GANTT_W;
+  var LEFT_BLOCK_W=LABEL_W+VENDOR_COL_W+DATE_W; // 物件名・業者選定・確認完了日
+  var totalContentW=LEFT_BLOCK_W+GANTT_W;
   // ★A3横向き(420×297mm)・余白5mmの印字可能領域をCSS px換算(96px/inch, 25.4mm/inch)
   // ★実機検証の結果、この計算値どおりだと印刷ダイアログの倍率100%では小さすぎ、
   //   ユーザーが手動で150%に上げるとちょうど良いサイズになることが分かった（ただし手動150%は
@@ -6897,12 +6908,25 @@ function _printPageImpl(existingWin){
   var PRINT_EMPIRICAL_CORRECTION=1.5;
   var PAGE_W_PX=Math.round((420-10)/25.4*96*PRINT_EMPIRICAL_CORRECTION); // ≒2325px
   var PAGE_H_PX=Math.round((297-10)/25.4*96*PRINT_EMPIRICAL_CORRECTION); // ≒1628px
-  var printScaleX=PAGE_W_PX/totalContentW;
+  // ★物件名・業者選定・確認完了日は「読める文字サイズ」を保つため横方向はほぼ縮小しない(等倍)。
+  //   ページ幅のうち、この左ブロックが使った残り分だけをガント側の横方向の縮小に割り当てる。
+  var printScaleXLeft=1;
+  var printScaleXGantt=Math.max((PAGE_W_PX-LEFT_BLOCK_W*printScaleXLeft)/GANTT_W, 0.12);
+  // ★縦の拡大率は後で(ページ全体の高さが分かってから)確定する。ガント内の文字・バッジは
+  //   バー自体は圧縮された日付軸に合わせて位置・幅を決める必要があるが、文字だけは
+  //   横方向(printScaleXGantt)と縦方向(printScaleY)の比率が違うと歪んで見えるため、
+  //   文字だけ逆補正をかけて等倍相当に戻す（_gLabelHtmlで使用、値はbuildPageBody呼び出し前に確定させる）
+  var printScaleY=1;
+  function _gLabelHtml(txt){
+    var ratio=printScaleXGantt>0?(printScaleY/printScaleXGantt):1;
+    return '<span style="display:inline-block;transform:scale('+ratio+',1);transform-origin:left center;white-space:nowrap;">'+txt+'</span>';
+  }
 
-  // ★1ページ25物件に区切る（物件が多いと1枚に収めようとして文字が潰れて読めなくなるため）
-  var PAGE_SIZE=25;
-  var pages=[];
-  for(var pi=0;pi<props.length;pi+=PAGE_SIZE)pages.push(props.slice(pi,pi+PAGE_SIZE));
+  // ★1ページの物件数：最大25件を上限としつつ、文字が小さくなりすぎる場合は自動でページを分割する。
+  //   （25件固定にすると物件が多い日は文字が潰れて読めなくなるため、「読める大きさを保つこと」を優先し可変にした。
+  //   　実際のページ分割は、下のbuildPageBody定義後にPRINT_MIN_SCALEを満たす件数を二分探索して決める）
+  var PAGE_SIZE_MAX=25;
+  var PRINT_MIN_SCALE=0.85; // ★この値を下回りそうな場合はページを分割する（1.0=本日調整した基準の文字サイズ）
 
   // ★1ページ分の物件について、行レイアウト（バー・ラベル渋滞対応）を計算してHTMLを組み立てる
   function buildPageBody(pageProps){
@@ -6966,15 +6990,19 @@ function _printPageImpl(existingWin){
       var days=daysUntil(p.delivery_date);
       var isUrgent=days!==null&&days>=0&&days<=30;
       var bg=ri%2===0?'#f8fafc':'white';
+      // ★工程表が未編集（デフォルト＝マスター工程のまま）の現場は、FiX No〜業者選定欄を薄い黄色で強調する。
+      //   本番工程（手動編集済み＝customGanttに__manual__フラグあり）になった時点で白に戻す。
+      var isDefaultSched=!p.gantt_is_manual;
+      var nameVendorBg=isDefaultSched?'#fef9c3':bg;
 
-      rowLabels+='<div style="height:'+rowH+'px;display:flex;flex-direction:column;justify-content:center;padding:0 6px;background:'+bg+';border-bottom:1px solid #e2e8f0;overflow:hidden;">'
-        +'<div style="font-size:9px;font-weight:700;color:#1e293b;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">'+nm+'</div>'
-        +(isUrgent?'<div style="font-size:7px;color:#ef4444;font-weight:700;">⚡引渡まで'+days+'日</div>':'')
+      rowLabels+='<div style="height:'+rowH+'px;display:flex;flex-direction:column;justify-content:center;padding:0 6px;background:'+nameVendorBg+';border-bottom:1px solid #e2e8f0;overflow:hidden;">'
+        +'<div style="font-size:18px;font-weight:700;color:#1e293b;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">'+nm+'</div>'
+        +(isUrgent?'<div style="font-size:12px;color:#ef4444;font-weight:700;">⚡引渡まで'+days+'日</div>':'')
         +'</div>';
 
-      confirmCells+='<div style="height:'+rowH+'px;display:flex;align-items:center;padding:0 4px;background:'+bg+';border-bottom:1px solid #e2e8f0;font-size:8px;color:#475569;">'+cd+'</div>';
+      confirmCells+='<div style="height:'+rowH+'px;display:flex;align-items:center;padding:0 4px;background:'+bg+';border-bottom:1px solid #e2e8f0;font-size:14px;color:#475569;">'+cd+'</div>';
 
-      vendorCells+='<div style="height:'+rowH+'px;display:flex;flex-direction:column;justify-content:center;padding:2px 4px;background:'+bg+';border-bottom:1px solid #e2e8f0;overflow:hidden;">'+_vendorGridHtml(p,58,7)+'</div>';
+      vendorCells+='<div style="height:'+rowH+'px;display:flex;flex-direction:column;justify-content:center;padding:2px 4px;background:'+nameVendorBg+';border-bottom:1px solid #e2e8f0;overflow:hidden;">'+_vendorGridHtml(p,90,14)+'</div>';
 
       rowBgs+='<div style="position:absolute;left:0;top:'+rowY+'px;width:'+GANTT_W+'px;height:'+rowH+'px;background:'+bg+';border-bottom:1px solid #e2e8f0;"></div>';
 
@@ -6987,22 +7015,24 @@ function _printPageImpl(existingWin){
       });
 
       var MIN_SWATCH_W4=5;
+      var BAR_H4=28; // ★行の高さ(PROW)を文字用に拡大したので、バー自体の太さは行の高さに連動させず固定値にする
       rl.items.forEach(function(it){
-        var by=rowY+(it.layer===1?4:2), bh=it.layer===1?PROW-9:PROW-4;
+        var bh=it.layer===1?BAR_H4-10:BAR_H4;
+        var by=rowY+Math.floor((PROW-BAR_H4)/2)+(it.layer===1?(BAR_H4-bh):0);
         var swW=it.minSwatch?MIN_SWATCH_W4:it.bw;
         if(it.inline){
           barHtml+='<div style="position:absolute;left:'+it.sx+'px;top:'+by+'px;width:'+swW+'px;height:'+bh+'px;background:'+it.color+';border-radius:2px;display:flex;align-items:center;padding:0 2px;overflow:hidden;white-space:nowrap;z-index:10;">'
-            +'<span style="font-size:7px;font-weight:700;color:#000;">'+it.lbl+'</span></div>';
+            +'<span style="font-size:11px;font-weight:700;color:#000;">'+_gLabelHtml(it.lbl)+'</span></div>';
           return;
         }
         barHtml+='<div style="position:absolute;left:'+it.sx+'px;top:'+by+'px;width:'+swW+'px;height:'+bh+'px;background:'+it.color+';border-radius:2px;z-index:10;"></div>';
-        var CHIP_H4=LABEL_TIER_H-2;
+        var CHIP_H4=LABEL_TIER_H+4;
         if(it.tier===0){
           var chipTop4=by+Math.floor((bh-CHIP_H4)/2);
-          barHtml+='<div style="position:absolute;left:'+(it.sx+swW+2)+'px;top:'+chipTop4+'px;height:'+CHIP_H4+'px;display:flex;align-items:center;font-size:5px;font-weight:700;color:#000;white-space:nowrap;background:white;border:1px solid '+it.color+';border-radius:2px;padding:0 2px;z-index:11;">'+it.lbl+'</div>';
+          barHtml+='<div style="position:absolute;left:'+(it.sx+swW+2)+'px;top:'+chipTop4+'px;height:'+CHIP_H4+'px;display:flex;align-items:center;font-size:5px;font-weight:700;color:#000;white-space:nowrap;background:white;border:1px solid '+it.color+';border-radius:2px;padding:0 2px;z-index:11;">'+_gLabelHtml(it.lbl)+'</div>';
         } else {
           var tierY=rowY+PROW+(it.tier-1)*LABEL_TIER_H;
-          barHtml+='<div style="position:absolute;left:'+it.sx+'px;top:'+(tierY+1)+'px;height:'+CHIP_H4+'px;display:flex;align-items:center;font-size:5px;font-weight:700;color:#000;white-space:nowrap;background:white;border:1px solid '+it.color+';border-radius:2px;padding:0 1px;z-index:11;">'+it.lbl+'</div>';
+          barHtml+='<div style="position:absolute;left:'+it.sx+'px;top:'+(tierY+1)+'px;height:'+CHIP_H4+'px;display:flex;align-items:center;font-size:5px;font-weight:700;color:#000;white-space:nowrap;background:white;border:1px solid '+it.color+';border-radius:2px;padding:0 1px;z-index:11;">'+_gLabelHtml(it.lbl)+'</div>';
         }
       });
     });
@@ -7020,17 +7050,39 @@ function _printPageImpl(existingWin){
     return {rowLabels:rowLabels, confirmCells:confirmCells, vendorCells:vendorCells, rowBgs:rowBgs, barHtml:barHtml, totalH:totalH};
   }
 
-  // ★各ページを個別に組み立てる。
-  //   ★縦の拡大率はページごとに個別計算すると、物件数が少ない最終ページ（端数ページ）で
-  //     極端な値になり印刷が崩れる不具合があったため、「1ページ目（フル件数）」の高さを
-  //     基準に1回だけ計算し、全ページで同じ拡大率を使う（最終ページだけ多少余白が出ることはある）
-  var pgList=pages.map(function(pageProps){return buildPageBody(pageProps);});
-  var refTotalH=pgList[0]?pgList[0].totalH:1;
-  var printScaleY=PAGE_H_PX/refTotalH;
+  // ★ページ分割：各ページの物件数を、①最大25件 ②文字サイズがPRINT_MIN_SCALEを下回らない、の
+  //   両方を満たす最大件数になるよう二分探索で自動決定する。ガント内容が混み合っている（ラベル渋滞の段数が
+  //   多い）物件が続く日は、25件に満たない件数でページが区切られることがある（文字を小さくしすぎないため）。
+  var pages=[];
+  {
+    var _pgIdx=0;
+    while(_pgIdx<props.length){
+      var _lo=1, _hi=Math.min(PAGE_SIZE_MAX, props.length-_pgIdx), _best=1;
+      while(_lo<=_hi){
+        var _mid=Math.floor((_lo+_hi)/2);
+        var _testTotalH=buildPageBody(props.slice(_pgIdx,_pgIdx+_mid)).totalH||1;
+        if(PAGE_H_PX/_testTotalH>=PRINT_MIN_SCALE){_best=_mid; _lo=_mid+1;} else {_hi=_mid-1;}
+      }
+      pages.push(props.slice(_pgIdx,_pgIdx+_best));
+      _pgIdx+=_best;
+    }
+  }
+
+  // ★各ページを個別に組み立てる。ページごとに実際の行数に応じた拡大率（PRINT_MIN_SCALE〜100%）を使う
+  //   （上のページ分割ロジックで既にこの範囲に収まることを保証済み）。
+  //   ★ガント内の文字の逆補正(printScaleY)にはページごとの拡大率確定が必要なため、
+  //     まず試しに組み立てて高さを求め、それから本番の組み立てを行う（2パス方式・ページ単位）
+  var pgList=pages.map(function(pageProps){
+    var trial=buildPageBody(pageProps);
+    var scale=Math.min(1, PAGE_H_PX/(trial.totalH||1));
+    printScaleY=scale; // ★outer scopeのprintScaleYを更新（_gLabelHtmlが参照する）
+    var pg=buildPageBody(pageProps); // ★確定したscaleでラベルの逆補正を反映して再構築
+    pg._scale=scale;
+    return pg;
+  });
   var pagesHtml=pgList.map(function(pg,pIdx){
     var isLast=pIdx===pgList.length-1;
-    return '<div style="width:'+PAGE_W_PX+'px;height:'+PAGE_H_PX+'px;overflow:hidden;'+(isLast?'':'page-break-after:always;')+'">'
-      +'<div style="transform:scale('+printScaleX+','+printScaleY+');transform-origin:top left;width:'+totalContentW+'px;height:'+pg.totalH+'px;display:flex;">'
+    var leftBlock='<div style="width:'+LEFT_BLOCK_W+'px;height:'+pg.totalH+'px;display:flex;">'
       +'<div style="width:'+LABEL_W+'px;flex-shrink:0;border-right:2px solid #475569;">'
       +'<div style="height:28px;background:#1e3a5f;border-bottom:2px solid #475569;"></div>'
       +pg.rowLabels+'</div>'
@@ -7040,13 +7092,21 @@ function _printPageImpl(existingWin){
       +'<div style="width:'+DATE_W+'px;flex-shrink:0;border-right:2px solid #475569;">'
       +'<div style="height:28px;background:#1e3a5f;display:flex;align-items:center;justify-content:center;font-size:8px;color:white;font-weight:700;border-bottom:2px solid #475569;white-space:pre;">確認申請\n完了日</div>'
       +pg.confirmCells+'</div>'
-      +'<div style="flex:1;overflow:visible;">'
-      +'<div style="position:relative;width:'+GANTT_W+'px;height:'+pg.totalH+'px;">'
+      +'</div>';
+    var ganttBlock='<div style="position:relative;width:'+GANTT_W+'px;height:'+pg.totalH+'px;">'
       +'<div style="position:absolute;top:0;left:0;width:'+GANTT_W+'px;height:14px;">'+monthHtml+'</div>'
       +'<div style="position:absolute;top:0;left:0;width:'+GANTT_W+'px;height:28px;">'+dayHtml+'</div>'
       +pg.rowBgs+pg.barHtml
-      +'</div></div>'
-      +'</div></div>';
+      +'</div>';
+    // ★物件名・業者選定・確認完了日ブロックは横方向をほぼ等倍(scaleXLeft)に保って文字を読める大きさにし、
+    //   ガントブロックだけ横方向を大きく縮小する。2つを独立したtransformで別々にスケールし、
+    //   ガント側は「左ブロックが実際に使った幅(=左ブロックの見た目の幅)」の直後から絶対配置で並べる。
+    var leftVisibleW=LEFT_BLOCK_W*printScaleXLeft;
+    var pgScale=pg._scale!=null?pg._scale:1;
+    return '<div style="width:'+PAGE_W_PX+'px;height:'+PAGE_H_PX+'px;overflow:hidden;position:relative;'+(isLast?'':'page-break-after:always;')+'">'
+      +'<div style="position:absolute;top:0;left:0;transform:scale('+printScaleXLeft+','+pgScale+');transform-origin:top left;">'+leftBlock+'</div>'
+      +'<div style="position:absolute;top:0;left:'+leftVisibleW+'px;transform:scale('+printScaleXGantt+','+pgScale+');transform-origin:top left;">'+ganttBlock+'</div>'
+      +'</div>';
   }).join('');
 
   var html='<!DOCTYPE html><html><head><meta charset="UTF-8">'
@@ -7128,7 +7188,7 @@ async function loadPropertiesFromCacheOrDB(forceRefresh){
   }
   // Supabaseから取得してキャッシュ保存
   // 軽量カラムのみ取得（custom_ganttは重いため除外→別途取得）
-  var pr=await sb.from('properties').select('id,fix_no,seq_no,name,area,status,hand_kumi,tantou,delivery_date,delivery_month,land_contract,land_payment,confirm_submit,confirm_done,inspection_date,complete_date,haikin_date,haikin_status,kutai_date,kutai_status,dannetsu_date,dannetsu_status,inspection_status,shinsa_kikan,address,parkings,prop_master,updated_at').order('fix_no');
+  var pr=await sb.from('properties').select('id,fix_no,seq_no,name,area,status,hand_kumi,tantou,delivery_date,delivery_month,land_contract,land_payment,confirm_submit,confirm_done,inspection_date,complete_date,haikin_date,haikin_status,kutai_date,kutai_status,dannetsu_date,dannetsu_status,inspection_status,shinsa_kikan,address,parkings,prop_master,gantt_is_manual,updated_at').order('fix_no');
   if(!pr.error&&pr.data&&pr.data.length>0){
     DB_PROPS=pr.data;
     try{
@@ -8561,14 +8621,18 @@ function _saveGanttToSupabase(p,segsData,cb){
   // ★ 手動編集フラグを付けてDBに保存（getActiveSegsでマスターより優先させるため）
   var saveData=segsData?{__manual__:true,segs:segsData}:null;
   payload.custom_gantt=saveData?JSON.stringify(saveData):null;
+  // ★大工程表の黄色/白の色分け用に、軽量な真偽値カラムにも同じ状態を保存する
+  //   （custom_ganttは重いため一覧取得時は除外しているが、この列だけは一覧取得時にも一緒に取る）
+  payload.gantt_is_manual=!!saveData;
   sb.from('properties').update(payload).eq('fix_no',String(p.fix_no))
     .then(function(r){
       if(!r.error&&DB_PROPS){
         // ローカルDB_PROPSキャッシュも更新
         var idx=DB_PROPS.findIndex(function(dp){return String(dp.fix_no)===String(p.fix_no);});
-        if(idx>=0)DB_PROPS[idx].custom_gantt=payload.custom_gantt;
+        if(idx>=0){DB_PROPS[idx].custom_gantt=payload.custom_gantt;DB_PROPS[idx].gantt_is_manual=payload.gantt_is_manual;}
         // LocalStorageキャッシュも更新
         try{localStorage.setItem('jack_props_cache',JSON.stringify(DB_PROPS));}catch(e){}
+        if(typeof renderBody==='function')renderBody(); // ★一覧の色分けを即座に反映
       }
       if(cb)cb(!r.error);
     }).catch(function(){if(cb)cb(false);});
@@ -9865,9 +9929,14 @@ async function loadAdmSec(sec){
     window._admKensaAll=kprops;
     right.innerHTML='<div style="padding:16px">'
       +'<div style="font-size:16px;font-weight:800;color:#1e293b;margin-bottom:4px">🔍 検査取りまとめ</div>'
-      +'<div style="font-size:11px;color:#64748b;margin-bottom:14px">配筋・躯体・断熱・完了の4検査の予約状況を一覧で確認できます</div>'
+      +'<div style="font-size:11px;color:#64748b;margin-bottom:14px">配筋・躯体・断熱・完了の4検査の予約状況を一覧で確認・編集できます（引渡日順）。ここで入力した予約日は物件詳細・ガントにも即時反映されます</div>'
       +'<div style="display:flex;gap:8px;margin-bottom:10px;flex-wrap:wrap;align-items:center">'
         +'<input id="admKensaSearch" placeholder="🔎 物件名・FIX No検索" oninput="admRenderKensaTable()" style="flex:1;min-width:180px;padding:8px 12px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:12px;outline:none">'
+        +'<select id="admKensaDelivery" onchange="admRenderKensaTable()" style="padding:8px 12px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:12px;font-weight:700;color:#1e293b;background:white">'
+          +'<option value="before">引渡し前</option>'
+          +'<option value="done">引渡し済み</option>'
+          +'<option value="all">全て</option>'
+        +'</select>'
         +'<select id="admKensaArea" onchange="admRenderKensaTable()" style="padding:8px 12px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:12px;font-weight:700;color:#1e293b;background:white">'
           +'<option value="all">全物件</option>'
           +'<option value="tokai">東海</option>'
@@ -10262,6 +10331,7 @@ function admRenderKensaTable(){
   var q=(document.getElementById('admKensaSearch')||{}).value||'';
   q=q.trim().toLowerCase();
   var areaMode=(document.getElementById('admKensaArea')||{}).value||'all';
+  var deliveryMode=(document.getElementById('admKensaDelivery')||{}).value||'before';
   var shinsaMode=window._admKensaShinsa||'';
 
   // 審査機関タブの描画
@@ -10275,10 +10345,10 @@ function admRenderKensaTable(){
   }
 
   var defs=[
-    {key:'haikin',label:'配筋検査'},
-    {key:'kutai',label:'躯体検査'},
-    {key:'dannetsu',label:'断熱検査'},
-    {key:'inspection',label:'完了検査'}
+    {key:'haikin',label:'配筋検査',dateKey:'haikin_date',statusKey:'haikin_status'},
+    {key:'kutai',label:'躯体検査',dateKey:'kutai_date',statusKey:'kutai_status'},
+    {key:'dannetsu',label:'断熱検査',dateKey:'dannetsu_date',statusKey:'dannetsu_status'},
+    {key:'inspection',label:'完了検査',dateKey:'inspection_date',statusKey:'inspection_status'}
   ];
   var rows=all.filter(function(p){
     if(q&&!((p.name||'').toLowerCase().indexOf(q)>=0||String(p.fix_no||'').indexOf(q)>=0))return false;
@@ -10291,31 +10361,116 @@ function admRenderKensaTable(){
     // 審査機関絞込
     if(shinsaMode==='__none__'){if(p.shinsa_kikan)return false;}
     else if(shinsaMode){if(p.shinsa_kikan!==shinsaMode)return false;}
+    // 引渡し状況絞込（デフォルト＝引渡し前のみ表示。引渡日未設定は「引渡し前」扱い）
+    if(deliveryMode!=='all'){
+      var nd=normDate(p.delivery_date);
+      var ndKey=nd?nd.replace(/\//g,'-'):''; // ★TODAY(YYYY-MM-DD)と区切り文字を揃えてから比較する（揃えないと文字列比較が常に誤判定になる）
+      var isDone=!!ndKey&&ndKey<TODAY;
+      if(deliveryMode==='before'&&isDone)return false;
+      if(deliveryMode==='done'&&!isDone)return false;
+    }
     return true;
+  });
+  // ★引渡日順に並び替え（未設定は最後）。delivery_dateは物件によって表記ゆれ（YYYY/M/D・M/D/YY等）が
+  //   混在しているため、単純な文字列比較ではなくnormDate()で正規化してから比較する
+  rows.sort(function(a,b){
+    var da=normDate(a.delivery_date)||'', db=normDate(b.delivery_date)||'';
+    if(!da&&!db)return 0;
+    if(!da)return 1;
+    if(!db)return -1;
+    return da<db?-1:(da>db?1:0);
   });
   if(!rows.length){wrap.innerHTML='<div style="text-align:center;padding:32px;color:#94a3b8;font-size:12px">該当する物件がありません</div>';return;}
   var html='<table style="width:100%;border-collapse:collapse;font-size:11px;table-layout:fixed">'
-    +'<colgroup><col style="width:26%"><col style="width:18.5%"><col style="width:18.5%"><col style="width:18.5%"><col style="width:18.5%"></colgroup>'
+    +'<colgroup><col style="width:18%"><col style="width:12%"><col style="width:14%"><col style="width:14%"><col style="width:14%"><col style="width:14%"><col style="width:14%"></colgroup>'
     +'<thead><tr style="background:#f8fafc">'
       +'<th style="text-align:left;padding:10px 12px;border-bottom:2px solid #e2e8f0;font-size:10px;color:#64748b">物件名</th>'
+      +'<th style="text-align:left;padding:10px 12px;border-bottom:2px solid #e2e8f0;font-size:10px;color:#64748b">審査機関</th>'
       +defs.map(function(d){return '<th style="text-align:left;padding:10px 12px;border-bottom:2px solid #e2e8f0;font-size:10px;color:#64748b">'+d.label+'</th>';}).join('')
+      +'<th style="text-align:left;padding:10px 12px;border-bottom:2px solid #e2e8f0;font-size:10px;color:#64748b">引渡日</th>'
     +'</tr></thead><tbody>';
   rows.forEach(function(p,i){
+    var fixNoAttr=String(p.fix_no||'');
     html+='<tr style="background:'+(i%2===0?'white':'#f8fafc')+'">'
       +'<td style="padding:9px 12px;font-weight:700;color:#1e293b;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'
-        +'<span style="color:#94a3b8;font-weight:400">'+(p.fix_no||'')+'</span> '+(p.name||'')+_shinsaBadge(p.shinsa_kikan)
+        +'<span style="color:#94a3b8;font-weight:400">'+(p.fix_no||'')+'</span> '+(p.name||'')
+      +'</td>'
+      +'<td style="padding:6px 8px">'
+        +'<select onchange="admKensaShinsaChange(\''+fixNoAttr+'\',this.value)" style="padding:4px 6px;border:1.5px solid #e2e8f0;border-radius:6px;font-size:10px;font-weight:700;outline:none;background:white;max-width:100%">'
+          +'<option value=""'+(!p.shinsa_kikan?' selected':'')+'>未選択</option>'
+          +'<option value="住宅センター"'+(p.shinsa_kikan==='住宅センター'?' selected':'')+'>住宅センター</option>'
+          +'<option value="ハウスプラス"'+(p.shinsa_kikan==='ハウスプラス'?' selected':'')+'>ハウスプラス</option>'
+        +'</select>'
       +'</td>'
       +defs.map(function(d){
-        var dv=d.key==='inspection'?p.inspection_date:p[d.key+'_date'];
-        var st=d.key==='inspection'?p.inspection_status:p[d.key+'_status'];
-        return '<td style="padding:9px 12px">'+_kensaBadge(st,dv)+'</td>';
+        var dv=(p[d.dateKey]||'').replace(/\//g,'-');
+        var st=p[d.statusKey]||'before';
+        var isRes=st==='reserved';
+        return '<td style="padding:6px 8px">'
+          +'<div style="display:flex;align-items:center;gap:3px;flex-wrap:wrap">'
+          +'<input type="date" value="'+dv+'" onchange="admKensaDateChange(\''+fixNoAttr+'\',\''+d.dateKey+'\',this.value)" style="width:112px;padding:4px 5px;border:1.5px solid #e2e8f0;border-radius:6px;font-size:10px;outline:none">'
+          +'<button type="button" onclick="admKensaToggleStatus(\''+fixNoAttr+'\',\''+d.statusKey+'\')" style="font-size:9px;font-weight:800;color:white;background:'+(isRes?'#ef4444':'#f97316')+';border:none;border-radius:10px;padding:4px 8px;cursor:pointer;white-space:nowrap">'+(isRes?'予約済み':'予約前')+'</button>'
+          +'</div>'
+        +'</td>';
       }).join('')
+      +'<td style="padding:9px 12px;color:#475569;white-space:nowrap">'+(normDate(p.delivery_date)||'')+'</td>'
     +'</tr>';
   });
   html+='</tbody></table>';
   wrap.innerHTML=html;
 }
 window.admRenderKensaTable=admRenderKensaTable;
+
+// ★検査取りまとめ表からの直接編集（物件詳細画面と双方向）：日付変更
+function admKensaDateChange(fixNo,dateKey,val){
+  var newVal=val?val.replace(/-/g,'/'):null;
+  admSaveKensaField(fixNo,dateKey,newVal);
+}
+window.admKensaDateChange=admKensaDateChange;
+
+// ★検査取りまとめ表からの直接編集：予約ステータス（予約前⇔予約済み）トグル
+function admKensaToggleStatus(fixNo,statusKey){
+  var all=window._admKensaAll||[];
+  var p=all.find(function(x){return String(x.fix_no)===String(fixNo);});
+  if(!p)return;
+  var cur=p[statusKey]||'before';
+  admSaveKensaField(fixNo,statusKey,cur==='reserved'?'before':'reserved');
+}
+window.admKensaToggleStatus=admKensaToggleStatus;
+
+// ★検査取りまとめ表からの直接編集：審査機関（住宅センター／ハウスプラス／未選択）
+function admKensaShinsaChange(fixNo,val){
+  admSaveKensaField(fixNo,'shinsa_kikan',val||null);
+}
+window.admKensaShinsaChange=admKensaShinsaChange;
+
+// ★検査取りまとめ表の1フィールドをSupabaseに直接保存し、DB_PROPS・検査表・大工程表/物件詳細すべてに即時反映する
+function admSaveKensaField(fixNo,field,value){
+  var all=window._admKensaAll||[];
+  var p=all.find(function(x){return String(x.fix_no)===String(fixNo);});
+  if(!p)return;
+  var dbUpdates={}; dbUpdates[field]=value;
+  function applyLocallyKensa(){
+    p[field]=value;
+    if(typeof DB_PROPS!=='undefined'&&DB_PROPS){
+      var idx=DB_PROPS.findIndex(function(dp){return String(dp.fix_no)===String(fixNo);});
+      if(idx>=0)DB_PROPS[idx][field]=value;
+      try{localStorage.setItem('jack_props_cache',JSON.stringify(DB_PROPS));}catch(e){}
+    }
+    admRenderKensaTable();
+    if(typeof renderBody==='function')renderBody(); // ★双方向：大工程表・物件詳細ガントにも即時反映
+  }
+  var sb=getSB();
+  if(!sb){applyLocallyKensa();showToast('⚠️ オフライン: ローカルに保存（他端末未反映）','');return;}
+  sb.from('properties').update(dbUpdates).eq('fix_no',String(fixNo))
+    .then(function(res){
+      if(res.error){showToast('保存エラー: '+res.error.message,'error');return;}
+      applyLocallyKensa();
+      showToast('✅ 保存しました','success');
+    })
+    .catch(function(e){showToast('保存エラー: '+e.message,'error');});
+}
+window.admSaveKensaField=admSaveKensaField;
 
 // ★物件診断：ガントが表示されない等の問い合わせ時に、必要データの有無を即座に確認する
 function admDiagProp(fixNo,encName){
