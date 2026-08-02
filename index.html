@@ -47,7 +47,7 @@ input,textarea,select{font-family:var(--font)}
 .top-header{background:var(--primary);color:white;padding:9px 12px;display:flex;align-items:center;justify-content:space-between;flex-shrink:0;box-shadow:0 2px 8px rgba(0,0,0,.25)}
 .th-left{display:flex;align-items:center;gap:10px}
 .th-logo{font-size:18px;font-weight:900;letter-spacing:-1px}.th-sub{font-size:10px;opacity:.75;margin-top:1px}
-.th-right{display:flex;align-items:center;gap:5px}
+.th-right{display:flex;align-items:center;gap:5px;flex-wrap:wrap;justify-content:flex-end;row-gap:5px}
 .th-today{background:rgba(255,255,255,.2);padding:2px 7px;border-radius:6px;font-size:10px;font-weight:700;font-family:var(--mono)}
 .th-icon-btn{color:white;font-size:14px;width:28px;height:28px;border-radius:50%;background:rgba(255,255,255,.15);display:flex;align-items:center;justify-content:center}
 .vendor-toggle-btn{color:white;font-size:11px;font-weight:600;height:26px;padding:0 10px;border-radius:13px;background:rgba(255,255,255,.15);display:flex;align-items:center;gap:4px;white-space:nowrap;border:1px solid rgba(255,255,255,.25);transition:opacity .15s;}
@@ -673,13 +673,14 @@ body.sp-mode #areaTabsBtns{ display:none !important; }
 <div id="jackMainWrap">
 <div id="loading"><div class="ld-logo">JACK</div><div class="ld-sub">現場管理システム</div><div class="ld-dots"><span></span><span></span><span></span></div></div>
 <div id="app" class="mobile-mode">
-  <div class="top-header"><div class="th-left"><div><div class="th-logo">JACK<span id="areaBadge"></span></div><div class="th-sub">新築AP 現場管理</div></div></div><div class="th-right"><button class="vendor-toggle-btn" onclick="togglePropSearch()" title="物件検索" id="propSearchBtn">検索</button><button class="vendor-toggle-btn" id="vendorColToggleBtnSp" onclick="_setVendorColOn(!_vendorColOn())" title="業者選定の表示切替">業者選択</button><button class="vendor-toggle-btn" id="modeToggleBtn" onclick="toggleMode()" title="表示モード切替">PC</button><div class="th-today" id="todayBadge"></div><button class="print-btn" onclick="printPage()">🖨️</button><button class="th-icon-btn" onclick="openMenu()">☰</button></div></div>
+  <div class="top-header"><div class="th-left"><div><div class="th-logo">JACK<span id="areaBadge"></span></div><div class="th-sub">新築AP 現場管理</div></div></div><div class="th-right"><button class="vendor-toggle-btn" onclick="togglePropSearch()" title="物件検索" id="propSearchBtn">検索</button><button class="vendor-toggle-btn" id="vendorColToggleBtnSp" onclick="_setVendorColOn(!_vendorColOn())" title="業者選定の表示切替">業者選択</button><button class="vendor-toggle-btn" id="weatherToggleBtnSp" onclick="_setWeatherBarOn(!_weatherBarOn())" title="天気予報の表示切替">天気</button><button class="vendor-toggle-btn" id="modeToggleBtn" onclick="toggleMode()" title="表示モード切替">PC</button><div class="th-today" id="todayBadge"></div><button class="print-btn" onclick="printPage()">🖨️</button><button class="th-icon-btn" onclick="openMenu()">☰</button></div></div>
   <div class="sync-banner" id="syncBanner"><div style="display:flex;align-items:center;gap:6px"><div class="sync-dot"></div><span class="sync-msg">起動中...</span></div><button onclick="doSyncFull()" style="color:rgba(255,255,255,.6);font-size:10px;font-weight:600;background:rgba(255,255,255,.1);padding:2px 7px;border-radius:4px">同期</button></div>
   <div style="display:flex;align-items:center;background:#1e293b;border-bottom:1px solid rgba(255,255,255,.1);flex-shrink:0">
     <div class="area-tabs" id="areaTabs" style="flex:1;min-width:0;border-bottom:none"></div>
     <div id="areaTabsBtns" style="display:flex;align-items:center;gap:5px;padding:0 8px;flex-shrink:0">
       <button class="vendor-toggle-btn" onclick="togglePropSearch()" title="物件検索" id="propSearchBtn2">検索</button>
       <button class="vendor-toggle-btn" id="vendorColToggleBtn" onclick="_setVendorColOn(!_vendorColOn())" title="業者選定の表示切替">業者選択</button>
+      <button class="vendor-toggle-btn" id="weatherToggleBtn" onclick="_setWeatherBarOn(!_weatherBarOn())" title="天気予報の表示切替">天気</button>
       <button class="vendor-toggle-btn" id="modeToggleBtn2" onclick="toggleMode()" title="表示モード切替">スマホ</button>
     </div>
   </div>
@@ -693,6 +694,7 @@ body.sp-mode #areaTabsBtns{ display:none !important; }
   <div class="status-bar" id="statusBar" style="display:none"></div>
   <div class="stats-strip" id="statsStrip" style="display:none"></div>
   <div class="table-wrap"><div class="table-header"><div id="freezeHeaderInner" style="border-right:2px solid #475569;flex-shrink:0;overflow:hidden"></div><div id="scrollHeaderWrap" style="flex:1;overflow:hidden"><div id="scrollHeaderInner"></div></div></div><div class="table-body"><div class="freeze-body" id="freezeBody"></div><div class="scroll-body" id="scrollBody"><div id="ganttCanvas"></div></div></div></div>
+  <div id="weatherBar" style="display:none;flex-shrink:0;background:white;border-top:2px solid #e2e8f0;overflow-x:auto;-webkit-overflow-scrolling:touch;"><div id="weatherBarContent"></div></div>
 </div>
 <div class="slide-panel" id="detailPanel" style="display:flex;flex-direction:row;overflow:hidden"><div style="flex:1;display:flex;flex-direction:column;overflow:hidden"><div class="panel-header"><button class="panel-back" onclick="closePanel('detailPanel')">← 戻る</button><div style="flex:1"><div class="panel-title">物件詳細</div></div><div id="detailGanttHeaderBtns" style="display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end"></div></div><div id="dpHeroSticky" style="flex-shrink:0;padding:6px 12px;background:var(--primary-d,#1e40af);color:white;display:none"></div><div class="panel-action-bar" id="dpActionBar" style="position:static;bottom:auto;border-top:none;border-bottom:1px solid var(--g200);box-shadow:0 2px 8px rgba(0,0,0,.06);flex-shrink:0"></div><div class="panel-scroll" id="dpContent" style="padding-bottom:16px"></div></div><div id="ganttEditSidebar" style="display:none;width:200px;min-width:200px;background:#1e293b;border-left:2px solid #334155;flex-direction:column;overflow-y:auto;flex-shrink:0"><div style="padding:8px;border-bottom:1px solid #334155;display:flex;flex-direction:column;gap:4px"><div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:2px"><div style="font-size:10px;font-weight:800;color:rgba(255,255,255,.5)">✏️ 工程表編集</div><button onclick="closeGanttEditSidebar()" style="background:rgba(255,255,255,.1);border:none;color:rgba(255,255,255,.6);border-radius:4px;padding:2px 7px;font-size:11px;cursor:pointer;font-weight:700">✕</button></div><div id="geAnchorDiag" style="font-size:9px;color:#fbbf24;line-height:1.5;background:#0f172a;border-radius:6px;padding:5px 7px;display:none"></div><button onclick="saveGanttEdit()" style="width:100%;padding:7px;background:#1a56db;color:white;border:none;border-radius:7px;font-size:11px;font-weight:800;cursor:pointer">💾 保存</button><div style="display:flex;gap:4px"><button onclick="shiftGanttEdit()" style="flex:1;padding:5px;background:#475569;color:white;border:none;border-radius:6px;font-size:10px;font-weight:700;cursor:pointer">📅 シフト</button><button onclick="resetGanttEdit()" style="flex:1;padding:5px;background:#475569;color:white;border:none;border-radius:6px;font-size:10px;font-weight:700;cursor:pointer">🔄 リセット</button></div></div><div style="padding:8px;border-bottom:1px solid #334155"><div style="font-size:10px;font-weight:800;color:rgba(255,255,255,.7);margin-bottom:6px">＋ 工種追加</div><div style="display:flex;flex-direction:column;gap:5px"><input type="text" id="geNewName" placeholder="工種名" style="padding:5px 7px;border:1.5px solid #475569;border-radius:6px;font-size:11px;background:#0f172a;color:white;width:100%;box-sizing:border-box"><div style="display:flex;align-items:center;gap:4px"><span style="font-size:9px;color:rgba(255,255,255,.5);white-space:nowrap">日数</span><input type="number" id="geNewDays" placeholder="日数" min="1" max="180" style="padding:4px 6px;border:1.5px solid #475569;border-radius:6px;font-size:11px;background:#0f172a;color:white;width:100%;box-sizing:border-box"></div><div style="display:flex;align-items:center;gap:4px"><span style="font-size:9px;color:rgba(255,255,255,.5);white-space:nowrap">開始日</span><input type="date" id="geNewDate" style="padding:4px 4px;border:1.5px solid #475569;border-radius:6px;font-size:10px;background:#0f172a;color:white;width:100%;box-sizing:border-box"></div><div id="geColorPicker" style="display:flex;flex-wrap:wrap;gap:4px;margin:2px 0"></div><button onclick="addGanttBar()" style="width:100%;padding:7px;background:#059669;color:white;border:none;border-radius:7px;font-size:11px;font-weight:800;cursor:pointer">バーを追加</button></div></div><div style="padding:6px 8px;flex:1"><div style="font-size:9px;font-weight:800;color:rgba(255,255,255,.4);margin-bottom:4px">工種一覧</div><div id="geSegList" style="display:flex;flex-direction:column;gap:4px;min-width:0;overflow:hidden"></div></div></div></div>
 <div class="slide-panel" id="myPagePanel"><div class="panel-header"><button class="panel-back" onclick="closePanel('myPagePanel')">← 戻る</button><div style="flex:1"><div class="panel-title">⭐ マイ物件</div></div><button onclick="openSelectProp()" style="background:rgba(255,255,255,.2);color:white;border-radius:6px;padding:4px 9px;font-size:11px;font-weight:700">＋</button><button class="print-btn" onclick="printPage()">🖨️</button></div><div class="mypage-wrap" id="myPageContent"></div></div>
@@ -2188,7 +2190,7 @@ var WEATHER_ICONS = {0:'☀️',1:'🌤',2:'⛅',3:'☁️',45:'🌫',48:'🌫',
 var WEATHER_LABELS = {0:'快晴',1:'晴',2:'曇',3:'曇',45:'霧',48:'霧',51:'小雨',53:'雨',55:'雨',
   61:'雨',63:'雨',65:'大雨',71:'雪',73:'雪',75:'大雪',80:'にわか雨',81:'雨',82:'豪雨',95:'雷雨',96:'雷雨',99:'雷雨'};
 
-function fetchWeather(p, containerId){
+function fetchWeather(p, containerId, labelPrefix){
   var coords=AREA_COORDS[p.area];
   if(!coords)return;
   var url='https://api.open-meteo.com/v1/forecast?latitude='+coords.lat+'&longitude='+coords.lon
@@ -2217,9 +2219,48 @@ function fetchWeather(p, containerId){
         +'</div>';
     }
     html+='</div>';
-    html+='<div style="font-size:8px;color:var(--g300);padding:0 8px 4px;text-align:right">'+coords.name+' / Open-Meteo</div>';
+    html+='<div style="font-size:8px;color:var(--g300);padding:0 8px 4px;text-align:right">'+(labelPrefix?labelPrefix+' / ':'')+coords.name+' / Open-Meteo</div>';
     if(el)el.innerHTML=html;
   }).catch(function(){if(el)el.innerHTML='<div style="font-size:10px;color:var(--g300);padding:6px 10px">天気情報を取得できませんでした</div>';});
+}
+
+// ===== 天気バー（画面最下部固定・エリア連動） =====
+var AREA_REGION_REP={'東海':'愛知','関東':'東京'}; // 各エリアの代表都市（気象データ取得元）
+var _lastWeatherFetchKey=null;
+function _weatherBarOn(){var v=loadLS('jack_show_weather_bar',null);return v===null?false:!!v;}
+function _weatherRegion(){
+  if(FIXED_AREA==='tokai')return '東海';
+  if(FIXED_AREA==='kanto')return '関東';
+  if(currentArea==='東海'||currentArea==='来期東海')return '東海';
+  if(currentArea==='関東'||currentArea==='来期関東')return '関東';
+  return '東海';
+}
+function _updateWeatherBtns(){
+  ['weatherToggleBtn','weatherToggleBtnSp'].forEach(function(id){
+    var btn=document.getElementById(id);
+    if(!btn)return;
+    btn.textContent='天気:'+(_weatherBarOn()?'ON':'OFF');
+    btn.style.background=_weatherBarOn()?'rgba(37,99,235,.55)':'rgba(255,255,255,.15)';
+    btn.style.opacity=_weatherBarOn()?'1':'.75';
+  });
+}
+function _setWeatherBarOn(v){
+  saveLS('jack_show_weather_bar',v);
+  _updateWeatherBtns();
+  _renderWeatherBar();
+}
+window._setWeatherBarOn=_setWeatherBarOn;
+function _renderWeatherBar(force){
+  var bar=document.getElementById('weatherBar');
+  if(!bar)return;
+  if(!_weatherBarOn()){bar.style.display='none';return;}
+  bar.style.display='block';
+  var region=_weatherRegion();
+  var key=region;
+  if(!force&&_lastWeatherFetchKey===key)return; // 同じエリアなら再取得しない
+  _lastWeatherFetchKey=key;
+  var repArea=AREA_REGION_REP[region];
+  fetchWeather({area:repArea},'weatherBarContent',region+'地方');
 }
 
 // ===== TOAST =====
@@ -3037,6 +3078,7 @@ function setArea(area,btn){
     }
   }
   renderStats();renderBody();
+  if(typeof _renderWeatherBar==='function')_renderWeatherBar();
   requestAnimationFrame(function(){requestAnimationFrame(scrollGanttToToday);});
 }
 function setStatus(s){currentStatus=s;renderStats();renderBody();}
@@ -4652,9 +4694,7 @@ function openDetail(p){
     +'<div class="dp-sec"><div class="dp-sec-head">📐 設計・調査情報</div>'+mkRow('確認申請提出日',p.confirm_submit)+mkRow('確認申請完了日',p.confirm_done)+mkRow('地盤調査確定日',p.ground_survey)+'</div>'
     +'<div class="dp-sec"><div class="dp-sec-head">🏁 完了・引渡し情報</div>'+mkRow('完了検査日',p.inspection_date)+mkRow('完成日',p.complete_date)+delivRow+'</div>'
     +parkHtml
-    +'<div id="detail-vendor-wrap">'+buildVendorSection(p)+'</div>'
-    +'<div class="dp-sec" id="weather-sec-'+p.fix_no+'"><div class="dp-sec-head">🌤 週間天気（現場エリア）</div><div id="weather-content-'+p.fix_no+'"></div></div>';
-  setTimeout(function(){fetchWeather(p,'weather-content-'+p.fix_no);},300);
+    +'<div id="detail-vendor-wrap">'+buildVendorSection(p)+'</div>';
 
   // ★固定上部バーに物件名等を表示（下にスクロールしても何を編集中か分かるように）
   var heroSticky=document.getElementById('dpHeroSticky');
@@ -7611,6 +7651,7 @@ window.onload=function(){
   document.getElementById('todayBadge').textContent=TODAY.replace(/-/g,'/');
   setMode(isPcMode);
   renderHeader();renderStats();renderBody();initScrollSync();
+  _updateWeatherBtns();_renderWeatherBar();
   requestAnimationFrame(function(){requestAnimationFrame(scrollGanttToToday);});
   if(syncData.lastSync){
     var l=new Date(syncData.lastSync);
