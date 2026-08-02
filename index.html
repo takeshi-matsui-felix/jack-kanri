@@ -1,6 +1,6 @@
 <!DOCTYPE html><html lang="ja"><head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<meta name="viewport" content="width=device-width,initial-scale=1.0,minimum-scale=1.0,maximum-scale=4.0,user-scalable=yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -2195,14 +2195,14 @@ function fetchWeather(p, containerId, labelPrefix){
   if(!coords)return;
   var url='https://api.open-meteo.com/v1/forecast?latitude='+coords.lat+'&longitude='+coords.lon
     +'&daily=weathercode,temperature_2m_max,temperature_2m_min,precipitation_probability_max'
-    +'&timezone=Asia%2FTokyo&forecast_days=7';
+    +'&timezone=Asia%2FTokyo&forecast_days=14';
   var el=document.getElementById(containerId);
   if(!el)return;
   el.innerHTML='<div style="font-size:10px;color:var(--g400);padding:6px 10px">天気を取得中...</div>';
   fetch(url).then(function(r){return r.json();}).then(function(data){
     var d=data.daily;
     var html='<div style="display:flex;gap:0;overflow-x:auto;padding:4px 6px">';
-    for(var i=0;i<7;i++){
+    for(var i=0;i<14;i++){
       var date=d.time[i];var code=d.weathercode[i];var max=Math.round(d.temperature_2m_max[i]);
       var min=Math.round(d.temperature_2m_min[i]);var rain=d.precipitation_probability_max[i]||0;
       var isRain=rain>=50;var dt=new Date(date);
