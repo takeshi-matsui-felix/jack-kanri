@@ -673,22 +673,22 @@ body.sp-mode #areaTabsBtns{ display:none !important; }
 <div id="jackMainWrap">
 <div id="loading"><div class="ld-logo">JACK</div><div class="ld-sub">現場管理システム</div><div class="ld-dots"><span></span><span></span><span></span></div></div>
 <div id="app" class="mobile-mode">
-  <div class="top-header"><div class="th-left"><div><div class="th-logo">JACK<span id="areaBadge"></span></div><div class="th-sub">新築AP 現場管理</div></div></div><div class="th-right"><button class="th-icon-btn" onclick="togglePropSearch()" title="物件検索" id="propSearchBtn">🔍</button><button class="th-icon-btn" id="vendorColToggleBtnSp" onclick="_setVendorColOn(!_vendorColOn())" title="業者選定の表示切替">🏢</button><button class="th-icon-btn" id="modeToggleBtn" onclick="toggleMode()">🖥️</button><div class="th-today" id="todayBadge"></div><button class="print-btn" onclick="printPage()">🖨️</button><button class="th-icon-btn" onclick="openMenu()">☰</button></div></div>
-  <div id="propSearchBar" style="display:none;background:#1e293b;padding:6px 10px;border-bottom:1px solid #334155;flex-shrink:0;">
+  <div class="top-header"><div class="th-left"><div><div class="th-logo">JACK<span id="areaBadge"></span></div><div class="th-sub">新築AP 現場管理</div></div></div><div class="th-right"><button class="vendor-toggle-btn" onclick="togglePropSearch()" title="物件検索" id="propSearchBtn">検索</button><button class="vendor-toggle-btn" id="vendorColToggleBtnSp" onclick="_setVendorColOn(!_vendorColOn())" title="業者選定の表示切替">業者選択</button><button class="vendor-toggle-btn" id="modeToggleBtn" onclick="toggleMode()" title="表示モード切替">PC</button><div class="th-today" id="todayBadge"></div><button class="print-btn" onclick="printPage()">🖨️</button><button class="th-icon-btn" onclick="openMenu()">☰</button></div></div>
+  <div class="sync-banner" id="syncBanner"><div style="display:flex;align-items:center;gap:6px"><div class="sync-dot"></div><span class="sync-msg">起動中...</span></div><button onclick="doSyncFull()" style="color:rgba(255,255,255,.6);font-size:10px;font-weight:600;background:rgba(255,255,255,.1);padding:2px 7px;border-radius:4px">同期</button></div>
+  <div style="display:flex;align-items:center;background:#1e293b;border-bottom:1px solid rgba(255,255,255,.1);flex-shrink:0">
+    <div class="area-tabs" id="areaTabs" style="flex:1;min-width:0;border-bottom:none"></div>
+    <div id="areaTabsBtns" style="display:flex;align-items:center;gap:5px;padding:0 8px;flex-shrink:0">
+      <button class="vendor-toggle-btn" onclick="togglePropSearch()" title="物件検索" id="propSearchBtn2">検索</button>
+      <button class="vendor-toggle-btn" id="vendorColToggleBtn" onclick="_setVendorColOn(!_vendorColOn())" title="業者選定の表示切替">業者選択</button>
+      <button class="vendor-toggle-btn" id="modeToggleBtn2" onclick="toggleMode()" title="表示モード切替">スマホ</button>
+    </div>
+  </div>
+  <div id="propSearchBar" style="display:none;background:#1e293b;padding:6px 10px;border-bottom:1px solid #334155;flex-shrink:0;position:relative;z-index:5;">
     <div style="display:flex;gap:6px;align-items:center;">
       <input id="propSearchInput" type="text" placeholder="物件名・FiX No・エリアで検索…" oninput="doPropSearch(this.value)" style="flex:1;padding:6px 10px;border-radius:7px;border:1.5px solid #475569;background:#0f172a;color:white;font-size:12px;outline:none;">
       <button onclick="togglePropSearch()" style="background:#475569;color:white;border:none;border-radius:7px;padding:6px 10px;font-size:11px;cursor:pointer;font-weight:700">✕</button>
     </div>
     <div id="propSearchResults" style="max-height:200px;overflow-y:auto;margin-top:4px;"></div>
-  </div>
-  <div class="sync-banner" id="syncBanner"><div style="display:flex;align-items:center;gap:6px"><div class="sync-dot"></div><span class="sync-msg">起動中...</span></div><button onclick="doSyncFull()" style="color:rgba(255,255,255,.6);font-size:10px;font-weight:600;background:rgba(255,255,255,.1);padding:2px 7px;border-radius:4px">同期</button></div>
-  <div style="display:flex;align-items:center;background:#1e293b;border-bottom:1px solid rgba(255,255,255,.1);flex-shrink:0">
-    <div class="area-tabs" id="areaTabs" style="flex:1;min-width:0;border-bottom:none"></div>
-    <div id="areaTabsBtns" style="display:flex;align-items:center;gap:5px;padding:0 8px;flex-shrink:0">
-      <button class="th-icon-btn" onclick="togglePropSearch()" title="物件検索" id="propSearchBtn2">🔍</button>
-      <button class="vendor-toggle-btn" id="vendorColToggleBtn" onclick="_setVendorColOn(!_vendorColOn())" title="業者選定の表示切替">🏢 業者選定</button>
-      <button class="th-icon-btn" id="modeToggleBtn2" onclick="toggleMode()">🖥️</button>
-    </div>
   </div>
   <div class="status-bar" id="statusBar" style="display:none"></div>
   <div class="stats-strip" id="statsStrip" style="display:none"></div>
@@ -879,14 +879,21 @@ var FREEZE_W = FREEZE_COLS.reduce(function(a,c){return a+c.w;},0);
 
 // ★大工程表：業者選定グリッドを物件名の隣（フリーズ列＝常に左に固定表示される列）に表示する/しないの切替
 function _vendorColOn(){var v=loadLS('jack_show_vendor_freeze',null);return v===null?true:!!v;}
+function _vendorBtnLabel(){return '業者選択:'+(_vendorColOn()?'ON':'OFF');}
+function _updateVendorBtns(){
+  ['vendorColToggleBtn','vendorColToggleBtnSp'].forEach(function(id){
+    var btn=document.getElementById(id);
+    if(!btn)return;
+    btn.textContent=_vendorBtnLabel();
+    btn.style.background=_vendorColOn()?'rgba(37,99,235,.55)':'rgba(255,255,255,.15)';
+    btn.style.opacity=_vendorColOn()?'1':'.75';
+  });
+}
 function _setVendorColOn(v){
   saveLS('jack_show_vendor_freeze',v);
   if(typeof setMode==='function')setMode(isPcMode); // --freeze-w再計算 + renderBody()
   if(typeof renderHeader==='function')renderHeader(); // ★ヘッダー側は setMode/renderBody からは呼ばれないため個別に再描画（呼び忘れるとヘッダーと本文の列がズレる）
-  ['vendorColToggleBtn','vendorColToggleBtnSp'].forEach(function(id){
-    var btn=document.getElementById(id);
-    if(btn)btn.style.opacity=v?'1':'.45';
-  });
+  _updateVendorBtns();
 }
 function _activeFreezeCols(base){
   return _vendorColOn()?base.concat([{key:'_vendorGrid',label:'業者選定',w:VENDOR_COL_W}]):base;
@@ -2232,10 +2239,7 @@ function setMode(pc){
   var activeFreezeC=_activeFreezeCols(pc?FREEZE_COLS:SP_FREEZE_COLS);
   var fw=activeFreezeC.reduce(function(a,c){return a+c.w;},0);
   document.documentElement.style.setProperty('--freeze-w',fw+'px');
-  ['vendorColToggleBtn','vendorColToggleBtnSp'].forEach(function(id){
-    var btn=document.getElementById(id);
-    if(btn)btn.style.opacity=_vendorColOn()?'1':'.45';
-  });
+  _updateVendorBtns();
 
   // body.sp-modeクラスで全CSS制御
   if(pc){ document.body.classList.remove('sp-mode'); }
@@ -2253,9 +2257,9 @@ function setMode(pc){
   if(appEl) appEl.className=pc?'pc-mode':'mobile-mode';
 
   var toggleBtn=document.getElementById('modeToggleBtn');
-  if(toggleBtn) toggleBtn.textContent=pc?'📱':'🖥️';
+  if(toggleBtn){toggleBtn.textContent=pc?'スマホ':'PC';toggleBtn.title=pc?'スマホ表示に切替':'PC横長表示に切替';}
   var toggleBtn2=document.getElementById('modeToggleBtn2');
-  if(toggleBtn2) toggleBtn2.textContent=pc?'📱':'🖥️';
+  if(toggleBtn2){toggleBtn2.textContent=pc?'スマホ':'PC';toggleBtn2.title=pc?'スマホ表示に切替':'PC横長表示に切替';}
 
   // sp-hide要素（管理者CP・マスター工程）の表示制御
   document.querySelectorAll('.sp-hide').forEach(function(el){
