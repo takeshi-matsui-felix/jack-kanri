@@ -10,10 +10,21 @@
 <link rel="apple-touch-icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 192 192'><rect width='192' height='192' rx='32' fill='%231a3a7c'/><text x='50%25' y='58%25' font-family='Arial Black,sans-serif' font-size='72' font-weight='900' fill='white' text-anchor='middle' dominant-baseline='middle' letter-spacing='-2'>JACK</text></svg>">
 <meta name="theme-color" content="#1a56db">
 <script>
-// ★ズームロック監視：iOS Safariはviewportのminimum-scale指定だけでは
-//   ピンチアウトによる縮小を確実に防げないことがあるため（特にホーム画面追加時）、
-//   実際に縮小されたことを検知したら強制的に100%表示へ戻す（2026/8/2追加）
+// ★ピンチズームで「デフォルト画面サイズ」より縮小する方向だけをブロック（2026/8/2）
+//   拡大（ピンチアウトで大きくする）と、拡大した状態から100%に戻す縮小は許可し、
+//   100%（デフォルトサイズ）より小さくなる縮小だけをジェスチャーの最中にリアルタイムで止める。
+//   ※viewportのminimum-scale指定だけでは効かないケースがある（特にホーム画面追加時）ため、
+//   gesturestart/gesturechangeイベントを直接フックしてジェスチャー自体を止める方式に変更。
 (function(){
+  var startScale=1;
+  document.addEventListener('gesturestart',function(e){
+    startScale=(window.visualViewport&&window.visualViewport.scale)?window.visualViewport.scale:1;
+  },{passive:false});
+  document.addEventListener('gesturechange',function(e){
+    var projected=startScale*e.scale;
+    if(projected<1.0){ e.preventDefault(); } // ★100%未満になる縮小だけを阻止
+  },{passive:false});
+  // 保険：それでも縮小状態になってしまった場合は強制的に100%へ戻す
   function resetZoom(){
     var vp=document.querySelector('meta[name="viewport"]');
     if(!vp)return;
@@ -23,18 +34,16 @@
       vp.setAttribute('content','width=device-width,initial-scale=1.0,minimum-scale=1.0,maximum-scale=4.0,user-scalable=yes');
     },80);
   }
-  if(window.visualViewport){
-    window.visualViewport.addEventListener('resize',function(){
-      if(window.visualViewport.scale<0.999)resetZoom();
-    });
+  function checkAndReset(){
+    if(window.visualViewport&&window.visualViewport.scale<0.999)resetZoom();
   }
-  document.addEventListener('gestureend',function(){
-    setTimeout(function(){
-      if(window.visualViewport&&window.visualViewport.scale<0.999)resetZoom();
-    },50);
-  });
+  if(window.visualViewport){window.visualViewport.addEventListener('resize',checkAndReset);}
+  document.addEventListener('gestureend',function(){setTimeout(checkAndReset,50);});
+  document.addEventListener('touchend',function(){setTimeout(checkAndReset,50);});
   document.addEventListener('visibilitychange',function(){if(!document.hidden)resetZoom();});
   window.addEventListener('pageshow',resetZoom);
+  window.addEventListener('focus',checkAndReset);
+  setInterval(checkAndReset,1000); // ホーム画面アプリはvisibilitychangeが発火しないことがあるための保険ポーリング
 })();
 </script>
 <title>JACK 現場管理</title>
@@ -701,7 +710,7 @@ body.sp-mode #areaTabsBtns{ display:none !important; }
 <div id="jackMainWrap">
 <div id="loading"><div class="ld-logo">JACK</div><div class="ld-sub">現場管理システム</div><div class="ld-dots"><span></span><span></span><span></span></div></div>
 <div id="app" class="mobile-mode">
-  <div class="top-header"><div class="th-left"><div><div class="th-logo">JACK<span id="areaBadge"></span></div><div class="th-sub">新築AP 現場管理</div></div></div><div class="th-right"><button class="vendor-toggle-btn" onclick="togglePropSearch()" title="物件検索" id="propSearchBtn">検索</button><button class="vendor-toggle-btn" id="vendorColToggleBtnSp" onclick="_setVendorColOn(!_vendorColOn())" title="業者選定の表示切替">業者選択</button><button class="vendor-toggle-btn" id="weatherToggleBtnSp" onclick="_setWeatherBarOn(!_weatherBarOn())" title="天気予報の表示切替">天気</button><div class="th-today" id="todayBadge"></div><button class="print-btn" onclick="printPage()">🖨️</button><button class="th-icon-btn" onclick="openMenu()">☰</button></div></div>
+  <div class="top-header"><div class="th-left"><div><div class="th-logo">JACK<span id="areaBadge"></span></div><div class="th-sub">新築AP 現場管理</div></div></div><div class="th-right"><button class="vendor-toggle-btn" onclick="togglePropSearch()" title="物件検索" id="propSearchBtn">検索</button><button class="vendor-toggle-btn" id="vendorColToggleBtnSp" onclick="_setVendorColOn(!_vendorColOn())" title="業者選定の表示切替">業者選択</button><button class="vendor-toggle-btn" id="weatherToggleBtnSp" onclick="_setWeatherBarOn(!_weatherBarOn())" title="天気予報の表示切替">天気</button><button class="vendor-toggle-btn" onclick="scrollGanttToEnd()" title="検査日程列まで一気に移動">検査へ</button><div class="th-today" id="todayBadge"></div><button class="print-btn" onclick="printPage()">🖨️</button><button class="th-icon-btn" onclick="openMenu()">☰</button></div></div>
   <div class="sync-banner" id="syncBanner"><div style="display:flex;align-items:center;gap:6px"><div class="sync-dot"></div><span class="sync-msg">起動中...</span></div><button onclick="doSyncFull()" style="color:rgba(255,255,255,.6);font-size:10px;font-weight:600;background:rgba(255,255,255,.1);padding:2px 7px;border-radius:4px">同期</button></div>
   <div style="display:flex;align-items:center;background:#1e293b;border-bottom:1px solid rgba(255,255,255,.1);flex-shrink:0">
     <div class="area-tabs" id="areaTabs" style="flex:1;min-width:0;border-bottom:none"></div>
@@ -709,6 +718,7 @@ body.sp-mode #areaTabsBtns{ display:none !important; }
       <button class="vendor-toggle-btn" onclick="togglePropSearch()" title="物件検索" id="propSearchBtn2">検索</button>
       <button class="vendor-toggle-btn" id="vendorColToggleBtn" onclick="_setVendorColOn(!_vendorColOn())" title="業者選定の表示切替">業者選択</button>
       <button class="vendor-toggle-btn" id="weatherToggleBtn" onclick="_setWeatherBarOn(!_weatherBarOn())" title="天気予報の表示切替">天気</button>
+      <button class="vendor-toggle-btn" onclick="scrollGanttToEnd()" title="検査日程列まで一気に移動">検査へ</button>
     </div>
   </div>
   <div id="propSearchBar" style="display:none;background:#1e293b;padding:6px 10px;border-bottom:1px solid #334155;flex-shrink:0;position:relative;z-index:5;">
@@ -3069,6 +3079,17 @@ function initScrollSync(){
     },{passive:false});
   }
 }
+function scrollGanttToEnd(){
+  function _do(){
+    var sb=document.getElementById('scrollBody');
+    var sh=document.getElementById('scrollHeaderWrap');
+    if(!sb)return;
+    var maxLeft=Math.max(0,sb.scrollWidth-sb.clientWidth);
+    sb.scrollLeft=maxLeft;if(sh)sh.scrollLeft=maxLeft;
+  }
+  _do();setTimeout(_do,80);setTimeout(_do,300);
+}
+window.scrollGanttToEnd=scrollGanttToEnd;
 function scrollGanttToToday(){
   function _do(){
     var sb=document.getElementById('scrollBody');
