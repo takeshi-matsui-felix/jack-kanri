@@ -701,7 +701,7 @@ body.sp-mode #areaTabsBtns{ display:none !important; }
 <div id="jackMainWrap">
 <div id="loading"><div class="ld-logo">JACK</div><div class="ld-sub">現場管理システム</div><div class="ld-dots"><span></span><span></span><span></span></div></div>
 <div id="app" class="mobile-mode">
-  <div class="top-header"><div class="th-left"><div><div class="th-logo">JACK<span id="areaBadge"></span></div><div class="th-sub">新築AP 現場管理</div></div></div><div class="th-right"><button class="vendor-toggle-btn" onclick="togglePropSearch()" title="物件検索" id="propSearchBtn">検索</button><button class="vendor-toggle-btn" id="vendorColToggleBtnSp" onclick="_setVendorColOn(!_vendorColOn())" title="業者選定の表示切替">業者選択</button><button class="vendor-toggle-btn" id="weatherToggleBtnSp" onclick="_setWeatherBarOn(!_weatherBarOn())" title="天気予報の表示切替">天気</button><button class="vendor-toggle-btn" id="modeToggleBtn" onclick="toggleMode()" title="表示モード切替">PC</button><div class="th-today" id="todayBadge"></div><button class="print-btn" onclick="printPage()">🖨️</button><button class="th-icon-btn" onclick="openMenu()">☰</button></div></div>
+  <div class="top-header"><div class="th-left"><div><div class="th-logo">JACK<span id="areaBadge"></span></div><div class="th-sub">新築AP 現場管理</div></div></div><div class="th-right"><button class="vendor-toggle-btn" onclick="togglePropSearch()" title="物件検索" id="propSearchBtn">検索</button><button class="vendor-toggle-btn" id="vendorColToggleBtnSp" onclick="_setVendorColOn(!_vendorColOn())" title="業者選定の表示切替">業者選択</button><button class="vendor-toggle-btn" id="weatherToggleBtnSp" onclick="_setWeatherBarOn(!_weatherBarOn())" title="天気予報の表示切替">天気</button><div class="th-today" id="todayBadge"></div><button class="print-btn" onclick="printPage()">🖨️</button><button class="th-icon-btn" onclick="openMenu()">☰</button></div></div>
   <div class="sync-banner" id="syncBanner"><div style="display:flex;align-items:center;gap:6px"><div class="sync-dot"></div><span class="sync-msg">起動中...</span></div><button onclick="doSyncFull()" style="color:rgba(255,255,255,.6);font-size:10px;font-weight:600;background:rgba(255,255,255,.1);padding:2px 7px;border-radius:4px">同期</button></div>
   <div style="display:flex;align-items:center;background:#1e293b;border-bottom:1px solid rgba(255,255,255,.1);flex-shrink:0">
     <div class="area-tabs" id="areaTabs" style="flex:1;min-width:0;border-bottom:none"></div>
@@ -709,7 +709,6 @@ body.sp-mode #areaTabsBtns{ display:none !important; }
       <button class="vendor-toggle-btn" onclick="togglePropSearch()" title="物件検索" id="propSearchBtn2">検索</button>
       <button class="vendor-toggle-btn" id="vendorColToggleBtn" onclick="_setVendorColOn(!_vendorColOn())" title="業者選定の表示切替">業者選択</button>
       <button class="vendor-toggle-btn" id="weatherToggleBtn" onclick="_setWeatherBarOn(!_weatherBarOn())" title="天気予報の表示切替">天気</button>
-      <button class="vendor-toggle-btn" id="modeToggleBtn2" onclick="toggleMode()" title="表示モード切替">スマホ</button>
     </div>
   </div>
   <div id="propSearchBar" style="display:none;background:#1e293b;padding:6px 10px;border-bottom:1px solid #334155;flex-shrink:0;position:relative;z-index:5;">
@@ -1055,10 +1054,11 @@ var currentArea = 'マイ物件';
 var currentStatus = 'all';
 var currentProp = null;
 var isPcMode = (function(){
-  var saved=localStorage.getItem('jack_mode');
-  if(saved==='pc') return true;
-  if(saved==='sp') return false;
-  return window.innerWidth > 768; // 未設定時：768px以下なら自動スマホモード
+  // ★PC/スマホの手動切替ボタンは廃止（2026/8/2）。画面幅による自動判定のみに統一。
+  //   以前は手動切替の結果をlocalStorageに保存していたため、スマホでPC表示に切り替えたまま
+  //   元に戻せなくなる不具合があった。今後は毎回起動時に画面幅で自動判定する。
+  try{localStorage.removeItem('jack_mode');}catch(e){}
+  return window.innerWidth > 768; // 768px以下なら自動スマホモード
 })();
 
 function loadLS(k,d){try{var v=localStorage.getItem(k);return v?JSON.parse(v):d;}catch(e){return d;}}
@@ -2303,7 +2303,6 @@ function showToast(msg,type){
 // ===== MODE =====
 function setMode(pc){
   isPcMode=pc;
-  localStorage.setItem('jack_mode', pc?'pc':'sp');
   document.documentElement.style.setProperty('--row-h',(_vendorColOn()?(pc?46:64):(pc?32:52))+'px'); // ★業者選定グリッド(2段)を表示中はセル内の文字が収まるよう行を少し高くする
   var activeFreezeC=_activeFreezeCols(pc?FREEZE_COLS:SP_FREEZE_COLS);
   var fw=activeFreezeC.reduce(function(a,c){return a+c.w;},0);
@@ -2324,11 +2323,6 @@ function setMode(pc){
 
   var appEl=document.getElementById('app');
   if(appEl) appEl.className=pc?'pc-mode':'mobile-mode';
-
-  var toggleBtn=document.getElementById('modeToggleBtn');
-  if(toggleBtn){toggleBtn.textContent=pc?'スマホ':'PC';toggleBtn.title=pc?'スマホ表示に切替':'PC横長表示に切替';}
-  var toggleBtn2=document.getElementById('modeToggleBtn2');
-  if(toggleBtn2){toggleBtn2.textContent=pc?'スマホ':'PC';toggleBtn2.title=pc?'スマホ表示に切替':'PC横長表示に切替';}
 
   // sp-hide要素（管理者CP・マスター工程）の表示制御
   document.querySelectorAll('.sp-hide').forEach(function(el){
@@ -2517,7 +2511,6 @@ function doPropSearch(q){
 }
 window.doPropSearch=doPropSearch;
 
-function toggleMode(){setMode(!isPcMode);}
 
 // ===== STATS =====
 function renderStats(){
@@ -7656,7 +7649,6 @@ window.openSettings=openSettings;
 window.doSync=doSync;
 window.closeUpdatePopup=closeUpdatePopup;
 window.printPage=printPage;
-window.toggleMode=toggleMode;
 
 window.onload=function(){
   // Build area tabs
@@ -7691,7 +7683,7 @@ window.onload=function(){
   if(syncData.updates&&syncData.updates.length>0)setTimeout(function(){showUpdatePopup(syncData.updates);},1500);
   setTimeout(function(){var ld=document.getElementById('loading');ld.style.opacity='0';setTimeout(function(){ld.style.display='none';},400);},900);
 };
-window.addEventListener('resize',function(){var s=window.innerWidth>1100;if(s!==isPcMode)setMode(s);});
+window.addEventListener('resize',function(){var s=window.innerWidth>768;if(s!==isPcMode)setMode(s);});
 
 
 // ===== チュートリアル機能 =====
