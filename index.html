@@ -1529,7 +1529,7 @@ function _applyKensaOverrides(p,segs){
     var isReserved=(p[d.statusKey]||'before')==='reserved';
     var mm=parseInt(dateKeyStr.slice(5,7),10),dd=parseInt(dateKeyStr.slice(8,10),10);
     var newLbl=d.rowName+'('+mm+'/'+dd+')';
-    overrideMap[idx]={start_date:dateKeyStr,date:dateKeyStr,end_date:dateKeyStr,calendar_dur:1,duration:1,dur:1,color:isReserved?'#ef4444':'#f97316',name:newLbl,label:newLbl,_kensaDef:d.rowName};
+    overrideMap[idx]={start_date:dateKeyStr,date:dateKeyStr,end_date:dateKeyStr,calendar_dur:1,duration:1,dur:1,color:isReserved?'#3b82f6':'#f97316',name:newLbl,label:newLbl,_kensaDef:d.rowName};
   });
   if(!found)return segs;
   return segs.map(function(s,i){return overrideMap[i]?Object.assign({},s,overrideMap[i]):s;});
@@ -2928,12 +2928,12 @@ function renderBody(){
       var el=document.createElement('div');el.className='info-cell';
       el.style.cssText='left:'+postX+'px;top:'+top+'px;width:'+c.w+'px;height:'+rowH+'px;';
       if(c.kensa){
-        // ★検査4種（配筋・躯体・断熱・完了）：CP内検査取りまとめと同じ色分け（橙=予約前／赤=予約済み）で日付をセル背景色に反映（省スペース版）
+        // ★検査4種（配筋・躯体・断熱・完了）：CP内検査取りまとめと同じ色分け（橙=予約前／青=予約済み）で日付をセル背景色に反映（省スペース版）
         if(val){
           var isRes=(p[c.statusKey]||'before')==='reserved';
           var dispK=fmtDateShort(val);
           el.style.cssText+='display:flex;align-items:center;justify-content:center;font-weight:700;'
-            +'background:'+(isRes?'#fee2e2':'#fff7ed')+';color:'+(isRes?'#dc2626':'#ea580c')+';';
+            +'background:'+(isRes?'#dbeafe':'#fff7ed')+';color:'+(isRes?'#2563eb':'#ea580c')+';';
           el.textContent=dispK;
           el.title=c.kensa+'：'+(isRes?'予約済み':'予約前')+' '+dispK;
         } else {
@@ -3003,7 +3003,7 @@ function initScrollSync(){
     },{passive:false});
   }
 }
-function scrollToToday(){
+function scrollGanttToToday(){
   function _do(){
     var sb=document.getElementById('scrollBody');
     var sh=document.getElementById('scrollHeaderWrap');
@@ -3033,12 +3033,12 @@ function setArea(area,btn){
     }
   }
   renderStats();renderBody();
-  requestAnimationFrame(function(){requestAnimationFrame(scrollToToday);});
+  requestAnimationFrame(function(){requestAnimationFrame(scrollGanttToToday);});
 }
 function setStatus(s){currentStatus=s;renderStats();renderBody();}
 
 // ★検査4種（配筋検査・躯体検査・断熱検査・完了検査）のガント上マーカー生成
-//   予約前=橙／予約済み=赤。日付が入力されている検査のみ表示
+//   予約前=橙／予約済み=青。日付が入力されている検査のみ表示
 //   ※同名の工程行がガントに既にある場合はそちらの色/日付が連動済みのため、二重表示を避けてスキップする
 function buildKensaBars(p,segs,gDateIdx,GCW,totalH){
   if(!p)return '';
@@ -3059,7 +3059,7 @@ function buildKensaBars(p,segs,gDateIdx,GCW,totalH){
     if(col===undefined||col<=0)return;
     var x=(col-1)*GCW;
     var isReserved=(p[k.statusKey]||'before')==='reserved';
-    var color=isReserved?'#ef4444':'#f97316';
+    var color=isReserved?'#3b82f6':'#f97316';
     var mm=parseInt(clean.slice(5,7),10),dd=parseInt(clean.slice(8,10),10);
     var lbl=k.n+'('+mm+'/'+dd+')';
     out+='<div style="position:absolute;left:'+x+'px;top:0;width:'+GCW+'px;height:'+totalH+'px;background:'+color+';opacity:.12;pointer-events:none;z-index:2"></div>'
@@ -4591,7 +4591,7 @@ function openDetail(p){
     var rightHtml;
     if(s.isKensa){
       var isReserved=s.status==='reserved';
-      rightHtml='<button onclick="toggleKensaStatus(\''+s.statusKey+'\')" style="font-size:9px;font-weight:800;color:white;background:'+(isReserved?'#ef4444':'#f97316')+';border:none;border-radius:12px;padding:4px 11px;cursor:pointer;white-space:nowrap">'+(isReserved?'🔴 予約済み':'🟠 予約前')+'</button>';
+      rightHtml='<button onclick="toggleKensaStatus(\''+s.statusKey+'\')" style="font-size:9px;font-weight:800;color:white;background:'+(isReserved?'#3b82f6':'#f97316')+';border:none;border-radius:12px;padding:4px 11px;cursor:pointer;white-space:nowrap">'+(isReserved?'🔵 予約済み':'🟠 予約前')+'</button>';
     } else {
       rightHtml=isPast?'<span style="font-size:9px;color:var(--success);font-weight:700">完了</span>':'';
     }
@@ -4922,7 +4922,7 @@ function openPropEditModal(){
         return '<div><label style="font-size:9px;color:#64748b;display:block;margin-bottom:2px">'+k.n+'</label>'
           +'<div style="display:flex;gap:4px;align-items:center">'
           +'<input id="pe-'+k.dateKey+'" type="date" value="'+val+'" style="'+iStyle+'padding:5px 6px;font-size:11px;flex:1;min-width:0">'
-          +'<button type="button" id="pe-'+k.statusKey+'-btn" onclick="peToggleKensaStatus(\''+k.statusKey+'\')" data-status="'+st+'" style="font-size:9px;font-weight:800;color:white;background:'+(isRes?'#ef4444':'#f97316')+';border:none;border-radius:10px;padding:5px 8px;cursor:pointer;white-space:nowrap;flex-shrink:0">'+(isRes?'予約済み':'予約前')+'</button>'
+          +'<button type="button" id="pe-'+k.statusKey+'-btn" onclick="peToggleKensaStatus(\''+k.statusKey+'\')" data-status="'+st+'" style="font-size:9px;font-weight:800;color:white;background:'+(isRes?'#3b82f6':'#f97316')+';border:none;border-radius:10px;padding:5px 8px;cursor:pointer;white-space:nowrap;flex-shrink:0">'+(isRes?'予約済み':'予約前')+'</button>'
           +'</div></div>';
       }).join('')
       +['complete_date:完成日','delivery_date:引渡し日'].map(function(pair){
@@ -4999,7 +4999,7 @@ function peToggleKensaStatus(statusKey){
   var cur=btn.getAttribute('data-status')||'before';
   var next=cur==='reserved'?'before':'reserved';
   btn.setAttribute('data-status',next);
-  btn.style.background=next==='reserved'?'#ef4444':'#f97316';
+  btn.style.background=next==='reserved'?'#3b82f6':'#f97316';
   btn.textContent=next==='reserved'?'予約済み':'予約前';
 }
 window.peToggleKensaStatus=peToggleKensaStatus;
@@ -5973,6 +5973,21 @@ function resetToBuiltinMasters(){
   saveLS('jack_prop_master',propMaster);
   customGantt={};
   saveLS('jack_custom_gantt',customGantt);
+  // ★Supabase側のcustom_gantt/gantt_is_manualも一括クリア（大工程表の色分けが白のまま残るバグの修正・2026/8/2）
+  //   物件ごとにループして個別に更新すると呼び出し回数が膨大になるため、
+  //   1回のUPDATEクエリで全物件をまとめてリセットする
+  var sbRM=(typeof getSB==='function')?getSB():null;
+  if(sbRM){
+    sbRM.from('properties').update({custom_gantt:null,gantt_is_manual:false,updated_at:new Date().toISOString()}).not('fix_no','is',null)
+      .then(function(r){
+        if(r.error){showToast('⚠️ Supabase側のリセットに失敗しました（ローカルは削除済み）','error');return;}
+        if(typeof DB_PROPS!=='undefined'&&DB_PROPS){
+          DB_PROPS.forEach(function(dp){dp.custom_gantt=null;dp.gantt_is_manual=false;});
+          try{localStorage.setItem('jack_props_cache',JSON.stringify(DB_PROPS));}catch(e){}
+        }
+        renderBody();
+      }).catch(function(){showToast('⚠️ Supabase側のリセットに失敗しました（ローカルは削除済み）','error');});
+  }
   showToast('✅ 全マスター工程・紐付けを削除しました','success');
   renderMasterPanel();
   renderBody();
@@ -7592,7 +7607,7 @@ window.onload=function(){
   document.getElementById('todayBadge').textContent=TODAY.replace(/-/g,'/');
   setMode(isPcMode);
   renderHeader();renderStats();renderBody();initScrollSync();
-  requestAnimationFrame(function(){requestAnimationFrame(scrollToToday);});
+  requestAnimationFrame(function(){requestAnimationFrame(scrollGanttToToday);});
   if(syncData.lastSync){
     var l=new Date(syncData.lastSync);
     updateSyncBanner('最終同期: '+(l.getMonth()+1)+'/'+l.getDate()+' '+l.getHours()+':'+('0'+l.getMinutes()).slice(-2),false);
@@ -8667,7 +8682,10 @@ function _saveGanttToSupabase(p,segsData,cb){
   var payload={updated_at:new Date().toISOString()};
   // ★ 手動編集フラグを付けてDBに保存（getActiveSegsでマスターより優先させるため）
   var saveData=segsData?{__manual__:true,segs:segsData}:null;
-  payload.custom_gantt=saveData?JSON.stringify(saveData):null;
+  // ★jsonb列にはJSオブジェクトをそのまま渡す（supabase-jsが正しくシリアライズする）。
+  //   以前はJSON.stringify()してから渡していたため、jsonb列の中身が「JSON文字列」という
+  //   二重エンコード状態で保存されてしまっていた（2026/7/31発覚・修正）。
+  payload.custom_gantt=saveData;
   // ★大工程表の黄色/白の色分け用に、軽量な真偽値カラムにも同じ状態を保存する
   //   （custom_ganttは重いため一覧取得時は除外しているが、この列だけは一覧取得時にも一緒に取る）
   payload.gantt_is_manual=!!saveData;
@@ -10102,92 +10120,8 @@ async function loadAdmSec(sec){
   }
 }
 // ===== 全業者選定一覧 =====
-function admHandleVendorXlsx(input){
-  var file=input.files[0]; if(!file)return;
-  var statusEl=document.getElementById('vendorResult');
-  if(statusEl)statusEl.innerHTML='<div style="padding:12px;color:#64748b;font-size:12px">読み込み中...</div>';
-  var reader=new FileReader();
-  reader.onload=function(e){
-    try{
-      var data=new Uint8Array(e.target.result);
-      var wb=XLSX.read(data,{type:'array',raw:false});
-      var result={};
-      var targetSheets=['全業者選定（東海）','全業者選定（関東）'];
-      targetSheets.forEach(function(sheetName){
-        var ws=wb.Sheets[sheetName];
-        if(!ws){
-          // 部分一致でシートを探す
-          var found=wb.SheetNames.find(function(n){return n.indexOf('東海')>=0||n.indexOf('関東')>=0||n.indexOf('業者')>=0;});
-          if(found&&found.indexOf(sheetName.indexOf('東海')>=0?'東海':'関東')>=0)ws=wb.Sheets[found];
-        }
-        if(!ws)return;
-        var rows=XLSX.utils.sheet_to_json(ws,{header:1,defval:'',raw:false});
-        if(rows.length<2)return;
-        result[sheetName]=rows;
-      });
-      // シート名が違う場合も対応
-      if(Object.keys(result).length===0){
-        wb.SheetNames.forEach(function(name){
-          if(name.indexOf('業者')>=0||name.indexOf('選定')>=0){
-            var ws=wb.Sheets[name];
-            var rows=XLSX.utils.sheet_to_json(ws,{header:1,defval:'',raw:false});
-            if(rows.length>=2)result[name]=rows;
-          }
-        });
-      }
-      if(Object.keys(result).length===0){
-        if(statusEl)statusEl.innerHTML='<div style="background:#fee2e2;border:1px solid #fca5a5;border-radius:8px;padding:12px;font-size:12px;color:#dc2626">'
-          +'❌ 対象シートが見つかりません。<br>シート名に「業者」「東海」「関東」が含まれるExcelをお試しください。<br>'
-          +'検出シート: '+wb.SheetNames.join(', ')+'</div>';
-        return;
-      }
-      window._vendorData=result;
-      admRenderVendorTables(result);
-      showToast('✅ 業者一覧を読み込みました','success');
-    }catch(ex){
-      if(statusEl)statusEl.innerHTML='<div style="background:#fee2e2;border:1px solid #fca5a5;border-radius:8px;padding:12px;font-size:12px;color:#dc2626">❌ 読み込みエラー: '+ex.message+'</div>';
-    }
-  };
-  reader.readAsArrayBuffer(file);
-}
-window.admHandleVendorXlsx=admHandleVendorXlsx;
-
-function admRenderVendorTables(data){
-  var el=document.getElementById('vendorResult');
-  if(!el)return;
-  var html='';
-  Object.keys(data).forEach(function(sheetName){
-    var rows=data[sheetName];
-    if(!rows||!rows.length)return;
-    var header=rows[0];
-    var dataRows=rows.slice(1).filter(function(r){return r.some(function(c){return String(c||'').trim();});});
-    var isTokai=sheetName.indexOf('東海')>=0;
-    var tabColor=isTokai?'#1a56db':'#10b981';
-    html+='<div style="margin-bottom:20px">'
-      +'<div style="background:'+tabColor+';color:white;padding:10px 14px;border-radius:10px 10px 0 0;font-size:13px;font-weight:800;">'
-        +(isTokai?'🏙':'🌿')+' '+sheetName+' <span style="font-size:11px;font-weight:400;opacity:.8">('+dataRows.length+'件)</span>'
-      +'</div>'
-      +'<div style="overflow-x:auto;border:1px solid #e2e8f0;border-top:none;border-radius:0 0 10px 10px;max-height:500px;overflow-y:auto">'
-      +'<table style="width:100%;border-collapse:collapse;font-size:11px;min-width:600px">'
-      +'<thead style="position:sticky;top:0;background:'+tabColor+'20;z-index:1">'
-      +'<tr>'+header.map(function(h,i){
-        return '<th style="padding:7px 10px;text-align:left;font-weight:700;color:#1e293b;border-bottom:2px solid '+tabColor+';white-space:nowrap;font-size:10px">'+String(h||'')+'</th>';
-      }).join('')+'</tr></thead>'
-      +'<tbody>';
-    dataRows.forEach(function(row,ri){
-      html+='<tr style="background:'+(ri%2===0?'white':'#f8fafc')+';border-bottom:1px solid #f1f5f9" '
-        +'onmouseover="this.style.background=\'#eff6ff\'" onmouseout="this.style.background=\''+(ri%2===0?'white':'#f8fafc')+'\'">'
-        +row.map(function(cell,ci){
-          var v=String(cell||'').trim();
-          return '<td style="padding:6px 10px;color:'+(v?'#1e293b':'#cbd5e1')+';white-space:nowrap;max-width:200px;overflow:hidden;text-overflow:ellipsis" title="'+v+'">'+(v||'—')+'</td>';
-        }).join('')
-        +'</tr>';
-    });
-    html+='</tbody></table></div></div>';
-  });
-  el.innerHTML=html||'<div style="padding:12px;color:#64748b;font-size:12px">データなし</div>';
-}
-window.admRenderVendorTables=admRenderVendorTables;
+// ★admHandleVendorXlsx / admRenderVendorTables の実装はこの下方（Supabase保存版）に統一。
+//   旧ローカルのみ版はここにあったが、常に後方定義で上書きされ実際には使われていなかったため削除（2026/8/2整理）
 
 function copyText(elId){
   var el=document.getElementById(elId);
@@ -10354,7 +10288,7 @@ window.admSetMissingFilter=admSetMissingFilter;
 function _kensaBadge(status,dateVal){
   if(!dateVal)return '<span style="font-size:9px;color:#cbd5e1;font-weight:700">未設定</span>';
   var isRes=status==='reserved';
-  return '<span style="font-size:9px;font-weight:700;background:'+(isRes?'#fee2e2':'#fff7ed')+';color:'+(isRes?'#dc2626':'#ea580c')+';padding:3px 9px;border-radius:6px;white-space:nowrap;display:inline-block">'+(isRes?'● 予約済み':'○ 予約前')+' '+dateVal+'</span>';
+  return '<span style="font-size:9px;font-weight:700;background:'+(isRes?'#dbeafe':'#fff7ed')+';color:'+(isRes?'#2563eb':'#ea580c')+';padding:3px 9px;border-radius:6px;white-space:nowrap;display:inline-block">'+(isRes?'● 予約済み':'○ 予約前')+' '+dateVal+'</span>';
 }
 function _shinsaBadge(v){
   if(!v)return '';
@@ -10456,7 +10390,7 @@ function admRenderKensaTable(){
         return '<td style="padding:6px 8px">'
           +'<div style="display:flex;align-items:center;gap:3px;flex-wrap:wrap">'
           +'<input type="date" value="'+dv+'" onchange="admKensaDateChange(\''+fixNoAttr+'\',\''+d.dateKey+'\',this.value)" style="width:112px;padding:4px 5px;border:1.5px solid #e2e8f0;border-radius:6px;font-size:10px;outline:none">'
-          +'<button type="button" onclick="admKensaToggleStatus(\''+fixNoAttr+'\',\''+d.statusKey+'\')" style="font-size:9px;font-weight:800;color:white;background:'+(isRes?'#ef4444':'#f97316')+';border:none;border-radius:10px;padding:4px 8px;cursor:pointer;white-space:nowrap">'+(isRes?'予約済み':'予約前')+'</button>'
+          +'<button type="button" onclick="admKensaToggleStatus(\''+fixNoAttr+'\',\''+d.statusKey+'\')" style="font-size:9px;font-weight:800;color:white;background:'+(isRes?'#3b82f6':'#f97316')+';border:none;border-radius:10px;padding:4px 8px;cursor:pointer;white-space:nowrap">'+(isRes?'予約済み':'予約前')+'</button>'
           +'</div>'
         +'</td>';
       }).join('')
