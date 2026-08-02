@@ -4196,218 +4196,30 @@ window.resetGanttEdit=resetGanttEdit;
 
 function printDetailGantt(){
   if(!currentProp)return;
+  if(window._printBusy)return; // ★連打で印刷ウィンドウが何枚も開いてしまうのを防ぐ（フリーズ報告の原因の可能性）
+  window._printBusy=true;
+  setTimeout(function(){window._printBusy=false;},2000);
   var p=currentProp;
   var segs=getActiveSegs(p);
   if(!segs||!segs.length){showToast('工程データなし','error');return;}
 
-  var days=daysUntil(p.delivery_date);
-  var urgText=days!==null&&days>=0&&days<=30?' ⚡ 引渡まで'+days+'日':'';
-
-  var PCOL=17; // 1日の幅px（A3横向き3ヶ月で約430日分 → 420px/90日≒4.7→見やすい幅）
-  var PROW=18; // 行高さ
-  var LABEL_W=80; // 左ラベル列幅
-
-  // 印刷開始日：segsの最初のstart_dateの2日前
-  var cd=p.confirm_done||'';
-  var firstSegDate=null;
-  if(segs&&segs.length){
-    var sorted=segs.slice().sort(function(a,b){
-      var da=a.start_date||a.date||'9999';
-      var db=b.start_date||b.date||'9999';
-      return da<db?-1:da>db?1:0;
-    });
-    firstSegDate=sorted[0].start_date||sorted[0].date||null;
-  }
-  var pStartBase;
-  if(firstSegDate){
-    pStartBase=new Date(firstSegDate);
-    pStartBase.setDate(pStartBase.getDate()-2); // 2日前
-  } else if(cd){
-    pStartBase=new Date(cd);
-    pStartBase.setDate(pStartBase.getDate()-2);
-  } else {
-    pStartBase=new Date(TODAY);
-  }
-
-  // 印刷終了日：引渡し日の月末 or 開始から6ヶ月後
-  var delivEnd=p.delivery_date?new Date(p.delivery_date):null;
-  var sixMonthEnd=new Date(pStartBase.getFullYear(),pStartBase.getMonth()+6,0);
-  var pEnd=delivEnd&&delivEnd>sixMonthEnd?delivEnd:sixMonthEnd;
-
-  // 1〜3ヶ月目・4〜6ヶ月目の2ブロック固定
-  var b1Start=new Date(pStartBase.getFullYear(),pStartBase.getMonth(),1);
-  var b1End=new Date(pStartBase.getFullYear(),pStartBase.getMonth()+3,0);
-  var b2Start=new Date(pStartBase.getFullYear(),pStartBase.getMonth()+3,1);
-  var b2End=new Date(pStartBase.getFullYear(),pStartBase.getMonth()+6,0);
-
-  var mn={'01':'1月','02':'2月','03':'3月','04':'4月','05':'5月','06':'6月',
-          '07':'7月','08':'8月','09':'9月','10':'10月','11':'11月','12':'12月'};
-
-  // 工種ラベル一覧（segsから）
-  var labelSet=[]; var labelMap={};
-  segs.forEach(function(sg){
-    var lbl=sg.label||sg.name||'';
-    if(lbl&&!labelMap[lbl]){labelMap[lbl]=labelSet.length;labelSet.push(lbl);}
-  });
-  var numRows=labelSet.length;
-
-  function makeDates(start,end){
-    var dates=[''];var d=new Date(start.getTime());
-    while(d<=end){dates.push(localDateStr(d));d.setDate(d.getDate()+1);}
-    return dates;
-  }
-
-  function buildBlock(bStart,bEnd,pageNum){
-    var bDates=makeDates(bStart,bEnd);
-    var bIdx={};bDates.forEach(function(d,i){if(d)bIdx[d]=i;});
-    var numDays=bDates.length-1;
-    var W=numDays*PCOL;
-    var H=numRows*PROW+32;
-
-    var yr=bStart.getFullYear();
-    var m1=('0'+(bStart.getMonth()+1)).slice(-2);
-    var m2=('0'+(bEnd.getMonth()+1)).slice(-2);
-    var title=yr+'年'+(mn[m1]||m1)+'〜'+(mn[m2]||m2);
-
-    // 月バンド
-    var mBands={};
-    bDates.forEach(function(d,i){
-      if(!d)return;
-      var mo=d.substring(0,7);
-      if(!mBands[mo])mBands[mo]={start:i-1,count:0};
-      mBands[mo].count++;
-    });
-    var monthHtml='';
-    Object.keys(mBands).forEach(function(mo){
-      var v=mBands[mo];
-      var mm=mo.split('-')[1];
-      var moLabel=mo.split('-')[0]+'年'+(mn[mm]||mm);
-      monthHtml+='<div style="position:absolute;left:'+(v.start*PCOL)+'px;top:0;width:'+(v.count*PCOL)+'px;height:14px;background:#1e3a5f;color:white;font-size:8px;font-weight:800;display:flex;align-items:center;justify-content:center;border-right:1px solid rgba(255,255,255,.3);">'+moLabel+'</div>';
-    });
-
-    // 日付行
-    var dayHtml='';
-    bDates.forEach(function(d,i){
-      if(!d)return;
-      var dow=new Date(d).getDay();
-      var day=parseInt(d.split('-')[2]);
-      var isToday=d===TODAY;
-      var bg=isToday?'#fee2e2':dow===0?'#ffe4e8':dow===6?'#dbeafe':'#f1f5f9';
-      var fc=isToday?'#dc2626':dow===0?'#dc2626':dow===6?'#1d4ed8':'#64748b';
-      dayHtml+='<div style="position:absolute;left:'+((i-1)*PCOL)+'px;top:14px;width:'+PCOL+'px;height:14px;display:flex;align-items:center;justify-content:center;font-size:7px;font-weight:'+(day===1?'800':'400')+';color:'+fc+';background:'+bg+';border-right:1px solid #e2e8f0;">'+day+'</div>';
-    });
-
-    // 行背景
-    var rowBgHtml='';
-    labelSet.forEach(function(lbl,ri){
-      var bg=ri%2===0?'#f8fafc':'white';
-      rowBgHtml+='<div style="position:absolute;left:0;top:'+(ri*PROW+28)+'px;width:'+W+'px;height:'+PROW+'px;background:'+bg+';border-bottom:1px solid #e2e8f0;"></div>';
-      // 週末背景
-      bDates.forEach(function(d,di){
-        if(!d)return;
-        var dow=new Date(d).getDay();
-        if(dow===0||dow===6){
-          rowBgHtml+='<div style="position:absolute;left:'+((di-1)*PCOL)+'px;top:'+(ri*PROW+28)+'px;width:'+PCOL+'px;height:'+PROW+'px;background:'+(dow===0?'rgba(255,100,100,.08)':'rgba(100,150,255,.08)')+';"></div>';
-        }
-      });
-    });
-
-    // バー
-    var barHtml='';
-    segs.forEach(function(sg){
-      var lbl=sg.label||sg.name||'';
-      var ri=labelMap[lbl]; if(ri===undefined)return;
-      var sd=sg.start_date||sg.date||''; if(!sd)return;
-      var si=bIdx[sd];
-      // バーがこのブロックにかかっているか確認
-      if(!si){
-        // バーの期間がブロックにかかっているかチェック
-        var calDur=sg.calendar_dur||sg.dur||1;
-        var segEnd=new Date(sd);segEnd.setDate(segEnd.getDate()+calDur-1);
-        var segEndStr=localDateStr(segEnd);
-        // ブロック開始日以降に終わり、かつブロック終了日以前に始まる
-        var bStartStr=localDateStr(bStart);
-        var bEndStr=localDateStr(bEnd);
-        if(sd>bEndStr||segEndStr<bStartStr)return;
-        // ブロック内でクリップ
-        var clipStart=sd<bStartStr?bStartStr:sd;
-        si=bIdx[clipStart]||1;
-      }
-      var calDur=sg.calendar_dur||sg.dur||1;
-      // ブロック内に収まる幅
-      var segEnd=new Date(sd);segEnd.setDate(segEnd.getDate()+calDur-1);
-      var bEndStr=localDateStr(bEnd);
-      var actualEnd=localDateStr(segEnd)>bEndStr?bEndStr:localDateStr(segEnd);
-      var eiInBlock=bIdx[actualEnd]||numDays;
-      var bw=Math.max((eiInBlock-si+1)*PCOL-1,2);
-      var sx=(si-1)*PCOL;
-      var color=sg.color||'#94a3b8';
-      var layer=sg.layer||0;
-      var by=ri*PROW+28+(layer===1?4:2);
-      var bh=layer===1?PROW-8:PROW-4;
-      if(_isSoseiLabel(lbl)){
-        // ★造成はガントバーを描かずテキストのみ表示（他画面と統一）
-        var soseiTxtP=_soseiBarlabel(sg.start_date||sg.date||'',sg.end_date||'');
-        barHtml+='<div style="position:absolute;left:'+sx+'px;top:'+by+'px;height:'+bh+'px;display:flex;align-items:center;font-size:7px;font-weight:800;color:#1e293b;white-space:nowrap;z-index:15;">'+soseiTxtP+'</div>';
-        return;
-      }
-      barHtml+='<div style="position:absolute;left:'+sx+'px;top:'+by+'px;width:'+bw+'px;height:'+bh+'px;background:'+color+';border-radius:2px;display:flex;align-items:center;padding:0 2px;overflow:hidden;white-space:nowrap;z-index:10;">'
-        +'<span style="font-size:7px;font-weight:700;color:#000;">'+(bw>20?lbl:'')+'</span></div>';
-    });
-
-    // TODAY縦線
-    if(bIdx[TODAY]){
-      barHtml+='<div style="position:absolute;left:'+((bIdx[TODAY]-1)*PCOL)+'px;top:0;width:2px;height:'+H+'px;background:#ef4444;z-index:20;opacity:.6;"></div>';
-    }
-
-    // ラベル列
-    var labelHtml='';
-    labelSet.forEach(function(lbl,ri){
-      var bg=ri%2===0?'#f8fafc':'white';
-      labelHtml+='<div style="height:'+PROW+'px;display:flex;align-items:center;padding:0 6px;background:'+bg+';border-bottom:1px solid #e2e8f0;overflow:hidden;">'
-        +'<span style="font-size:8px;font-weight:700;color:#1e293b;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:'+(LABEL_W-12)+'px;">'+lbl+'</span>'
-        +'</div>';
-    });
-
-    var pageBreak=pageNum===1?'page-break-after:always;':'';
-    return '<div style="'+pageBreak+'display:flex;font-family:\'Hiragino Sans\',\'Meiryo\',sans-serif;">'
-      // ラベル列
-      +'<div style="width:'+LABEL_W+'px;flex-shrink:0;border-right:2px solid #475569;">'
-      +'<div style="height:28px;background:#1e3a5f;display:flex;align-items:center;padding:0 8px;font-size:9px;font-weight:700;color:white;border-bottom:2px solid #475569;">工種</div>'
-      +labelHtml+'</div>'
-      // ガント列
-      +'<div style="flex:1;overflow:hidden;">'
-      +'<div style="position:relative;width:'+W+'px;height:'+H+'px;">'
-      +'<div style="position:absolute;top:0;left:0;width:'+W+'px;height:28px;">'+monthHtml+dayHtml+'</div>'
-      +rowBgHtml+barHtml
-      +'</div></div>'
-      +'</div>';
-  }
-
-  var block1=buildBlock(b1Start,b1End,1);
-  var block2=buildBlock(b2Start,b2End,2);
+  // ★実際に工程バーがある期間だけ・バーがある工種だけに絞り込んだ印刷用工程表を使う
+  //   （物件詳細印刷（printPropInfo）と共通の生成ロジック：_buildPrintGanttHtml）
+  //   ★ヘッダー帯もガント本体と同じ枠内で一緒に拡大縮小するよう、ここで生成させる
+  //     （別々に組むと基準がズレて「ヘッダーだけ紙幅いっぱい・ガントは縮小されたまま」になるため）
+  var ganttHtml=_buildPrintGanttHtml(p,297,210); // ★A4横(297×210mm)を前提に計算（@page宣言と一致させる）
+  if(!ganttHtml){showToast('工程データなし','error');return;}
 
   var html='<!DOCTYPE html><html><head><meta charset="UTF-8">'
     +'<title>'+p.name+' 工程表</title>'
     +'<style>'
     +'*{box-sizing:border-box;margin:0;padding:0;-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important}'
     +'body{font-family:"Hiragino Sans","Meiryo",sans-serif;background:white;padding:4mm;}'
-    +'@media print{@page{size:A3 landscape;margin:6mm}body{padding:0}.no-print{display:none}}'
+    +'@media print{@page{size:A4 landscape;margin:6mm}body{padding:0}.no-print{display:none}}'
     +'</style></head><body>'
-    // ヘッダー（1ページ目のみ）
-    +'<div style="background:#1a3a7c;color:white;padding:6px 10px;margin-bottom:4px;border-radius:4px;display:flex;align-items:center;justify-content:space-between;">'
-    +'<div>'
-    +'<div style="font-size:11px;font-weight:900;letter-spacing:-0.5px;">'+p.name+'</div>'
-    +'<div style="font-size:8px;opacity:.8;margin-top:1px;">'
-    +(cd?'確認申請完了: '+cd+'　':'')
-    +(p.delivery_date?'引渡し: '+p.delivery_date:'')
-    +urgText
-    +'</div></div>'
-    +'<div style="font-size:8px;opacity:.7;">FiX No.'+p.fix_no+(p.seq_no?' / 通し:'+p.seq_no:'')+'</div>'
-    +'</div>'
-    +block1
-    +block2
-    +'<scr'+'ipt>setTimeout(function(){window.print();},600);<\/sc'+'ript>'
+    +ganttHtml
+    // ★印刷ダイアログを閉じたら（印刷してもキャンセルしても）このタブ/ウィンドウを自動で閉じる
+    +'<scr'+'ipt>window.onafterprint=function(){window.close();};setTimeout(function(){window.print();},600);<\/sc'+'ript>'
     +'</body></html>';
 
   var w=window.open('','_blank','width=1200,height=900');
@@ -4415,8 +4227,218 @@ function printDetailGantt(){
   else showToast('ポップアップを許可してください','error');
 }
 
+// ★物件詳細印刷専用の工程表HTMLを生成する。
+//   画面表示用（buildGanttTab）とは異なり、①実際に工程バーがある期間だけに絞り込み（前後の余白なし）、
+//   ②バーが1つも無い工種の行は表示しない。用紙幅に収まるよう自動縮小もかける。
+//   ★ヘッダー帯（物件名・確認申請完了日・引渡し日）もガント本体と同じ枠内に含めて、
+//     両方が必ず同じ幅・同じ拡大率になるようにしている（ズレ防止）。
+function _buildPrintGanttHtml(p,pageWmm,pageHmm,includeHeader){
+  if(includeHeader==null)includeHeader=true;
+  // ★用紙寸法(mm)は呼び出し元の@page CSS宣言と必ず一致させること（ズレると倍率計算が狂い、内容が切れる）
+  pageWmm=pageWmm||297; pageHmm=pageHmm||210;
+  var allSegs=getActiveSegs(p)||[];
+  // ①バーがある行だけに絞る（start_dateが無い＝この物件では使っていない工種）
+  //   ★地盤（地盤改良）行は印刷対象から除外する
+  var segs=allSegs.filter(function(seg){
+    var lbl=seg.label||seg.name||'';
+    if(lbl==='地盤')return false;
+    return !!(seg.start_date||seg.date);
+  });
+  if(!segs.length)return '';
+
+  // ②実際の工程期間だけに範囲を絞る（前後の余白は入れない。開始日だけ3日前から）
+  var minDt=null,maxDt=null;
+  segs.forEach(function(seg){
+    var sd=seg.start_date||seg.date||'';
+    var dt=new Date(sd.replace(/\//g,'-'));
+    if(!minDt||dt<minDt)minDt=dt;
+    var ed=seg.end_date||sd;
+    var edt=new Date(ed.replace(/\//g,'-'));
+    if(!maxDt||edt>maxDt)maxDt=edt;
+  });
+  if(!minDt||!maxDt||isNaN(minDt)||isNaN(maxDt))return '';
+  minDt=new Date(minDt.getTime());minDt.setDate(minDt.getDate()-3);
+  var totalDays=Math.round((maxDt-minDt)/86400000)+1;
+
+  // ③紙に収まりきらない横長のガントを、参考資料（Excel工程表）と同じように
+  //   複数段（月区切りの表のように）に分割して縦に並べる。
+  //   これにより1日あたりの幅(GCW)を十分に確保でき、日付・バーの文字が小さくなりすぎない。
+  var N_BANDS=2; // ★2段表示
+  var LABEL_W=140, HEAD_H=36, ROW_H=28, labelFont=11, barFont=10, GAP=16;
+  var USABLE_W_MM=pageWmm-20, USABLE_H_MM=pageHmm-20;
+  var usableWpx=USABLE_W_MM*96/25.4;
+  var usableHpx=USABLE_H_MM*96/25.4;
+
+  var bandDays=Math.ceil(totalDays/N_BANDS);
+
+  // ★まず各段の期間と「その段に実際にバーがある行だけ」を先に決める
+  //   （段をまたいで存在しない行を空白のまま載せないようにするため。ユーザー指摘の改善点）
+  var bandRanges=[];
+  for(var b=0;b<N_BANDS;b++){
+    var bandStartDt=new Date(minDt.getTime());bandStartDt.setDate(bandStartDt.getDate()+b*bandDays);
+    if(bandStartDt>maxDt)break; // 実際の期間がN_BANDS分未満で収まっている場合、余分な段は作らない
+    var bandEndDt=new Date(bandStartDt.getTime());bandEndDt.setDate(bandEndDt.getDate()+bandDays-1);
+    if(bandEndDt>maxDt)bandEndDt=new Date(maxDt.getTime());
+    var bandSegs=segs.filter(function(seg){
+      var sd=seg.start_date||seg.date||'';
+      var ed=seg.end_date||sd;
+      var sdt=new Date(sd.replace(/\//g,'-'));
+      var edt=new Date(ed.replace(/\//g,'-'));
+      return !(edt<bandStartDt||sdt>bandEndDt); // この段の期間と重なりがある行だけ残す
+    });
+    bandRanges.push({start:bandStartDt,end:bandEndDt,segs:bandSegs});
+  }
+  if(!bandRanges.length)return '';
+
+  // ★GCW（1日あたりの幅）は「横幅を埋める」だけでなく、各段の実際の高さ(縦)も考慮し、
+  //   内容全体の縦横比が紙の縦横比に一致するよう逆算する。こうすることで、
+  //   縦横同じ倍率で拡大しても隙間なく紙いっぱいに収まる（横だけ合わせると行数が多い物件で
+  //   縦が余り、結局そこに合わせて縮小され横にも隙間ができてしまう）。
+  var fullHforGCW=bandRanges.reduce(function(sum,br,i){return sum+HEAD_H+br.segs.length*ROW_H+(i>0?GAP:0);},0);
+  var idealGCW=((usableWpx/usableHpx)*fullHforGCW-LABEL_W)/bandDays;
+  var GCW=Math.max(6,Math.min(60,idealGCW)); // ★日1つ分が細すぎる/太すぎるのを防ぐ範囲制限
+
+  var mn={'01':'1月','02':'2月','03':'3月','04':'4月','05':'5月','06':'6月','07':'7月','08':'8月','09':'9月','10':'10月','11':'11月','12':'12月'};
+
+  // ★各段のHTMLを作る（bandSegs＝その段に実際にバーがある行だけ）
+  function buildBand(bandStartDt,bandEndDt,bandSegs){
+    var dates=[''];
+    var cur=new Date(bandStartDt.getTime());
+    while(cur<=bandEndDt){dates.push(localDateStr(cur));cur.setDate(cur.getDate()+1);}
+    var dateIdx={};dates.forEach(function(d,i){if(d)dateIdx[d]=i;});
+    var bandColDays=dates.length-1;
+    var bandGanttW=Math.max(bandColDays*GCW,GCW);
+
+    var months={};
+    dates.forEach(function(d,i){if(!d)return;var m=d.substring(0,7);if(!months[m])months[m]={start:i-1,count:0};months[m].count++;});
+    var hdrBands='';
+    Object.keys(months).forEach(function(m){
+      var v=months[m],mm=m.split('-')[1];
+      hdrBands+='<div style="position:absolute;left:'+(v.start*GCW)+'px;top:0;width:'+(v.count*GCW)+'px;height:18px;background:#1a56db;color:white;font-size:10px;font-weight:800;display:flex;align-items:center;justify-content:center;border-right:1px solid rgba(255,255,255,.5);overflow:hidden">'+(m.split('-')[0])+'年'+(mn[mm]||mm)+'</div>';
+    });
+    var dayNums='';
+    dates.forEach(function(d,i){
+      if(!d)return;
+      var dow=getDow(d),day=parseInt(d.split('-')[2]),isToday=d===TODAY;
+      dayNums+='<div style="position:absolute;left:'+((i-1)*GCW)+'px;top:18px;width:'+GCW+'px;height:18px;display:flex;align-items:center;justify-content:center;font-size:8px;font-weight:700;color:'+(isToday?'#ef4444':dow===0?'#dc2626':dow===6?'#1d4ed8':'#334155')+';background:'+(isToday?'#fecaca':dow===0?'#fee2e2':dow===6?'#dbeafe':'white')+';border-right:1px solid #e2e8f0;">'+day+'</div>';
+    });
+
+    var rowLabels='';
+    bandSegs.forEach(function(seg,ri){
+      var lbl=seg.label||seg.name||'';
+      rowLabels+='<div style="height:'+ROW_H+'px;display:flex;align-items:center;padding:0 6px;border-bottom:1px solid #e2e8f0;background:'+(ri%2===0?'#f8fafc':'white')+';font-size:'+labelFont+'px;font-weight:700;color:#1e293b;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;box-sizing:border-box">'+lbl+'</div>';
+    });
+    var bodyH=bandSegs.length*ROW_H;
+    var rowBg='';
+    bandSegs.forEach(function(seg,ri){
+      rowBg+='<div style="position:absolute;left:0;top:'+(ri*ROW_H)+'px;width:'+bandGanttW+'px;height:'+ROW_H+'px;background:'+(ri%2===0?'#f8fafc':'white')+';border-bottom:1px solid #e2e8f0"></div>';
+    });
+
+    var weekendFills='';
+    dates.forEach(function(d,i){
+      if(!d)return;var dow=getDow(d);
+      if(dow===0)weekendFills+='<div style="position:absolute;left:'+((i-1)*GCW)+'px;top:0;width:'+GCW+'px;height:'+bodyH+'px;background:rgba(255,182,193,.28)"></div>';
+      else if(dow===6)weekendFills+='<div style="position:absolute;left:'+((i-1)*GCW)+'px;top:0;width:'+GCW+'px;height:'+bodyH+'px;background:rgba(173,216,230,.25)"></div>';
+    });
+
+    // ★このバンドの表示期間で工程バーを切り出す（月区切りのExcel資料と同様、段をまたぐバーは各段で分割表示される）
+    var bars='';
+    bandSegs.forEach(function(seg,ri){
+      var lbl=seg.label||seg.name||'';
+      var sd=seg.start_date||seg.date||'';
+      var ed=seg.end_date||sd;
+      var sdt=new Date(sd.replace(/\//g,'-'));
+      var edt=new Date(ed.replace(/\//g,'-'));
+      var clipStart=sdt<bandStartDt?bandStartDt:sdt;
+      var clipEnd=edt>bandEndDt?bandEndDt:edt;
+      if(clipStart>clipEnd)return; // このバンドの期間と重ならない
+      var clipStartStr=localDateStr(clipStart);
+      var col=dateIdx[clipStartStr];if(col==null)return;
+      var clipDurDays=Math.round((clipEnd-clipStart)/86400000)+1;
+      var sx=(col-1)*GCW;
+      var bw=Math.max(clipDurDays*GCW-1,GCW-1);
+      var by=ri*ROW_H+2;
+      var bh=ROW_H-4;
+      var color=seg.color||EC[lbl]||'#64748b';
+      var tcolor=_ganttTextColor(color);
+      bars+='<div style="position:absolute;left:'+sx+'px;top:'+by+'px;width:'+bw+'px;height:'+bh+'px;background:'+color+';color:'+tcolor+';font-size:'+barFont+'px;font-weight:800;border-radius:3px;display:flex;align-items:center;padding:0 3px;overflow:hidden;white-space:nowrap;box-shadow:0 1px 2px rgba(0,0,0,.15)">'+lbl+'</div>';
+    });
+
+    var todayLine='';
+    if(dateIdx[TODAY]){
+      todayLine='<div style="position:absolute;left:'+((dateIdx[TODAY]-1)*GCW)+'px;top:0;width:2px;height:'+bodyH+'px;background:#ef4444"></div>';
+    }
+
+    var headH=HEAD_H;
+    return {
+      h:headH+bodyH,
+      html:'<div style="display:flex">'
+        +'<div style="width:'+LABEL_W+'px;flex-shrink:0">'
+          +'<div style="height:'+headH+'px;border-bottom:2px solid #1a56db;background:#f8fafc"></div>'
+          +rowLabels
+        +'</div>'
+        +'<div style="position:relative;width:'+bandGanttW+'px">'
+          +'<div style="position:relative;height:'+headH+'px">'+hdrBands+dayNums+'</div>'
+          +'<div style="position:relative;height:'+bodyH+'px">'+rowBg+weekendFills+todayLine+bars+'</div>'
+        +'</div>'
+        +'</div>'
+    };
+  }
+
+  var bandsHtml=[],totalContentH=0;
+  bandRanges.forEach(function(br,i){
+    var band=buildBand(br.start,br.end,br.segs);
+    bandsHtml.push(band.html);
+    totalContentH+=band.h+(i>0?GAP:0);
+  });
+  if(!bandsHtml.length)return '';
+
+  var fullW=LABEL_W+bandDays*GCW;
+
+  // ★ヘッダー帯（物件名・確認申請完了日・引渡し日）もガント本体と全く同じ幅(fullW)・同じ拡大率で
+  //   扱う。別々に組むとヘッダーだけ紙幅いっぱいに広がり、ガント側だけ縮小されたままズレて見える。
+  //   （printPropInfoから呼ばれる場合はページ側に既に見出しがあるため省略できる）
+  var headerHtml='', headerBlockH=0;
+  if(includeHeader){
+    var days=daysUntil(p.delivery_date);
+    var urgText=days!==null&&days>=0&&days<=30?' ⚡ 引渡まで'+days+'日':'';
+    var cd=p.confirm_done||'';
+    var HEADER_H=46;
+    headerHtml='<div style="width:'+fullW+'px;box-sizing:border-box;background:#1a3a7c;color:white;padding:8px 12px;border-radius:4px;display:flex;align-items:center;justify-content:space-between;height:'+HEADER_H+'px">'
+      +'<div>'
+      +'<div style="font-size:14px;font-weight:900;letter-spacing:-0.5px;">'+p.name+'</div>'
+      +'<div style="font-size:9px;opacity:.8;margin-top:2px;">'
+      +(cd?'確認申請完了: '+cd+'　':'')
+      +(p.delivery_date?'引渡し: '+p.delivery_date:'')
+      +urgText
+      +'</div></div>'
+      +'<div style="font-size:9px;opacity:.7;">FiX No.'+p.fix_no+(p.seq_no?' / 通し:'+p.seq_no:'')+'</div>'
+      +'</div>';
+    headerBlockH=HEADER_H+GAP;
+  }
+
+  var fullH=headerBlockH+totalContentH;
+  // ★理論値だけでは実機（この用紙・プリンター環境）で若干縮小気味に印刷される傾向があったため、
+  //   大工程表印刷と同様に実機補正値を掛けている。印刷して大きすぎる/小さすぎる場合はこの値を調整する
+  var PRINT_EMPIRICAL_CORRECTION=1.54; // ★実機確認：印刷ダイアログ倍率100%のままでちょうど良いサイズになるよう調整済み（2026/8/2確認）
+  var scale=Math.min(usableWpx/fullW,usableHpx/fullH)*PRINT_EMPIRICAL_CORRECTION;
+  scale=Math.min(scale,4); // ★極端に拡大されすぎないよう上限を設ける
+  var scaledH=fullH*scale;
+
+  var stacked=bandsHtml.map(function(h,i){return '<div style="'+(i>0?'margin-top:'+GAP+'px;':'')+'">'+h+'</div>';}).join('');
+
+  return '<div style="overflow:hidden;height:'+scaledH+'px">'
+    +'<div style="transform:scale('+scale+');transform-origin:top left;width:'+fullW+'px;">'
+    +headerHtml
+    +'<div style="'+(includeHeader?'margin-top:'+GAP+'px':'')+'">'+stacked+'</div>'
+    +'</div></div>';
+}
+
 function printPropInfo(){
   if(!currentProp)return;
+  if(window._printBusy)return; // ★連打で印刷ウィンドウが何枚も開いてしまうのを防ぐ
+  window._printBusy=true;
+  setTimeout(function(){window._printBusy=false;},2000);
   var p=currentProp;
   var dpEl=document.getElementById('dpContent');
   if(!dpEl)return;
@@ -4430,6 +4452,14 @@ function printPropInfo(){
   // Remove the gantt toolbar row
   var toolbar=clone.querySelector('[style*="display:flex;gap:6px;padding:5px 12px;background:#1e293b"]');
   if(toolbar)toolbar.style.display='none';
+
+  // ★工程表セクションは画面表示用（前後の余白期間・未使用工種の空行込み）のDOMをそのまま印刷すると
+  //   見づらいため、印刷専用に「実際にバーがある期間だけ・バーがある行だけ」で作り直したものに差し替える
+  var ganttSec=clone.querySelector('#detail-gantt-sec');
+  if(ganttSec){
+    var printGanttHtml=_buildPrintGanttHtml(p,297,210,false); // ★A4横(297×210mm)前提。ページに既に見出しがあるためヘッダー省略
+    ganttSec.innerHTML='<div class="dp-sec-head">🏗️ 工程表</div>'+(printGanttHtml||'<div style="padding:12px;font-size:11px;color:#94a3b8;text-align:center">工程データがありません</div>');
+  }
 
   var days=daysUntil(p.delivery_date);
   var urgText=days!==null&&days>=0&&days<=30?' ⚡ 引渡まで'+days+'日':'';
@@ -4467,7 +4497,7 @@ function printPropInfo(){
     +'[style*="rgba(255,255,255,.03)"]{background:rgba(0,0,0,.02)!important}'
     +'[style*="rgba(255,255,255,.07)"]{background:rgba(0,0,0,.04)!important}'
     +'[style*="rgba(255,255,255,.65)"],[style*="rgba(255,255,255,.75)"]{color:#334155!important}'
-    +'@media print{@page{size:A3 landscape;margin:8mm}'
+    +'@media print{@page{size:A4 landscape;margin:8mm}'
     +'  body{padding:0}'
     +  '  .dp-sec{page-break-inside:avoid}'
     +'}'
@@ -4484,6 +4514,7 @@ function printPropInfo(){
     +'    }'
     +'  });'
     +'  setTimeout(function(){window.print();},600);'
+    +'  window.onafterprint=function(){window.close();};'
     +'};'
     +'<\/scr'+'ipt></body></html>';
 
