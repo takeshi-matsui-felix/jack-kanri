@@ -24,6 +24,27 @@
     var projected=startScale*e.scale;
     if(projected<1.0){ e.preventDefault(); } // ★100%未満になる縮小だけを阻止
   },{passive:false});
+  // ★第2の防止層：gesturestart/gesturechangeはWebKit独自イベントで将来的に非対応になる可能性があるため、
+  //   標準のtouchイベントで2本指の距離を直接計測し、縮小方向のみブロックする方式も併用
+  var touchStartDist=null, touchStartScale=1;
+  function touchDist(touches){
+    var dx=touches[0].clientX-touches[1].clientX;
+    var dy=touches[0].clientY-touches[1].clientY;
+    return Math.sqrt(dx*dx+dy*dy);
+  }
+  document.addEventListener('touchstart',function(e){
+    if(e.touches.length===2){
+      touchStartDist=touchDist(e.touches);
+      touchStartScale=(window.visualViewport&&window.visualViewport.scale)?window.visualViewport.scale:1;
+    }
+  },{passive:false});
+  document.addEventListener('touchmove',function(e){
+    if(e.touches.length===2&&touchStartDist){
+      var ratio=touchDist(e.touches)/touchStartDist;
+      if(touchStartScale*ratio<0.999){ e.preventDefault(); }
+    }
+  },{passive:false});
+  document.addEventListener('touchend',function(e){ if(e.touches.length<2)touchStartDist=null; });
   // 保険：それでも縮小状態になってしまった場合は強制的に100%へ戻す
   function resetZoom(){
     var vp=document.querySelector('meta[name="viewport"]');
@@ -43,7 +64,7 @@
   document.addEventListener('visibilitychange',function(){if(!document.hidden)resetZoom();});
   window.addEventListener('pageshow',resetZoom);
   window.addEventListener('focus',checkAndReset);
-  setInterval(checkAndReset,1000); // ホーム画面アプリはvisibilitychangeが発火しないことがあるための保険ポーリング
+  setInterval(checkAndReset,150); // ホーム画面アプリはvisibilitychangeが発火しないことがあるための保険ポーリング（高頻度化）
 })();
 </script>
 <title>JACK 現場管理</title>
@@ -3084,10 +3105,12 @@ function scrollGanttToEnd(){
     var sb=document.getElementById('scrollBody');
     var sh=document.getElementById('scrollHeaderWrap');
     if(!sb)return;
-    var maxLeft=Math.max(0,sb.scrollWidth-sb.clientWidth);
-    sb.scrollLeft=maxLeft;if(sh)sh.scrollLeft=maxLeft;
+    // ★scrollWidthを自前計算せず、極端に大きい値を代入してブラウザに実際の最大値へクランプさせる
+    //   （renderBody直後は行の描画・高さ計算がまだ確定しておらず、scrollWidth-clientWidthの
+    //   自前計算が実際の最大値より小さく出て「1列手前で止まる」ことがあったため）
+    sb.scrollLeft=999999;if(sh)sh.scrollLeft=999999;
   }
-  _do();setTimeout(_do,80);setTimeout(_do,300);
+  _do();setTimeout(_do,80);setTimeout(_do,300);setTimeout(_do,700);
 }
 window.scrollGanttToEnd=scrollGanttToEnd;
 function scrollGanttToToday(){
