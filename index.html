@@ -977,6 +977,7 @@ var POST_COLS = [
   { key:'inspection_date', label:'完了\n検査',      w:54, cls:'hcell-post', kensa:'完了検査', statusKey:'inspection_status' }
 ];
 var POST_W = POST_COLS.reduce(function(a,c){return a+c.w;},0);
+var POST_END_PAD = 120; // ★スクロール終端の余白：完了検査列の右にゆとりを持たせ、最後までしっかり表示・スクロールできるようにする（2026/8/2）
 var VENDOR_COL_W = 200; // ★大工程表：業者選定グリッド列（2段×5列）の幅
 
 var AREA_TABS = [
@@ -2597,7 +2598,7 @@ function renderHeader(){
   var activeFreezeC=_activeFreezeCols(isPcMode?FREEZE_COLS:SP_FREEZE_COLS);
   var activePreC=isPcMode?PRE_COLS:SP_PRE_COLS;
   var activeFreezeW2=activeFreezeC.reduce(function(a,c){return a+c.w;},0);
-  var activeTotalW2=activePreC.reduce(function(a,c){return a+c.w;},0)+GANTT_W+POST_W;
+  var activeTotalW2=activePreC.reduce(function(a,c){return a+c.w;},0)+GANTT_W+POST_W+POST_END_PAD;
   var fi=document.getElementById('freezeHeaderInner');
   var si=document.getElementById('scrollHeaderInner');
   fi.innerHTML='';si.innerHTML='';
@@ -2855,7 +2856,7 @@ function renderBody(){
   var fb=document.getElementById('freezeBody');
   var cv=document.getElementById('ganttCanvas');
   fb.innerHTML='';cv.innerHTML='';
-  var activeTotalW = activePreW + GANTT_W + POST_W;
+  var activeTotalW = activePreW + GANTT_W + POST_W + POST_END_PAD;
 
   // 全業者選定一覧のサイドバータイムスタンプを初期表示
   setTimeout(function(){if(typeof _updateVendorSbTs==='function')_updateVendorSbTs();},300);
