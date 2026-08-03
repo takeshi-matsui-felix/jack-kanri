@@ -112,6 +112,7 @@ input,textarea,select{font-family:var(--font)}
 .vendor-toggle-btn:hover{background:rgba(255,255,255,.25);}
 .th-icon-btn:hover{background:rgba(255,255,255,.3)}
 .print-btn{background:rgba(255,255,255,.2);color:white;padding:3px 8px;border-radius:5px;font-size:10px;font-weight:700;display:flex;align-items:center;gap:3px}
+#hScrollbarThumb:hover{background:#64748b!important;}
 .print-btn:hover{background:rgba(255,255,255,.35)}
 
 /* AREA TABS */
@@ -163,6 +164,7 @@ input,textarea,select{font-family:var(--font)}
 
 /* TABLE BODY */
 .table-body{flex:1;display:flex;overflow-x:hidden;overflow-y:auto;-webkit-overflow-scrolling:touch;min-height:0;touch-action:pan-x pan-y}
+#app.pc-mode .table-body{padding-bottom:26px;} /* ★固定表示の横スクロールバー(高さ20px)と最終行が被らないための余白 */
 .freeze-body{width:var(--freeze-w);min-width:var(--freeze-w);max-width:var(--freeze-w);flex-shrink:0;overflow-x:clip;overflow-y:visible;border-right:2px solid #475569;flex-shrink:0;align-self:flex-start}
 .scroll-body{flex:1;overflow-x:auto;overflow-y:visible;touch-action:pan-x pan-y;overscroll-behavior-x:contain;align-self:flex-start}
 .scroll-body::-webkit-scrollbar{height:4px;width:4px}
@@ -751,7 +753,13 @@ body.sp-mode #areaTabsBtns{ display:none !important; }
   </div>
   <div class="status-bar" id="statusBar" style="display:none"></div>
   <div class="stats-strip" id="statsStrip" style="display:none"></div>
-  <div class="table-wrap"><div class="table-header"><div id="freezeHeaderInner" style="border-right:2px solid #475569;flex-shrink:0;overflow:hidden"></div><div id="scrollHeaderWrap" style="flex:1;overflow:hidden"><div id="scrollHeaderInner"></div></div></div><div class="table-body"><div class="freeze-body" id="freezeBody"></div><div class="scroll-body" id="scrollBody"><div id="ganttCanvas"></div></div></div></div>
+  <div class="table-wrap" style="position:relative">
+    <div class="table-header"><div id="freezeHeaderInner" style="border-right:2px solid #475569;flex-shrink:0;overflow:hidden"></div><div id="scrollHeaderWrap" style="flex:1;overflow:hidden"><div id="scrollHeaderInner"></div></div></div>
+    <div class="table-body"><div class="freeze-body" id="freezeBody"></div><div class="scroll-body" id="scrollBody"><div id="ganttCanvas"></div></div></div>
+    <div id="hScrollbarBar" style="display:none;position:absolute;left:var(--freeze-w);right:0;bottom:0;height:20px;background:#e2e8f0;border-top:1px solid #cbd5e1;z-index:50;">
+      <div id="hScrollbarThumb" style="position:absolute;top:3px;height:14px;background:#94a3b8;border-radius:7px;cursor:grab;min-width:30px;"></div>
+    </div>
+  </div>
   <div id="weatherBar" style="display:none;flex-shrink:0;background:white;border-top:2px solid #e2e8f0;overflow-x:auto;-webkit-overflow-scrolling:touch;"><div id="weatherBarContent"></div></div>
 </div>
 <div class="slide-panel" id="detailPanel" style="display:flex;flex-direction:row;overflow:hidden"><div style="flex:1;display:flex;flex-direction:column;overflow:hidden"><div class="panel-header"><button class="panel-back" onclick="closePanel('detailPanel')">← 戻る</button><div style="flex:1"><div class="panel-title">物件詳細</div></div><div id="detailGanttHeaderBtns" style="display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end"></div></div><div id="dpHeroSticky" style="flex-shrink:0;padding:6px 12px;background:var(--primary-d,#1e40af);color:white;display:none"></div><div class="panel-action-bar" id="dpActionBar" style="position:static;bottom:auto;border-top:none;border-bottom:1px solid var(--g200);box-shadow:0 2px 8px rgba(0,0,0,.06);flex-shrink:0"></div><div class="panel-scroll" id="dpContent" style="padding-bottom:16px"></div></div><div id="ganttEditSidebar" style="display:none;width:200px;min-width:200px;background:#1e293b;border-left:2px solid #334155;flex-direction:column;overflow-y:auto;flex-shrink:0"><div style="padding:8px;border-bottom:1px solid #334155;display:flex;flex-direction:column;gap:4px"><div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:2px"><div style="font-size:10px;font-weight:800;color:rgba(255,255,255,.5)">✏️ 工程表編集</div><button onclick="closeGanttEditSidebar()" style="background:rgba(255,255,255,.1);border:none;color:rgba(255,255,255,.6);border-radius:4px;padding:2px 7px;font-size:11px;cursor:pointer;font-weight:700">✕</button></div><div id="geAnchorDiag" style="font-size:9px;color:#fbbf24;line-height:1.5;background:#0f172a;border-radius:6px;padding:5px 7px;display:none"></div><button onclick="saveGanttEdit()" style="width:100%;padding:7px;background:#1a56db;color:white;border:none;border-radius:7px;font-size:11px;font-weight:800;cursor:pointer">💾 保存</button><div style="display:flex;gap:4px"><button onclick="shiftGanttEdit()" style="flex:1;padding:5px;background:#475569;color:white;border:none;border-radius:6px;font-size:10px;font-weight:700;cursor:pointer">📅 シフト</button><button onclick="resetGanttEdit()" style="flex:1;padding:5px;background:#475569;color:white;border:none;border-radius:6px;font-size:10px;font-weight:700;cursor:pointer">🔄 リセット</button></div></div><div style="padding:8px;border-bottom:1px solid #334155"><div style="font-size:10px;font-weight:800;color:rgba(255,255,255,.7);margin-bottom:6px">＋ 工種追加</div><div style="display:flex;flex-direction:column;gap:5px"><input type="text" id="geNewName" placeholder="工種名" style="padding:5px 7px;border:1.5px solid #475569;border-radius:6px;font-size:11px;background:#0f172a;color:white;width:100%;box-sizing:border-box"><div style="display:flex;align-items:center;gap:4px"><span style="font-size:9px;color:rgba(255,255,255,.5);white-space:nowrap">日数</span><input type="number" id="geNewDays" placeholder="日数" min="1" max="180" style="padding:4px 6px;border:1.5px solid #475569;border-radius:6px;font-size:11px;background:#0f172a;color:white;width:100%;box-sizing:border-box"></div><div style="display:flex;align-items:center;gap:4px"><span style="font-size:9px;color:rgba(255,255,255,.5);white-space:nowrap">開始日</span><input type="date" id="geNewDate" style="padding:4px 4px;border:1.5px solid #475569;border-radius:6px;font-size:10px;background:#0f172a;color:white;width:100%;box-sizing:border-box"></div><div id="geColorPicker" style="display:flex;flex-wrap:wrap;gap:4px;margin:2px 0"></div><button onclick="addGanttBar()" style="width:100%;padding:7px;background:#059669;color:white;border:none;border-radius:7px;font-size:11px;font-weight:800;cursor:pointer">バーを追加</button></div></div><div style="padding:6px 8px;flex:1"><div style="font-size:9px;font-weight:800;color:rgba(255,255,255,.4);margin-bottom:4px">工種一覧</div><div id="geSegList" style="display:flex;flex-direction:column;gap:4px;min-width:0;overflow:hidden"></div></div></div></div>
@@ -2356,6 +2364,10 @@ function setMode(pc){
   var appEl=document.getElementById('app');
   if(appEl) appEl.className=pc?'pc-mode':'mobile-mode';
 
+  // 固定横スクロールバー：PCモードのみ使用
+  var hbar=document.getElementById('hScrollbarBar');
+  if(hbar){ if(!pc) hbar.style.display='none'; else setTimeout(_updateHScrollbar,50); }
+
   // sp-hide要素（管理者CP・マスター工程）の表示制御
   document.querySelectorAll('.sp-hide').forEach(function(el){
     el.style.display=pc?'':'none';
@@ -2899,6 +2911,7 @@ function renderBody(){
   rowPlans.forEach(function(rp){rowTops.push(yCursor); yCursor+=rp.rowH;});
   var totalH=yCursor;
   cv.style.cssText='width:'+activeTotalW+'px;height:'+totalH+'px;position:relative;';
+  if(typeof _updateHScrollbar==='function')setTimeout(_updateHScrollbar,30);
 
   // Pre-draw day gridlines (faint), month boundary lines & today line first
   VIS_DATES.forEach(function(d,i){
@@ -3088,6 +3101,7 @@ function initScrollSync(){
   // 横スクロール同期: scroll-body → scrollHeader
   sb.addEventListener('scroll',function(){
     if(sh)sh.scrollLeft=sb.scrollLeft;
+    _updateHScrollbar();
   });
   // table-body縦スクロール → scrollHeaderの縦位置は不要（固定済み）
   // table-body上でのホイールはブラウザデフォルトで縦スクロール
@@ -3100,7 +3114,63 @@ function initScrollSync(){
       }
     },{passive:false});
   }
+  window.addEventListener('resize',_updateHScrollbar);
+  _initHScrollbarDrag();
 }
+
+// ===== 固定表示・横スクロールバー（PC専用） =====
+// ★通常のブラウザ標準スクロールバーは.scroll-body（とても縦に長い）の一番下端にしか出ないため、
+//   物件一覧の最後までスクロールしないと使えなかった。常に画面下部に固定表示される
+//   独自スクロールバーを追加し、どのタブでも同じ操作性で使えるようにする（2026/8/2）
+function _updateHScrollbar(){
+  if(!isPcMode)return;
+  var sb=document.getElementById('scrollBody');
+  var bar=document.getElementById('hScrollbarBar');
+  var thumb=document.getElementById('hScrollbarThumb');
+  if(!sb||!bar||!thumb)return;
+  var trackW=bar.clientWidth;
+  var contentW=sb.scrollWidth;
+  var viewW=sb.clientWidth;
+  if(contentW<=viewW+2){bar.style.display='none';return;}
+  bar.style.display='block';
+  var thumbW=Math.max(30,trackW*(viewW/contentW));
+  var maxThumbLeft=trackW-thumbW;
+  var scrollRatio=sb.scrollLeft/(contentW-viewW);
+  var thumbLeft=maxThumbLeft*scrollRatio;
+  thumb.style.width=thumbW+'px';
+  thumb.style.left=thumbLeft+'px';
+}
+function _initHScrollbarDrag(){
+  var bar=document.getElementById('hScrollbarBar');
+  var thumb=document.getElementById('hScrollbarThumb');
+  var sb=document.getElementById('scrollBody');
+  if(!bar||!thumb||!sb)return;
+  var dragging=false,startX=0,startLeft=0;
+  thumb.addEventListener('mousedown',function(e){
+    dragging=true;startX=e.clientX;startLeft=thumb.offsetLeft;
+    thumb.style.cursor='grabbing';
+    e.preventDefault();
+  });
+  document.addEventListener('mousemove',function(e){
+    if(!dragging)return;
+    var trackW=bar.clientWidth,thumbW=thumb.offsetWidth;
+    var maxThumbLeft=trackW-thumbW;
+    var newLeft=Math.min(maxThumbLeft,Math.max(0,startLeft+(e.clientX-startX)));
+    var ratio=maxThumbLeft>0?newLeft/maxThumbLeft:0;
+    sb.scrollLeft=ratio*(sb.scrollWidth-sb.clientWidth);
+  });
+  document.addEventListener('mouseup',function(){if(dragging){dragging=false;thumb.style.cursor='grab';}});
+  // トラックの余白部分クリックでその位置まで一気にジャンプ
+  bar.addEventListener('mousedown',function(e){
+    if(e.target!==bar)return;
+    var trackW=bar.clientWidth,thumbW=thumb.offsetWidth;
+    var clickX=e.clientX-bar.getBoundingClientRect().left-thumbW/2;
+    var maxThumbLeft=trackW-thumbW;
+    var ratio=maxThumbLeft>0?Math.min(1,Math.max(0,clickX/maxThumbLeft)):0;
+    sb.scrollLeft=ratio*(sb.scrollWidth-sb.clientWidth);
+  });
+}
+window._updateHScrollbar=_updateHScrollbar;
 function scrollGanttToEnd(){
   function _do(){
     var sb=document.getElementById('scrollBody');
