@@ -222,7 +222,10 @@ input,textarea,select{font-family:var(--font)}
 #detailPanel.gantt-fullscreen #dpContent>#detail-gantt-sec{display:flex!important;flex-direction:column;flex:1;min-height:0;margin:0;border-radius:0}
 #detailPanel.gantt-fullscreen #detail-gantt-sec>.dp-sec-head,
 #detailPanel.gantt-fullscreen #detail-gantt-sec>div:nth-child(2){flex-shrink:0}
-#detailPanel.gantt-fullscreen #gantt-pane-custom{display:flex!important;flex-direction:column;flex:1;min-height:0}
+/* ★どのタブ（カスタム工程／Excel工程表／納品書）が選択されていても、選択中のタブだけが伸縮してスクロールできるようにする */
+#detailPanel.gantt-fullscreen .gantt-pane{display:none!important}
+#detailPanel.gantt-fullscreen .gantt-pane.gantt-pane-active{display:flex!important;flex-direction:column;flex:1;min-height:0;overflow-y:auto;-webkit-overflow-scrolling:touch}
+#detailPanel.gantt-fullscreen #gantt-pane-custom.gantt-pane-active{overflow-y:hidden}
 #detailPanel.gantt-fullscreen #detail-gantt-multi{display:flex!important;flex-direction:column;flex:1;min-height:0}
 #detailPanel.gantt-fullscreen #detail-gantt-multi>div{flex:1;min-height:0;display:flex!important}
 #detailPanel.gantt-fullscreen #dgLabelCol,
@@ -762,7 +765,7 @@ body.sp-mode #areaTabsBtns{ display:none !important; }
   </div>
   <div id="weatherBar" style="display:none;flex-shrink:0;background:white;border-top:2px solid #e2e8f0;overflow-x:auto;-webkit-overflow-scrolling:touch;"><div id="weatherBarContent"></div></div>
 </div>
-<div class="slide-panel" id="detailPanel" style="display:flex;flex-direction:row;overflow:hidden"><div style="flex:1;display:flex;flex-direction:column;overflow:hidden"><div class="panel-header"><button class="panel-back" onclick="closePanel('detailPanel')">← 戻る</button><div style="flex:1"><div class="panel-title">物件詳細</div></div><div id="detailGanttHeaderBtns" style="display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end"></div></div><div id="dpHeroSticky" style="flex-shrink:0;padding:6px 12px;background:var(--primary-d,#1e40af);color:white;display:none"></div><div class="panel-action-bar" id="dpActionBar" style="position:static;bottom:auto;border-top:none;border-bottom:1px solid var(--g200);box-shadow:0 2px 8px rgba(0,0,0,.06);flex-shrink:0"></div><div class="panel-scroll" id="dpContent" style="padding-bottom:16px"></div></div><div id="ganttEditSidebar" style="display:none;width:200px;min-width:200px;background:#1e293b;border-left:2px solid #334155;flex-direction:column;overflow-y:auto;flex-shrink:0"><div style="padding:8px;border-bottom:1px solid #334155;display:flex;flex-direction:column;gap:4px"><div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:2px"><div style="font-size:10px;font-weight:800;color:rgba(255,255,255,.5)">✏️ 工程表編集</div><button onclick="closeGanttEditSidebar()" style="background:rgba(255,255,255,.1);border:none;color:rgba(255,255,255,.6);border-radius:4px;padding:2px 7px;font-size:11px;cursor:pointer;font-weight:700">✕</button></div><div id="geAnchorDiag" style="font-size:9px;color:#fbbf24;line-height:1.5;background:#0f172a;border-radius:6px;padding:5px 7px;display:none"></div><button onclick="saveGanttEdit()" style="width:100%;padding:7px;background:#1a56db;color:white;border:none;border-radius:7px;font-size:11px;font-weight:800;cursor:pointer">💾 保存</button><div style="display:flex;gap:4px"><button onclick="shiftGanttEdit()" style="flex:1;padding:5px;background:#475569;color:white;border:none;border-radius:6px;font-size:10px;font-weight:700;cursor:pointer">📅 シフト</button><button onclick="resetGanttEdit()" style="flex:1;padding:5px;background:#475569;color:white;border:none;border-radius:6px;font-size:10px;font-weight:700;cursor:pointer">🔄 リセット</button></div></div><div style="padding:8px;border-bottom:1px solid #334155"><div style="font-size:10px;font-weight:800;color:rgba(255,255,255,.7);margin-bottom:6px">＋ 工種追加</div><div style="display:flex;flex-direction:column;gap:5px"><input type="text" id="geNewName" placeholder="工種名" style="padding:5px 7px;border:1.5px solid #475569;border-radius:6px;font-size:11px;background:#0f172a;color:white;width:100%;box-sizing:border-box"><div style="display:flex;align-items:center;gap:4px"><span style="font-size:9px;color:rgba(255,255,255,.5);white-space:nowrap">日数</span><input type="number" id="geNewDays" placeholder="日数" min="1" max="180" style="padding:4px 6px;border:1.5px solid #475569;border-radius:6px;font-size:11px;background:#0f172a;color:white;width:100%;box-sizing:border-box"></div><div style="display:flex;align-items:center;gap:4px"><span style="font-size:9px;color:rgba(255,255,255,.5);white-space:nowrap">開始日</span><input type="date" id="geNewDate" style="padding:4px 4px;border:1.5px solid #475569;border-radius:6px;font-size:10px;background:#0f172a;color:white;width:100%;box-sizing:border-box"></div><div id="geColorPicker" style="display:flex;flex-wrap:wrap;gap:4px;margin:2px 0"></div><button onclick="addGanttBar()" style="width:100%;padding:7px;background:#059669;color:white;border:none;border-radius:7px;font-size:11px;font-weight:800;cursor:pointer">バーを追加</button></div></div><div style="padding:6px 8px;flex:1"><div style="font-size:9px;font-weight:800;color:rgba(255,255,255,.4);margin-bottom:4px">工種一覧</div><div id="geSegList" style="display:flex;flex-direction:column;gap:4px;min-width:0;overflow:hidden"></div></div></div></div>
+<div class="slide-panel" id="detailPanel" style="display:flex;flex-direction:row;overflow:hidden"><div style="flex:1;display:flex;flex-direction:column;overflow:hidden"><div class="panel-header"><button class="panel-back" onclick="closePanel('detailPanel')">← 戻る</button><div style="flex:1"><div class="panel-title">物件詳細</div></div></div><div id="dpHeroSticky" style="flex-shrink:0;padding:6px 12px;background:var(--primary-d,#1e40af);color:white;display:none"></div><div class="panel-action-bar" id="dpActionBar" style="position:static;bottom:auto;border-top:none;border-bottom:1px solid var(--g200);box-shadow:0 2px 8px rgba(0,0,0,.06);flex-shrink:0"></div><div class="panel-scroll" id="dpContent" style="padding-bottom:16px"></div></div><div id="ganttEditSidebar" style="display:none;width:200px;min-width:200px;background:#1e293b;border-left:2px solid #334155;flex-direction:column;overflow-y:auto;flex-shrink:0"><div style="padding:8px;border-bottom:1px solid #334155;display:flex;flex-direction:column;gap:4px"><div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:2px"><div style="font-size:10px;font-weight:800;color:rgba(255,255,255,.5)">✏️ 工程表編集</div><button onclick="closeGanttEditSidebar()" style="background:rgba(255,255,255,.1);border:none;color:rgba(255,255,255,.6);border-radius:4px;padding:2px 7px;font-size:11px;cursor:pointer;font-weight:700">✕</button></div><div id="geAnchorDiag" style="font-size:9px;color:#fbbf24;line-height:1.5;background:#0f172a;border-radius:6px;padding:5px 7px;display:none"></div><button onclick="saveGanttEdit()" style="width:100%;padding:7px;background:#1a56db;color:white;border:none;border-radius:7px;font-size:11px;font-weight:800;cursor:pointer">💾 保存</button><div style="display:flex;gap:4px"><button onclick="shiftGanttEdit()" style="flex:1;padding:5px;background:#475569;color:white;border:none;border-radius:6px;font-size:10px;font-weight:700;cursor:pointer">📅 シフト</button><button onclick="resetGanttEdit()" style="flex:1;padding:5px;background:#475569;color:white;border:none;border-radius:6px;font-size:10px;font-weight:700;cursor:pointer">🔄 リセット</button></div></div><div style="padding:8px;border-bottom:1px solid #334155"><div style="font-size:10px;font-weight:800;color:rgba(255,255,255,.7);margin-bottom:6px">＋ 工種追加</div><div style="display:flex;flex-direction:column;gap:5px"><input type="text" id="geNewName" placeholder="工種名" style="padding:5px 7px;border:1.5px solid #475569;border-radius:6px;font-size:11px;background:#0f172a;color:white;width:100%;box-sizing:border-box"><div style="display:flex;align-items:center;gap:4px"><span style="font-size:9px;color:rgba(255,255,255,.5);white-space:nowrap">日数</span><input type="number" id="geNewDays" placeholder="日数" min="1" max="180" style="padding:4px 6px;border:1.5px solid #475569;border-radius:6px;font-size:11px;background:#0f172a;color:white;width:100%;box-sizing:border-box"></div><div style="display:flex;align-items:center;gap:4px"><span style="font-size:9px;color:rgba(255,255,255,.5);white-space:nowrap">開始日</span><input type="date" id="geNewDate" style="padding:4px 4px;border:1.5px solid #475569;border-radius:6px;font-size:10px;background:#0f172a;color:white;width:100%;box-sizing:border-box"></div><div id="geColorPicker" style="display:flex;flex-wrap:wrap;gap:4px;margin:2px 0"></div><button onclick="addGanttBar()" style="width:100%;padding:7px;background:#059669;color:white;border:none;border-radius:7px;font-size:11px;font-weight:800;cursor:pointer">バーを追加</button></div></div><div style="padding:6px 8px;flex:1"><div style="font-size:9px;font-weight:800;color:rgba(255,255,255,.4);margin-bottom:4px">工種一覧</div><div id="geSegList" style="display:flex;flex-direction:column;gap:4px;min-width:0;overflow:hidden"></div></div></div></div>
 <div class="slide-panel" id="myPagePanel"><div class="panel-header"><button class="panel-back" onclick="closePanel('myPagePanel')">← 戻る</button><div style="flex:1"><div class="panel-title">⭐ マイ物件</div></div><button onclick="openSelectProp()" style="background:rgba(255,255,255,.2);color:white;border-radius:6px;padding:4px 9px;font-size:11px;font-weight:700">＋</button><button class="print-btn" onclick="printPage()">🖨️</button></div><div class="mypage-wrap" id="myPageContent"></div></div>
 <div class="slide-panel" id="selectPropPanel"><div class="panel-header"><button class="panel-back" onclick="closePanel('selectPropPanel')">← 戻る</button><div style="flex:1"><div class="panel-title">担当物件を選択</div></div><button onclick="closePanel('selectPropPanel')" style="background:rgba(255,255,255,.2);color:white;border-radius:6px;padding:4px 9px;font-size:11px;font-weight:700">完了</button></div><div class="panel-scroll" id="selectPropContent"></div></div>
 
@@ -986,6 +989,123 @@ var POST_COLS = [
 ];
 var POST_W = POST_COLS.reduce(function(a,c){return a+c.w;},0);
 var POST_END_PAD = 120; // ★スクロール終端の余白：完了検査列の右にゆとりを持たせ、最後までしっかり表示・スクロールできるようにする（2026/8/2）
+
+// ===== 納品書機能：休工日カレンダー・稼働日計算 =====
+// ★日本の祝日（政府発表・国立天文台暦要項ベース、2025〜2028年分）
+var JP_HOLIDAYS = [
+  // 2025
+  '2025-01-01','2025-01-13','2025-02-11','2025-02-23','2025-02-24','2025-03-20','2025-04-29',
+  '2025-05-03','2025-05-04','2025-05-05','2025-05-06','2025-07-21','2025-08-11','2025-09-15',
+  '2025-09-23','2025-10-13','2025-11-03','2025-11-23','2025-11-24',
+  // 2026
+  '2026-01-01','2026-01-12','2026-02-11','2026-02-23','2026-03-20','2026-04-29',
+  '2026-05-03','2026-05-04','2026-05-05','2026-05-06','2026-07-20','2026-08-11','2026-09-21',
+  '2026-09-22','2026-09-23','2026-10-12','2026-11-03','2026-11-23',
+  // 2027
+  '2027-01-01','2027-01-11','2027-02-11','2027-02-23','2027-03-21','2027-03-22','2027-04-29',
+  '2027-05-03','2027-05-04','2027-05-05','2027-07-19','2027-08-11','2027-09-20',
+  '2027-09-23','2027-10-11','2027-11-03','2027-11-23',
+  // 2028
+  '2028-01-01','2028-01-10','2028-02-11','2028-02-23','2028-03-20','2028-04-29',
+  '2028-05-03','2028-05-04','2028-05-05','2028-07-17','2028-08-11','2028-09-18',
+  '2028-09-22','2028-10-09','2028-11-03','2028-11-23'
+];
+var JP_HOLIDAY_SET = (function(){var s={};JP_HOLIDAYS.forEach(function(d){s[d]=true;});return s;})();
+function _dkey(d){return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');}
+// 休工日判定：日曜／祝日／年末年始(12/29〜1/4)／盆(8/13〜8/16、暦通り)
+function _isWorkday(d){
+  if(d.getDay()===0)return false; // 日曜休工
+  var m=d.getMonth()+1, day=d.getDate();
+  if(m===12&&day>=29)return false; // 年末年始
+  if(m===1&&day<=4)return false;
+  if(m===8&&day>=13&&day<=16)return false; // 盆（暦通り）
+  if(JP_HOLIDAY_SET[_dkey(d)])return false; // 祝日
+  return true;
+}
+window._isWorkday=_isWorkday;
+// 基準日（土台日）からn稼働日後の日付を返す（n=0は基準日そのもの）
+function _addWorkdays(baseDate,n){
+  var d=new Date(baseDate.getFullYear(),baseDate.getMonth(),baseDate.getDate());
+  if(n===0)return d;
+  var dir=n>0?1:-1,left=Math.abs(n);
+  while(left>0){
+    d.setDate(d.getDate()+dir);
+    if(_isWorkday(d))left--;
+  }
+  return d;
+}
+window._addWorkdays=_addWorkdays;
+
+// ★納品書マスター：上尾市井戸木3 納品書（2026/8/2受領）の分析結果から算出した
+//   基準日（土台日=No.1）からの稼働日オフセット。ganttExcludeはガント「納品」行への
+//   バッジ反映から除外する項目（既存工程バーに含まれるため／2026/8/6指示）
+//   vendorOptions：業者プルダウン候補（納品書_指示内容.xlsxより／2026/8/7）
+//   mirrorFrom：この項目IDの業者選択が変わると自動で追従する項目
+var DELIVERY_MASTER = [
+  {id:1, name:'土台',           offsetWd:0,  ganttExclude:true, vendorOptions:['フィリックス','材惣','山西','津田産業']},
+  {id:2, name:'１壁２床',        offsetWd:2,  ganttExclude:true, mirrorFrom:1},
+  {id:3, name:'階段材１',        offsetWd:2,  ganttExclude:false, mirrorFrom:1},
+  {id:4, name:'２壁３床',        offsetWd:4,  ganttExclude:true, mirrorFrom:1},
+  {id:5, name:'副資材１',        offsetWd:4,  ganttExclude:false, vendorOptions:['ジューテック','冲正','加藤ベニヤ'], defaultNote:'11時搬入優先搬入'},
+  {id:6, name:'階段材２',        offsetWd:4,  ganttExclude:false, mirrorFrom:1},
+  {id:7, name:'３壁天井',        offsetWd:6,  ganttExclude:true, mirrorFrom:1},
+  {id:8, name:'副資材２',        offsetWd:6,  ganttExclude:false, mirrorFrom:5, defaultNote:'11時搬入優先搬入'},
+  {id:9, name:'ユニット配線',    offsetWd:3,  ganttExclude:false, vendorOptions:['ユニティ']},
+  {id:10,name:'電材１期',        offsetWd:3,  ganttExclude:false, vendorOptions:['ユニティ','深田電機']},
+  {id:11,name:'小屋',           offsetWd:8,  ganttExclude:true, mirrorFrom:1},
+  {id:12,name:'1床パネル',       offsetWd:17, ganttExclude:true, vendorOptions:['阪和興業','フィリックス'], defaultNote:'荷卸あり'},
+  {id:13,name:'軒断熱材（建材副資）',offsetWd:19, ganttExclude:false, mirrorFrom:5, defaultNote:'午後（１階搬入）'},
+  {id:14,name:'ENTドア',        offsetWd:15, ganttExclude:false, vendorOptions:['神谷商店']},
+  {id:15,name:'サッシ搬入',      offsetWd:18, ganttExclude:false, vendorOptions:['LIXILトータル販売','メイゴー','ホームズマルホ'], defaultNote:'荷揚げ間配り※床パネル同日注意！'},
+  {id:16,name:'建材１',          offsetWd:22, ganttExclude:false, vendorOptions:['ジューテック','メイゴー','加藤ベニヤ'], defaultNote:'フロア１階搬入'},
+  {id:17,name:'断熱材',         offsetWd:29, ganttExclude:false, mirrorFrom:5, defaultNote:'AM搬入 PM荷揚げ'},
+  {id:18,name:'電材２期',        offsetWd:34, ganttExclude:false, mirrorFrom:10},
+  {id:19,name:'ポスト・宅配',    offsetWd:36, ganttExclude:false, vendorOptions:['ナイス']},
+  {id:20,name:'消化BOX',        offsetWd:36, ganttExclude:false, vendorOptions:['ナイス']},
+  {id:21,name:'石膏ボード',      offsetWd:34, ganttExclude:false, mirrorFrom:5, defaultNote:'13時搬入＆荷揚げ'},
+  {id:22,name:'給湯器',         offsetWd:40, ganttExclude:false, vendorOptions:['フルサト工業']},
+  {id:23,name:'UB',            offsetWd:45, ganttExclude:false, vendorOptions:['フルサト工業','ナイス'], defaultNote:'９時搬入'},
+  {id:24,name:'天井野縁',        offsetWd:46, ganttExclude:false, mirrorFrom:5, defaultNote:'軒先渡し'},
+  {id:25,name:'建材２',          offsetWd:53, ganttExclude:false, vendorOptions:['ジューテック','柏木工'], defaultNote:'１階納品'},
+  {id:26,name:'建材３',          offsetWd:58, ganttExclude:false, vendorOptions:['ジューテック','柏木工'], defaultNote:'１階納品'},
+  {id:27,name:'手摺・金物',      offsetWd:76, ganttExclude:false, vendorOptions:['神谷商店']},
+  {id:28,name:'室内物干',        offsetWd:76, ganttExclude:false, vendorOptions:['ジューテック']},
+  {id:29,name:'SK',            offsetWd:62, ganttExclude:false, mirrorFrom:23, defaultNote:'９時搬入'},
+  {id:30,name:'洗面・便器',      offsetWd:76, ganttExclude:false, vendorOptions:['フルサト工業'], defaultNote:'101号室搬入'},
+  {id:31,name:'照明器具',        offsetWd:68, ganttExclude:false, mirrorFrom:10}
+];
+// ★項目15（サッシ搬入）の選択によって16・25・26の初期候補が変わる特殊連動ルール
+var DELIVERY_SASHI_RULE = {
+  'LIXILトータル販売': {16:'ジューテック', 25:'ジューテック', 26:'ジューテック'},
+  'メイゴー':          {16:'メイゴー',     25:'柏木工',       26:'柏木工'},
+  'ホームズマルホ':     {16:'加藤ベニヤ',   25:'柏木工',       26:'柏木工'}
+};
+// mirrorFromで指定された項目を、指定元(1,5,10,23)がどの項目に波及させるかの一覧（UIでの一括更新用）
+var DELIVERY_MIRROR_TARGETS = {};
+DELIVERY_MASTER.forEach(function(m){
+  if(m.mirrorFrom){
+    if(!DELIVERY_MIRROR_TARGETS[m.mirrorFrom])DELIVERY_MIRROR_TARGETS[m.mirrorFrom]=[];
+    DELIVERY_MIRROR_TARGETS[m.mirrorFrom].push(m.id);
+  }
+});
+// マスター内訳テキスト（PDF下部の建材内訳。物件ごとにコピーして微調整可能）
+var DELIVERY_BREAKDOWN_MASTER =
+  '【建材副資】軒断熱材 天井断熱材50・屋根断熱材100・防湿機密シート・気密テープ\n'+
+  '【副資材Ⅰ（2階用）】床材・建具枠・玄関扉枠・UB扉枠\n'+
+  '【副資材Ⅱ（3階用）】遮音シート（界壁）・床養生材・床下点検口（1階のみ）・床ボンド・防振吊具\n'+
+  '【建材本体】1/2階構造用ラワン合板12・1・2階合板9・２階用合板15・２階用針葉樹合板24\n'+
+  '　　　　　　3階構造用ラワン合板12・1・2階合板9・２階用合板15・２階用針葉樹合板24\n'+
+  '【ボード】強化石膏ボード（壁）・普通石膏ボード（界壁）・強化石膏ボード（天井）\n'+
+  '【☆建材Ⅰ】センチュリー18・ベランダくん12・ケイカル8・遮音マット18・強化PB15（懐含む）\n'+
+  '　　　　　　普通PB12.5（界壁懐）・遮音PB12.5・サンドカット・ラワン系ベニヤ4＆5.5\n'+
+  '【☆建材Ⅱ】センチュリー18・ベランダくん12・ケイカル8・遮音マット18・強化PB15（懐含む）\n'+
+  '　　　　　　普通PB12.5（界壁懐）・遮音PB12.5・サンドカット・ラワン系ベニヤ4＆5.5\n'+
+  '【☆建材Ⅲ】グラスウール（壁、天井、界床）・ロックウール（界壁）\n'+
+  '【断熱材】シューズボックス・巾木・枕棚\n'+
+  '【物干し金物】神谷商店入れ';
+window.DELIVERY_MASTER=DELIVERY_MASTER;
+window.DELIVERY_BREAKDOWN_MASTER=DELIVERY_BREAKDOWN_MASTER;
+
 var VENDOR_COL_W = 200; // ★大工程表：業者選定グリッド列（2段×5列）の幅
 
 var AREA_TABS = [
@@ -3250,11 +3370,84 @@ function buildKensaBars(p,segs,gDateIdx,GCW,totalH){
   return out;
 }
 
+// ★業者ごとの色分け：DELIVERY_MASTERに登録されている全業者候補に固定色を割り振る。
+//   未登録業者・手入力の場合は薄いグレーで表示（2026/8/7）
+var DELIVERY_VENDOR_COLORS=(function(){
+  var palette=['#7c3aed','#db2777','#0891b2','#059669','#d97706','#2563eb','#65a30d','#c026d3','#0d9488','#ea580c','#4f46e5','#16a34a','#e11d48','#0284c7','#a16207','#9333ea'];
+  var vendors=[];
+  DELIVERY_MASTER.forEach(function(m){(m.vendorOptions||[]).forEach(function(v){if(vendors.indexOf(v)<0)vendors.push(v);});});
+  var map={};
+  vendors.forEach(function(v,i){map[v]=palette[i%palette.length];});
+  return map;
+})();
+function _deliveryVendorColor(vendorName){
+  if(!vendorName)return '#cbd5e1'; // 未入力：薄いグレー
+  return DELIVERY_VENDOR_COLORS[vendorName]||'#cbd5e1'; // 未登録・自由入力：薄いグレー
+}
+// ★納品バッジの行割り当て：横方向に重なるものは別の行へ（最大maxRows行、それ以上は最終行に詰める）
+//   ★占有幅は「納品日1日分のセル + ラベルバッジ」の合計で判定する（2026/8/7 日付セル化に伴い更新）
+function _deliveryAssignRows(badgeList,dateIdx,GCW,maxRows){
+  var placed=badgeList.map(function(b){
+    var col=dateIdx[b.date];
+    if(col===undefined)return null;
+    var x=(col-1)*GCW;
+    var label=b.name+(b.vendor?'（'+b.vendor+'）':'');
+    var labelW=Math.max(20,label.length*6.2+8);
+    var dayW=Math.max(GCW-1,4);
+    return {x:x,dayW:dayW,labelW:labelW,totalW:dayW+2+labelW,label:label,date:b.date,vendor:b.vendor,name:b.name};
+  }).filter(Boolean).sort(function(a,b){return a.x-b.x;});
+  var rows=[];
+  placed.forEach(function(b){
+    var r=0;
+    while(rows[r]&&b.x<rows[r].rightEdge+3&&r<maxRows-1)r++;
+    if(!rows[r])rows[r]={rightEdge:-99999,items:[]};
+    rows[r].rightEdge=Math.max(rows[r].rightEdge,b.x+b.totalW);
+    rows[r].items.push(b);
+  });
+  return rows;
+}
+// ★行割り当て結果を実際のバッジHTMLへ変換（startRowIndexから連番で下に積む）
+//   納品日1日分をしっかり色塗りし、項目名（業者名）はその右側にバッジで表示する
+function _deliveryRenderRows(rows,startRowIndex,ROW_H){
+  var out='';
+  rows.forEach(function(row,ri){
+    var by=(startRowIndex+ri)*ROW_H+2;
+    var bh=ROW_H-4;
+    row.items.forEach(function(b){
+      var color=_deliveryVendorColor(b.vendor);
+      out+='<div title="'+b.label+' '+b.date+'" style="position:absolute;left:'+b.x+'px;top:'+by+'px;width:'+b.dayW+'px;height:'+bh+'px;background:'+color+';border-radius:2px;box-shadow:0 1px 2px rgba(0,0,0,.25);z-index:11;"></div>'
+        +'<div title="'+b.label+' '+b.date+'" style="position:absolute;left:'+(b.x+b.dayW+2)+'px;top:'+by+'px;height:'+bh+'px;display:flex;align-items:center;font-size:7px;font-weight:800;color:#1e293b;white-space:nowrap;background:white;border:1px solid '+color+';border-radius:2px;padding:0 3px;z-index:12;">'+b.label+'</div>';
+    });
+  });
+  return out;
+}
+
+// ★納品バッジ変更時のガント再描画：タブ構造や編集中の納品書フォームを壊さないよう、
+//   ガント本体（コンパクト行・複数行）の中身だけを差し替える（外側のタブごと入れ替えない）2026/8/7
+function _refreshDetailGanttBadges(p){
+  if(typeof buildGanttTab!=='function')return;
+  var liveCompact=document.getElementById('detail-gantt-compact');
+  var liveMulti=document.getElementById('detail-gantt-multi');
+  if(!liveCompact&&!liveMulti)return; // ガントタブがまだ描画されていない
+  var tmp=document.createElement('div');
+  tmp.innerHTML=buildGanttTab(p);
+  var newCompact=tmp.querySelector('#detail-gantt-compact');
+  var newMulti=tmp.querySelector('#detail-gantt-multi');
+  if(newCompact&&liveCompact)liveCompact.innerHTML=newCompact.innerHTML;
+  if(newMulti&&liveMulti)liveMulti.innerHTML=newMulti.innerHTML;
+}
+window._refreshDetailGanttBadges=_refreshDetailGanttBadges;
+
 // ===== DETAIL PANEL =====
 function buildGanttTab(p){
   var segs=getActiveSegs(p);
   if(!segs||!segs.length)return '';
   var todayDt=new Date(TODAY);
+  // ★納品書の項目日付を「納品」行としてガント末尾（引渡しの下）に追加（バーの無い専用行・バッジ表示）
+  //   ganttExclude指定項目(土台等、既存工程バーに含まれるもの)は除外済み（2026/8/7）
+  //   ※実際の行数（1〜4行、重なり具合で自動決定）はbuildMultiRow内で決める
+  var deliveryBadgeList=(typeof _getDeliveryGanttBadges==='function')?_getDeliveryGanttBadges(p):[];
+  segs=segs.slice();
 
   // Build date range: from earliest seg start to latest seg end + 1 month
   var gStart=new Date(TODAY); gStart.setMonth(gStart.getMonth()-1); gStart.setDate(1);
@@ -3335,7 +3528,6 @@ function buildGanttTab(p){
   function buildMultiRow(){
     var GCW2=14;
     var ROW_H=22;
-    var numRows=segs.length+1; // ★最終行の下に空白行を1行追加（文字と表のズレ対策）
     // ★表示範囲：着工前10日〜完工後10日
     var allDts=[];
     segs.forEach(function(seg){
@@ -3360,6 +3552,16 @@ function buildGanttTab(p){
     var rDateIdx={};
     rDates.forEach(function(d,i){if(d)rDateIdx[d]=i;});
     var totalW=(rDates.length-1)*GCW2;
+
+    // ★納品バッジの行割り当て（重なる場合は最大4行まで自動的に分けて表示。2026/8/7）
+    var deliveryRowAssign=[];
+    if(deliveryBadgeList&&deliveryBadgeList.length){
+      deliveryRowAssign=_deliveryAssignRows(deliveryBadgeList,rDateIdx,GCW2,4);
+      var dLabels=['納品','納品2','納品3','納品4'];
+      deliveryRowAssign.forEach(function(_,i){segs.push({name:dLabels[i],label:dLabels[i],__deliveryRow:true});});
+    }
+    var deliveryStartRowIdx=segs.length-deliveryRowAssign.length;
+    var numRows=segs.length+1; // ★最終行の下に空白行を1行追加（文字と表のズレ対策）
 
     var months={};
     rDates.forEach(function(d,i){if(!d)return;var m=d.substring(0,7);if(!months[m])months[m]={start:i-1,count:0};months[m].count++;});
@@ -3430,7 +3632,8 @@ function buildGanttTab(p){
       +labelRows
       +'</div>';
     var kensaBars=buildKensaBars(p,segs,gDateIdx,GCW2,bodyH);
-    var ganttArea='<div style="flex-shrink:0;position:relative;width:'+totalW+'px;height:'+bodyH+'px;">'+rowBgs+fills+todayLine+bars+kensaBars+'</div>';
+    var deliveryBars=deliveryRowAssign.length?_deliveryRenderRows(deliveryRowAssign,deliveryStartRowIdx,ROW_H):'';
+    var ganttArea='<div style="flex-shrink:0;position:relative;width:'+totalW+'px;height:'+bodyH+'px;">'+rowBgs+fills+todayLine+bars+kensaBars+deliveryBars+'</div>';
     // ★日付ヘッダーは縦スクロール領域の外側に独立配置し、横スクロールだけJSで追随させる
     //   （二重position:stickyだと端末・ブラウザによってスクロール終端付近で消える不具合があったための抜本対策）
     var headerRow='<div style="display:flex;">'
@@ -3456,12 +3659,15 @@ function buildGanttTab(p){
   return '<div class="dp-sec" id="detail-gantt-sec">'
     +'<div class="dp-sec-head">🏗️ 工程表（6ヶ月カレンダー）'
     +'<span style="font-size:9px;color:var(--g400);font-weight:400;margin-left:4px">確認申請完了日起点・日曜休工</span></div>'
-    +'<div style="display:flex;border-bottom:2px solid #e2e8f0;background:white">'
+    +'<div style="display:flex;align-items:center;border-bottom:2px solid #e2e8f0;background:white;flex-wrap:wrap">'
       +'<button id="gantt-tab-custom" onclick="switchGanttTab(\'custom\')" style="padding:6px 14px;font-size:11px;font-weight:700;border:none;background:none;cursor:pointer;border-bottom:2px solid #1a56db;color:#1a56db;margin-bottom:-2px">📅 カスタム工程</button>'
       +'<button id="gantt-tab-excel" onclick="switchGanttTab(\'excel\')" style="padding:6px 14px;font-size:11px;font-weight:700;border:none;background:none;cursor:pointer;border-bottom:2px solid transparent;color:#94a3b8;margin-bottom:-2px">📋 Excel工程表</button>'
+      +'<button id="gantt-tab-delivery" onclick="switchGanttTab(\'delivery\')" style="padding:6px 14px;font-size:11px;font-weight:700;border:none;background:none;cursor:pointer;border-bottom:2px solid transparent;color:#94a3b8;margin-bottom:-2px">📦 納品書</button>'
+      +'<div id="detailGanttHeaderBtns" style="display:flex;gap:6px;align-items:center;margin-left:auto;padding:4px 8px;flex-wrap:wrap;justify-content:flex-end"></div>'
     +'</div>'
-    +'<div id="gantt-pane-custom">'+ganttHtml+'</div>'
-    +'<div id="gantt-pane-excel" style="display:none"><div id="gantt-excel-content" style="padding:8px"><div style="color:#94a3b8;font-size:11px;padding:12px;text-align:center">読み込み中...</div></div></div>'
+    +'<div id="gantt-pane-custom" class="gantt-pane gantt-pane-active">'+ganttHtml+'</div>'
+    +'<div id="gantt-pane-excel" class="gantt-pane" style="display:none"><div id="gantt-excel-content" style="padding:8px"><div style="color:#94a3b8;font-size:11px;padding:12px;text-align:center">読み込み中...</div></div></div>'
+    +'<div id="gantt-pane-delivery" class="gantt-pane" style="display:none"><div id="delivery-note-content" style="padding:8px"></div></div>'
     +'</div>';
 }
 
@@ -4453,6 +4659,9 @@ function _buildPrintGanttHtml(p,pageWmm,pageHmm,includeHeader){
 
   var bandDays=Math.ceil(totalDays/N_BANDS);
 
+  // ★納品書の項目日付を、該当する段の最後尾に「納品」行として追加する（2026/8/7）
+  var deliveryBadgeList=(typeof _getDeliveryGanttBadges==='function')?_getDeliveryGanttBadges(p):[];
+
   // ★まず各段の期間と「その段に実際にバーがある行だけ」を先に決める
   //   （段をまたいで存在しない行を空白のまま載せないようにするため。ユーザー指摘の改善点）
   var bandRanges=[];
@@ -4468,7 +4677,21 @@ function _buildPrintGanttHtml(p,pageWmm,pageHmm,includeHeader){
       var edt=new Date(ed.replace(/\//g,'-'));
       return !(edt<bandStartDt||sdt>bandEndDt); // この段の期間と重なりがある行だけ残す
     });
-    bandRanges.push({start:bandStartDt,end:bandEndDt,segs:bandSegs});
+    // ★この段の期間に該当する納品項目があれば「納品」行を最後尾に追加（重なる場合は最大4行に自動分割）
+    //   ※この時点ではまだ最終的なGCW（1日あたりの幅）が決まっていないため、行数推定用に仮の幅(15px)で計算する
+    var bandDeliveryBadges=deliveryBadgeList.filter(function(bd){
+      var bdt=new Date(bd.date+'T00:00:00');
+      return bdt>=bandStartDt&&bdt<=bandEndDt;
+    });
+    if(bandDeliveryBadges.length){
+      var estDateIdx={};
+      var estCur=new Date(bandStartDt.getTime()),estI=1;
+      while(estCur<=bandEndDt){estDateIdx[localDateStr(estCur)]=estI;estCur.setDate(estCur.getDate()+1);estI++;}
+      var estRows=_deliveryAssignRows(bandDeliveryBadges,estDateIdx,15,4);
+      var dLabels2=['納品','納品2','納品3','納品4'];
+      for(var dri=0;dri<estRows.length;dri++)bandSegs=bandSegs.concat([{name:dLabels2[dri],label:dLabels2[dri],__deliveryRow:true}]);
+    }
+    bandRanges.push({start:bandStartDt,end:bandEndDt,segs:bandSegs,deliveryBadges:bandDeliveryBadges});
   }
   if(!bandRanges.length)return '';
 
@@ -4483,7 +4706,7 @@ function _buildPrintGanttHtml(p,pageWmm,pageHmm,includeHeader){
   var mn={'01':'1月','02':'2月','03':'3月','04':'4月','05':'5月','06':'6月','07':'7月','08':'8月','09':'9月','10':'10月','11':'11月','12':'12月'};
 
   // ★各段のHTMLを作る（bandSegs＝その段に実際にバーがある行だけ）
-  function buildBand(bandStartDt,bandEndDt,bandSegs){
+  function buildBand(bandStartDt,bandEndDt,bandSegs,bandDeliveryBadges){
     var dates=[''];
     var cur=new Date(bandStartDt.getTime());
     while(cur<=bandEndDt){dates.push(localDateStr(cur));cur.setDate(cur.getDate()+1);}
@@ -4551,6 +4774,16 @@ function _buildPrintGanttHtml(p,pageWmm,pageHmm,includeHeader){
       todayLine='<div style="position:absolute;left:'+((dateIdx[TODAY]-1)*GCW)+'px;top:0;width:2px;height:'+bodyH+'px;background:#ef4444"></div>';
     }
 
+    // ★納品バッジ（この段の最後尾・複数行に配置。実際のGCWで最終配置を再計算）
+    var deliveryBars='';
+    if(bandDeliveryBadges&&bandDeliveryBadges.length){
+      var dLabels3=['納品','納品2','納品3','納品4'];
+      var reservedCount=bandSegs.filter(function(s){return s.__deliveryRow;}).length;
+      var finalRows=_deliveryAssignRows(bandDeliveryBadges,dateIdx,GCW,Math.max(1,reservedCount));
+      var deliveryStartIdx=bandSegs.length-reservedCount;
+      deliveryBars=_deliveryRenderRows(finalRows,deliveryStartIdx,ROW_H);
+    }
+
     var headH=HEAD_H;
     return {
       h:headH+bodyH,
@@ -4561,7 +4794,7 @@ function _buildPrintGanttHtml(p,pageWmm,pageHmm,includeHeader){
         +'</div>'
         +'<div style="position:relative;width:'+bandGanttW+'px">'
           +'<div style="position:relative;height:'+headH+'px">'+hdrBands+dayNums+'</div>'
-          +'<div style="position:relative;height:'+bodyH+'px">'+rowBg+weekendFills+todayLine+bars+'</div>'
+          +'<div style="position:relative;height:'+bodyH+'px">'+rowBg+weekendFills+todayLine+bars+deliveryBars+'</div>'
         +'</div>'
         +'</div>'
     };
@@ -4569,7 +4802,7 @@ function _buildPrintGanttHtml(p,pageWmm,pageHmm,includeHeader){
 
   var bandsHtml=[],totalContentH=0;
   bandRanges.forEach(function(br,i){
-    var band=buildBand(br.start,br.end,br.segs);
+    var band=buildBand(br.start,br.end,br.segs,br.deliveryBadges);
     bandsHtml.push(band.html);
     totalContentH+=band.h+(i>0?GAP:0);
   });
@@ -4855,6 +5088,15 @@ function openDetail(p){
   openPanel('detailPanel');
   if(!isPcMode && typeof spSetupAccordion==='function') spSetupAccordion();
   if(!isPcMode) spSetActiveTab('sp-tab-home');
+  // ★納品書データを先読みし、届いたらガント（カスタム工程タブ）を最新の納品バッジで再描画する
+  //   （納品書タブを開かなくても、物件を開いた時点で反映されるようにするため／2026/8/7）
+  if(typeof _loadDeliveryNoteIfNeeded==='function'){
+    _loadDeliveryNoteIfNeeded(p).then(function(){
+      if(currentProp&&String(currentProp.fix_no||'')===String(p.fix_no||'')&&typeof _refreshDetailGanttBadges==='function'){
+        _refreshDetailGanttBadges(currentProp);
+      }
+    });
+  }
   }catch(e){console.error('openDetail error:',e);showToast('物件詳細エラー: '+e.message,'error');}
 }
 
@@ -4907,6 +5149,272 @@ function buildMasterLinkSection(p){
   return '<div class="dp-sec"><div class="dp-sec-head" style="display:flex;align-items:center;">📋 マスター工程'+linkBtn+'</div>'
     +masterInfo+'</div>';
 }
+
+// ===== 納品書機能（物件詳細内） =====
+var deliveryNotes={}; // {fix_no: {base_date, items:[{id,date,manual,vendor,note}], breakdown_text, approved_at}}
+var _deliveryFetched={};
+async function _loadDeliveryNoteIfNeeded(p){
+  var fixNo=String(p.fix_no||'');
+  if(!fixNo)return;
+  if(_deliveryFetched[fixNo])return;
+  var sb=getSB();
+  if(!sb){_deliveryFetched[fixNo]=true;return;}
+  try{
+    var r=await sb.from('properties').select('fix_no,delivery_note').eq('fix_no',fixNo).single();
+    if(!r.error&&r.data&&r.data.delivery_note){
+      var dn=typeof r.data.delivery_note==='string'?JSON.parse(r.data.delivery_note):r.data.delivery_note;
+      if(dn)deliveryNotes[fixNo]=dn;
+    }
+  }catch(e){}
+  _deliveryFetched[fixNo]=true;
+}
+function _inferBaseDateFromGantt(p){
+  // カスタム工程の中に「土台」に近い名前の工種があれば、その開始日を初期値として使う
+  try{
+    var ck=custKey(p);
+    var cg=customGantt[ck];
+    var segs=_cgSegsArr(cg);
+    if(segs){
+      var hit=segs.find(function(s){return s.name&&(s.name.indexOf('土台')>=0);});
+      if(hit&&(hit.start_date||hit.date))return toDateKey(hit.start_date||hit.date);
+    }
+  }catch(e){}
+  return '';
+}
+function _getOrInitDeliveryNote(p){
+  var fixNo=String(p.fix_no||'');
+  if(!deliveryNotes[fixNo]){
+    deliveryNotes[fixNo]={
+      base_date:_inferBaseDateFromGantt(p)||'',
+      items:DELIVERY_MASTER.map(function(m){return {id:m.id,manual:false,date:'',vendor:'',note:m.defaultNote||''};}),
+      breakdown_text:DELIVERY_BREAKDOWN_MASTER,
+      approved_at:null
+    };
+  }
+  // マスターに項目が追加された場合の補完
+  var dn=deliveryNotes[fixNo];
+  DELIVERY_MASTER.forEach(function(m){
+    if(!dn.items.find(function(it){return it.id===m.id;}))dn.items.push({id:m.id,manual:false,date:'',vendor:'',note:m.defaultNote||''});
+  });
+  return dn;
+}
+function _deliveryVendorOptions(masterItem){
+  if(masterItem.vendorOptions)return masterItem.vendorOptions;
+  if(masterItem.mirrorFrom){
+    var src=DELIVERY_MASTER.find(function(m){return m.id===masterItem.mirrorFrom;});
+    if(src)return _deliveryVendorOptions(src);
+  }
+  return [];
+}
+// 表示用の業者名：手入力があればそれを優先、無ければ1社しか候補が無い項目はデフォルト表示
+function _deliveryVendorValue(dn,masterItem){
+  var it=dn.items.find(function(i){return i.id===masterItem.id;})||{};
+  if(it.vendor)return it.vendor;
+  var opts=_deliveryVendorOptions(masterItem);
+  if(opts.length===1)return opts[0]; // ★1社表記項目はデフォルトで表示
+  return '';
+}
+function _deliveryItemDate(dn,masterItem){
+  var it=dn.items.find(function(i){return i.id===masterItem.id;});
+  if(it&&it.manual&&it.date)return it.date;
+  if(!dn.base_date)return '';
+  var bd=new Date(dn.base_date+'T00:00:00');
+  if(isNaN(bd.getTime()))return '';
+  var d=_addWorkdays(bd,masterItem.offsetWd);
+  return _dkey(d);
+}
+function renderDeliveryNoteSection(p){
+  var el=document.getElementById('delivery-note-content');
+  if(!el)return;
+  el.innerHTML='<div style="color:#94a3b8;font-size:11px;padding:12px;text-align:center">読み込み中...</div>';
+  _loadDeliveryNoteIfNeeded(p).then(function(){
+    var dn=_getOrInitDeliveryNote(p);
+    var isAdmin=(typeof currentProfile!=='undefined'&&currentProfile&&currentProfile.role==='admin');
+    var approvedBadge=dn.approved_at
+      ?'<span style="background:#dcfce7;color:#15803d;font-weight:800;font-size:10px;padding:3px 9px;border-radius:6px">✅ 承認済み（'+dn.approved_at.slice(0,16).replace('T',' ')+'）</span>'
+      :'<span style="background:#fef3c7;color:#b45309;font-weight:800;font-size:10px;padding:3px 9px;border-radius:6px">未承認</span>';
+    var rows=DELIVERY_MASTER.map(function(m){
+      var it=dn.items.find(function(i){return i.id===m.id;})||{};
+      var date=_deliveryItemDate(dn,m);
+      var excl=m.ganttExclude?'<span title="ガント納品行には表示されません（既存工程バーに含まれるため）" style="color:#cbd5e1;font-size:9px">🚫ガント対象外</span>':'';
+      var vendorVal=_deliveryVendorValue(dn,m);
+      var opts=_deliveryVendorOptions(m);
+      var dlId='dl-deliv-'+m.id;
+      var dlHtml=opts.length?('<datalist id="'+dlId+'">'+opts.map(function(o){return '<option value="'+o+'">';}).join('')+'</datalist>'):'';
+      var mirrorHint=m.mirrorFrom?'<div style="font-size:9px;color:#94a3b8">項目'+m.mirrorFrom+'と連動</div>':'';
+      return '<tr style="border-bottom:1px solid #f1f5f9">'
+        +'<td style="padding:5px 8px;font-size:10px;color:#94a3b8;text-align:center">'+m.id+'</td>'
+        +'<td style="padding:5px 8px;font-size:11px;font-weight:700">'+m.name+' '+excl+'</td>'
+        +'<td style="padding:5px 8px"><input type="date" value="'+date+'" onchange="deliverySetItemDate('+m.id+',this.value)" style="font-size:11px;padding:3px 5px;border:1.5px solid #e2e8f0;border-radius:5px;width:130px">'
+          +(it.manual?'<button onclick="deliveryResetItemDate('+m.id+')" title="自動計算に戻す" style="margin-left:4px;background:none;border:none;color:#94a3b8;cursor:pointer;font-size:10px">↺</button>':'')+'</td>'
+        +'<td style="padding:5px 8px">'+dlHtml+'<input type="text" list="'+dlId+'" placeholder="業者名（一覧から選択 or 自由入力）" value="'+vendorVal+'" onchange="deliverySetItemField('+m.id+',\'vendor\',this.value)" style="font-size:11px;padding:3px 6px;border:1.5px solid #e2e8f0;border-radius:5px;width:150px">'+mirrorHint+'</td>'
+        +'<td style="padding:5px 8px"><input type="text" placeholder="備考" value="'+(it.note||'')+'" onchange="deliverySetItemField('+m.id+',\'note\',this.value)" style="font-size:11px;padding:3px 6px;border:1.5px solid #e2e8f0;border-radius:5px;width:150px"></td>'
+        +'</tr>';
+    }).join('');
+    el.innerHTML=
+      '<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:10px;padding:8px;background:#f8fafc;border-radius:8px">'
+        +'<div style="font-size:11px;font-weight:700">基準日（土台日）</div>'
+        +'<input type="date" id="deliveryBaseDateInput" value="'+(dn.base_date||'')+'" onchange="deliverySetBaseDate(this.value)" style="font-size:12px;padding:4px 8px;border:1.5px solid #cbd5e1;border-radius:6px">'
+        +approvedBadge
+        +'<div style="margin-left:auto;display:flex;gap:6px">'
+          +'<button onclick="printDeliveryNote()" style="background:#475569;color:white;border:none;border-radius:6px;padding:6px 12px;font-size:11px;font-weight:700;cursor:pointer">🖨️ 納品書印刷</button>'
+          +(isAdmin?'<button onclick="approveDeliveryNote()" style="background:#059669;color:white;border:none;border-radius:6px;padding:6px 12px;font-size:11px;font-weight:700;cursor:pointer">✅ 確定（承認印）</button>':'')
+        +'</div>'
+      +'</div>'
+      +(dn.base_date?'':'<div style="color:#b45309;background:#fef3c7;padding:6px 10px;border-radius:6px;font-size:10px;margin-bottom:8px">基準日が未設定です。土台日を入力すると全項目の日付が自動計算されます。</div>')
+      +'<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;min-width:560px">'
+        +'<thead><tr style="background:#1e293b;color:white"><th style="padding:6px 8px;font-size:10px">No</th><th style="padding:6px 8px;font-size:10px;text-align:left">項目</th><th style="padding:6px 8px;font-size:10px;text-align:left">納品日</th><th style="padding:6px 8px;font-size:10px;text-align:left">業者</th><th style="padding:6px 8px;font-size:10px;text-align:left">備考</th></tr></thead>'
+        +'<tbody>'+rows+'</tbody></table></div>'
+      +'<div style="margin-top:12px">'
+        +'<div style="font-size:11px;font-weight:700;margin-bottom:4px">納品内訳（自由記述）</div>'
+        +'<textarea id="deliveryBreakdownInput" onchange="deliverySetBreakdown(this.value)" style="width:100%;min-height:140px;font-size:11px;padding:8px;border:1.5px solid #e2e8f0;border-radius:8px;font-family:inherit;box-sizing:border-box;white-space:pre">'+(dn.breakdown_text||'')+'</textarea>'
+      +'</div>';
+  });
+}
+window.renderDeliveryNoteSection=renderDeliveryNoteSection;
+
+function _touchDeliveryUnapproved(dn){
+  if(dn.approved_at){dn.approved_at=null;} // ★内容変更で未承認に戻す（承認印＝その時点の内容の正、を担保）
+}
+function deliverySetBaseDate(v){
+  var p=currentProp;if(!p)return;
+  var dn=_getOrInitDeliveryNote(p);
+  dn.base_date=v;_touchDeliveryUnapproved(dn);
+  _saveDeliveryNote(p);renderDeliveryNoteSection(p);
+}
+window.deliverySetBaseDate=deliverySetBaseDate;
+function deliverySetItemDate(id,v){
+  var p=currentProp;if(!p)return;
+  var dn=_getOrInitDeliveryNote(p);
+  var it=dn.items.find(function(i){return i.id===id;});
+  if(it){it.manual=true;it.date=v;}
+  _touchDeliveryUnapproved(dn);
+  _saveDeliveryNote(p);renderDeliveryNoteSection(p);
+}
+window.deliverySetItemDate=deliverySetItemDate;
+function deliveryResetItemDate(id){
+  var p=currentProp;if(!p)return;
+  var dn=_getOrInitDeliveryNote(p);
+  var it=dn.items.find(function(i){return i.id===id;});
+  if(it){it.manual=false;it.date='';}
+  _touchDeliveryUnapproved(dn);
+  _saveDeliveryNote(p);renderDeliveryNoteSection(p);
+}
+window.deliveryResetItemDate=deliveryResetItemDate;
+function deliverySetItemField(id,field,v){
+  var p=currentProp;if(!p)return;
+  var dn=_getOrInitDeliveryNote(p);
+  var it=dn.items.find(function(i){return i.id===id;});
+  if(it)it[field]=v;
+  if(field==='vendor')_deliveryCascadeVendor(dn,id,v);
+  _saveDeliveryNote(p); // 業者名・備考の変更は承認状態を崩さない
+  if(field==='vendor'&&typeof renderDeliveryNoteSection==='function')renderDeliveryNoteSection(p);
+}
+window.deliverySetItemField=deliverySetItemField;
+// ★業者の連動反映：mirrorFrom指定の項目へ自動コピー／項目15(サッシ搬入)は16・25・26への特殊ルールで反映
+//   すでに手入力(マスター既定値と異なる値が入っている)先には上書きしない
+function _deliveryCascadeVendor(dn,srcId,val){
+  var targets=DELIVERY_MIRROR_TARGETS[srcId]||[];
+  targets.forEach(function(tid){
+    var it=dn.items.find(function(i){return i.id===tid;});
+    if(it)it.vendor=val;
+  });
+  if(srcId===15){
+    var rule=DELIVERY_SASHI_RULE[val];
+    if(rule){
+      Object.keys(rule).forEach(function(tidStr){
+        var tid=parseInt(tidStr,10);
+        var it=dn.items.find(function(i){return i.id===tid;});
+        if(it)it.vendor=rule[tid];
+      });
+    }
+  }
+}
+function deliverySetBreakdown(v){
+  var p=currentProp;if(!p)return;
+  var dn=_getOrInitDeliveryNote(p);
+  dn.breakdown_text=v;
+  _saveDeliveryNote(p);
+}
+window.deliverySetBreakdown=deliverySetBreakdown;
+function approveDeliveryNote(){
+  var p=currentProp;if(!p)return;
+  var dn=_getOrInitDeliveryNote(p);
+  if(!dn.base_date){showToast('基準日（土台日）を入力してから確定してください','error');return;}
+  if(!confirm('現時点の内容で納品書を確定し、承認印を押します。\nよろしいですか？'))return;
+  dn.approved_at=new Date().toISOString();
+  dn.approved_by=(typeof currentProfile!=='undefined'&&currentProfile)?(currentProfile.name||''):'';
+  _saveDeliveryNote(p);renderDeliveryNoteSection(p);
+  showToast('✅ 納品書を確定しました','success');
+}
+window.approveDeliveryNote=approveDeliveryNote;
+var _deliverySaveTimer=null;
+function _saveDeliveryNote(p){
+  var fixNo=String(p.fix_no||'');
+  if(!fixNo)return;
+  clearTimeout(_deliverySaveTimer);
+  _deliverySaveTimer=setTimeout(async function(){
+    var sb=getSB();if(!sb)return;
+    try{await sb.from('properties').update({delivery_note:deliveryNotes[fixNo]}).eq('fix_no',fixNo);}catch(e){}
+    if(typeof renderBody==='function')renderBody(); // ★ガント「納品」行に即時反映
+    // ★物件詳細のガント本体（コンパクト行・複数行）だけを最新の納品バッジに更新する
+    //   （タブ構造ごと入れ替えると、編集中の納品書フォームや現在のタブ表示が壊れるため使わない）
+    if(currentProp&&String(currentProp.fix_no||'')===fixNo&&typeof _refreshDetailGanttBadges==='function'){
+      _refreshDetailGanttBadges(currentProp);
+    }
+  },500);
+}
+
+// ★ガントの「納品」行用バッジデータを返す（ganttExclude項目は除く）
+function _getDeliveryGanttBadges(p){
+  var fixNo=String(p.fix_no||'');
+  var dn=deliveryNotes[fixNo];
+  if(!dn||!dn.base_date)return [];
+  return DELIVERY_MASTER.filter(function(m){return !m.ganttExclude;}).map(function(m){
+    return {id:m.id,name:m.name,date:_deliveryItemDate(dn,m),vendor:_deliveryVendorValue(dn,m)};
+  }).filter(function(b){return b.date;});
+}
+window._getDeliveryGanttBadges=_getDeliveryGanttBadges;
+
+function printDeliveryNote(){
+  var p=currentProp;if(!p)return;
+  var dn=_getOrInitDeliveryNote(p);
+  var rows=DELIVERY_MASTER.map(function(m){
+    var it=dn.items.find(function(i){return i.id===m.id;})||{};
+    var date=_deliveryItemDate(dn,m);
+    var dispDate=date?date.replace(/-/g,'/'):'';
+    var dow=date?['日','月','火','水','木','金','土'][new Date(date+'T00:00:00').getDay()]:'';
+    var vendorDisp=_deliveryVendorValue(dn,m);
+    return '<tr><td>'+m.id+'</td><td>'+m.name+'</td><td>'+vendorDisp+'</td><td>'+dispDate+(dow?'　'+dow:'')+'</td><td>'+(it.note||'')+'</td></tr>';
+  }).join('');
+  var approvedStamp=dn.approved_at
+    ?'<div style="position:absolute;top:12px;right:20px;border:3px solid #dc2626;color:#dc2626;padding:4px 12px;font-size:14px;font-weight:900;transform:rotate(-8deg);border-radius:6px">承認済 '+dn.approved_at.slice(0,10).replace(/-/g,'/')+'</div>'
+    :'<div style="position:absolute;top:12px;right:20px;border:3px solid #94a3b8;color:#94a3b8;padding:4px 12px;font-size:14px;font-weight:900;transform:rotate(-8deg);border-radius:6px">未承認</div>';
+  var win=window.open('','_blank');
+  win.document.write('<!DOCTYPE html><html><head><meta charset="UTF-8"><title>'+p.name+' 納品書</title>'
+    +'<style>'
+    +'*{box-sizing:border-box;margin:0;padding:0;-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important}'
+    +'body{font-family:"Hiragino Sans","Meiryo",sans-serif;padding:12px;position:relative}'
+    +'h1{font-size:15px;margin-bottom:3px}'
+    +'.sub{font-size:9.5px;color:#555;margin-bottom:8px}'
+    +'table{width:100%;border-collapse:collapse;margin-bottom:10px}'
+    +'th,td{border:1px solid #999;padding:2.5px 6px;font-size:9.5px;text-align:left;line-height:1.3}'
+    +'th{background:#eee}'
+    +'.breakdown-head{font-size:10.5px;font-weight:700;margin-bottom:4px}'
+    +'.breakdown{white-space:pre-wrap;font-size:8.5px;border:1px solid #999;padding:7px;line-height:1.35}'
+    +'@page{size:A4 portrait;margin:9mm}'
+    +'</style></head><body>'
+    +approvedStamp
+    +'<h1>'+p.name+' AP新築工事 納品書</h1>'
+    +'<div class="sub">基準日（土台）：'+(dn.base_date?dn.base_date.replace(/-/g,'/'):'未設定')+'　／　印刷日：'+new Date().toLocaleDateString('ja-JP')+'</div>'
+    +'<table><thead><tr><th>No</th><th>納品項目</th><th>納品社</th><th>納品日</th><th>備考</th></tr></thead><tbody>'+rows+'</tbody></table>'
+    +'<div class="breakdown-head">納品内訳</div>'
+    +'<div class="breakdown">'+(dn.breakdown_text||'').replace(/&/g,'&amp;').replace(/</g,'&lt;')+'</div>'
+    +'</body></html>');
+  win.document.close();
+  setTimeout(function(){win.print();},400);
+}
+window.printDeliveryNote=printDeliveryNote;
 
 function openMasterLinkModal(){
   var p=currentProp; if(!p)return;
@@ -12397,17 +12905,24 @@ window.printGanttSheet=printGanttSheet;
 function switchGanttTab(tab){
   var cPane=document.getElementById('gantt-pane-custom');
   var ePane=document.getElementById('gantt-pane-excel');
+  var dPane=document.getElementById('gantt-pane-delivery');
   var cBtn=document.getElementById('gantt-tab-custom');
   var eBtn=document.getElementById('gantt-tab-excel');
+  var dBtn=document.getElementById('gantt-tab-delivery');
   if(!cPane||!ePane)return;
+  var allPanes=[cPane,ePane,dPane], allBtns=[cBtn,eBtn,dBtn];
+  allPanes.forEach(function(el){if(el){el.style.display='none';el.classList.remove('gantt-pane-active');}});
+  allBtns.forEach(function(el){if(el){el.style.borderBottomColor='transparent';el.style.color='#94a3b8';}});
   if(tab==='custom'){
-    cPane.style.display='';ePane.style.display='none';
+    cPane.style.display='';cPane.classList.add('gantt-pane-active');
     if(cBtn){cBtn.style.borderBottomColor='#1a56db';cBtn.style.color='#1a56db';}
-    if(eBtn){eBtn.style.borderBottomColor='transparent';eBtn.style.color='#94a3b8';}
+  }else if(tab==='delivery'){
+    dPane.style.display='';if(dPane)dPane.classList.add('gantt-pane-active');
+    if(dBtn){dBtn.style.borderBottomColor='#1a56db';dBtn.style.color='#1a56db';}
+    if(typeof renderDeliveryNoteSection==='function'&&currentProp)renderDeliveryNoteSection(currentProp);
   }else{
-    cPane.style.display='none';ePane.style.display='';
+    ePane.style.display='';ePane.classList.add('gantt-pane-active');
     if(eBtn){eBtn.style.borderBottomColor='#1a56db';eBtn.style.color='#1a56db';}
-    if(cBtn){cBtn.style.borderBottomColor='transparent';cBtn.style.color='#94a3b8';}
     var contentEl=document.getElementById('gantt-excel-content');
     if(contentEl&&currentProp){
       var gsKey=String(currentProp.fix_no||currentProp.seq_no||'').trim();
