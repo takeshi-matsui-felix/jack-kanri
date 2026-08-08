@@ -5188,7 +5188,10 @@ function _getOrInitDeliveryNote(p){
       base_date:_inferBaseDateFromGantt(p)||'',
       items:DELIVERY_MASTER.map(function(m){return {id:m.id,manual:false,date:'',vendor:'',note:m.defaultNote||''};}),
       breakdown_text:DELIVERY_BREAKDOWN_MASTER,
-      approved_at:null
+      approved_at:null,
+      approved_by:null,
+      approved_snapshot:null, // ★直近の承認時点の内容（変更差分検出用）
+      approval_history:[]     // ★承認履歴 [{approved_at,approved_by,snapshot,diff}]
     };
   }
   // マスターに項目が追加された場合の補完
@@ -5196,6 +5199,7 @@ function _getOrInitDeliveryNote(p){
   DELIVERY_MASTER.forEach(function(m){
     if(!dn.items.find(function(it){return it.id===m.id;}))dn.items.push({id:m.id,manual:false,date:'',vendor:'',note:m.defaultNote||''});
   });
+  if(!dn.approval_history)dn.approval_history=[];
   return dn;
 }
 function _deliveryVendorOptions(masterItem){
@@ -5223,16 +5227,78 @@ function _deliveryItemDate(dn,masterItem){
   var d=_addWorkdays(bd,masterItem.offsetWd);
   return _dkey(d);
 }
-function renderDeliveryNoteSection(p){
-  var el=document.getElementById('delivery-note-content');
+// ★現時点の内容のスナップショットを取る（承認時に保存し、以後の変更差分検出に使う）
+function _deliverySnapshot(dn){
+  var items={};
+  DELIVERY_MASTER.forEach(function(m){
+    var it=dn.items.find(function(i){return i.id===m.id;})||{};
+    items[m.id]={date:_deliveryItemDate(dn,m),vendor:_deliveryVendorValue(dn,m),note:it.note||''};
+  });
+  return {base_date:dn.base_date||'',items:items};
+}
+// ★直近の承認スナップショットと現在値を比較し、変更点の一覧を返す（承認後修正の検出用）
+function _deliveryDiff(dn){
+  if(!dn.approved_snapshot)return [];
+  var cur=_deliverySnapshot(dn);
+  var diffs=[];
+  if((cur.base_date||'')!==(dn.approved_snapshot.base_date||'')){
+    diffs.push({id:0,name:'基準日（土台）',field:'base_date',from:dn.approved_snapshot.base_date||'（未設定）',to:cur.base_date||'（未設定）'});
+  }
+  var fieldLabel={date:'納品日',vendor:'業者',note:'備考'};
+  DELIVERY_MASTER.forEach(function(m){
+    var prev=dn.approved_snapshot.items[m.id]||{};
+    var now=cur.items[m.id]||{};
+    ['date','vendor','note'].forEach(function(f){
+      if((prev[f]||'')!==(now[f]||'')){
+        diffs.push({id:m.id,name:m.name+'／'+fieldLabel[f],field:f,from:prev[f]||'（空欄）',to:now[f]||'（空欄）'});
+      }
+    });
+  });
+  return diffs;
+}
+function _deliveryFieldChanged(diffs,itemId,field){
+  return diffs.some(function(d){return d.id===itemId&&d.field===field;});
+}
+var _deliveryActiveContainerId='delivery-note-content';
+function renderDeliveryNoteSection(p,containerId){
+  if(containerId)_deliveryActiveContainerId=containerId;
+  var el=document.getElementById(_deliveryActiveContainerId);
   if(!el)return;
   el.innerHTML='<div style="color:#94a3b8;font-size:11px;padding:12px;text-align:center">読み込み中...</div>';
   _loadDeliveryNoteIfNeeded(p).then(function(){
     var dn=_getOrInitDeliveryNote(p);
     var isAdmin=(typeof currentProfile!=='undefined'&&currentProfile&&currentProfile.role==='admin');
-    var approvedBadge=dn.approved_at
-      ?'<span style="background:#dcfce7;color:#15803d;font-weight:800;font-size:10px;padding:3px 9px;border-radius:6px">✅ 承認済み（'+dn.approved_at.slice(0,16).replace('T',' ')+'）</span>'
-      :'<span style="background:#fef3c7;color:#b45309;font-weight:800;font-size:10px;padding:3px 9px;border-radius:6px">未承認</span>';
+    var diffs=dn.approved_at?[]:_deliveryDiff(dn); // ★承認済みの間は差分なし。承認後に編集され未承認へ戻った場合のみ差分が出る
+    var reapproveCount=(dn.approval_history||[]).length;
+    var approvedBadge;
+    if(dn.approved_at){
+      approvedBadge='<span style="background:#dcfce7;color:#15803d;font-weight:800;font-size:10px;padding:3px 9px;border-radius:6px">✅ 承認済み（'+dn.approved_at.slice(0,16).replace('T',' ')+'）'+(reapproveCount>1?'　※再承認 '+(reapproveCount-1)+'回目':'')+'</span>';
+    }else if(dn.approved_snapshot){
+      approvedBadge='<span style="background:#fee2e2;color:#b91c1c;font-weight:800;font-size:10px;padding:3px 9px;border-radius:6px;text-decoration:line-through;text-decoration-thickness:2px">✅ 承認済み</span>'
+        +'<span style="background:#fef3c7;color:#b45309;font-weight:800;font-size:10px;padding:3px 9px;border-radius:6px;margin-left:4px">⚠️ 承認後に変更あり・要再承認</span>';
+    }else{
+      approvedBadge='<span style="background:#fef3c7;color:#b45309;font-weight:800;font-size:10px;padding:3px 9px;border-radius:6px">未承認</span>';
+    }
+    var diffListHtml='';
+    if(diffs.length){
+      diffListHtml='<div style="background:#fff7ed;border:1px solid #fed7aa;border-radius:8px;padding:8px 10px;margin-bottom:10px">'
+        +'<div style="font-size:10px;font-weight:800;color:#c2410c;margin-bottom:4px">📝 前回承認からの変更点（未承認・要再承認）</div>'
+        +diffs.map(function(d){return '<div style="font-size:10px;color:#7c2d12">・'+d.name+'：'+d.from+' → <b>'+d.to+'</b></div>';}).join('')
+        +'</div>';
+    }
+    // ★承認履歴（全件）：再承認しても消えない、いつ・何が変わったかの記録
+    var historyHtml='';
+    if((dn.approval_history||[]).length){
+      historyHtml='<div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:8px 10px;margin-bottom:10px">'
+        +'<div style="font-size:10px;font-weight:800;color:#334155;margin-bottom:4px">🕓 承認履歴</div>'
+        +dn.approval_history.slice().reverse().map(function(h,idx){
+          var n=dn.approval_history.length-idx;
+          var when=h.approved_at?h.approved_at.slice(0,16).replace('T',' '):'';
+          var chg=(h.diff&&h.diff.length)?h.diff.map(function(d){return '<div style="font-size:9.5px;color:#64748b;padding-left:10px">・'+d.name+'：'+d.from+' → '+d.to+'</div>';}).join(''):'<div style="font-size:9.5px;color:#94a3b8;padding-left:10px">（初回承認・変更なし）</div>';
+          return '<div style="margin-bottom:5px"><div style="font-size:10px;font-weight:700;color:#1e293b">第'+n+'回承認　'+when+(h.approved_by?'　'+h.approved_by:'')+'</div>'+chg+'</div>';
+        }).join('')
+        +'</div>';
+    }
     var rows=DELIVERY_MASTER.map(function(m){
       var it=dn.items.find(function(i){return i.id===m.id;})||{};
       var date=_deliveryItemDate(dn,m);
@@ -5242,26 +5308,33 @@ function renderDeliveryNoteSection(p){
       var dlId='dl-deliv-'+m.id;
       var dlHtml=opts.length?('<datalist id="'+dlId+'">'+opts.map(function(o){return '<option value="'+o+'">';}).join('')+'</datalist>'):'';
       var mirrorHint=m.mirrorFrom?'<div style="font-size:9px;color:#94a3b8">項目'+m.mirrorFrom+'と連動</div>':'';
+      var dateChg=_deliveryFieldChanged(diffs,m.id,'date');
+      var vendorChg=_deliveryFieldChanged(diffs,m.id,'vendor');
+      var noteChg=_deliveryFieldChanged(diffs,m.id,'note');
+      var hi='background:#fef3c7;border-color:#f59e0b!important;';
       return '<tr style="border-bottom:1px solid #f1f5f9">'
         +'<td style="padding:5px 8px;font-size:10px;color:#94a3b8;text-align:center">'+m.id+'</td>'
         +'<td style="padding:5px 8px;font-size:11px;font-weight:700">'+m.name+' '+excl+'</td>'
-        +'<td style="padding:5px 8px"><input type="date" value="'+date+'" onchange="deliverySetItemDate('+m.id+',this.value)" style="font-size:11px;padding:3px 5px;border:1.5px solid #e2e8f0;border-radius:5px;width:130px">'
+        +'<td style="padding:5px 8px'+(dateChg?';'+hi:'')+'"><input type="date" value="'+date+'" onchange="deliverySetItemDate('+m.id+',this.value)" style="font-size:11px;padding:3px 5px;border:1.5px solid '+(dateChg?'#f59e0b':'#e2e8f0')+';border-radius:5px;width:130px'+(dateChg?';background:#fef3c7':'')+'">'
           +(it.manual?'<button onclick="deliveryResetItemDate('+m.id+')" title="自動計算に戻す" style="margin-left:4px;background:none;border:none;color:#94a3b8;cursor:pointer;font-size:10px">↺</button>':'')+'</td>'
-        +'<td style="padding:5px 8px">'+dlHtml+'<input type="text" list="'+dlId+'" placeholder="業者名（一覧から選択 or 自由入力）" value="'+vendorVal+'" onchange="deliverySetItemField('+m.id+',\'vendor\',this.value)" style="font-size:11px;padding:3px 6px;border:1.5px solid #e2e8f0;border-radius:5px;width:150px">'+mirrorHint+'</td>'
-        +'<td style="padding:5px 8px"><input type="text" placeholder="備考" value="'+(it.note||'')+'" onchange="deliverySetItemField('+m.id+',\'note\',this.value)" style="font-size:11px;padding:3px 6px;border:1.5px solid #e2e8f0;border-radius:5px;width:150px"></td>'
+        +'<td style="padding:5px 8px'+(vendorChg?';'+hi:'')+'">'+dlHtml+'<input type="text" list="'+dlId+'" placeholder="業者名（一覧から選択 or 自由入力）" value="'+vendorVal+'" onchange="deliverySetItemField('+m.id+',\'vendor\',this.value)" style="font-size:11px;padding:3px 6px;border:1.5px solid '+(vendorChg?'#f59e0b':'#e2e8f0')+';border-radius:5px;width:150px'+(vendorChg?';background:#fef3c7':'')+'">'+mirrorHint+'</td>'
+        +'<td style="padding:5px 8px'+(noteChg?';'+hi:'')+'"><input type="text" placeholder="備考" value="'+(it.note||'')+'" onchange="deliverySetItemField('+m.id+',\'note\',this.value)" style="font-size:11px;padding:3px 6px;border:1.5px solid '+(noteChg?'#f59e0b':'#e2e8f0')+';border-radius:5px;width:150px'+(noteChg?';background:#fef3c7':'')+'"></td>'
         +'</tr>';
     }).join('');
+    var baseDateChg=diffs.some(function(d){return d.field==='base_date';});
     el.innerHTML=
       '<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:10px;padding:8px;background:#f8fafc;border-radius:8px">'
         +'<div style="font-size:11px;font-weight:700">基準日（土台日）</div>'
-        +'<input type="date" id="deliveryBaseDateInput" value="'+(dn.base_date||'')+'" onchange="deliverySetBaseDate(this.value)" style="font-size:12px;padding:4px 8px;border:1.5px solid #cbd5e1;border-radius:6px">'
+        +'<input type="date" id="deliveryBaseDateInput" value="'+(dn.base_date||'')+'" onchange="deliverySetBaseDate(this.value)" style="font-size:12px;padding:4px 8px;border:1.5px solid '+(baseDateChg?'#f59e0b':'#cbd5e1')+';border-radius:6px'+(baseDateChg?';background:#fef3c7':'')+'">'
         +approvedBadge
         +'<div style="margin-left:auto;display:flex;gap:6px">'
           +'<button onclick="printDeliveryNote()" style="background:#475569;color:white;border:none;border-radius:6px;padding:6px 12px;font-size:11px;font-weight:700;cursor:pointer">🖨️ 納品書印刷</button>'
-          +(isAdmin?'<button onclick="approveDeliveryNote()" style="background:#059669;color:white;border:none;border-radius:6px;padding:6px 12px;font-size:11px;font-weight:700;cursor:pointer">✅ 確定（承認印）</button>':'')
+          +(isAdmin?'<button onclick="approveDeliveryNote()" style="background:#059669;color:white;border:none;border-radius:6px;padding:6px 12px;font-size:11px;font-weight:700;cursor:pointer">✅ '+(dn.approved_snapshot?'再確定（再承認印）':'確定（承認印）')+'</button>':'')
         +'</div>'
       +'</div>'
       +(dn.base_date?'':'<div style="color:#b45309;background:#fef3c7;padding:6px 10px;border-radius:6px;font-size:10px;margin-bottom:8px">基準日が未設定です。土台日を入力すると全項目の日付が自動計算されます。</div>')
+      +diffListHtml
+      +historyHtml
       +'<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;min-width:560px">'
         +'<thead><tr style="background:#1e293b;color:white"><th style="padding:6px 8px;font-size:10px">No</th><th style="padding:6px 8px;font-size:10px;text-align:left">項目</th><th style="padding:6px 8px;font-size:10px;text-align:left">納品日</th><th style="padding:6px 8px;font-size:10px;text-align:left">業者</th><th style="padding:6px 8px;font-size:10px;text-align:left">備考</th></tr></thead>'
         +'<tbody>'+rows+'</tbody></table></div>'
@@ -5341,11 +5414,19 @@ function approveDeliveryNote(){
   var p=currentProp;if(!p)return;
   var dn=_getOrInitDeliveryNote(p);
   if(!dn.base_date){showToast('基準日（土台日）を入力してから確定してください','error');return;}
-  if(!confirm('現時点の内容で納品書を確定し、承認印を押します。\nよろしいですか？'))return;
-  dn.approved_at=new Date().toISOString();
-  dn.approved_by=(typeof currentProfile!=='undefined'&&currentProfile)?(currentProfile.name||''):'';
+  var isReapprove=!!dn.approved_snapshot;
+  var diffs=isReapprove?_deliveryDiff(dn):[];
+  if(!confirm(isReapprove?'変更内容を反映して再承認します。\nよろしいですか？':'現時点の内容で納品書を確定し、承認印を押します。\nよろしいですか？'))return;
+  var nowIso=new Date().toISOString();
+  var by=(typeof currentProfile!=='undefined'&&currentProfile)?(currentProfile.name||''):'';
+  var snap=_deliverySnapshot(dn);
+  if(!dn.approval_history)dn.approval_history=[];
+  dn.approval_history.push({approved_at:nowIso,approved_by:by,snapshot:snap,diff:diffs});
+  dn.approved_snapshot=snap;
+  dn.approved_at=nowIso;
+  dn.approved_by=by;
   _saveDeliveryNote(p);renderDeliveryNoteSection(p);
-  showToast('✅ 納品書を確定しました','success');
+  showToast(isReapprove?'✅ 再承認しました':'✅ 納品書を確定しました','success');
 }
 window.approveDeliveryNote=approveDeliveryNote;
 var _deliverySaveTimer=null;
@@ -5376,6 +5457,132 @@ function _getDeliveryGanttBadges(p){
 }
 window._getDeliveryGanttBadges=_getDeliveryGanttBadges;
 
+// ===== 納品書管理（管理者CP・一括管理用） =====
+// ★3区分：未作成（下書き中も含む・未承認）／承認済／承認後修正承認済（2回以上承認）
+function _deliveryNoteStatus(dn){
+  if(!dn||!dn.approved_at)return 'none';
+  return ((dn.approval_history||[]).length>1)?'reapproved':'approved';
+}
+var DELIVERY_STATUS_LABEL={
+  none:{label:'納品書未作成',bg:'#f1f5f9',fg:'#64748b'},
+  approved:{label:'納品書承認済',bg:'#dcfce7',fg:'#15803d'},
+  reapproved:{label:'承認後修正承認済',bg:'#dbeafe',fg:'#1d4ed8'}
+};
+function admRenderDeliveryTable(){
+  var wrap=document.getElementById('admDeliveryTableWrap');
+  if(!wrap)return;
+  var all=window._admDeliveryAll||[];
+  var q=(document.getElementById('admDeliverySearch')||{}).value||'';
+  q=q.trim().toLowerCase();
+  var statusFil=(document.getElementById('admDeliveryStatus')||{}).value||'all';
+  var areaFil=(document.getElementById('admDeliveryArea')||{}).value||'all';
+  var sortFil=(document.getElementById('admDeliverySort')||{}).value||'delivery';
+  var rows=all.map(function(p){
+    var dn=p.delivery_note?(typeof p.delivery_note==='string'?JSON.parse(p.delivery_note):p.delivery_note):null;
+    var status=_deliveryNoteStatus(dn||{});
+    return {p:p,dn:dn,status:status};
+  }).filter(function(r){
+    if(statusFil!=='all'&&r.status!==statusFil)return false;
+    if(areaFil==='東海'&&!isTokaiProp(r.p))return false;
+    if(areaFil==='関東'&&!isKantoProp(r.p))return false;
+    if(q&&!(String(r.p.name||'').toLowerCase().indexOf(q)>=0||String(r.p.fix_no||'').indexOf(q)>=0))return false;
+    return true;
+  });
+  if(sortFil==='staff'){
+    // ★担当者順（あいうえお順）。担当者未設定は末尾へ
+    rows.sort(function(a,b){
+      var sa=String(a.p.tantou||a.p.staff||'').trim();
+      var sb=String(b.p.tantou||b.p.staff||'').trim();
+      if(!sa&&!sb)return 0;
+      if(!sa)return 1;
+      if(!sb)return -1;
+      return sa.localeCompare(sb,'ja');
+    });
+  }else{
+    // ★引渡し日順（早い順）に並べ替え。未設定は末尾へ
+    rows.sort(function(a,b){
+      var da=normDate(a.p.delivery_date||'').replace(/\//g,'')||'99999999';
+      var db=normDate(b.p.delivery_date||'').replace(/\//g,'')||'99999999';
+      return da<db?-1:da>db?1:0;
+    });
+  }
+  var trs=rows.map(function(r){
+    var st=DELIVERY_STATUS_LABEL[r.status];
+    var reappCount=r.dn&&r.dn.approval_history?r.dn.approval_history.length:0;
+    var extra=(r.status==='approved'||r.status==='reapproved')&&r.dn&&r.dn.approved_at
+      ?'<div style="font-size:9px;color:#94a3b8">'+r.dn.approved_at.slice(0,10).replace(/-/g,'/')+(reappCount>1?'（'+reappCount+'回承認）':'')+'</div>':'';
+    return '<tr style="border-bottom:1px solid #f1f5f9">'
+      +'<td style="padding:8px 10px;font-size:10px;color:#94a3b8">'+r.p.fix_no+'</td>'
+      +'<td style="padding:8px 10px;font-size:12px;font-weight:700">'+(r.p.name||'')+'</td>'
+      +'<td style="padding:8px 10px;font-size:10px;color:#64748b;white-space:nowrap">'+(normDate(r.p.land_payment||'')||'—')+'</td>'
+      +'<td style="padding:8px 10px;font-size:10px;color:#64748b;white-space:nowrap">'+(normDate(r.p.confirm_done||'')||'—')+'</td>'
+      +'<td style="padding:8px 10px;font-size:10px;color:#1e293b;font-weight:700;white-space:nowrap">'+(normDate(r.p.delivery_date||'')||'—')+'</td>'
+      +'<td style="padding:8px 10px;font-size:10px;color:#64748b">'+(r.p.area||'')+'</td>'
+      +'<td style="padding:8px 10px;font-size:10px;color:#64748b">'+(r.p.tantou||r.p.staff||'—')+'</td>'
+      +'<td style="padding:8px 10px"><span style="background:'+st.bg+';color:'+st.fg+';font-weight:800;font-size:10px;padding:3px 9px;border-radius:6px;white-space:nowrap">'+st.label+'</span>'+extra+'</td>'
+      +'<td style="padding:8px 10px"><button onclick="admOpenPropertyDelivery('+r.p.fix_no+')" style="background:#1a56db;color:white;border:none;border-radius:6px;padding:5px 12px;font-size:11px;font-weight:700;cursor:pointer">開く</button></td>'
+      +'</tr>';
+  }).join('');
+  var counts={none:0,approved:0,reapproved:0};
+  all.forEach(function(p){
+    var dn=p.delivery_note?(typeof p.delivery_note==='string'?JSON.parse(p.delivery_note):p.delivery_note):null;
+    counts[_deliveryNoteStatus(dn||{})]++;
+  });
+  wrap.innerHTML='<div style="display:flex;gap:10px;flex-wrap:wrap;padding:10px 12px;border-bottom:1px solid #f1f5f9;font-size:10px;color:#64748b">'
+    +'<span>該当 '+rows.length+'件 ／ 全'+all.length+'件（完工済みを除く・'+(sortFil==='staff'?'担当者順':'引渡し日順')+'）</span>'
+    +'<span style="color:#94a3b8">｜未作成 '+counts.none+'・承認済 '+counts.approved+'・修正後再承認 '+counts.reapproved+'</span>'
+    +'</div>'
+    +'<table style="width:100%;border-collapse:collapse">'
+      +'<thead><tr style="background:#1e293b;color:white"><th style="padding:7px 10px;font-size:10px;text-align:left">FiX No</th><th style="padding:7px 10px;font-size:10px;text-align:left">物件名</th><th style="padding:7px 10px;font-size:10px;text-align:left">土地決済日</th><th style="padding:7px 10px;font-size:10px;text-align:left">確認申請完了日</th><th style="padding:7px 10px;font-size:10px;text-align:left">引渡し日</th><th style="padding:7px 10px;font-size:10px;text-align:left">エリア</th><th style="padding:7px 10px;font-size:10px;text-align:left">担当者</th><th style="padding:7px 10px;font-size:10px;text-align:left">ステータス</th><th style="padding:7px 10px;font-size:10px;text-align:left">操作</th></tr></thead>'
+      +'<tbody>'+(trs||'<tr><td colspan="9" style="padding:20px;text-align:center;color:#94a3b8;font-size:12px">該当する物件がありません</td></tr>')+'</tbody>'
+    +'</table>';
+}
+window.admRenderDeliveryTable=admRenderDeliveryTable;
+// ★管理者CPから対象物件の納品書編集を開く：物件詳細へ遷移せず、CP内モーダルで同じ編集画面を表示する
+//   （以前はopenDetailで物件詳細へ遷移していたため、戻るとホーム画面に出てしまい連続編集できなかった）
+var _admDeliveryPrevProp=null;
+function admOpenPropertyDelivery(fixNo){
+  var all=window._admDeliveryAll||[];
+  var p=all.find(function(x){return String(x.fix_no)===String(fixNo);});
+  if(!p&&typeof DB_PROPS!=='undefined'&&DB_PROPS)p=DB_PROPS.find(function(x){return String(x.fix_no)===String(fixNo);});
+  if(!p&&typeof getAllProps==='function'){var ap=getAllProps();p=ap.find(function(x){return String(x.fix_no)===String(fixNo);});}
+  if(!p){showToast('物件が見つかりません（同期してから再度お試しください）','error');return;}
+  _admDeliveryPrevProp=currentProp;
+  currentProp=p;
+  var modal=document.getElementById('admDeliveryModal');
+  if(!modal){
+    modal=document.createElement('div');
+    modal.id='admDeliveryModal';
+    modal.style.cssText='position:fixed;inset:0;background:rgba(15,23,42,.55);z-index:9000;display:flex;align-items:center;justify-content:center;padding:16px;';
+    modal.innerHTML='<div style="background:white;border-radius:14px;max-width:900px;width:100%;max-height:92vh;display:flex;flex-direction:column;overflow:hidden;box-shadow:0 20px 60px rgba(0,0,0,.35)">'
+      +'<div style="display:flex;align-items:center;padding:14px 18px;border-bottom:1px solid #e2e8f0;flex-shrink:0;gap:10px">'
+        +'<div id="admDeliveryModalTitle" style="font-size:14px;font-weight:800;color:#1e293b"></div>'
+        +'<button onclick="admCloseDeliveryModal()" style="margin-left:auto;background:#f1f5f9;border:none;border-radius:8px;padding:6px 14px;font-size:12px;font-weight:700;cursor:pointer;color:#475569;flex-shrink:0">✕ 閉じる（一覧に戻る）</button>'
+      +'</div>'
+      +'<div id="admDeliveryModalBody" style="overflow-y:auto;padding:14px;flex:1"></div>'
+    +'</div>';
+    document.body.appendChild(modal);
+  }
+  document.getElementById('admDeliveryModalTitle').textContent=(p.name||'')+'　FiX No.'+p.fix_no;
+  modal.style.display='flex';
+  renderDeliveryNoteSection(p,'admDeliveryModalBody');
+}
+window.admOpenPropertyDelivery=admOpenPropertyDelivery;
+function admCloseDeliveryModal(){
+  var modal=document.getElementById('admDeliveryModal');
+  if(modal)modal.style.display='none';
+  // ★一覧側のキャッシュ(_admDeliveryAll)を最新化してから再描画し、ステータスをその場で反映する
+  if(currentProp&&window._admDeliveryAll){
+    var fixNo=String(currentProp.fix_no||'');
+    var row=window._admDeliveryAll.find(function(x){return String(x.fix_no)===fixNo;});
+    if(row&&deliveryNotes[fixNo])row.delivery_note=deliveryNotes[fixNo];
+  }
+  currentProp=_admDeliveryPrevProp;
+  _deliveryActiveContainerId='delivery-note-content';
+  if(typeof admRenderDeliveryTable==='function')admRenderDeliveryTable();
+}
+window.admCloseDeliveryModal=admCloseDeliveryModal;
+
 function printDeliveryNote(){
   var p=currentProp;if(!p)return;
   var dn=_getOrInitDeliveryNote(p);
@@ -5387,9 +5594,36 @@ function printDeliveryNote(){
     var vendorDisp=_deliveryVendorValue(dn,m);
     return '<tr><td>'+m.id+'</td><td>'+m.name+'</td><td>'+vendorDisp+'</td><td>'+dispDate+(dow?'　'+dow:'')+'</td><td>'+(it.note||'')+'</td></tr>';
   }).join('');
-  var approvedStamp=dn.approved_at
-    ?'<div style="position:absolute;top:12px;right:20px;border:3px solid #dc2626;color:#dc2626;padding:4px 12px;font-size:14px;font-weight:900;transform:rotate(-8deg);border-radius:6px">承認済 '+dn.approved_at.slice(0,10).replace(/-/g,'/')+'</div>'
-    :'<div style="position:absolute;top:12px;right:20px;border:3px solid #94a3b8;color:#94a3b8;padding:4px 12px;font-size:14px;font-weight:900;transform:rotate(-8deg);border-radius:6px">未承認</div>';
+  var reapproveCount=(dn.approval_history||[]).length;
+  var pendingDiffs=dn.approved_at?[]:_deliveryDiff(dn);
+  // ★再承認後も「今回の承認でどこが変わったか」を履歴として表示し続ける（2026/8/8）
+  var lastApprovalDiff=(dn.approval_history&&dn.approval_history.length)?(dn.approval_history[dn.approval_history.length-1].diff||[]):[];
+  var stampHtml;
+  if(dn.approved_at){
+    stampHtml='<div style="position:absolute;top:12px;right:20px;text-align:right">'
+      +(reapproveCount>1?'<div style="border:2px solid #94a3b8;color:#94a3b8;padding:2px 8px;font-size:9px;font-weight:900;text-decoration:line-through;display:inline-block;margin-bottom:3px;border-radius:5px">承認済（旧）</div><br>':'')
+      +'<div style="border:3px solid #dc2626;color:#dc2626;padding:4px 12px;font-size:14px;font-weight:900;transform:rotate(-8deg);border-radius:6px;display:inline-block">'+(reapproveCount>1?'再承認済 ':'承認済 ')+dn.approved_at.slice(0,10).replace(/-/g,'/')+'</div>'
+      +'</div>';
+  }else if(dn.approved_snapshot){
+    stampHtml='<div style="position:absolute;top:12px;right:20px;text-align:right">'
+      +'<div style="border:3px solid #94a3b8;color:#94a3b8;padding:4px 12px;font-size:14px;font-weight:900;transform:rotate(-8deg);border-radius:6px;display:inline-block;text-decoration:line-through;text-decoration-thickness:3px">承認済</div>'
+      +'<div style="font-size:9px;color:#dc2626;font-weight:800;margin-top:3px">⚠️ 承認後に変更あり・要再承認</div>'
+      +'</div>';
+  }else{
+    stampHtml='<div style="position:absolute;top:12px;right:20px;border:3px solid #94a3b8;color:#94a3b8;padding:4px 12px;font-size:14px;font-weight:900;transform:rotate(-8deg);border-radius:6px">未承認</div>';
+  }
+  var diffNoteHtml='';
+  if(pendingDiffs.length){
+    diffNoteHtml='<div style="border:1px solid #f59e0b;background:#fff7ed;border-radius:6px;padding:6px 8px;margin-bottom:8px">'
+      +'<div style="font-size:9px;font-weight:800;color:#c2410c;margin-bottom:2px">変更内容（前回承認分から・未承認）</div>'
+      +pendingDiffs.map(function(d){return '<div style="font-size:8.5px;color:#7c2d12">・'+d.name+'：'+d.from+' → '+d.to+'</div>';}).join('')
+      +'</div>';
+  }else if(dn.approved_at&&reapproveCount>1&&lastApprovalDiff.length){
+    diffNoteHtml='<div style="border:1px solid #93c5fd;background:#eff6ff;border-radius:6px;padding:6px 8px;margin-bottom:8px">'
+      +'<div style="font-size:9px;font-weight:800;color:#1d4ed8;margin-bottom:2px">📝 今回の承認（'+dn.approved_at.slice(0,10).replace(/-/g,'/')+'）での変更履歴</div>'
+      +lastApprovalDiff.map(function(d){return '<div style="font-size:8.5px;color:#1e3a8a">・'+d.name+'：'+d.from+' → '+d.to+'</div>';}).join('')
+      +'</div>';
+  }
   var win=window.open('','_blank');
   win.document.write('<!DOCTYPE html><html><head><meta charset="UTF-8"><title>'+p.name+' 納品書</title>'
     +'<style>'
@@ -5404,9 +5638,10 @@ function printDeliveryNote(){
     +'.breakdown{white-space:pre-wrap;font-size:8.5px;border:1px solid #999;padding:7px;line-height:1.35}'
     +'@page{size:A4 portrait;margin:9mm}'
     +'</style></head><body>'
-    +approvedStamp
+    +stampHtml
     +'<h1>'+p.name+' AP新築工事 納品書</h1>'
     +'<div class="sub">基準日（土台）：'+(dn.base_date?dn.base_date.replace(/-/g,'/'):'未設定')+'　／　印刷日：'+new Date().toLocaleDateString('ja-JP')+'</div>'
+    +diffNoteHtml
     +'<table><thead><tr><th>No</th><th>納品項目</th><th>納品社</th><th>納品日</th><th>備考</th></tr></thead><tbody>'+rows+'</tbody></table>'
     +'<div class="breakdown-head">納品内訳</div>'
     +'<div class="breakdown">'+(dn.breakdown_text||'').replace(/&/g,'&amp;').replace(/</g,'&lt;')+'</div>'
@@ -10450,6 +10685,7 @@ function renderAdminCPShell(){
       +admMenuItem('users','👥','ユーザー管理')
       +admMenuItem('props','🏠','物件管理')
       +admMenuItem('kensa','🔍','検査取りまとめ')
+      +admMenuItem('delivery','📦','納品書管理')
       +'<div style="height:1px;background:rgba(255,255,255,.08);margin:3px 10px"></div>'
       +admMenuItem('import','📥','データ取込')
       +admMenuItem('vendors','👷','全業者選定一覧')
@@ -10703,6 +10939,36 @@ async function loadAdmSec(sec){
     +'</div>';
     window._admKensaShinsa='';
     admRenderKensaTable();
+
+  } else if(sec==='delivery'){
+    var sbd=getSB();
+    var prd=await sbd.from('properties').select('*').order('fix_no',{ascending:true});
+    // ★完工済み（引渡日が今日以前）の物件は納品書管理の対象外にする（2026/8/8）
+    window._admDeliveryAll=(prd.data||[]).filter(function(p){return !isKankou(p);});
+    right.innerHTML='<div style="padding:16px">'
+      +'<div style="font-size:16px;font-weight:800;color:#1e293b;margin-bottom:4px">📦 納品書管理</div>'
+      +'<div style="font-size:11px;color:#64748b;margin-bottom:14px">全物件（完工済みを除く）の納品書ステータスを一覧確認できます。「開く」から納品書編集をその場（一覧を離れず）で開けます</div>'
+      +'<div style="display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap;align-items:center">'
+        +'<input id="admDeliverySearch" placeholder="🔎 物件名・FIX No検索" oninput="admRenderDeliveryTable()" style="flex:1;min-width:180px;padding:8px 12px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:12px;outline:none">'
+        +'<select id="admDeliveryStatus" onchange="admRenderDeliveryTable()" style="padding:8px 12px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:12px;font-weight:700;color:#1e293b;background:white">'
+          +'<option value="all">全て</option>'
+          +'<option value="none">納品書未作成</option>'
+          +'<option value="approved">納品書承認済</option>'
+          +'<option value="reapproved">承認後修正承認済</option>'
+        +'</select>'
+        +'<select id="admDeliveryArea" onchange="admRenderDeliveryTable()" style="padding:8px 12px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:12px;font-weight:700;color:#1e293b;background:white">'
+          +'<option value="all">全エリア</option>'
+          +'<option value="東海">東海</option>'
+          +'<option value="関東">関東</option>'
+        +'</select>'
+        +'<select id="admDeliverySort" onchange="admRenderDeliveryTable()" style="padding:8px 12px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:12px;font-weight:700;color:#1e293b;background:white">'
+          +'<option value="delivery">並び替え：引渡し日順</option>'
+          +'<option value="staff">並び替え：担当者順</option>'
+        +'</select>'
+      +'</div>'
+      +'<div id="admDeliveryTableWrap" style="overflow-x:auto;background:white;border-radius:12px;border:1px solid #e2e8f0;box-shadow:0 1px 3px rgba(0,0,0,.04)"></div>'
+    +'</div>';
+    admRenderDeliveryTable();
 
   } else if(sec==='import'){
     right.innerHTML='<div style="padding:14px">'
@@ -12919,7 +13185,7 @@ function switchGanttTab(tab){
   }else if(tab==='delivery'){
     dPane.style.display='';if(dPane)dPane.classList.add('gantt-pane-active');
     if(dBtn){dBtn.style.borderBottomColor='#1a56db';dBtn.style.color='#1a56db';}
-    if(typeof renderDeliveryNoteSection==='function'&&currentProp)renderDeliveryNoteSection(currentProp);
+    if(typeof renderDeliveryNoteSection==='function'&&currentProp)renderDeliveryNoteSection(currentProp,'delivery-note-content');
   }else{
     ePane.style.display='';ePane.classList.add('gantt-pane-active');
     if(eBtn){eBtn.style.borderBottomColor='#1a56db';eBtn.style.color='#1a56db';}
