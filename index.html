@@ -233,6 +233,15 @@ input,textarea,select{font-family:var(--font)}
 #detailPanel.gantt-fullscreen #dgScrollWrap,
 #detailPanel.gantt-fullscreen #geScrollWrap{max-height:none!important;flex:1;min-height:0}
 #detailPanel.gantt-fullscreen #ganttEditSidebar{max-height:100vh}
+#detailPanel.gantt-fullscreen #gantt-panes-wrap{display:flex;flex-direction:column;flex:1;min-height:0}
+/* ★工程表×納品書 分割表示モード（PC専用）：カスタム工程と納品書を画面左右半分ずつ同時表示する */
+#detail-gantt-sec.gantt-split-on #gantt-panes-wrap{display:flex!important;flex-direction:row;flex:1;min-height:0}
+#detail-gantt-sec.gantt-split-on #gantt-pane-excel{display:none!important}
+#detail-gantt-sec.gantt-split-on #gantt-pane-custom{display:flex!important;flex-direction:column;flex:1 1 50%;min-width:0;border-right:2px solid #cbd5e1;overflow-y:hidden}
+#detail-gantt-sec.gantt-split-on #gantt-pane-delivery{display:block!important;flex:1 1 50%;min-width:0;overflow-y:auto;-webkit-overflow-scrolling:touch}
+#detail-gantt-sec.gantt-split-on #gantt-tab-custom,
+#detail-gantt-sec.gantt-split-on #gantt-tab-excel,
+#detail-gantt-sec.gantt-split-on #gantt-tab-delivery{opacity:.4;pointer-events:none}
 .dp-hero{background:linear-gradient(135deg,var(--primary),#3b82f6);color:white;padding:14px 14px 18px}
 .dp-area-tag{display:inline-block;background:rgba(255,255,255,.2);padding:2px 7px;border-radius:6px;font-size:10px;font-weight:700;margin-bottom:5px}
 .dp-name{font-size:16px;font-weight:800;line-height:1.3}
@@ -765,7 +774,7 @@ body.sp-mode #areaTabsBtns{ display:none !important; }
   </div>
   <div id="weatherBar" style="display:none;flex-shrink:0;background:white;border-top:2px solid #e2e8f0;overflow-x:auto;-webkit-overflow-scrolling:touch;"><div id="weatherBarContent"></div></div>
 </div>
-<div class="slide-panel" id="detailPanel" style="display:flex;flex-direction:row;overflow:hidden"><div style="flex:1;display:flex;flex-direction:column;overflow:hidden"><div class="panel-header"><button class="panel-back" onclick="closePanel('detailPanel')">← 戻る</button><div style="flex:1"><div class="panel-title">物件詳細</div></div></div><div id="dpHeroSticky" style="flex-shrink:0;padding:6px 12px;background:var(--primary-d,#1e40af);color:white;display:none"></div><div class="panel-action-bar" id="dpActionBar" style="position:static;bottom:auto;border-top:none;border-bottom:1px solid var(--g200);box-shadow:0 2px 8px rgba(0,0,0,.06);flex-shrink:0"></div><div class="panel-scroll" id="dpContent" style="padding-bottom:16px"></div></div><div id="ganttEditSidebar" style="display:none;width:200px;min-width:200px;background:#1e293b;border-left:2px solid #334155;flex-direction:column;overflow-y:auto;flex-shrink:0"><div style="padding:8px;border-bottom:1px solid #334155;display:flex;flex-direction:column;gap:4px"><div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:2px"><div style="font-size:10px;font-weight:800;color:rgba(255,255,255,.5)">✏️ 工程表編集</div><button onclick="closeGanttEditSidebar()" style="background:rgba(255,255,255,.1);border:none;color:rgba(255,255,255,.6);border-radius:4px;padding:2px 7px;font-size:11px;cursor:pointer;font-weight:700">✕</button></div><div id="geAnchorDiag" style="font-size:9px;color:#fbbf24;line-height:1.5;background:#0f172a;border-radius:6px;padding:5px 7px;display:none"></div><button onclick="saveGanttEdit()" style="width:100%;padding:7px;background:#1a56db;color:white;border:none;border-radius:7px;font-size:11px;font-weight:800;cursor:pointer">💾 保存</button><div style="display:flex;gap:4px"><button onclick="shiftGanttEdit()" style="flex:1;padding:5px;background:#475569;color:white;border:none;border-radius:6px;font-size:10px;font-weight:700;cursor:pointer">📅 シフト</button><button onclick="resetGanttEdit()" style="flex:1;padding:5px;background:#475569;color:white;border:none;border-radius:6px;font-size:10px;font-weight:700;cursor:pointer">🔄 リセット</button></div></div><div style="padding:8px;border-bottom:1px solid #334155"><div style="font-size:10px;font-weight:800;color:rgba(255,255,255,.7);margin-bottom:6px">＋ 工種追加</div><div style="display:flex;flex-direction:column;gap:5px"><input type="text" id="geNewName" placeholder="工種名" style="padding:5px 7px;border:1.5px solid #475569;border-radius:6px;font-size:11px;background:#0f172a;color:white;width:100%;box-sizing:border-box"><div style="display:flex;align-items:center;gap:4px"><span style="font-size:9px;color:rgba(255,255,255,.5);white-space:nowrap">日数</span><input type="number" id="geNewDays" placeholder="日数" min="1" max="180" style="padding:4px 6px;border:1.5px solid #475569;border-radius:6px;font-size:11px;background:#0f172a;color:white;width:100%;box-sizing:border-box"></div><div style="display:flex;align-items:center;gap:4px"><span style="font-size:9px;color:rgba(255,255,255,.5);white-space:nowrap">開始日</span><input type="date" id="geNewDate" style="padding:4px 4px;border:1.5px solid #475569;border-radius:6px;font-size:10px;background:#0f172a;color:white;width:100%;box-sizing:border-box"></div><div id="geColorPicker" style="display:flex;flex-wrap:wrap;gap:4px;margin:2px 0"></div><button onclick="addGanttBar()" style="width:100%;padding:7px;background:#059669;color:white;border:none;border-radius:7px;font-size:11px;font-weight:800;cursor:pointer">バーを追加</button></div></div><div style="padding:6px 8px;flex:1"><div style="font-size:9px;font-weight:800;color:rgba(255,255,255,.4);margin-bottom:4px">工種一覧</div><div id="geSegList" style="display:flex;flex-direction:column;gap:4px;min-width:0;overflow:hidden"></div></div></div></div>
+<div class="slide-panel" id="detailPanel" style="display:flex;flex-direction:row;overflow:hidden"><div style="flex:1;display:flex;flex-direction:column;overflow:hidden"><div class="panel-header"><button class="panel-back" onclick="closePanel('detailPanel')">← 戻る</button><div style="flex:1"><div class="panel-title">物件詳細</div></div><div id="dpFavBtnWrap"></div></div><div id="dpHeroSticky" style="flex-shrink:0;padding:6px 12px;background:var(--primary-d,#1e40af);color:white;display:none"></div><div class="panel-scroll" id="dpContent" style="padding-bottom:16px"></div></div><div id="ganttEditSidebar" style="display:none;width:200px;min-width:200px;background:#1e293b;border-left:2px solid #334155;flex-direction:column;overflow-y:auto;flex-shrink:0"><div style="padding:8px;border-bottom:1px solid #334155;display:flex;flex-direction:column;gap:4px"><div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:2px"><div style="font-size:10px;font-weight:800;color:rgba(255,255,255,.5)">✏️ 工程表編集</div><button onclick="closeGanttEditSidebar()" style="background:rgba(255,255,255,.1);border:none;color:rgba(255,255,255,.6);border-radius:4px;padding:2px 7px;font-size:11px;cursor:pointer;font-weight:700">✕</button></div><div id="geAnchorDiag" style="font-size:9px;color:#fbbf24;line-height:1.5;background:#0f172a;border-radius:6px;padding:5px 7px;display:none"></div><button onclick="saveGanttEdit()" style="width:100%;padding:7px;background:#1a56db;color:white;border:none;border-radius:7px;font-size:11px;font-weight:800;cursor:pointer">💾 保存</button><div style="display:flex;gap:4px"><button onclick="shiftGanttEdit()" style="flex:1;padding:5px;background:#475569;color:white;border:none;border-radius:6px;font-size:10px;font-weight:700;cursor:pointer">📅 シフト</button><button onclick="resetGanttEdit()" style="flex:1;padding:5px;background:#475569;color:white;border:none;border-radius:6px;font-size:10px;font-weight:700;cursor:pointer">🔄 リセット</button></div></div><div style="padding:8px;border-bottom:1px solid #334155"><div style="font-size:10px;font-weight:800;color:rgba(255,255,255,.7);margin-bottom:6px">＋ 工種追加</div><div style="display:flex;flex-direction:column;gap:5px"><input type="text" id="geNewName" placeholder="工種名" style="padding:5px 7px;border:1.5px solid #475569;border-radius:6px;font-size:11px;background:#0f172a;color:white;width:100%;box-sizing:border-box"><div style="display:flex;align-items:center;gap:4px"><span style="font-size:9px;color:rgba(255,255,255,.5);white-space:nowrap">日数</span><input type="number" id="geNewDays" placeholder="日数" min="1" max="180" style="padding:4px 6px;border:1.5px solid #475569;border-radius:6px;font-size:11px;background:#0f172a;color:white;width:100%;box-sizing:border-box"></div><div style="display:flex;align-items:center;gap:4px"><span style="font-size:9px;color:rgba(255,255,255,.5);white-space:nowrap">開始日</span><input type="date" id="geNewDate" style="padding:4px 4px;border:1.5px solid #475569;border-radius:6px;font-size:10px;background:#0f172a;color:white;width:100%;box-sizing:border-box"></div><div id="geColorPicker" style="display:flex;flex-wrap:wrap;gap:4px;margin:2px 0"></div><button onclick="addGanttBar()" style="width:100%;padding:7px;background:#059669;color:white;border:none;border-radius:7px;font-size:11px;font-weight:800;cursor:pointer">バーを追加</button></div></div><div style="padding:6px 8px;flex:1"><div style="font-size:9px;font-weight:800;color:rgba(255,255,255,.4);margin-bottom:4px">工種一覧</div><div id="geSegList" style="display:flex;flex-direction:column;gap:4px;min-width:0;overflow:hidden"></div></div></div></div>
 <div class="slide-panel" id="myPagePanel"><div class="panel-header"><button class="panel-back" onclick="closePanel('myPagePanel')">← 戻る</button><div style="flex:1"><div class="panel-title">⭐ マイ物件</div></div><button onclick="openSelectProp()" style="background:rgba(255,255,255,.2);color:white;border-radius:6px;padding:4px 9px;font-size:11px;font-weight:700">＋</button><button class="print-btn" onclick="printPage()">🖨️</button></div><div class="mypage-wrap" id="myPageContent"></div></div>
 <div class="slide-panel" id="selectPropPanel"><div class="panel-header"><button class="panel-back" onclick="closePanel('selectPropPanel')">← 戻る</button><div style="flex:1"><div class="panel-title">担当物件を選択</div></div><button onclick="closePanel('selectPropPanel')" style="background:rgba(255,255,255,.2);color:white;border-radius:6px;padding:4px 9px;font-size:11px;font-weight:700">完了</button></div><div class="panel-scroll" id="selectPropContent"></div></div>
 
@@ -1695,7 +1704,9 @@ function _resolvePropMasterName(p){
 
 function getActiveSegs(p) {
   var segs=_getActiveSegsRaw(p);
-  return _applyKensaOverrides(p,segs);
+  segs=_applyKensaOverrides(p,segs);
+  segs=_applyDeliveryGanttLink(p,segs);
+  return segs;
 }
 
 // ★検査4種（配筋検査・躯体検査・断熱検査・完了検査）の予約日/ステータスを、
@@ -1730,6 +1741,54 @@ function _applyKensaOverrides(p,segs){
   });
   if(!found)return segs;
   return segs.map(function(s,i){return overrideMap[i]?Object.assign({},s,overrideMap[i]):s;});
+}
+
+// ★納品書↔工程ガント紐付け（2026/8/8）：納品書側の日付を正として、対応する工程バーの開始日を上書きする
+//   （非破壊：customGanttは書き換えず、表示時にオーバーライドするだけ。既存の元期間の長さ(日数)は維持する）
+var DELIVERY_GANTT_LINK=[
+  {deliveryId:1, rowName:'土台'},
+  {deliveryId:2, rowName:'①レッカー'},
+  {deliveryId:4, rowName:'②レッカー'},
+  {deliveryId:7, rowName:'③レッカー'},
+  {deliveryId:11,rowName:'④レッカー'}
+];
+var DELIVERY_LINKED_ROW_NAMES=DELIVERY_GANTT_LINK.map(function(l){return l.rowName;});
+function _isDeliveryLinkedRow(seg){
+  if(!seg)return false;
+  var nm=String(seg.label||seg.name||'').trim();
+  return DELIVERY_LINKED_ROW_NAMES.indexOf(nm)>=0;
+}
+function _applyDeliveryGanttLink(p,segs){
+  if(!p||!segs||!segs.length)return segs;
+  if(typeof deliveryNotes==='undefined')return segs;
+  var fixNo=String(p.fix_no||'');
+  var dn=deliveryNotes[fixNo];
+  if(!dn||!dn.base_date)return segs;
+  var overrideMap={};
+  var found=false;
+  DELIVERY_GANTT_LINK.forEach(function(link){
+    var m=DELIVERY_MASTER.find(function(x){return x.id===link.deliveryId;});
+    if(!m)return;
+    var dateStr=_deliveryItemDate(dn,m); // 'YYYY-MM-DD'
+    if(!dateStr)return;
+    var idx=segs.findIndex(function(s){return String(s.label||s.name||'').trim()===link.rowName;});
+    if(idx<0)return;
+    found=true;
+    var seg=segs[idx];
+    var origSd=(seg.start_date||seg.date||'').replace(/\//g,'-');
+    var origEd=(seg.end_date||origSd).replace(/\//g,'-');
+    var durDays=1;
+    if(origSd&&origEd){
+      var diffMs=new Date(origEd)-new Date(origSd);
+      if(!isNaN(diffMs))durDays=Math.max(1,Math.round(diffMs/86400000)+1);
+    }
+    var newEdDate=new Date(dateStr+'T00:00:00');
+    newEdDate.setDate(newEdDate.getDate()+durDays-1);
+    var newEd=_dkey(newEdDate);
+    overrideMap[idx]=Object.assign({},seg,{start_date:dateStr,date:dateStr,end_date:newEd});
+  });
+  if(!found)return segs;
+  return segs.map(function(s,i){return overrideMap[i]?overrideMap[i]:s;});
 }
 
 function _getActiveSegsRaw(p) {
@@ -3429,12 +3488,21 @@ function _refreshDetailGanttBadges(p){
   var liveCompact=document.getElementById('detail-gantt-compact');
   var liveMulti=document.getElementById('detail-gantt-multi');
   if(!liveCompact&&!liveMulti)return; // ガントタブがまだ描画されていない
+  // ★納品書編集のたびにガント本体を再描画すると、スクロール位置が先頭に戻ってしまうため、
+  //   縦横のスクロール位置を保存し、描画後に復元する（2026/8/8）
+  var prevScrollWrap=liveMulti?liveMulti.querySelector('#dgScrollWrap'):null;
+  var savedLeft=prevScrollWrap?prevScrollWrap.scrollLeft:null;
+  var savedTop=prevScrollWrap?prevScrollWrap.scrollTop:null;
   var tmp=document.createElement('div');
   tmp.innerHTML=buildGanttTab(p);
   var newCompact=tmp.querySelector('#detail-gantt-compact');
   var newMulti=tmp.querySelector('#detail-gantt-multi');
   if(newCompact&&liveCompact)liveCompact.innerHTML=newCompact.innerHTML;
   if(newMulti&&liveMulti)liveMulti.innerHTML=newMulti.innerHTML;
+  if(savedLeft!==null){
+    var newScrollWrap=liveMulti?liveMulti.querySelector('#dgScrollWrap'):null;
+    if(newScrollWrap){newScrollWrap.scrollLeft=savedLeft;newScrollWrap.scrollTop=savedTop;}
+  }
 }
 window._refreshDetailGanttBadges=_refreshDetailGanttBadges;
 
@@ -3665,9 +3733,11 @@ function buildGanttTab(p){
       +'<button id="gantt-tab-delivery" onclick="switchGanttTab(\'delivery\')" style="padding:6px 14px;font-size:11px;font-weight:700;border:none;background:none;cursor:pointer;border-bottom:2px solid transparent;color:#94a3b8;margin-bottom:-2px">📦 納品書</button>'
       +'<div id="detailGanttHeaderBtns" style="display:flex;gap:6px;align-items:center;margin-left:auto;padding:4px 8px;flex-wrap:wrap;justify-content:flex-end"></div>'
     +'</div>'
-    +'<div id="gantt-pane-custom" class="gantt-pane gantt-pane-active">'+ganttHtml+'</div>'
-    +'<div id="gantt-pane-excel" class="gantt-pane" style="display:none"><div id="gantt-excel-content" style="padding:8px"><div style="color:#94a3b8;font-size:11px;padding:12px;text-align:center">読み込み中...</div></div></div>'
-    +'<div id="gantt-pane-delivery" class="gantt-pane" style="display:none"><div id="delivery-note-content" style="padding:8px"></div></div>'
+    +'<div id="gantt-panes-wrap">'
+      +'<div id="gantt-pane-custom" class="gantt-pane gantt-pane-active">'+ganttHtml+'</div>'
+      +'<div id="gantt-pane-excel" class="gantt-pane" style="display:none"><div id="gantt-excel-content" style="padding:8px"><div style="color:#94a3b8;font-size:11px;padding:12px;text-align:center">読み込み中...</div></div></div>'
+      +'<div id="gantt-pane-delivery" class="gantt-pane" style="display:none"><div id="delivery-note-content" style="padding:8px"></div></div>'
+    +'</div>'
     +'</div>';
 }
 
@@ -3680,8 +3750,13 @@ function renderGanttHeaderBtns(){
   if(!el)return;
   var expanded=!!_ganttDetailExpanded;
   var editing=!!ganttEditMode;
+  var split=!!ganttSplitMode;
   var html='<button id="detail-gantt-expand-btn" onclick="toggleDetailGanttExpand()" style="background:white;color:var(--primary);padding:4px 12px;border-radius:16px;font-size:10px;font-weight:800;white-space:nowrap;border:none;box-shadow:0 1px 3px rgba(0,0,0,.25)">'
     +(expanded?'🗜️ 工程表縮小':'🔍 工程表拡大')+'</button>';
+  if(isPcMode){
+    html+='<button id="detail-gantt-split-btn" onclick="toggleGanttSplitMode()" title="工程表と納品書を左右に並べて同時編集" style="background:'+(split?'#7c3aed':'#e2e8f0')+';color:'+(split?'white':'#475569')+';padding:4px 12px;border-radius:16px;font-size:10px;font-weight:800;white-space:nowrap;border:none;box-shadow:0 1px 3px rgba(0,0,0,.15)">'
+      +(split?'⬛ 分割表示ON':'◧ 工程表+納品書 分割表示')+'</button>';
+  }
   if(expanded){
     html+='<button id="detail-gantt-edit-btn" onclick="toggleGanttEditMode()" style="background:'+(editing?'#ef4444':'#f59e0b')+';color:white;padding:3px 10px;border-radius:5px;font-size:10px;font-weight:700;white-space:nowrap">'
       +(editing?'✕ 工程表編集終了':'✏️ 工程表編集')+'</button>'
@@ -3690,6 +3765,29 @@ function renderGanttHeaderBtns(){
   el.innerHTML=html;
 }
 window.renderGanttHeaderBtns=renderGanttHeaderBtns;
+
+// ★工程表×納品書 分割表示の切替（2026/8/8）：PC専用。工程表を見ながら納品書を微修正できるようにする
+var ganttSplitMode=false;
+function toggleGanttSplitMode(){
+  if(!currentProp)return;
+  var sec=document.getElementById('detail-gantt-sec');
+  if(!sec)return;
+  ganttSplitMode=!ganttSplitMode;
+  if(ganttSplitMode){
+    sec.classList.add('gantt-split-on');
+    setGanttFullscreen(true); // ★画面を広く使えるよう全画面表示も合わせてONにする
+    // ★カスタム工程・納品書の両方を表示状態にする（タブの排他表示を一時的に解除）
+    var cp=document.getElementById('gantt-pane-custom'), dp=document.getElementById('gantt-pane-delivery');
+    if(cp){cp.style.display='';cp.classList.add('gantt-pane-active');}
+    if(dp){dp.style.display='';dp.classList.add('gantt-pane-active');}
+    renderDeliveryNoteSection(currentProp,'delivery-note-content');
+  }else{
+    sec.classList.remove('gantt-split-on');
+    switchGanttTab('custom'); // ★通常のタブ表示（カスタム工程のみ）に戻す
+  }
+  renderGanttHeaderBtns();
+}
+window.toggleGanttSplitMode=toggleGanttSplitMode;
 
 // ★旧：工程表ボタンをDOM移動していた関数（廃止・renderGanttHeaderBtns()に統一）
 // 後方互換のため関数自体は残すが、内容は新方式の呼び出しにする
@@ -3840,6 +3938,8 @@ function toggleGanttEditMode(){
     renderGanttHeaderBtns();
     sb.style.display='none';
     geRenderBars();
+    // ★geRenderBarsは納品バッジを描画しないため、編集終了後に納品バッジを復元する（2026/8/8）
+    if(typeof _refreshDetailGanttBadges==='function')_refreshDetailGanttBadges(currentProp);
   }
 }
 window.toggleGanttEditMode=toggleGanttEditMode;
@@ -3863,6 +3963,11 @@ function _geIsKensaRow(seg){
   if(!seg)return false;
   var nm=String(seg._kensaDef||seg.label||seg.name||'').trim().replace(/\s*[\(（][^)）]*[\)）]\s*$/,'');
   return _KENSA_ROW_NAMES.indexOf(nm)>=0;
+}
+// ★検査行に加え、納品書と紐付いている行（土台・①〜④レッカー）もドラッグ編集不可にする（2026/8/8）
+//   これらは納品書側の日付が正になるため、工程表編集画面で動かしても納品書の再計算時に戻されてしまう
+function _geIsLockedRow(seg){
+  return _geIsKensaRow(seg)||(typeof _isDeliveryLinkedRow==='function'&&_isDeliveryLinkedRow(seg));
 }
 function geRenderBars(){
   var multiEl=document.getElementById('detail-gantt-multi'); if(!multiEl)return;
@@ -3955,7 +4060,7 @@ function geRenderBars(){
         bars+='<div style="position:absolute;left:'+sx+'px;top:'+by+'px;width:0;height:'+bh+'px;display:flex;align-items:center;font-size:10px;font-weight:800;color:#1e293b;white-space:nowrap;overflow:visible;z-index:20;">'+soseiTxt2+'</div>';
       }
     } else {
-      var isKensaLocked=ganttEditMode&&_geIsKensaRow(seg);
+      var isKensaLocked=ganttEditMode&&_geIsLockedRow(seg);
       // ★3日以内はバー右横に工程名表示。編集モードでは✕もバーの上ではなく文字の後ろに配置（掴みにくさ対策）
       var geLblOut=geCalDur<=3?('<div style="position:absolute;left:'+(sx+bw+2)+'px;top:'+by+'px;height:'+bh+'px;display:flex;align-items:center;gap:3px;font-size:8px;font-weight:700;color:#334155;white-space:nowrap;z-index:20;">'
         +'<span>'+lbl+'</span>'
@@ -4030,7 +4135,7 @@ function geRenderBars(){
       var idx=parseInt(bar.getAttribute('data-idx'));
       bar.addEventListener('pointerdown',function(e){
         var t=e.target;
-        if(_geIsKensaRow(geSegs[idx])){showToast('検査予約日は物件編集画面から設定してください','info');return;}
+        if(_geIsLockedRow(geSegs[idx])){showToast('この行は納品書または物件編集画面で管理されています','info');return;}
         if(t.classList.contains('ge-del')){e.stopPropagation();geShowDelConfirm(idx,geSegs[idx]?geSegs[idx].label:'');return;}
         if(t.classList.contains('ge-rsz')){e.stopPropagation();geStartResize(e,idx);return;}
         geStartDrag(e,idx,bar);
@@ -4052,7 +4157,7 @@ function geGetScrollWrap(){
   return document.getElementById('geScrollWrap');
 }
 function geStartDrag(e,idx,bar){
-  if(_geIsKensaRow(geSegs[idx]))return; // ★保険：検査行は物件編集画面でのみ日付変更
+  if(_geIsLockedRow(geSegs[idx]))return; // ★保険：検査行・納品連動行は物件編集画面でのみ日付変更
   e.preventDefault();
   bar.setPointerCapture(e.pointerId);
   var sd=geSegs[idx].start_date||geSegs[idx].date||'';
@@ -4265,7 +4370,7 @@ function geStopDrag(){
   if(typeof geRenderSegList==='function')geRenderSegList();
 }
 function geStartResize(e,idx){
-  if(_geIsKensaRow(geSegs[idx]))return; // ★保険：検査行は物件編集画面でのみ日付変更
+  if(_geIsLockedRow(geSegs[idx]))return; // ★保険：検査行・納品連動行は物件編集画面でのみ日付変更
   e.preventDefault();
   e.stopPropagation();
   geResBar={idx:idx}; geResStartX=e.clientX;
@@ -4373,7 +4478,7 @@ function geStopResize(){
 }
 
 function geShowDelConfirm(idx,lbl){
-  if(_geIsKensaRow(geSegs[idx])){showToast('検査行は削除できません（物件編集画面で管理されています）','info');return;}
+  if(_geIsLockedRow(geSegs[idx])){showToast('この行は削除できません（物件編集画面で管理されています）','info');return;}
   var ov=document.getElementById('_geDelOv');
   if(!ov){ov=document.createElement('div');ov.id='_geDelOv';ov.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:9999;display:flex;align-items:center;justify-content:center;';document.body.appendChild(ov);}
   ov.innerHTML='<div style="background:#fff;border-radius:14px;padding:22px 24px;max-width:280px;width:90%;text-align:center"><div style="font-size:28px;margin-bottom:8px">?</div><div style="font-size:13px;font-weight:800;color:#1e293b;margin-bottom:12px">'+lbl+'を削除</div><div style="display:flex;gap:8px"><button onclick="document.getElementById(\'_geDelOv\').style.display=\'none\'" style="flex:1;padding:9px;background:#f1f5f9;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;border:none">キャンセル</button><button id="_geDelOk" style="flex:1;padding:9px;background:#ef4444;color:#fff;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;border:none">削除</button></div></div>';
@@ -4385,7 +4490,7 @@ function geRenderSegList(){
   var el=document.getElementById('geSegList'); if(!el)return;
   el.innerHTML=geSegs.map(function(s,i){
     var lbl=s.label||'';
-    var locked=_geIsKensaRow(s);
+    var locked=_geIsLockedRow(s);
     // ★ input[type=date]はYYYY-MM-DD形式のみ受け付けるのでスラッシュをハイフンに変換
     var sd=(s.start_date||s.date||'').replace(/\//g,'-');
     var dur=s.calendar_dur||s.duration||1;
@@ -4425,7 +4530,7 @@ function geUpdateSegDate(input){
   var field=input.getAttribute('data-field');
   var val=input.value; if(!val)return;
   var s=geSegs[idx]; if(!s)return;
-  if(_geIsKensaRow(s)){showToast('検査予約日は物件編集画面から設定してください','info');geRenderSegList();return;} // ★保険：万一この入力欄が呼ばれても無視
+  if(_geIsLockedRow(s)){showToast('この行は納品書または物件編集画面で管理されています','info');geRenderSegList();return;} // ★保険：万一この入力欄が呼ばれても無視
   if(field==='start'){
     s.start_date=val; s.date=val;
     // end_dateを稼働日数から再計算（★calendar_durを保持）
@@ -4553,6 +4658,8 @@ function closeGanttEditSidebar(){
   ganttEditMode=false;
   renderGanttHeaderBtns();
   geRenderBars();
+  // ★geRenderBarsは納品バッジを描画しないため、編集終了後に納品バッジを復元する（2026/8/8）
+  if(typeof _refreshDetailGanttBadges==='function')_refreshDetailGanttBadges(currentProp);
 }
 window.closeGanttEditSidebar=closeGanttEditSidebar;
 
@@ -5014,10 +5121,25 @@ function openDetail(p){
       +'<div class="proc-info"><div class="proc-name">'+s.n+'</div><div class="proc-date">'+s.d+'</div></div>'
       +rightHtml+'</div>';
   }).join('')||'<div style="padding:8px;color:var(--g300);font-size:10px">データなし</div>';
+  // ★スクロールしても常に見える上部バー用の、マイルストーンの省スペース版（2026/8/9）
+  //   本文側の「マイルストーン／土地・契約情報／設計・調査情報」は重複表示になるため廃止し、こちらに一本化
+  var ff2=true;
+  var milestoneChipsHtml=steps.map(function(s){
+    var dt=new Date(s.d.replace(/\//g,'-')),isPast=dt<today;
+    var isCur=!isPast&&ff2;if(!isPast&&ff2)ff2=false;
+    var dotColor=isPast?'#34d399':(isCur?'#fbbf24':'rgba(255,255,255,.4)');
+    var md=s.d.replace(/^\d{4}\//,'');
+    var right='';
+    if(s.isKensa){
+      var isReserved=s.status==='reserved';
+      right='<button onclick="toggleKensaStatus(\''+s.statusKey+'\')" style="font-size:8px;font-weight:800;color:white;background:'+(isReserved?'#3b82f6':'#f97316')+';border:none;border-radius:8px;padding:1px 6px;cursor:pointer;white-space:nowrap;margin-left:3px">'+(isReserved?'済':'未')+'</button>';
+    }
+    return '<div style="display:inline-flex;align-items:center;flex-shrink:0;background:rgba(255,255,255,.12);border-radius:10px;padding:2px 7px;white-space:nowrap">'
+      +'<span style="width:6px;height:6px;border-radius:50%;background:'+dotColor+';margin-right:4px;flex-shrink:0"></span>'
+      +'<span style="font-size:9px;font-weight:'+(isCur?'800':'600')+'">'+s.n+' '+md+'</span>'+right
+      +'</div>';
+  }).join('');
   function mkRow(label,val,isDate){var em=!val?' empty':'',fc=isDate===false?' txt':'';return '<div class="dp-row"><span class="dp-label">'+label+'</span><span class="dp-val'+em+fc+'">'+(val||'－')+'</span></div>';}
-  var dStyle=isUrgent?'" style="color:var(--danger);font-weight:800':'';
-  var delivRow='<div class="dp-row"><span class="dp-label">引渡し日</span><span class="dp-val'+dStyle+'">'+(p.delivery_date||'－')+(days!==null&&days>=0?' (残'+days+'日)':'')+'</span></div>';
-
   // 管理者のみ編集ボタン表示
   var isAdmin=(typeof currentProfile!=='undefined'&&currentProfile&&currentProfile.role==='admin');
   var editBtn=isAdmin
@@ -5047,25 +5169,18 @@ function openDetail(p){
   }
 
   document.getElementById('dpContent').innerHTML=
-    '<div class="dp-hero"><div class="dp-area-tag">'+(p.area||'不明')+'</div>'
-    +'<div class="dp-name">'+p.name+'</div>'
-    +'<div class="dp-fixno">FiX No.'+p.fix_no+(p.seq_no?' ／ 通し:'+p.seq_no:'')+'</div>'
-    +'<div class="dp-status-row">'+(p.tantou||p.staff?'<span style="font-size:10px;background:#475569;color:white;padding:2px 6px;border-radius:4px">'+(p.tantou||p.staff)+'</span>':'')+(isUrgent?'<span class="urg-pill">⚡ 引渡まで'+days+'日</span>':'')+'</div></div>'
-    +buildGanttTab(p)
-    +'<div class="dp-sec" id="dpMilestoneSec"><div class="dp-sec-head">📅 マイルストーン</div><div class="proc-list" id="dpMilestoneList">'+procHtml+'</div></div>'
+    buildGanttTab(p)
     +buildProgressSection(p)
     +'<div class="dp-sec"><div class="dp-sec-head" style="display:flex;align-items:center;">🏠 基本情報'+editBtn+'</div>'
       +mkRow('FiX No.',p.fix_no)+mkRow('通し番号',p.seq_no)+mkRow('エリア',p.area,false)+mkRow('物件名',p.name,false)
       +mkRow('担当者',p.tantou||p.staff||'',false)+mkRow('手組',p.hand_kumi,false)
       +mkRow('住所',addrVal,false)+'</div>'
     +buildMasterLinkSection(p)
-    +'<div class="dp-sec"><div class="dp-sec-head">📋 土地・契約情報</div>'+mkRow('土地契約日',p.land_contract)+mkRow('土地決済期日',p.land_payment)+'</div>'
-    +'<div class="dp-sec"><div class="dp-sec-head">📐 設計・調査情報</div>'+mkRow('確認申請提出日',p.confirm_submit)+mkRow('確認申請完了日',p.confirm_done)+mkRow('地盤調査確定日',p.ground_survey)+'</div>'
-    +'<div class="dp-sec"><div class="dp-sec-head">🏁 完了・引渡し情報</div>'+mkRow('完了検査日',p.inspection_date)+mkRow('完成日',p.complete_date)+delivRow+'</div>'
     +parkHtml
     +'<div id="detail-vendor-wrap">'+buildVendorSection(p)+'</div>';
 
-  // ★固定上部バーに物件名等を表示（下にスクロールしても何を編集中か分かるように）
+  // ★固定上部バーに物件名・マイルストーンを表示（下にスクロールしても常に見えるように／2026/8/9）
+  //   本文側のマイルストーン・土地契約情報・設計調査情報は重複表示になるため廃止し、こちらに一本化
   var heroSticky=document.getElementById('dpHeroSticky');
   if(heroSticky){
     heroSticky.style.display='block';
@@ -5073,15 +5188,17 @@ function openDetail(p){
       +'<span style="font-size:9px;background:rgba(255,255,255,.25);padding:2px 7px;border-radius:4px;font-weight:700;flex-shrink:0">'+(p.area||'不明')+'</span>'
       +'<span style="font-size:13px;font-weight:800;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+p.name+'</span>'
       +'</div>'
-      +'<div style="font-size:9px;opacity:.85;margin-top:2px">FiX No.'+p.fix_no+(p.seq_no?' ／ 通し:'+p.seq_no:'')+(p.tantou||p.staff?' ／ '+(p.tantou||p.staff):'')+'</div>';
+      +'<div style="font-size:9px;opacity:.85;margin-top:2px">FiX No.'+p.fix_no+(p.seq_no?' ／ 通し:'+p.seq_no:'')+(p.tantou||p.staff?' ／ '+(p.tantou||p.staff):'')+'</div>'
+      +'<div style="display:flex;gap:4px;overflow-x:auto;margin-top:5px;padding-bottom:2px;-webkit-overflow-scrolling:touch">'+(milestoneChipsHtml||'<span style="font-size:9px;opacity:.6">マイルストーン日付が未設定です</span>')+'</div>';
   }
 
-  document.getElementById('dpActionBar').innerHTML=
-    (isFav(p)
-      ?'<button class="btn-danger" onclick="removeFavAction()">⭐ マイ物件から削除</button>'
-      :'<button class="btn-primary" onclick="addFavAction()">⭐ マイ物件に追加</button>')
-    +'<button class="btn-secondary" onclick="printPropInfo()" style="font-size:11px;padding:8px 10px">🖨️ この物件を印刷</button>'
-    +'<button class="btn-secondary" onclick="showPropQR()" style="font-size:11px;padding:8px 10px">📱 QR</button>';
+  // ★マイ物件登録の切替ボタンのみ、上部バー（パネルヘッダー）に残す（印刷・QRは廃止／2026/8/9）
+  var favWrap=document.getElementById('dpFavBtnWrap');
+  if(favWrap){
+    favWrap.innerHTML=(isFav(p)
+      ?'<button onclick="removeFavAction()" style="background:rgba(239,68,68,.85);color:white;border:none;border-radius:16px;padding:5px 12px;font-size:11px;font-weight:700;white-space:nowrap">⭐ マイ物件から削除</button>'
+      :'<button onclick="addFavAction()" style="background:rgba(255,255,255,.2);color:white;border:none;border-radius:16px;padding:5px 12px;font-size:11px;font-weight:700;white-space:nowrap">⭐ マイ物件に追加</button>');
+  }
   _ganttDetailExpanded=false;
   ganttEditMode=false;
   relocateGanttHeaderButtons();
