@@ -12334,7 +12334,7 @@ function admStatusBadges(p){
   if(!Array.isArray(pks))pks=[];
   var redStyle='font-size:9px;font-weight:700;background:#fef2f2;color:#dc2626;padding:1px 5px;border-radius:4px;border:1px solid #fecaca;white-space:nowrap;flex-shrink:0';
   var tantouOkStyle='font-size:9px;font-weight:700;background:#475569;color:white;padding:1px 5px;border-radius:4px;white-space:nowrap;flex-shrink:0';
-  var addrOkStyle='font-size:9px;font-weight:600;background:#f1f5f9;color:#334155;padding:1px 5px;border-radius:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:160px';
+  var addrOkStyle='font-size:9px;font-weight:600;background:#f1f5f9;color:#334155;padding:1px 5px;border-radius:4px;white-space:normal;word-break:break-all';
   var pOkStyle='font-size:9px;font-weight:700;background:#dbeafe;color:#1d4ed8;padding:1px 5px;border-radius:4px;white-space:nowrap;flex-shrink:0';
   var out='';
   out+=hasTantou?('<span style="'+tantouOkStyle+'">👤 '+tantouRaw+'</span>'):('<span style="'+redStyle+'">👤担当者未設定</span>');
@@ -12953,6 +12953,7 @@ function admHandleXlsx(input){
       var exMap={};
       (existing.data||[]).forEach(function(p){exMap[String(p.fix_no)+'_'+p.name]=p.id;});
       var totalNew=0,totalUpd=0;
+      var importErrors=[]; // ★Supabase書き込みエラーを収集（サイレント失敗を防ぐ）
       var deliveryColFallbackSheets=[]; // 引渡し日列を自動検出できず既定値を使ったシート名
       var deliveryColDetectedLetters=[]; // 検出できた列（Excel表記）のログ
       var moveinColFallbackSheets=[]; // 実入居発生日列を自動検出できなかったシート名
@@ -13060,16 +13061,18 @@ function admHandleXlsx(input){
           var key=fixNo+'_'+nameVal;
           if(exMap[key]){
             // 同じFIX ID+名前 → 通常更新
-            await sb.from('properties').update(prop).eq('id',exMap[key]);totalUpd++;
+            var upR=await sb.from('properties').update(prop).eq('id',exMap[key]);
+            if(upR.error){importErrors.push(fixNo+' '+nameVal+': '+upR.error.message);}else{totalUpd++;}
           } else {
             // ★ FIX IDが同じで名前が違う（物件名変更）→ 最新名に上書き更新
             var sameFixId=Object.keys(exMap).find(function(k){return k.split('_')[0]===fixNo;});
             if(sameFixId){
               // 旧名のレコードを最新名で更新
-              await sb.from('properties').update(prop).eq('id',exMap[sameFixId]);
-              totalUpd++;
+              var upR2=await sb.from('properties').update(prop).eq('id',exMap[sameFixId]);
+              if(upR2.error){importErrors.push(fixNo+' '+nameVal+': '+upR2.error.message);}else{totalUpd++;}
             } else {
-              await sb.from('properties').insert(prop);totalNew++;
+              var insR=await sb.from('properties').insert(prop);
+              if(insR.error){importErrors.push(fixNo+' '+nameVal+': '+insR.error.message);}else{totalNew++;}
             }
           }
         }
@@ -13082,7 +13085,16 @@ function admHandleXlsx(input){
         +(moveinColDetectedLetters.length?('✅ '+moveinColDetectedLetters.join(' / ')):'')
         +(moveinColFallbackSheets.length?(' ⚠️検出できず今回はスキップ（既存値を保持）: '+moveinColFallbackSheets.join('・')):'')
         +'</div>';
-      if(statusEl){statusEl.innerHTML='<div style="background:#d1fae5;color:#065f46;padding:12px;border-radius:8px;font-size:12px">✅ 取込完了: 新規 '+totalNew+'件 / 更新 '+totalUpd+'件</div>'+deliveryColInfo;}
+      if(statusEl){
+        var errBlock=importErrors.length
+          ?('<div style="background:#fef2f2;color:#991b1b;padding:10px 12px;border-radius:8px;font-size:11px;margin-top:8px;max-height:150px;overflow-y:auto">'
+            +'⚠️ '+importErrors.length+'件の書き込みエラーが発生しました（データベースの列が存在しない等の可能性があります）<br>'
+            +importErrors.slice(0,15).map(function(e){return '・'+e;}).join('<br>')
+            +(importErrors.length>15?'<br>…他'+(importErrors.length-15)+'件':'')
+            +'</div>')
+          :'';
+        statusEl.innerHTML='<div style="background:#d1fae5;color:#065f46;padding:12px;border-radius:8px;font-size:12px">✅ 取込完了: 新規 '+totalNew+'件 / 更新 '+totalUpd+'件</div>'+deliveryColInfo+errBlock;
+      }
       showToast('✅ Excelを取込みました','success');
       // Reload DB props
       var pr=await sb.from('properties').select('*').order('fix_no');
