@@ -2987,65 +2987,55 @@ function renderBars(cv, p, segs, gx, top, rowH) {
     cv.appendChild(bar);
   });
 
-  // 引渡し日 → 赤バー（水平）＋ 縦ライン
+  // 引渡し日・実入居発生日：同日の場合は行の高さを変えずに上下2段（半分の高さ）で表示する
+  //   ★以前「行の下段にずらす」方式は行の高さ計算の都合で埋もれて見えなくなる不具合があり、
+  //     「右隣に並べる」方式は横方向で日付の位置がわかりにくいとのフィードバックがあったため、
+  //     既存のバー枠（barY〜barY+barH）の中で上下に分割する方式に変更（2026/8/10）
   var ddRaw=p.delivery_date||'';
-  if(ddRaw&&!/REF|#/.test(ddRaw)){
-    var ddNorm=normDate(ddRaw)||ddRaw;
-    var ds=ddNorm.replace(/\//g,'-');
-    var icX=_dateToPx(ddNorm);
-    if(icX!==null){
-      icX=icX; // _dateToPx済み
-    }
-    if(icX!==null){
-      if(icX>=vStartPx-COL_W*2&&icX<=vEndPx+COL_W){
-        var clampX=Math.max(icX,vStartPx);
-        // 赤い水平バー「渡し」
-        var icBar=document.createElement('div');
-        icBar.className='bar g-bar';
-        icBar.setAttribute('data-label','引渡し');
-        icBar.setAttribute('data-start',ddNorm);
-        icBar.setAttribute('data-end',ddNorm);
-        icBar.style.cssText='left:'+clampX+'px;top:'+barY+'px;width:'+(COL_W*2-1)+'px;height:'+barH+'px;'
-          +'background:#ef4444;color:white;font-size:7px;font-weight:900;border-radius:3px;z-index:16;'
-          +'display:flex;align-items:center;justify-content:center;'
-          +'box-shadow:0 1px 4px rgba(239,68,68,.6);';
-        icBar.textContent='渡し';
-        (function(dt){icBar.onclick=function(e){e.stopPropagation();showTip(e,'引渡し: '+dt);};})(ddNorm);
-        cv.appendChild(icBar);
-      }
-    }
+  var miRaw=p.movein_date||'';
+  var ddNorm=(ddRaw&&!/REF|#/.test(ddRaw))?(normDate(ddRaw)||ddRaw):'';
+  var miNorm=(miRaw&&!/REF|#/.test(miRaw))?(normDate(miRaw)||miRaw):'';
+  var icX=ddNorm?_dateToPx(ddNorm):null;
+  var miX=miNorm?_dateToPx(miNorm):null;
+  var barW2=COL_W*2-1;
+  var sameDay=(icX!==null&&miX!==null&&Math.abs(icX-miX)<barW2+2);
+
+  // 引渡し日 → 赤バー（水平）＋ 縦ライン
+  if(ddNorm&&icX!==null&&icX>=vStartPx-COL_W*2&&icX<=vEndPx+COL_W){
+    var clampX=Math.max(icX,vStartPx);
+    var icBar=document.createElement('div');
+    icBar.className='bar g-bar';
+    icBar.setAttribute('data-label','引渡し');
+    icBar.setAttribute('data-start',ddNorm);
+    icBar.setAttribute('data-end',ddNorm);
+    var icH=sameDay?Math.floor(barH/2)-1:barH;
+    var icTop=barY;
+    icBar.style.cssText='left:'+clampX+'px;top:'+icTop+'px;width:'+barW2+'px;height:'+icH+'px;'
+      +'background:#ef4444;color:white;font-size:'+(sameDay?'6':'7')+'px;font-weight:900;border-radius:3px;z-index:16;'
+      +'display:flex;align-items:center;justify-content:center;'
+      +'box-shadow:0 1px 4px rgba(239,68,68,.6);';
+    icBar.textContent='渡し';
+    (function(dt){icBar.onclick=function(e){e.stopPropagation();showTip(e,'引渡し: '+dt);};})(ddNorm);
+    cv.appendChild(icBar);
   }
 
   // 実入居発生日 → 青バー（表示専用・ドラッグ等の操作は不可）
-  //   ★他の工程バー／引渡しバーと横位置が重なる場合は、行の下段にずらして表示し重なりを防ぐ
-  var miRaw=p.movein_date||'';
-  if(miRaw&&!/REF|#/.test(miRaw)){
-    var miNorm=normDate(miRaw)||miRaw;
-    var miX=_dateToPx(miNorm);
-    if(miX!==null&&miX>=vStartPx-COL_W*2&&miX<=vEndPx+COL_W){
-      var miClampX=Math.max(miX,vStartPx);
-      var miW=COL_W*2-1;
-      var miCollide=false;
-      if(typeof icX==='number'&&icX!==null&&Math.abs(miClampX-Math.max(icX,vStartPx))<miW+2)miCollide=true;
-      barLayouts.forEach(function(bl){
-        if(bl.slot>0)return; // 既に段をずらして表示されている工程は対象外
-        var blLeft=bl.rsPx, blRight=bl.rsPx+(bl.minSwatch?MIN_SWATCH_W:bl.rw);
-        if(miClampX<blRight+2&&miClampX+miW>blLeft-2)miCollide=true;
-      });
-      var miH=miCollide?Math.max(10,Math.floor(barH*0.55)):barH;
-      var miTop=miCollide?(top+baseRowH-miH-1):barY;
-      var miBar=document.createElement('div');
-      miBar.className='bar g-bar';
-      miBar.setAttribute('data-label','実入居');
-      miBar.setAttribute('data-start',miNorm);
-      miBar.setAttribute('data-end',miNorm);
-      miBar.style.cssText='left:'+miClampX+'px;top:'+miTop+'px;width:'+miW+'px;height:'+miH+'px;'
-        +'background:#2563eb;color:white;font-size:'+(miCollide?'6':'7')+'px;font-weight:900;border-radius:3px;z-index:17;'
-        +'display:flex;align-items:center;justify-content:center;pointer-events:none;'
-        +'box-shadow:0 1px 4px rgba(37,99,235,.6);';
-      miBar.textContent='入居';
-      cv.appendChild(miBar);
-    }
+  if(miNorm&&miX!==null&&miX>=vStartPx-COL_W*2&&miX<=vEndPx+COL_W){
+    var miClampX=Math.max(miX,vStartPx);
+    var miH=sameDay?Math.floor(barH/2)-1:barH;
+    var miTop=sameDay?(barY+Math.floor(barH/2)):barY;
+    var miBar=document.createElement('div');
+    miBar.className='bar g-bar';
+    miBar.setAttribute('data-label','実入居');
+    miBar.setAttribute('data-start',miNorm);
+    miBar.setAttribute('data-end',miNorm);
+    miBar.style.cssText='left:'+miClampX+'px;top:'+miTop+'px;width:'+barW2+'px;height:'+miH+'px;'
+      +'background:#2563eb;color:white;font-size:'+(sameDay?'6':'7')+'px;font-weight:900;border-radius:3px;z-index:16;'
+      +'display:flex;align-items:center;justify-content:center;'
+      +'box-shadow:0 1px 4px rgba(37,99,235,.6);';
+    miBar.textContent='入居';
+    (function(dt){miBar.onclick=function(e){e.stopPropagation();showTip(e,'実入居: '+dt);};})(miNorm);
+    cv.appendChild(miBar);
   }
 }
 
@@ -8308,9 +8298,11 @@ async function loadPropertiesFromCacheOrDB(forceRefresh){
       var cached=localStorage.getItem(PROPS_CACHE_KEY);
       if(cached){
         var parsed=JSON.parse(cached);
-        // ★古い形式のキャッシュ（id列が無い）は破棄して再取得（削除ボタン等でid未取得になる不具合の対策）
+        // ★古い形式のキャッシュ（id列が無い、またはmovein_date列が無い＝2026/8/10のスキーマ追加前）は
+        //   破棄して再取得（削除ボタン等でid未取得や、実入居発生日が表示されない不具合の対策）
         var cacheHasId=parsed&&parsed.length>0&&parsed[0]&&Object.prototype.hasOwnProperty.call(parsed[0],'id');
-        if(parsed&&parsed.length>0&&cacheHasId){
+        var cacheHasMovein=parsed&&parsed.length>0&&parsed[0]&&Object.prototype.hasOwnProperty.call(parsed[0],'movein_date');
+        if(parsed&&parsed.length>0&&cacheHasId&&cacheHasMovein){
           DB_PROPS=parsed;
           _loadSharedGanttFromDB();
           if(typeof renderAll==='function')renderAll();
@@ -8324,7 +8316,7 @@ async function loadPropertiesFromCacheOrDB(forceRefresh){
   }
   // Supabaseから取得してキャッシュ保存
   // 軽量カラムのみ取得（custom_ganttは重いため除外→別途取得）
-  var pr=await sb.from('properties').select('id,fix_no,seq_no,name,area,status,hand_kumi,tantou,delivery_date,delivery_month,land_contract,land_payment,confirm_submit,confirm_done,inspection_date,complete_date,haikin_date,haikin_status,kutai_date,kutai_status,dannetsu_date,dannetsu_status,inspection_status,shinsa_kikan,address,parkings,prop_master,gantt_is_manual,updated_at').order('fix_no');
+  var pr=await sb.from('properties').select('id,fix_no,seq_no,name,area,status,hand_kumi,tantou,delivery_date,delivery_month,land_contract,land_payment,confirm_submit,confirm_done,inspection_date,complete_date,haikin_date,haikin_status,kutai_date,kutai_status,dannetsu_date,dannetsu_status,inspection_status,shinsa_kikan,address,parkings,prop_master,gantt_is_manual,movein_date,movein_date_source,updated_at').order('fix_no');
   if(!pr.error&&pr.data&&pr.data.length>0){
     DB_PROPS=pr.data;
     try{
