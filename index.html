@@ -1351,12 +1351,6 @@ function endOfWorkdays(startStr, dur){
 }
 
 // prevEnd の翌稼働日（日曜スキップ）
-function nextWorkday(dateStr){
-  var d=new Date(dateStr.replace(/[/]/g,'-'));
-  d.setDate(d.getDate()+1);
-  while(d.getDay()===0)d.setDate(d.getDate()+1);
-  return localDateStr(d);
-}
 
 // calendar_dur を計算（start→end の実カレンダー日数）
 function calendarDur(startStr, endStr){
@@ -1579,9 +1573,6 @@ window.BUILTIN_MASTERS=BUILTIN_MASTERS;
 
 
 // Full_dates col → visible canvas X (may be negative if before visible range)
-function fullColToVisX(fullCol) {
-  return (fullCol - FULL_VIS_OFFSET) * COL_W;
-}
 
 // ===== SEGMENT RESOLUTION =====
 // エリアマスター名を返す（東海エリア→'東海'マスター、関東エリア→'関東'マスター）
@@ -1608,12 +1599,6 @@ function normalizeArea(p){
     if(name.indexOf(cities[i])>=0)return CITY_AREA_MAP[cities[i]];
   }
   return area;
-}
-function getAreaMasterName(p){
-  var area=normalizeArea(p);
-  if(TOKAI_AREAS.indexOf(area)>=0)return '東海';
-  if(KANTO_AREAS.indexOf(area)>=0)return '関東';
-  return null;
 }
 
 // ★ホーム画面 大工程表（東海・関東物件）の表示工種フィルター
@@ -2034,10 +2019,6 @@ function daysUntil(ds){
   var d=new Date(nd.replace(/\//g,'-'));
   if(isNaN(d))return null;
   return Math.round((d-new Date(TODAY))/86400000);
-}
-function makeBadge(s,lg){
-  var st=lg?'font-size:11px;padding:3px 8px;':'';
-  return '<span class="sb s-'+(s||'未設定')+'" style="'+st+'">'+(s||'未設定')+'</span>';
 }
 
 // ===== PROGRESS / COMPLETION CHECK =====
@@ -5330,9 +5311,10 @@ async function _loadDeliveryNoteIfNeeded(p){
   var sb=getSB();
   if(!sb){_deliveryFetched[fixNo]=true;return;}
   try{
-    var r=await sb.from('properties').select('fix_no,delivery_note').eq('fix_no',fixNo).single();
-    if(!r.error&&r.data&&r.data.delivery_note){
-      var dn=typeof r.data.delivery_note==='string'?JSON.parse(r.data.delivery_note):r.data.delivery_note;
+    var r=await sb.from('properties').select('fix_no,delivery_note').eq('fix_no',fixNo).limit(1);
+    var rd=r.data&&r.data[0];
+    if(!r.error&&rd&&rd.delivery_note){
+      var dn=typeof rd.delivery_note==='string'?JSON.parse(rd.delivery_note):rd.delivery_note;
       if(dn)deliveryNotes[fixNo]=dn;
     }
   }catch(e){}
@@ -6174,15 +6156,19 @@ function savePropEdit(){
     return;
   }
 
-  sb.from('properties').select('id').eq('fix_no',String(p.fix_no)).single()
+  // ★fix_noが重複している行がDB上に存在すると.single()は406エラーになり、
+  //   誤って「DB未登録」と判定されローカル保存にフォールバックしてしまう不具合があったため、
+  //   .limit(1)＋先頭行取得に変更（重複があっても保存は継続される）
+  sb.from('properties').select('id').eq('fix_no',String(p.fix_no)).order('id',{ascending:true}).limit(1)
     .then(function(res){
-      if(res.error||!res.data){
+      var row=res.data&&res.data[0];
+      if(res.error||!row){
         applyLocally();
         closePropEditModal(); openDetail(currentProp); renderBody();
         showToast('⚠️ DB未登録: ローカル保存しました','');
         return null;
       }
-      return sb.from('properties').update(dbUpdates).eq('id',res.data.id);
+      return sb.from('properties').update(dbUpdates).eq('id',row.id);
     })
     .then(function(res2){
       if(!res2)return;
@@ -6543,20 +6529,6 @@ var resBar=null,  resStartX=0,  resStartDur=0;
 var GCW_ED=14; // 物件詳細と同じ 14px/day
 
 /* ---- date helpers ---- */
-function edBuildDates(segs){
-  var todayDt=new Date(TODAY);
-  var gStart=new Date(todayDt); gStart.setMonth(gStart.getMonth()-1); gStart.setDate(1);
-  var gEnd=new Date(todayDt);   gEnd.setMonth(gEnd.getMonth()+6);    gEnd.setDate(0);
-  segs.forEach(function(s){
-    var sd=s.start_date||s.date||''; if(!sd)return;
-    var d0=new Date(sd.replace(/\//g,'-')); if(d0<gStart)gStart=new Date(d0.getFullYear(),d0.getMonth(),1);
-    var ed=s.end_date||''; if(!ed){var d2=new Date(sd.replace(/\//g,'-'));d2.setDate(d2.getDate()+(s.calendar_dur||s.duration||s.dur||1)-1);ed=localDateStr(d2);}
-    var d1=new Date(ed.replace(/\//g,'-')); if(d1>gEnd)gEnd=new Date(d1.getFullYear(),d1.getMonth()+1,0);
-  });
-  var arr=['']; var cur=new Date(gStart);
-  while(cur<=gEnd){arr.push(localDateStr(cur));cur.setDate(cur.getDate()+1);}
-  return arr;
-}
 
 /* ---- render: buildGanttTabのmultiRowを直接流用＋ドラッグハンドル追加 ---- */
 /* ---- render: buildGanttTabと同一ロジック ---- */
@@ -6886,7 +6858,6 @@ function openGanttEditorMenu(){
   document.getElementById('gedSubTitle').textContent='物件を選択してください';
   initColorPicker();
 }
-function renderEditorSelector(){openGanttEditorMenu();}
 
 function openGanttEditor(fixNo,enc){
   var name=decodeURIComponent(enc);
@@ -8383,9 +8354,10 @@ async function _loadCustomGanttIfNeeded(p){
   var needFetch=false;
   if(sb&&fixNo){
     try{
-      var tsRes=await sb.from('properties').select('updated_at').eq('fix_no',fixNo).single();
-      if(!tsRes.error&&tsRes.data){
-        var remoteTs=tsRes.data.updated_at||'';
+      var tsRes=await sb.from('properties').select('updated_at').eq('fix_no',fixNo).limit(1);
+      var tsRow=tsRes.data&&tsRes.data[0];
+      if(!tsRes.error&&tsRow){
+        var remoteTs=tsRow.updated_at||'';
         if(remoteTs&&remoteTs!==localTs)needFetch=true; // 更新あり → 再取得
       }
     }catch(e){}
@@ -8402,7 +8374,8 @@ async function _loadCustomGanttIfNeeded(p){
   // 更新あり or キャッシュなし → Supabaseから取得
   if(!sb)return;
   try{
-    var r=await sb.from('properties').select('fix_no,custom_gantt,updated_at').eq('fix_no',fixNo).single();
+    var r0=await sb.from('properties').select('fix_no,custom_gantt,updated_at').eq('fix_no',fixNo).limit(1);
+    var r={error:r0.error,data:r0.data&&r0.data[0]};
     if(!r.error&&r.data){
       if(r.data.updated_at)localStorage.setItem(tsKey,r.data.updated_at);
       if(r.data.custom_gantt){
@@ -11572,16 +11545,6 @@ function admUserCard(u,approved){
     +'</div>';
 }
 
-function admPropRow(p){
-  return '<div style="display:flex;align-items:center;gap:8px;padding:8px;border-bottom:1px solid #e2e8f0">'
-    +'<div style="flex:1;min-width:0">'
-      +'<div style="font-size:12px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">FiX '+(p.fix_no||'')+' '+(p.name||'')+'</div>'
-      +'<div style="font-size:10px;color:#94a3b8">'+(p.area||'')+' / '+(p.status||'')+' / 引渡: '+(p.delivery_date||'未定')+'</div>'
-    +'</div>'
-    +'<button class="adm-ep" data-pid="'+p.id+'" style="font-size:10px;background:#eff6ff;color:#1a56db;padding:4px 10px;border-radius:6px;font-weight:700;cursor:pointer">編集</button>'
-    +'<button class="adm-dp" data-pid="'+p.id+'" style="font-size:10px;background:#fee2e2;color:#dc2626;padding:4px 10px;border-radius:6px;cursor:pointer">削除</button>'
-    +'</div>';
-}
 
 // Event delegation (ユーザー管理ボタン)
 document.addEventListener('click',async function(e){
@@ -11690,17 +11653,6 @@ function admSetTab(t){_admCurTab=t;admFilterProps();}
 window.admSetTab=admSetTab;
 
 // ===== 検査取りまとめ（管理者CP） =====
-function _kensaBadge(status,dateVal){
-  if(!dateVal)return '<span style="font-size:9px;color:#cbd5e1;font-weight:700">未設定</span>';
-  var isRes=status==='reserved';
-  return '<span style="font-size:9px;font-weight:700;background:'+(isRes?'#dbeafe':'#fff7ed')+';color:'+(isRes?'#2563eb':'#ea580c')+';padding:3px 9px;border-radius:6px;white-space:nowrap;display:inline-block">'+(isRes?'● 予約済み':'○ 予約前')+' '+dateVal+'</span>';
-}
-function _shinsaBadge(v){
-  if(!v)return '';
-  var bg=v==='住宅センター'?'#eef2ff':'#ecfdf5';
-  var col=v==='住宅センター'?'#4338ca':'#059669';
-  return '<span style="font-size:9px;font-weight:700;background:'+bg+';color:'+col+';padding:2px 7px;border-radius:5px;white-space:nowrap;margin-left:6px">'+v+'</span>';
-}
 // ★物件名下の省スペース表示用：ハウスプラス→「ハウス」／住宅センター→「住宅セ」に省略したバッジ
 function _shinsaBadgeAbbr(v){
   if(!v)return '';
@@ -12236,25 +12188,6 @@ window.admSaveProp=admSaveProp;
 window._VENDOR_LIST_DATA={};
 window._VENDOR_LIST_TAB='';
 
-async function _loadVendorsFromDB(){
-  var sb=getSB();if(!sb)return;
-  try{
-    var r=await sb.from('vendors').select('*').order('id');
-    if(r.error){console.warn('vendors:',r.error.message);return;}
-    var rows=r.data||[];
-    var grp={};
-    rows.forEach(function(row){
-      var a=row.area||'東海（全体）';
-      if(!grp[a])grp[a]=[];
-      // data列（JSONB）を展開してareaとcol_orderを付加
-      // col_orderをdata内に持たせることで_renderVendorTableで列順復元可能にする
-      var obj=Object.assign({},row.data||{},{area:a});
-      if(row.col_order){obj.col_order=row.col_order;}
-      grp[a].push(obj);
-    });
-    window._VENDOR_LIST_DATA=grp;
-  }catch(e){console.warn('vendors err:',e);}
-}
 
 // Supabaseにvendors一括保存（全削除→再INSERT、data列にJSON保存、col_orderで列順保存）
 async function _saveVendorsToDB(allRows, colOrderMap){
@@ -13266,10 +13199,6 @@ function _renderDrawDataToCanvas(dd){
 }
 window._renderDrawDataToCanvas=_renderDrawDataToCanvas;
 // 後方互換（古いコードがws形式で呼ぶ場合）
-function _renderSheetToCanvas(ws){
-  var dd=_buildDrawData(ws);
-  return dd?_renderDrawDataToCanvas(dd):null;
-}
 
 function _buildDrawData(ws){
   if(!ws||!ws['!ref'])return null;
@@ -13540,7 +13469,8 @@ async function _loadGanttSheetForProp(fixNo){
   if(!data){
     var sb=getSB();if(!sb)return null;
     try{
-      var r=await sb.from('gantt_sheets').select('fix_no,sheet_data,updated_at').eq('fix_no',String(fixNo)).single();
+      var r0=await sb.from('gantt_sheets').select('fix_no,sheet_data,updated_at').eq('fix_no',String(fixNo)).order('updated_at',{ascending:false}).limit(1);
+      var r={error:r0.error,data:r0.data&&r0.data[0]};
       if(r.error||!r.data)return null;
       data=r.data.sheet_data;
       // LocalStorageにキャッシュ（canvasDataUrlなし・軽い）
