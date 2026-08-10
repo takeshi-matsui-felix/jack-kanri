@@ -3619,9 +3619,10 @@ function buildGanttTab(p){
       if(dow===0)weekendFills+='<div style="position:absolute;left:'+((i-1)*GCW)+'px;top:28px;width:'+GCW+'px;height:'+rowH+'px;background:rgba(255,182,193,.28);pointer-events:none;z-index:0;"></div>';
       else if(dow===6)weekendFills+='<div style="position:absolute;left:'+((i-1)*GCW)+'px;top:28px;width:'+GCW+'px;height:'+rowH+'px;background:rgba(173,216,230,.25);pointer-events:none;z-index:0;"></div>';
     });
+    var moveinBarCompact=buildMoveinBar(p,gDateIdx,GCW,rowH+28);
     return '<div style="overflow-x:auto;-webkit-overflow-scrolling:touch;cursor:pointer;max-height:80px;border:1px solid #e2e8f0;border-radius:6px">'
       +'<div style="position:relative;width:'+totalW+'px;height:'+(rowH+28)+'px;background:white;">'
-      +weekendFills+hdrBands+dayNums+todayLine+monthLines+bars+'</div></div>';
+      +weekendFills+hdrBands+dayNums+todayLine+monthLines+bars+moveinBarCompact+'</div></div>';
   }
 
   // === MULTI-ROW GANTT (1工種=1行、拡大時に表示) ===
