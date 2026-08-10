@@ -8765,20 +8765,6 @@ function openTutorial(isAuto){
     background: #0f172a;
     color: var(--tut-text);
       }
-#_tutModal #lang-bar {
-    position: sticky; top: 0; left: 0; right: 0; z-index: 1000;
-    background: var(--tut-blue-dark);
-    padding: 8px 16px;
-    display: flex; align-items: center; gap: 8px;
-    overflow-x: auto; -webkit-overflow-scrolling: touch;
-  }
-#_tutModal #lang-bar span { color: #94a3b8; font-size: 11px; white-space: nowrap; }
-#_tutModal .lang-btn {
-    padding: 4px 10px; border-radius: 20px; border: 1.5px solid #334155;
-    background: transparent; color: #94a3b8; font-size: 11px; cursor: pointer;
-    white-space: nowrap; transition: all .2s;
-  }
-#_tutModal .lang-btn.active { background: var(--tut-blue); border-color: var(--tut-blue); color: white; font-weight: 700; }
 #_tutModal #wrapper {
     margin-top: 0;
     max-width: 680px; margin-left: auto; margin-right: auto;
@@ -8981,16 +8967,6 @@ function openTutorial(isAuto){
 
   var bodyDiv=document.createElement('div');
   bodyDiv.innerHTML=`<button onclick="window._tutClose()" style="position:absolute;top:8px;right:12px;z-index:1001;background:rgba(0,0,0,.3);color:white;border:none;width:28px;height:28px;border-radius:50%;font-size:16px;cursor:pointer;">✕</button>
-<div id="lang-bar">
-  <span>🌐</span>
-  <button class="lang-btn active" onclick="window._tutSetLang('ja')">日本語</button>
-  <button class="lang-btn" onclick="window._tutSetLang('en')">English</button>
-  <button class="lang-btn" onclick="window._tutSetLang('vi')">Tiếng Việt</button>
-  <button class="lang-btn" onclick="window._tutSetLang('my')">မြန်မာ</button>
-  <button class="lang-btn" onclick="window._tutSetLang('mn')">Монгол</button>
-  <button class="lang-btn" onclick="window._tutSetLang('ko')">한국어</button>
-  <button class="lang-btn" onclick="window._tutSetLang('zh')">中文</button>
-</div>
 
 <div id="wrapper">
   <!-- HERO -->
@@ -9882,240 +9858,6 @@ const LANGS = {
     's6-h':'ガイド完了です！','s6-p':'JACKをご利用いただきありがとうございます。\nわからないことがあれば、フィリックス担当者にお問い合わせください。',
     's6-n1h':'📋 このガイドを再確認するには','s6-n1b':'左メニュー「設定」→「使い方ガイド」からいつでも確認できます。',
   },
-  en: {
-    'h-title': 'JACK User Guide',
-    'h-sub': 'Felix Co., Ltd. — New Construction Site Management App',
-    'progress-next': 'Next →', 'progress-prev': '← Back', 'progress-finish': '✅ Done',
-    's1-tag':'Introduction','s1-h':'What is JACK?',
-    's1-lead':'JACK is a construction site management app operated by Felix Co., Ltd. You can check construction progress, schedules, and contractor selection in real time.',
-    's1-f1':'Real-time schedule','s1-f1d':'View start dates, delivery dates, and progress bars at a glance.',
-    's1-f2':'Contractor selection list','s1-f2d':'See which contractors are assigned to each project. Orange cells indicate undecided or pending orders.',
-    's1-f3':'Tokai / Kanto area support','s1-f3d':'The app automatically shows only your area\'s projects based on the URL.',
-    's1-n1h':'⚠️ Account approval','s1-n1b':'After your first login, an admin must approve your account. You cannot use the app until approved. Please notify your Felix contact.',
-    's2-tag':'Home Screen','s2-h':'How to read the Home Screen',
-    's2-lead':'The home screen shows a project list with schedule bars. Use the tabs to filter.',
-    's2-p1':'Assignee badge (grey)','s2-p1d':'The person in charge is shown below the project name.',
-    's2-p2':'⚡N days (yellow badge)','s2-p2d':'Shown when delivery is within 30 days. Requires attention.',
-    's2-p3':'Schedule bar','s2-p3d':'Each bar shows a construction period. Tap a project to see details.',
-    's2-n1h':'📌 Master schedule takes priority','s2-n1b':'If the home screen differs from the master schedule, the master schedule is correct.',
-    's3-tag':'Contractor List','s3-h':'Contractor List Guide ①',
-    's3-lead':'Updated every Friday. Please understand what the orange cells mean.',
-    's3-c1h':'🟠 Orange + contractor name','s3-c1b':'→ No reply yet (our order inquiry is pending)',
-    's3-c2h':'🟠 Orange + no name','s3-c2b':'→ No contractor being considered yet',
-    's3-c3h':'⬜ White / other colors','s3-c3b':'→ Internal color coding — please ignore',
-    's3-th1':'Work item','s3-r1':'Earthwork','s3-r2':'Electrical',
-    's3-n1h':'📅 Update schedule','s3-n1b':'Updated every Friday. The update date is shown next to "Contractor List" in the menu. Always press the "Sync" button after opening the list.',
-    's4-tag':'Contractor List','s4-h':'Contractor List Guide ②',
-    's4-lead':'After checking orange cells, please contact the person in charge by the following Wednesday.',
-    's4-s1h':'Every Friday: Check the list','s4-s1b':'Open the contractor list from the menu and press the "Sync" button. Check all orange cells.',
-    's4-s2h':'By the following Wednesday: Contact us','s4-s2b':'Please contact Ito with:\n■ Cannot accept: projects you cannot take\n■ Candidacy: projects you want to apply for',
-    's4-s3h':'Two Fridays later: Confirmed items turn white','s4-s3b':'No reply = confirmed. Please contact Ito if there is an error.',
-    's4-n1h':'⚠️ Important','s4-n1b':'No reply is treated as confirmed. Always check and respond to orange cells.',
-    's4-n2h':'💡 About the Sync button','s4-n2b':'Just opening the menu does not refresh data. Always press "Sync" after opening the list.',
-    's5-tag':'Useful Features','s5-h':'My Properties & Site Map',
-    's5-lead':'Register your properties for quick access and view site locations on a map.',
-    's5-c1h':'How to register My Properties','s5-c1b':'Menu → "Edit My Properties" → select your properties → save. They appear in the "My Properties" tab.',
-    's5-c2h':'All Sites Map','s5-c2b':'View site locations on a map from "All Sites Map" in the menu. Tap a pin to see project info.',
-    's5-c3h':'Sync Now','s5-c3b':'Use "Sync Now" in the menu to get the latest data if information seems outdated.',
-    's5-n1h':'📱 Using on smartphone','s5-n1b':'Add to your home screen (PWA) to use it like a native app.',
-    's6-h':'Guide Complete!','s6-p':'Thank you for using JACK.\nIf you have questions, please contact your Felix representative.',
-    's6-n1h':'📋 To review this guide again','s6-n1b':'Go to Menu → "Settings" → "User Guide" anytime.',
-  },
-  vi: {
-    'h-title': 'Hướng dẫn sử dụng JACK',
-    'h-sub': 'Ứng dụng quản lý công trình mới — Công ty Felix',
-    'progress-next': 'Tiếp theo →', 'progress-prev': '← Quay lại', 'progress-finish': '✅ Hoàn thành',
-    's1-tag':'Giới thiệu','s1-h':'JACK là gì?',
-    's1-lead':'JACK là ứng dụng quản lý công trường do Công ty Felix vận hành. Bạn có thể kiểm tra tiến độ thi công, lịch trình và danh sách nhà thầu theo thời gian thực.',
-    's1-f1':'Lịch trình thời gian thực','s1-f1d':'Xem ngày khởi công, ngày bàn giao và thanh tiến độ một cách trực quan.',
-    's1-f2':'Danh sách nhà thầu','s1-f2d':'Xem nhà thầu nào được phân công cho từng công trình. Ô màu cam là chưa quyết định hoặc đang liên hệ.',
-    's1-f3':'Khu vực Tokai / Kanto','s1-f3d':'Ứng dụng tự động hiển thị công trình theo khu vực của bạn.',
-    's1-n1h':'⚠️ Chờ phê duyệt tài khoản','s1-n1b':'Sau lần đăng nhập đầu tiên, quản trị viên phải phê duyệt tài khoản của bạn. Hãy thông báo cho liên hệ Felix của bạn.',
-    's2-tag':'Màn hình chính','s2-h':'Cách đọc màn hình chính',
-    's2-lead':'Hiển thị danh sách công trình và thanh lịch trình. Dùng các tab để lọc.',
-    's2-p1':'Huy hiệu người phụ trách (xám)','s2-p1d':'Tên người phụ trách hiển thị bên dưới tên công trình.',
-    's2-p2':'⚡N ngày (huy hiệu vàng)','s2-p2d':'Hiển thị khi còn dưới 30 ngày đến ngày bàn giao. Cần chú ý.',
-    's2-p3':'Thanh lịch trình','s2-p3d':'Mỗi thanh hiển thị thời gian thi công. Nhấn vào công trình để xem chi tiết.',
-    's2-n1h':'📌 Biểu đồ tổng tiến độ là chuẩn','s2-n1b':'Nếu thông tin màn hình chính khác với biểu đồ tổng tiến độ, hãy lấy biểu đồ tổng tiến độ làm chuẩn.',
-    's3-tag':'Danh sách nhà thầu','s3-h':'Hướng dẫn danh sách nhà thầu ①',
-    's3-lead':'Cập nhật mỗi thứ Sáu. Hãy hiểu ý nghĩa của các ô màu cam.',
-    's3-c1h':'🟠 Cam + có tên nhà thầu','s3-c1b':'→ Chưa trả lời (đang trong quá trình liên hệ đặt hàng)',
-    's3-c2h':'🟠 Cam + không có tên','s3-c2b':'→ Chưa có nhà thầu nào được xem xét',
-    's3-c3h':'⬜ Trắng / màu khác','s3-c3b':'→ Phân màu nội bộ — vui lòng bỏ qua',
-    's3-th1':'Hạng mục công việc','s3-r1':'Đào đắp','s3-r2':'Điện',
-    's3-n1h':'📅 Lịch cập nhật','s3-n1b':'Cập nhật mỗi thứ Sáu. Ngày cập nhật hiển thị bên cạnh "Danh sách nhà thầu" trong menu. Luôn nhấn "Đồng bộ" sau khi mở danh sách.',
-    's4-tag':'Danh sách nhà thầu','s4-h':'Hướng dẫn danh sách nhà thầu ②',
-    's4-lead':'Sau khi kiểm tra các ô màu cam, hãy liên hệ người phụ trách trước thứ Tư tuần sau.',
-    's4-s1h':'Mỗi thứ Sáu: Kiểm tra danh sách','s4-s1b':'Mở danh sách nhà thầu từ menu và nhấn nút "Đồng bộ". Kiểm tra tất cả ô màu cam.',
-    's4-s2h':'Trước thứ Tư: Liên hệ','s4-s2b':'Liên hệ Ito với:\n■ Không thể nhận: công trình bạn không thể nhận\n■ Đăng ký: công trình bạn muốn nhận',
-    's4-s3h':'Thứ Sáu tiếp theo: Xác nhận','s4-s3b':'Không trả lời = đã xác nhận. Liên hệ Ito nếu có sai sót.',
-    's4-n1h':'⚠️ Quan trọng','s4-n1b':'Không trả lời được coi là đã xác nhận. Luôn kiểm tra và phản hồi các ô màu cam.',
-    's4-n2h':'💡 Về nút Đồng bộ','s4-n2b':'Chỉ mở menu không cập nhật dữ liệu. Luôn nhấn "Đồng bộ" sau khi mở danh sách.',
-    's5-tag':'Tính năng hữu ích','s5-h':'Công trình của tôi & Bản đồ công trường',
-    's5-lead':'Đăng ký công trình của bạn để truy cập nhanh và xem vị trí công trường trên bản đồ.',
-    's5-c1h':'Cách đăng ký Công trình của tôi','s5-c1b':'Menu → "Chỉnh sửa Công trình của tôi" → chọn công trình → lưu.',
-    's5-c2h':'Bản đồ tất cả công trường','s5-c2b':'Xem vị trí công trường trên bản đồ từ menu. Nhấn vào điểm đánh dấu để xem thông tin.',
-    's5-c3h':'Đồng bộ ngay','s5-c3b':'Dùng "Đồng bộ ngay" trong menu để lấy dữ liệu mới nhất.',
-    's5-n1h':'📱 Sử dụng trên điện thoại','s5-n1b':'Thêm vào màn hình chính (PWA) để sử dụng như ứng dụng thật.',
-    's6-h':'Hoàn thành hướng dẫn!','s6-p':'Cảm ơn bạn đã sử dụng JACK.\nNếu có thắc mắc, hãy liên hệ đại diện Felix của bạn.',
-    's6-n1h':'📋 Xem lại hướng dẫn','s6-n1b':'Vào Menu → "Cài đặt" → "Hướng dẫn sử dụng" bất cứ lúc nào.',
-  },
-  my: {
-    'h-title': 'JACK အသုံးပြုနည်းလမ်းညွှန်',
-    'h-sub': 'Felix ကုမ္ပဏီ — အဆောက်အအုံစီမံခန့်ခွဲမှုအက်ပ်',
-    'progress-next': 'နောက်တစ်ဆင့် →', 'progress-prev': '← နောက်သို့', 'progress-finish': '✅ ပြီးပါပြီ',
-    's1-tag':'နိဒါန်း','s1-h':'JACK ဆိုတာဘာလဲ?',
-    's1-lead':'JACK သည် Felix ကုမ္ပဏီမှ လည်ပတ်သောဆောက်လုပ်ရေးစီမံခန့်ခွဲမှုအက်ပ်ဖြစ်သည်။ တည်ဆောက်ရေးတိုးတက်မှု၊ အချိန်ဇယားနှင့် ကန်ထရိုက်တာရွေးချယ်မှုကို အချိန်နှင့်တစ်ပြေးညီ စစ်ဆေးနိုင်သည်။',
-    's1-f1':'အချိန်နှင့်တပြေးညီ အချိန်ဇယား','s1-f1d':'စတင်သည့်ရက်နှင့် ပြီးဆုံးရက်များကို တစ်ချက်ကြည့်၍ မြင်နိုင်သည်။',
-    's1-f2':'ကန်ထရိုက်တာစာရင်း','s1-f2d':'မည်သည့်ကန်ထရိုက်တာ မည်သည့်စီမံကိန်းတွင်ရှိသည်ကို ကြည့်ရှုနိုင်သည်။ လိမ္မော်ရောင်ကဏ္ဍများသည် မဆုံးဖြတ်ရသေးသော သို့မဟုတ် ဆက်သွယ်ဆဲသောစီမံကိန်းများဖြစ်သည်။',
-    's1-f3':'Tokai/Kanto ဒေသ','s1-f3d':'URL ပေါ်မူတည်၍ သင့်ဒေသ၏ စီမံကိန်းများသာ အလိုအလျောက်ပြသည်။',
-    's1-n1h':'⚠️ အကောင့်အတည်ပြုချိန်','s1-n1b':'ပထမဆုံးဝင်ရောက်ပြီးနောက် စီမံခန့်ခွဲသူ အတည်ပြုရမည်။ Felix ဆက်သွယ်ရမည့်သူကို အကြောင်းကြားပါ။',
-    's2-tag':'ပင်မစာမျက်နှာ','s2-h':'ပင်မစာမျက်နှာကို မည်သို့ဖတ်ရမည်နည်း',
-    's2-lead':'စီမံကိန်းစာရင်းနှင့် အချိန်ဇယားဘားများပြသည်။ တဘ်များဖြင့် စစ်ထုတ်နိုင်သည်။',
-    's2-p1':'တာဝန်ခံ Badge (မီးခိုးရောင်)','s2-p1d':'စီမံကိန်းနာမည်အောက်တွင် တာဝန်ခံပုဂ္ဂိုလ်၏နာမည်ပြသည်။',
-    's2-p2':'⚡N ရက် (အဝါရောင် Badge)','s2-p2d':'ပေးပို့ရန် ၃၀ ရက်အတွင်းရှိသောအခါပြသည်။',
-    's2-p3':'အချိန်ဇယားဘား','s2-p3d':'တည်ဆောက်ရေးကာလကို ဘားဖြင့်ပြသည်။ စီမံကိန်းကို နှိပ်၍ အသေးစိတ်ကြည့်ရှုနိုင်သည်။',
-    's2-n1h':'📌 ပင်မအချိန်ဇယားကို မှန်ကန်သည်ဟု ယူဆပါ','s2-n1b':'ပင်မစာမျက်နှာနှင့် ပင်မအချိန်ဇယားမတူညီပါက ပင်မအချိန်ဇယားကို အသုံးပြုပါ။',
-    's3-tag':'ကန်ထရိုက်တာစာရင်း','s3-h':'ကန်ထရိုက်တာစာရင်းလမ်းညွှန် ①',
-    's3-lead':'ဒုနေ့တိုင်း (သောကြာ) တွင်မွမ်းမံသည်။ လိမ္မော်ရောင်ကဏ္ဍများ၏ အဓိပ္ပာယ်ကို နားလည်ပါ။',
-    's3-c1h':'🟠 လိမ္မော်ရောင် + ကန်ထရိုက်တာနာမည်ရှိ','s3-c1b':'→ မဖြေသေးပါ (မှာယူဆက်သွယ်ဆဲ)',
-    's3-c2h':'🟠 လိမ္မော်ရောင် + နာမည်မရှိ','s3-c2b':'→ ကန်ထရိုက်တာမဆုံးဖြတ်ရသေး',
-    's3-c3h':'⬜ အဖြူ/အခြားရောင်','s3-c3b':'→ ကုမ္ပဏီတွင်းရောင်ခြယ်မှုသာဖြစ်သဖြင့် လျစ်လျူရှုပါ',
-    's3-th1':'အလုပ်အမျိုးအစား','s3-r1':'မြေဆွေးထုတ်','s3-r2':'လျှပ်စစ်',
-    's3-n1h':'📅 မွမ်းမံသည့်ဇယား','s3-n1b':'ဒုနေ့တိုင်း (သောကြာ) မွမ်းမံသည်။ မှတ်တမ်းမွမ်းမံသောနေ့ကို မီနူးတွင်ပြသည်။ "Sync" ခလုတ်ကို မနှိပ်မနေ နှိပ်ပါ။',
-    's4-tag':'ကန်ထရိုက်တာစာရင်း','s4-h':'ကန်ထရိုက်တာစာရင်းလမ်းညွှန် ②',
-    's4-lead':'လိမ္မော်ရောင်ကဏ္ဍများ စစ်ဆေးပြီးနောက် နောက်ရက်ဗုဒ္ဓဟူးနေ့မတိုင်မီ ဆက်သွယ်ပါ။',
-    's4-s1h':'ဒုနေ့တိုင်း: စာရင်းစစ်ဆေးပါ','s4-s1b':'မီနူးမှ ကန်ထရိုက်တာစာရင်းဖွင့်ပြီး "Sync" နှိပ်ပါ။ လိမ္မော်ရောင်ကဏ္ဍများ စစ်ဆေးပါ။',
-    's4-s2h':'နောက်ဗုဒ္ဓဟူးမတိုင်မီ: ဆက်သွယ်ပါ','s4-s2b':'Ito ထံ ဆက်သွယ်ပါ:\n■ လက်ခံ၍မရ: မလုပ်နိုင်သောစီမံကိန်း\n■ လျှောက်ထားပါ: လုပ်ချင်သောစီမံကိန်း',
-    's4-s3h':'နောက်ဒုနေ့: အတည်ပြုမှတ်တမ်း','s4-s3b':'မဆက်သွယ်ပါကအတည်ပြုသည်ဟုယူဆသည်။ အမှားရှိပါက Ito ထံ ဆက်သွယ်ပါ။',
-    's4-n1h':'⚠️ အရေးကြီး','s4-n1b':'မဆက်သွယ်ခြင်းကို အတည်ပြုခြင်းဟုယူဆသည်။ လိမ္မော်ရောင်ကဏ္ဍများကို မဖြစ်မနေစစ်ဆေးပါ။',
-    's4-n2h':'💡 Sync ခလုတ်အကြောင်း','s4-n2b':'မီနူးဖွင့်ရုံဖြင့် ဒေတာမမွမ်းမံပါ။ ဖွင့်ပြီးနောက် "Sync" ခလုတ်ကို မနှိပ်မနေ နှိပ်ပါ။',
-    's5-tag':'အဆင်ပြေသောလုပ်ဆောင်ချက်များ','s5-h':'ကျွန်ုပ်၏စီမံကိန်း & မြေပုံ',
-    's5-lead':'လျင်မြန်စွာဝင်ရောက်ရန် သင့်စီမံကိန်းများမှတ်ပုံတင်ပါ။',
-    's5-c1h':'ကျွန်ုပ်၏စီမံကိန်းများ မှတ်ပုံတင်နည်း','s5-c1b':'မီနူး → "ကျွန်ုပ်၏စီမံကိန်းများ တည်းဖြတ်ပါ" → ရွေးချယ်ပြီး သိမ်းဆည်းပါ။',
-    's5-c2h':'ကွင်းဆင်းလုပ်ငန်းခွင်မြေပုံ','s5-c2b':'မီနူးမှ "ကွင်းဆင်းလုပ်ငန်းခွင်မြေပုံ" ဖွင့်ပြီး နေရာများကြည့်ရှုနိုင်သည်။',
-    's5-c3h':'ယခုပဲ Sync လုပ်ပါ','s5-c3b':'ဒေတာဟောင်းဖြစ်ပါက မီနူးမှ "ယခုပဲ Sync လုပ်ပါ" ကိုသုံးပါ။',
-    's5-n1h':'📱 စမတ်ဖုန်းဖြင့်အသုံးပြုပါ','s5-n1b':'ပင်မစာမျက်နှာတွင်ထည့်ပါ (PWA) ကိုအပ်ပ်ကဲ့သို့သုံးနိုင်ပါသည်။',
-    's6-h':'လမ်းညွှန်ပြီးပါပြီ!','s6-p':'JACK ကိုအသုံးပြုသည့်အတွက် ကျေးဇူးတင်ပါသည်။\nမေးခွန်းများရှိပါက Felix ကိုယ်စားလှယ်ထံ ဆက်သွယ်ပါ။',
-    's6-n1h':'📋 ဤလမ်းညွှန်ကို ပြန်ကြည့်ရှုရန်','s6-n1b':'မီနူး → "ဆက်တင်" → "အသုံးပြုနည်းလမ်းညွှန်" မှ အချိန်မရွေးကြည့်ရှုနိုင်သည်။',
-  },
-  mn: {
-    'h-title': 'JACK Хэрэглэгчийн гарын авлага',
-    'h-sub': 'Felix компани — Шинэ барилгын удирдлагын апп',
-    'progress-next': 'Дараах →', 'progress-prev': '← Буцах', 'progress-finish': '✅ Дуусгах',
-    's1-tag':'Танилцуулга','s1-h':'JACK гэж юу вэ?',
-    's1-lead':'JACK нь Felix компанийн ажиллуулдаг барилгын талбайн удирдлагын апп юм. Барилгын явц, хуваарь, гүйцэтгэгч сонголтыг бодит цаг хугацаанд шалгах боломжтой.',
-    's1-f1':'Бодит цаг хугацааны хуваарь','s1-f1d':'Эхлэх өдөр, хүлээлгэж өгөх өдөр болон явцын баарнуудыг нэг дороос харах боломжтой.',
-    's1-f2':'Гүйцэтгэгчдийн жагсаалт','s1-f2d':'Аль гүйцэтгэгч аль төсөлд оролцохыг харах боломжтой. Улбар шар нүд нь шийдэгдээгүй эсвэл хэлэлцээрийн явцад байгаа төслийг илэрхийлнэ.',
-    's1-f3':'Токай/Канто бүс нутаг','s1-f3d':'URL-ийн тохиргооноос хамааран таны бүсийн төслүүд автоматаар харагдана.',
-    's1-n1h':'⚠️ Бүртгэл баталгаажуулах','s1-n1b':'Анх нэвтэрсний дараа администратор бүртгэлийг баталгаажуулах шаардлагатай. Felix-ийн холбоо барих хүнд мэдэгдээрэй.',
-    's2-tag':'Үндсэн дэлгэц','s2-h':'Үндсэн дэлгэцийг хэрхэн унших вэ',
-    's2-lead':'Төслийн жагсаалт болон хуваарийн баарнуудыг харуулдаг. Таб ашиглан шүүж болно.',
-    's2-p1':'Хариуцагчийн значок (саарал)','s2-p1d':'Төслийн нэрний доор хариуцагч хүний нэр харагдана.',
-    's2-p2':'⚡N өдөр (шар значок)','s2-p2d':'Хүлээлгэж өгөх хугацаанд 30 хоногоос цөөн үлдэхэд харагдана.',
-    's2-p3':'Хуваарийн баар','s2-p3d':'Барилгын хугацааг баараар харуулна. Төсөлд дарж дэлгэрэнгүй мэдээллийг харна уу.',
-    's2-n1h':'📌 Үндсэн хуваарь зөв','s2-n1b':'Үндсэн дэлгэц болон үндсэн хуваарь зөрвөл үндсэн хуваарийг зөв гэж үзнэ.',
-    's3-tag':'Гүйцэтгэгчдийн жагсаалт','s3-h':'Гүйцэтгэгчдийн жагсаалтын заавар ①',
-    's3-lead':'Долоо хоног бүрийн баасан гарагт шинэчлэгддэг. Улбар шар нүдний утгыг ойлгоорой.',
-    's3-c1h':'🟠 Улбар шар + гүйцэтгэгчийн нэр бий','s3-c1b':'→ Хариу өгөөгүй байна (захиалгын хэлэлцэгдэж байна)',
-    's3-c2h':'🟠 Улбар шар + нэр байхгүй','s3-c2b':'→ Гүйцэтгэгч бүр сонгогдоогүй байна',
-    's3-c3h':'⬜ Цагаан/бусад өнгө','s3-c3b':'→ Дотоод өнгөт тэмдэглэгээ — үл тоомсорлоно уу',
-    's3-th1':'Ажлын нэр','s3-r1':'Газар зохицуулалт','s3-r2':'Цахилгаан',
-    's3-n1h':'📅 Шинэчлэлтийн хуваарь','s3-n1b':'Долоо хоног бүрийн Баасан гарагт шинэчлэгддэг. Цэс дэх шинэчлэлтийн огноог харж "Sync" товчийг заавал дарна уу.',
-    's4-tag':'Гүйцэтгэгчдийн жагсаалт','s4-h':'Гүйцэтгэгчдийн жагсаалтын заавар ②',
-    's4-lead':'Улбар шар нүдийг шалгаад, дараагийн Лхагва гарагаас өмнө хариуцагчтай холбоо барина уу.',
-    's4-s1h':'Долоо хоног бүрийн Баасан: Жагсаалтыг шалга','s4-s1b':'Цэснээс жагсаалтыг нее "Sync" дар. Улбар шар нүдийг шалга.',
-    's4-s2h':'Лхагва гарагаас өмнө: Холбоо бар','s4-s2b':'Ито-д мэдэгдэнэ үү:\n■ Хүлээн авах боломжгүй: авч чадахгүй төсөл\n■ Нэр дэвших: авмаар байгаа төсөл',
-    's4-s3h':'Дараагийн Баасан: Баталгаажуулсан зүйлс цагаан болно','s4-s3b':'Хариу өгөхгүй бол баталгаажсан гэж үзнэ. Алдаа байвал Ито-д мэдэгдэнэ үү.',
-    's4-n1h':'⚠️ Чухал','s4-n1b':'Хариу өгөхгүй бол баталгаажсан гэж тооцно. Улбар шар нүднүүдийг заавал шалгаж хариу өгнө үү.',
-    's4-n2h':'💡 Sync товчийн тухай','s4-n2b':'Цэс нееж байгаа нь мэдээллийг шинэчилдэггүй. Жагсаалтыг нэесний дараа "Sync" товчийг заавал дарна уу.',
-    's5-tag':'Хэрэгтэй функцүүд','s5-h':'Миний төслүүд & Газрын зураг',
-    's5-lead':'Хурдан хандахын тулд өөрийн төслүүдийг бүртгэж, газрын зурагт харна уу.',
-    's5-c1h':'Миний төслүүдийг хэрхэн бүртгэх вэ','s5-c1b':'Цэс → "Миний төслүүдийг засах" → сонгоод хадгалах.',
-    's5-c2h':'Бүх талбайн газрын зураг','s5-c2b':'Цэснээс талбайн байршлыг газрын зурагт харна уу. Тэмдэгт дарж мэдээллийг харна.',
-    's5-c3h':'Одоо Sync хийх','s5-c3b':'Мэдээлэл хуучирсан бол цэснээс "Одоо Sync хийх" -г ашиглана уу.',
-    's5-n1h':'📱 Ухаалаг утсанд ашиглах','s5-n1b':'Нүүр дэлгэцэнд нэмэх (PWA) нь апп шиг ашиглах боломжийг олгоно.',
-    's6-h':'Заавар дууслаа!','s6-p':'JACK ашигласанд баярлалаа.\nАсуулт байвал Felix-ийн төлөөлөгчтэй холбоо барина уу.',
-    's6-n1h':'📋 Энэ зааврыг дахин харах','s6-n1b':'Цэс → "Тохиргоо" → "Хэрэглэгчийн заавар" руу хэдийд ч орж болно.',
-  },
-  ko: {
-    'h-title': 'JACK 사용 가이드',
-    'h-sub': 'Felix 주식회사 — 신축 AP 현장 관리 앱',
-    'progress-next': '다음 →', 'progress-prev': '← 이전', 'progress-finish': '✅ 완료',
-    's1-tag':'소개','s1-h':'JACK이란 무엇인가요?',
-    's1-lead':'JACK은 Felix 주식회사가 운영하는 건설 현장 관리 앱입니다. 공사 진행 상황, 일정, 업체 선정 정보를 실시간으로 확인할 수 있습니다.',
-    's1-f1':'실시간 일정 확인','s1-f1d':'착공일, 인도일, 각 공사의 진행 바를 한눈에 확인할 수 있습니다.',
-    's1-f2':'업체 선정 목록','s1-f2d':'어느 물건에 어떤 업체가 들어가는지 목록으로 확인. 주황색 셀은 미결정 또는 발주 협의 중인 물건입니다.',
-    's1-f3':'도카이/간토 지역 대응','s1-f3d':'URL 파라미터로 지역이 자동 전환. 담당 지역 물건만 표시됩니다.',
-    's1-n1h':'⚠️ 승인 대기','s1-n1b':'첫 로그인 후 관리자 승인이 필요합니다. 승인 전까지 앱을 사용할 수 없습니다. Felix 담당자에게 알려주세요.',
-    's2-tag':'홈 화면','s2-h':'홈 화면 보는 법',
-    's2-lead':'물건 목록과 공정 바가 표시됩니다. 탭으로 필터링할 수 있습니다.',
-    's2-p1':'담당자 뱃지 (회색)','s2-p1d':'물건명 아래에 담당자 이름이 표시됩니다.',
-    's2-p2':'⚡N일 (노란색 뱃지)','s2-p2d':'인도까지 30일 이내인 물건에 표시됩니다. 주의가 필요합니다.',
-    's2-p3':'공정 바','s2-p3d':'각 공사 기간을 바로 표시. 물건을 탭하면 상세 정보를 확인할 수 있습니다.',
-    's2-n1h':'📌 대공정표가 기준입니다','s2-n1b':'홈 화면 정보와 대공정표가 다를 경우, 대공정표를 기준으로 하십시오.',
-    's3-tag':'업체 선정 목록','s3-h':'전체 업체 선정 목록 보는 법 ①',
-    's3-lead':'매주 금요일 업데이트됩니다. 주황색 셀의 의미를 확인해 주세요.',
-    's3-c1h':'🟠 주황색 + 업체명 있음','s3-c1b':'→ 미회신 (당사에서 발주 협의 중)',
-    's3-c2h':'🟠 주황색 + 업체명 없음','s3-c2b':'→ 당사에서 발주 협의 중인 업체 없음 (검토 중)',
-    's3-c3h':'⬜ 흰색·기타 색상','s3-c3b':'→ 사내 처리용 색 구분이므로 무시해 주세요',
-    's3-th1':'공사 항목','s3-r1':'토공사','s3-r2':'전기 공사',
-    's3-n1h':'📅 업데이트 일정','s3-n1b':'매주 금요일 업데이트. 메뉴의 「전체 업체 선정 목록」 옆에 업데이트 날짜가 표시됩니다. 날짜가 새로워지면 반드시 「동기화」 버튼을 누르세요.',
-    's4-tag':'업체 선정 목록','s4-h':'전체 업체 선정 목록 보는 법 ②',
-    's4-lead':'주황색 물건을 확인했다면 다음 주 수요일까지 담당자에게 연락해 주세요.',
-    's4-s1h':'매주 금요일: 목록 확인','s4-s1b':'메뉴에서 업체 선정 목록을 열고 「동기화」 버튼을 누릅니다. 주황색 셀을 확인합니다.',
-    's4-s2h':'다음 주 수요일까지: 연락','s4-s2b':'담당자(이토)에게 다음 내용을 연락해 주세요.\n■ 수주 불가: 받을 수 없는 물건\n■ 입후보: 미결정 물건에 대한 입후보',
-    's4-s3h':'다다음 금요일: 확정분을 흰색으로 업데이트','s4-s3b':'연락이 없는 경우도 확정 처리합니다. 오류가 있으면 이토에게 연락해 주세요.',
-    's4-n1h':'⚠️ 중요','s4-n1b':'연락이 없는 것도 확정으로 처리합니다. 주황색 물건은 반드시 확인 후 연락 바랍니다.',
-    's4-n2h':'💡 동기화 버튼에 대해','s4-n2b':'메뉴에서 이동하는 것만으로는 최신 정보가 되지 않습니다. 목록을 열고 나서 반드시 「동기화」 버튼을 눌러 주세요.',
-    's5-tag':'편리한 기능','s5-h':'내 물건·현장 지도',
-    's5-lead':'담당 물건을 등록하여 빠르게 접근. 현장 위치를 지도로 확인할 수 있습니다.',
-    's5-c1h':'내 물건 등록 방법','s5-c1b':'왼쪽 메뉴 「내 물건 편집」→ 담당 물건 선택 → 저장. 홈 화면 「내 물건」탭에 표시됩니다.',
-    's5-c2h':'전체 현장 지도','s5-c2b':'왼쪽 메뉴 「전체 현장 지도」에서 현장 위치를 지도로 확인할 수 있습니다.',
-    's5-c3h':'지금 동기화','s5-c3b':'정보가 오래됐다면 왼쪽 메뉴 「지금 동기화」를 실행해 주세요.',
-    's5-n1h':'📱 스마트폰 이용','s5-n1b':'홈 화면에 추가(PWA)하면 앱처럼 사용할 수 있습니다.',
-    's6-h':'가이드 완료!','s6-p':'JACK을 이용해 주셔서 감사합니다.\n모르는 점이 있으면 Felix 담당자에게 문의해 주세요.',
-    's6-n1h':'📋 이 가이드를 다시 확인하려면','s6-n1b':'왼쪽 메뉴 「설정」→「사용 가이드」에서 언제든지 확인할 수 있습니다.',
-  },
-  zh: {
-    'h-title': 'JACK 使用指南',
-    'h-sub': 'Felix株式会社 — 新建AP 现场管理应用',
-    'progress-next': '下一步 →', 'progress-prev': '← 返回', 'progress-finish': '✅ 完成',
-    's1-tag':'简介','s1-h':'什么是JACK？',
-    's1-lead':'JACK是Felix株式会社运营的施工现场管理应用。可以实时查看施工进度、工程进度和分包商选定信息。',
-    's1-f1':'实时工程确认','s1-f1d':'可以一目了然地查看开工日期、交付日期和各工程进度条。',
-    's1-f2':'分包商选定一览','s1-f2d':'可以查看哪个分包商进入哪个楼盘。橙色格子表示未决定或正在洽谈发注的楼盘。',
-    's1-f3':'东海/关东地区对应','s1-f3d':'根据URL参数自动切换地区，只显示负责地区的楼盘。',
-    's1-n1h':'⚠️ 关于等待审批','s1-n1b':'首次登录后需要管理员审批。审批前无法使用应用。请告知Felix负责人。',
-    's2-tag':'主页面','s2-h':'主页面的查看方法',
-    's2-lead':'显示楼盘列表和工程进度条。可以用标签进行筛选。',
-    's2-p1':'负责人徽章（灰色）','s2-p1d':'楼盘名称下方显示负责人姓名。',
-    's2-p2':'⚡N天（黄色徽章）','s2-p2d':'交付不足30天的楼盘会显示此徽章。需要注意。',
-    's2-p3':'工程进度条','s2-p3d':'用进度条显示各工程期间。点击楼盘可查看详情。',
-    's2-n1h':'📌 以大工程表为准','s2-n1b':'如果主页面信息与大工程表不符，以大工程表为准。',
-    's3-tag':'分包商一览','s3-h':'全部分包商选定一览查看方法①',
-    's3-lead':'每周五更新。请确认橙色格子的含义。',
-    's3-c1h':'🟠 橙色＋有分包商名称','s3-c1b':'→ 未回复（我方正在洽谈发注中）',
-    's3-c2h':'🟠 橙色＋无分包商名称','s3-c2b':'→ 我方尚无正在洽谈发注的对象（检讨中）',
-    's3-c3h':'⬜ 白色·其他颜色','s3-c3b':'→ 公司内部处理用的颜色区分，请忽略',
-    's3-th1':'工程项目','s3-r1':'土方工程','s3-r2':'电气工程',
-    's3-n1h':'📅 更新时间表','s3-n1b':'每周五更新。菜单中"全部分包商选定一览"旁边会显示更新日期。日期更新后请务必按"同步"按钮后再查看。',
-    's4-tag':'分包商一览','s4-h':'全部分包商选定一览查看方法②',
-    's4-lead':'确认橙色楼盘后，请在下周三之前联系负责人。',
-    's4-s1h':'每周五：确认一览','s4-s1b':'从菜单打开分包商选定一览，按"同步"按钮，确认橙色格子。',
-    's4-s2h':'下周三之前：联系','s4-s2b':'请联系负责人（伊藤）：\n■无法承接：无法接受的楼盘\n■立候补：对未决定楼盘提出申请',
-    's4-s3h':'下下周五：确认分变为白色','s4-s3b':'未联系的情况也作为确定处理。如有误请联系伊藤。',
-    's4-n1h':'⚠️ 重要','s4-n1b':'未联系的也视为确定处理。橙色楼盘务必确认并联系。',
-    's4-n2h':'💡 关于同步按钮','s4-n2b':'仅从菜单跳转不会更新最新信息。打开一览后请务必按"同步"按钮。',
-    's5-tag':'便利功能','s5-h':'我的楼盘·现场地图',
-    's5-lead':'注册负责楼盘以便快速访问。可在地图上确认现场位置。',
-    's5-c1h':'我的楼盘注册方法','s5-c1b':'左侧菜单"我的楼盘编辑"→选择负责楼盘→保存。在主页面"我的楼盘"标签中显示。',
-    's5-c2h':'全部现场地图','s5-c2b':'从左侧菜单"全部现场地图"可以在地图上确认现场位置。点击标记可查看楼盘信息。',
-    's5-c3h':'立即同步','s5-c3b':'如果信息过旧，请从左侧菜单执行"立即同步"。',
-    's5-n1h':'📱 智能手机使用','s5-n1b':'添加到主屏幕（PWA安装）后可像应用一样使用。',
-    's6-h':'指南完成！','s6-p':'感谢您使用JACK。\n如有不明之处，请联系Felix负责人。',
-    's6-n1h':'📋 重新确认本指南','s6-n1b':'可随时从左侧菜单"设置"→"使用指南"查看。',
-  }
 };
 
 let currentLang = 'ja';
@@ -10123,14 +9865,6 @@ let currentSlide = 1;
 // 役割（一般/管理者）によりスライド枚数が変わるため、DOM上の.slide要素を実行時に数える
 function _tutSlideEls(){ return Array.from(document.querySelectorAll('#_tutModal .slide')); }
 function _tutTotal(){ return _tutSlideEls().length; }
-
-function setLang(lang) {
-  currentLang = lang;
-  document.querySelectorAll('.lang-btn').forEach(b => b.classList.remove('active'));
-  var btn=document.querySelector(`[onclick="window._tutSetLang('${lang}')"]`);
-  if(btn)btn.classList.add('active');
-  applyLang();
-}
 
 function applyLang() {
   const t = LANGS[currentLang] || LANGS.ja;
@@ -10220,7 +9954,6 @@ function _tutInit(isAuto){
 }
 
 window._tutInit = _tutInit;
-window._tutSetLang = setLang;
 window._tutNext = nextSlide;
 window._tutPrev = prevSlide;
 window._tutClose = function(){
