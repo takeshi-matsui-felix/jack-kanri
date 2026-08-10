@@ -991,6 +991,7 @@ var PRE_W = PRE_COLS.reduce(function(a,c){return a+c.w;},0);
 
 var POST_COLS = [
   { key:'delivery_date',   label:'引渡し日',       w:68, cls:'hcell-post' },
+  { key:'movein_date',     label:'実入居\n発生日',  w:58, cls:'hcell-post', movein:true },
   { key:'haikin_date',     label:'配筋\n検査',      w:54, cls:'hcell-post', kensa:'配筋検査', statusKey:'haikin_status' },
   { key:'kutai_date',      label:'躯体\n検査',      w:54, cls:'hcell-post', kensa:'躯体検査', statusKey:'kutai_status' },
   { key:'dannetsu_date',   label:'断熱\n検査',      w:54, cls:'hcell-post', kensa:'断熱検査', statusKey:'dannetsu_status' },
@@ -3033,6 +3034,38 @@ function renderBars(cv, p, segs, gx, top, rowH) {
       }
     }
   }
+
+  // 実入居発生日 → 青バー（表示専用・ドラッグ等の操作は不可）
+  //   ★他の工程バー／引渡しバーと横位置が重なる場合は、行の下段にずらして表示し重なりを防ぐ
+  var miRaw=p.movein_date||'';
+  if(miRaw&&!/REF|#/.test(miRaw)){
+    var miNorm=normDate(miRaw)||miRaw;
+    var miX=_dateToPx(miNorm);
+    if(miX!==null&&miX>=vStartPx-COL_W*2&&miX<=vEndPx+COL_W){
+      var miClampX=Math.max(miX,vStartPx);
+      var miW=COL_W*2-1;
+      var miCollide=false;
+      if(typeof icX==='number'&&icX!==null&&Math.abs(miClampX-Math.max(icX,vStartPx))<miW+2)miCollide=true;
+      barLayouts.forEach(function(bl){
+        if(bl.slot>0)return; // 既に段をずらして表示されている工程は対象外
+        var blLeft=bl.rsPx, blRight=bl.rsPx+(bl.minSwatch?MIN_SWATCH_W:bl.rw);
+        if(miClampX<blRight+2&&miClampX+miW>blLeft-2)miCollide=true;
+      });
+      var miH=miCollide?Math.max(10,Math.floor(barH*0.55)):barH;
+      var miTop=miCollide?(top+baseRowH-miH-1):barY;
+      var miBar=document.createElement('div');
+      miBar.className='bar g-bar';
+      miBar.setAttribute('data-label','実入居');
+      miBar.setAttribute('data-start',miNorm);
+      miBar.setAttribute('data-end',miNorm);
+      miBar.style.cssText='left:'+miClampX+'px;top:'+miTop+'px;width:'+miW+'px;height:'+miH+'px;'
+        +'background:#2563eb;color:white;font-size:'+(miCollide?'6':'7')+'px;font-weight:900;border-radius:3px;z-index:17;'
+        +'display:flex;align-items:center;justify-content:center;pointer-events:none;'
+        +'box-shadow:0 1px 4px rgba(37,99,235,.6);';
+      miBar.textContent='入居';
+      cv.appendChild(miBar);
+    }
+  }
 }
 
 // ===== RENDER BODY =====
@@ -3233,6 +3266,10 @@ function renderBody(){
         // 担当者バッジ
         var tv=val||'';
         el.innerHTML=tv?'<span style="font-size:9px;background:#475569;color:white;padding:1px 5px;border-radius:3px">'+tv+'</span>':'';
+      }else if(c.movein){
+        var mv=fmtDateShort(val);
+        el.textContent=mv;
+        if(mv){el.style.color='#2563eb';el.style.fontWeight='700';}else{el.style.color='var(--g200)';}
       }else{
         var disp=c.key==='delivery_month'?val:fmtDateShort(val);
         el.textContent=disp;if(!disp)el.style.color='var(--g200)';
@@ -3427,6 +3464,20 @@ function buildKensaBars(p,segs,gDateIdx,GCW,totalH){
       +'<div style="position:absolute;left:'+x+'px;top:4px;height:16px;background:'+color+';color:white;font-size:6px;font-weight:900;border-radius:2px;display:flex;align-items:center;padding:0 3px;white-space:nowrap;z-index:13;box-shadow:0 1px 2px rgba(0,0,0,.25);pointer-events:none">'+lbl+'</div>';
   });
   return out;
+}
+
+// ★実入居発生日のガント上マーカー生成（表示専用・青／ドラッグ等の操作は不可）
+function buildMoveinBar(p,gDateIdx,GCW,totalH){
+  if(!p||!p.movein_date)return '';
+  var norm=(typeof normDate==='function'?(normDate(p.movein_date)||p.movein_date):p.movein_date);
+  var clean=String(norm).replace(/\//g,'-');
+  var col=gDateIdx[clean];
+  if(col===undefined||col<=0)return '';
+  var x=(col-1)*GCW;
+  var mm=parseInt(clean.slice(5,7),10),dd=parseInt(clean.slice(8,10),10);
+  var lbl='実入居('+mm+'/'+dd+')';
+  return '<div style="position:absolute;left:'+x+'px;top:0;width:'+GCW+'px;height:'+totalH+'px;background:#2563eb;opacity:.12;pointer-events:none;z-index:2"></div>'
+    +'<div style="position:absolute;left:'+x+'px;top:4px;height:16px;background:#2563eb;color:white;font-size:6px;font-weight:900;border-radius:2px;display:flex;align-items:center;padding:0 3px;white-space:nowrap;z-index:13;box-shadow:0 1px 2px rgba(0,0,0,.25);pointer-events:none">'+lbl+'</div>';
 }
 
 // ★業者ごとの色分け：DELIVERY_MASTERに登録されている全業者候補に固定色を割り振る。
@@ -3700,8 +3751,9 @@ function buildGanttTab(p){
       +labelRows
       +'</div>';
     var kensaBars=buildKensaBars(p,segs,gDateIdx,GCW2,bodyH);
+    var moveinBar=buildMoveinBar(p,gDateIdx,GCW2,bodyH);
     var deliveryBars=deliveryRowAssign.length?_deliveryRenderRows(deliveryRowAssign,deliveryStartRowIdx,ROW_H):'';
-    var ganttArea='<div style="flex-shrink:0;position:relative;width:'+totalW+'px;height:'+bodyH+'px;">'+rowBgs+fills+todayLine+bars+kensaBars+deliveryBars+'</div>';
+    var ganttArea='<div style="flex-shrink:0;position:relative;width:'+totalW+'px;height:'+bodyH+'px;">'+rowBgs+fills+todayLine+bars+kensaBars+moveinBar+deliveryBars+'</div>';
     // ★日付ヘッダーは縦スクロール領域の外側に独立配置し、横スクロールだけJSで追随させる
     //   （二重position:stickyだと端末・ブラウザによってスクロール終端付近で消える不具合があったための抜本対策）
     var headerRow='<div style="display:flex;">'
@@ -4097,6 +4149,7 @@ function geRenderBars(){
   }
   // ★検査4種（配筋検査・躯体検査・断熱検査・完了検査）のマーカーを追加
   var kensaBars=buildKensaBars(currentProp,segs,gDateIdx,GCW,totalH);
+  var moveinBar=buildMoveinBar(currentProp,gDateIdx,GCW,totalH);
   // ★日付ヘッダーは縦スクロール領域の外側に独立配置し、横スクロールだけJSで追随させる
   //   （二重position:stickyだと端末・ブラウザによってスクロール終端付近で消える不具合があったための抜本対策）
   var geHeaderRow='<div style="display:flex;">'
@@ -4108,7 +4161,7 @@ function geRenderBars(){
   multiEl.innerHTML='<div style="border:1.5px solid #e2e8f0;border-radius:6px;overflow:hidden;display:flex;flex-direction:column;">'
     +geHeaderRow
     +'<div id="geScrollWrap" onscroll="var h=document.getElementById(\'geHeaderInner\');if(h)h.style.transform=\'translateX(-\'+this.scrollLeft+\'px)\';" style="max-height:372px;overflow:auto;-webkit-overflow-scrolling:touch;">'
-      +'<div style="display:flex;width:max-content;">'+geLabels+'<div id="geCanvas" style="flex-shrink:0;position:relative;width:'+totalW+'px;height:'+totalH+'px;background:white;">'+rowBgs+fills+todayLine+bars+delivBar+kensaBars+'</div></div>'
+      +'<div style="display:flex;width:max-content;">'+geLabels+'<div id="geCanvas" style="flex-shrink:0;position:relative;width:'+totalW+'px;height:'+totalH+'px;background:white;">'+rowBgs+fills+todayLine+bars+delivBar+kensaBars+moveinBar+'</div></div>'
     +'</div>'
   +'</div>';
   // スクロール位置を復元（初回はTODAY付近へ）
@@ -5971,6 +6024,12 @@ function openPropEditModal(){
         return '<div><label style="font-size:9px;color:#64748b;display:block;margin-bottom:2px">'+lbl+'</label>'
           +'<input id="pe-'+key+'" type="date" value="'+val+'" style="'+iStyle+'padding:5px 6px;font-size:11px;"></div>';
       }).join('')
+      +(function(){
+        var val=(cur.movein_date||'').replace(/\//g,'-');
+        var src=cur.movein_date_source==='excel'?' <span style="color:#2563eb;font-weight:700">（Excel取込）</span>':'';
+        return '<div style="grid-column:1/3"><label style="font-size:9px;color:#64748b;display:block;margin-bottom:2px">🔵 実入居発生日'+src+'</label>'
+          +'<input id="pe-movein_date" type="date" value="'+val+'" style="'+iStyle+'padding:5px 6px;font-size:11px;"></div>';
+      })()
       +'</div>'
       // 駐車場
       +'<div style="font-size:11px;font-weight:800;color:#475569;margin-bottom:8px;padding-bottom:4px;border-bottom:2px solid #e2e8f0">🚗 駐車場情報</div>'
@@ -6074,6 +6133,9 @@ function savePropEdit(){
   var compDate=getDateVal('pe-complete_date');
   if(insDate)dbUpdates.inspection_date=insDate;
   if(compDate)dbUpdates.complete_date=compDate;
+  // 実入居発生日（手入力で変更した場合は取込元を「manual」に切替）
+  var moveinVal=getDateVal('pe-movein_date');
+  if(moveinVal){dbUpdates.movein_date=moveinVal;dbUpdates.movein_date_source='manual';}
   // ★配筋検査・躯体検査・断熱検査の日付＋4検査の予約ステータス
   ['haikin_date','kutai_date','dannetsu_date'].forEach(function(k){
     var v=getDateVal('pe-'+k); if(v)dbUpdates[k]=v;
@@ -8667,6 +8729,9 @@ function openTutorial(isAuto){
   var ex=document.getElementById('_tutModalWrap');
   if(ex)ex.remove();
 
+  // 管理者は管理者用ガイド（一般機能＋管理者機能の通し版）を表示
+  var isAdminTut = !!(currentProfile && currentProfile.role==='admin');
+
   var wrap=document.createElement('div');
   wrap.id='_tutModalWrap';
   wrap.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:10000;display:flex;align-items:center;justify-content:center;padding:0;';
@@ -8764,6 +8829,11 @@ function openTutorial(isAuto){
   }
 #_tutModal .tag.orange { background: var(--tut-orange-light); color: var(--tut-orange); }
 #_tutModal .tag.green { background: var(--tut-green-light); color: var(--tut-green); }
+#_tutModal .tag.purple { background: #f3e8ff; color: #7e22ce; }
+#_tutModal .admin-badge {
+    display: inline-block; margin-top: 8px; padding: 4px 12px; border-radius: 20px;
+    background: rgba(255,255,255,.18); color: #fff; font-size: 11px; font-weight: 700;
+  }
 #_tutModal .slide h2 { font-size: 20px; font-weight: 800; color: var(--tut-text); line-height: 1.3; margin-bottom: 8px; }
 #_tutModal .slide .lead { font-size: 13px; color: var(--tut-gray); line-height: 1.7; margin-bottom: 20px; }
 #_tutModal .card {
@@ -8928,19 +8998,20 @@ function openTutorial(isAuto){
     <div class="hero-logo">J</div>
     <h1 id="h-title">JACK 使い方ガイド</h1>
     <p id="h-sub">フィリックス株式会社 新築AP 現場管理アプリ</p>
+    ${isAdminTut?'<div class="admin-badge" id="h-admin-badge">🔑 管理者用ガイド</div>':''}
   </div>
 
   <!-- PROGRESS -->
   <div class="progress-bar">
     <div class="progress-track"><div class="progress-fill" id="progress-fill"></div></div>
-    <div class="progress-label" id="progress-label">1 / 6</div>
+    <div class="progress-label" id="progress-label">1 / N</div>
   </div>
 
   <!-- SLIDES CONTAINER -->
   <div class="slides-container">
 
     <!-- ===== SLIDE 1: JACKとは ===== -->
-    <div class="slide active" id="slide-1">
+    <div class="slide active" id="slide-s1">
       <div class="section-tag">
         <div class="tag" id="s1-tag">はじめに</div>
         <h2 id="s1-h">JACKとは何ですか？</h2>
@@ -8978,7 +9049,7 @@ function openTutorial(isAuto){
     </div>
 
     <!-- ===== SLIDE 2: ホーム画面 ===== -->
-    <div class="slide" id="slide-2">
+    <div class="slide" id="slide-s2">
       <div class="section-tag">
         <div class="tag" id="s2-tag">ホーム画面</div>
         <h2 id="s2-h">ホーム画面の見方</h2>
@@ -9056,8 +9127,122 @@ function openTutorial(isAuto){
       </div>
     </div>
 
+    <!-- ===== SLIDE: 物件詳細①（工程・マイルストーン） ===== -->
+    <div class="slide" id="slide-sd1">
+      <div class="section-tag">
+        <div class="tag" id="sd1-tag">物件詳細</div>
+        <h2 id="sd1-h">物件詳細画面の見方①</h2>
+        <p class="lead" id="sd1-lead">ホーム画面で物件をタップすると詳細画面が開きます。工程やマイルストーンをまとめて確認できます。</p>
+      </div>
+
+      <ul class="step-list">
+        <li class="step-item">
+          <div class="step-num">1</div>
+          <div class="step-content">
+            <strong id="sd1-f1">上部固定バー（マイルストーンチップ）</strong>
+            <p id="sd1-f1d">着工・上棟・完了検査・引渡しなど主要な日程がチップで表示されます。タップすると該当箇所にジャンプします。</p>
+          </div>
+        </li>
+        <li class="step-item">
+          <div class="step-num">2</div>
+          <div class="step-content">
+            <strong id="sd1-f2">工程バー（ガントチャート）</strong>
+            <p id="sd1-f2d">各工事の期間を色分けしたバーで表示します。左右にスクロールすると全体の工程を確認できます。</p>
+          </div>
+        </li>
+        <li class="step-item">
+          <div class="step-num">3</div>
+          <div class="step-content">
+            <strong id="sd1-f3">現場地図</strong>
+            <p id="sd1-f3d">物件詳細画面内から現場の場所を地図で確認できます。</p>
+          </div>
+        </li>
+      </ul>
+
+      <div class="notice blue">
+        <strong id="sd1-n1h">📌 表示が古いと感じたら</strong>
+        <span id="sd1-n1b">左メニュー「今すぐ同期」を実行すると最新の情報に更新されます。</span>
+      </div>
+    </div>
+
+    <!-- ===== SLIDE: 物件詳細②（検査予約） ===== -->
+    <div class="slide" id="slide-sd2">
+      <div class="section-tag">
+        <div class="tag orange" id="sd2-tag">検査予約</div>
+        <h2 id="sd2-h">物件詳細画面の見方②（検査予約）</h2>
+        <p class="lead" id="sd2-lead">配筋・躯体・断熱・完了検査の4種類の検査日を確認・入力できます。</p>
+      </div>
+
+      <ul class="step-list">
+        <li class="step-item">
+          <div class="step-num orange">1</div>
+          <div class="step-content">
+            <strong id="sd2-s1h">検査予約タブを開く</strong>
+            <p id="sd2-s1b">物件詳細画面の「検査予約」タブから、4種類の検査状況をまとめて確認できます。</p>
+          </div>
+        </li>
+        <li class="step-item">
+          <div class="step-num orange">2</div>
+          <div class="step-content">
+            <strong id="sd2-s2h">検査日の入力</strong>
+            <p id="sd2-s2b">予定日が決まったら日付を入力して保存してください。工程バーにも自動で反映されます。</p>
+          </div>
+        </li>
+        <li class="step-item">
+          <div class="step-num orange">3</div>
+          <div class="step-content">
+            <strong id="sd2-s3h">ステータス表示</strong>
+            <p id="sd2-s3b">未定・予定・実施済みなどのステータスが色分けで表示されます。</p>
+          </div>
+        </li>
+      </ul>
+
+      <div class="notice yellow">
+        <strong id="sd2-n1h">⚠️ 入力は正確に</strong>
+        <span id="sd2-n1b">検査日は工程バーの表示にも反映されるため、決定した日付を正確に入力してください。</span>
+      </div>
+    </div>
+
+    <!-- ===== SLIDE: 物件詳細③（納品書） ===== -->
+    <div class="slide" id="slide-sd3">
+      <div class="section-tag">
+        <div class="tag green" id="sd3-tag">納品書</div>
+        <h2 id="sd3-h">物件詳細画面の見方③（📦納品書）</h2>
+        <p class="lead" id="sd3-lead">各工事の納品書を、日付とあわせて登録・確認できる機能です。</p>
+      </div>
+
+      <ul class="step-list">
+        <li class="step-item">
+          <div class="step-num green">1</div>
+          <div class="step-content">
+            <strong id="sd3-s1h">📦納品書タブを開く</strong>
+            <p id="sd3-s1b">物件詳細画面の「📦納品書」タブから、工事ごとの納品状況を確認できます。</p>
+          </div>
+        </li>
+        <li class="step-item">
+          <div class="step-num green">2</div>
+          <div class="step-content">
+            <strong id="sd3-s2h">基準日の登録</strong>
+            <p id="sd3-s2b">該当する工事の基準日を入力して保存すると、一覧にすぐ反映されます。</p>
+          </div>
+        </li>
+        <li class="step-item">
+          <div class="step-num green">3</div>
+          <div class="step-content">
+            <strong id="sd3-s3h">一覧で確認</strong>
+            <p id="sd3-s3b">登録済み・未登録の状態が一覧で色分け表示されます。</p>
+          </div>
+        </li>
+      </ul>
+
+      <div class="notice blue">
+        <strong id="sd3-n1h">💾 保存について</strong>
+        <span id="sd3-n1b">入力した内容は自動的にSupabaseへ保存されます。反映されない場合は少し時間をおいて再読み込みしてください。</span>
+      </div>
+    </div>
+
     <!-- ===== SLIDE 3: 全業者選定一覧①===== -->
-    <div class="slide" id="slide-3">
+    <div class="slide" id="slide-s3">
       <div class="section-tag">
         <div class="tag orange" id="s3-tag">業者選定一覧</div>
         <h2 id="s3-h">全業者選定一覧の見方①</h2>
@@ -9111,7 +9296,7 @@ function openTutorial(isAuto){
     </div>
 
     <!-- ===== SLIDE 4: 全業者選定一覧② ===== -->
-    <div class="slide" id="slide-4">
+    <div class="slide" id="slide-s4">
       <div class="section-tag">
         <div class="tag orange" id="s4-tag">業者選定一覧</div>
         <h2 id="s4-h">全業者選定一覧の見方②</h2>
@@ -9153,12 +9338,12 @@ function openTutorial(isAuto){
       </div>
     </div>
 
-    <!-- ===== SLIDE 5: マイ物件・現場マップ ===== -->
-    <div class="slide" id="slide-5">
+    <!-- ===== SLIDE: マイ物件・工事カレンダー ===== -->
+    <div class="slide" id="slide-sd4">
       <div class="section-tag">
         <div class="tag green" id="s5-tag">便利な機能</div>
-        <h2 id="s5-h">マイ物件・現場マップ</h2>
-        <p class="lead" id="s5-lead">担当物件を登録して素早くアクセス。現場の場所をマップで確認できます。</p>
+        <h2 id="sd4-h">マイ物件・工事カレンダー</h2>
+        <p class="lead" id="sd4-lead">担当物件を登録して素早くアクセス。カレンダー形式でも工程を確認できます。</p>
       </div>
 
       <div class="card">
@@ -9169,6 +9354,30 @@ function openTutorial(isAuto){
         <div class="card-body">
           <p id="s5-c1b">左メニュー「マイ物件編集」→ 担当物件を選択してチェック → 保存。ホーム画面の「マイ物件」タブに表示されます。</p>
         </div>
+      </div>
+
+      <div class="card">
+        <div class="card-head">
+          <span class="icon">📅</span>
+          <strong id="sd4-c1h">工事カレンダー</strong>
+        </div>
+        <div class="card-body">
+          <p id="sd4-c1b">左メニュー「マイ物件編集」→「工事カレンダー」から、担当物件の工程をカレンダー形式で確認できます。</p>
+        </div>
+      </div>
+
+      <div class="notice blue">
+        <strong id="s5-n1h">📱 スマートフォンでの利用</strong>
+        <span id="s5-n1b">ホーム画面に追加（PWAインストール）するとアプリのように使えます。Safariの場合は「共有」→「ホーム画面に追加」、Chromeの場合はアドレスバーのインストールアイコンをタップしてください。</span>
+      </div>
+    </div>
+
+    <!-- ===== SLIDE: 全現場マップ・同期・印刷 ===== -->
+    <div class="slide" id="slide-sd5">
+      <div class="section-tag">
+        <div class="tag" id="sd5-tag">便利な機能</div>
+        <h2 id="sd5-h">全現場マップ・同期・印刷</h2>
+        <p class="lead" id="sd5-lead">現場の場所をマップで確認したり、最新データへの同期や資料の印刷ができます。</p>
       </div>
 
       <div class="card">
@@ -9191,14 +9400,348 @@ function openTutorial(isAuto){
         </div>
       </div>
 
-      <div class="notice blue">
-        <strong id="s5-n1h">📱 スマートフォンでの利用</strong>
-        <span id="s5-n1b">ホーム画面に追加（PWAインストール）するとアプリのように使えます。Safariの場合は「共有」→「ホーム画面に追加」、Chromeの場合はアドレスバーのインストールアイコンをタップしてください。</span>
+      <div class="card">
+        <div class="card-head">
+          <span class="icon">🖨️</span>
+          <strong id="sd5-c1h">印刷</strong>
+        </div>
+        <div class="card-body">
+          <p id="sd5-c1b">左メニュー「印刷」から大工程表や個別物件の工程表をPDF・紙で出力できます。</p>
+        </div>
       </div>
     </div>
 
+    ${isAdminTut?`
+    <!-- ===== SLIDE: 管理者CPとは ===== -->
+    <div class="slide" id="slide-sa1">
+      <div class="section-tag">
+        <div class="tag purple" id="sa1-tag">管理者機能</div>
+        <h2 id="sa1-h">管理者CP（コントロールパネル）とは</h2>
+        <p class="lead" id="sa1-lead">管理者は左メニューの「🏢 管理者CP」から、システム全体の管理機能にアクセスできます。</p>
+      </div>
+
+      <ul class="step-list">
+        <li class="step-item">
+          <div class="step-num" style="background:#7e22ce">1</div>
+          <div class="step-content">
+            <strong id="sa1-f1">データ管理</strong>
+            <p id="sa1-f1d">ユーザー管理・物件管理・データ取込など、基礎データを扱う機能です。</p>
+          </div>
+        </li>
+        <li class="step-item">
+          <div class="step-num" style="background:#7e22ce">2</div>
+          <div class="step-content">
+            <strong id="sa1-f2">現場管理</strong>
+            <p id="sa1-f2d">検査取りまとめ・納品書管理・工程表取込など、現場の進捗を管理する機能です。</p>
+          </div>
+        </li>
+        <li class="step-item">
+          <div class="step-num" style="background:#7e22ce">3</div>
+          <div class="step-content">
+            <strong id="sa1-f3">システム設定</strong>
+            <p id="sa1-f3d">お知らせ管理・DB設定など、アプリ全体の設定を行う機能です。</p>
+          </div>
+        </li>
+      </ul>
+
+      <div class="notice blue">
+        <strong id="sa1-n1h">⚠️ 操作には注意してください</strong>
+        <span id="sa1-n1b">管理者CPの操作はシステム全体に影響します。不明な点は事前に確認してから操作してください。</span>
+      </div>
+    </div>
+
+    <!-- ===== SLIDE: ユーザー管理 ===== -->
+    <div class="slide" id="slide-sa2">
+      <div class="section-tag">
+        <div class="tag purple" id="sa2-tag">管理者機能</div>
+        <h2 id="sa2-h">ユーザー管理（承認フロー）</h2>
+        <p class="lead" id="sa2-lead">新規登録された協力業者・管理者アカウントを承認・管理します。</p>
+      </div>
+
+      <ul class="step-list">
+        <li class="step-item">
+          <div class="step-num" style="background:#7e22ce">1</div>
+          <div class="step-content">
+            <strong id="sa2-s1h">承認待ちの確認</strong>
+            <p id="sa2-s1b">管理者CP「👥 ユーザー管理」で承認待ちアカウントを確認できます。</p>
+          </div>
+        </li>
+        <li class="step-item">
+          <div class="step-num" style="background:#7e22ce">2</div>
+          <div class="step-content">
+            <strong id="sa2-s2h">承認・却下</strong>
+            <p id="sa2-s2b">内容を確認し、承認または却下を行います。承認されるまで対象ユーザーはアプリを利用できません。</p>
+          </div>
+        </li>
+        <li class="step-item">
+          <div class="step-num" style="background:#7e22ce">3</div>
+          <div class="step-content">
+            <strong id="sa2-s3h">権限変更</strong>
+            <p id="sa2-s3b">必要に応じて、ロール（管理者／協力業者）を変更できます。</p>
+          </div>
+        </li>
+      </ul>
+
+      <div class="notice red">
+        <strong id="sa2-n1h">⚠️ 権限付与は慎重に</strong>
+        <span id="sa2-n1b">誤って管理者権限を付与すると全物件データにアクセスできてしまいます。慎重に操作してください。</span>
+      </div>
+    </div>
+
+    <!-- ===== SLIDE: 物件管理 ===== -->
+    <div class="slide" id="slide-sa3">
+      <div class="section-tag">
+        <div class="tag purple" id="sa3-tag">管理者機能</div>
+        <h2 id="sa3-h">物件管理</h2>
+        <p class="lead" id="sa3-lead">物件の新規登録・編集・削除を行います。</p>
+      </div>
+
+      <ul class="step-list">
+        <li class="step-item">
+          <div class="step-num" style="background:#7e22ce">1</div>
+          <div class="step-content">
+            <strong id="sa3-s1h">物件の新規登録</strong>
+            <p id="sa3-s1b">管理者CP「🏠 物件管理」から新規物件を登録できます。</p>
+          </div>
+        </li>
+        <li class="step-item">
+          <div class="step-num" style="background:#7e22ce">2</div>
+          <div class="step-content">
+            <strong id="sa3-s2h">情報の編集</strong>
+            <p id="sa3-s2b">着工日・引渡日などの基本情報を編集できます。</p>
+          </div>
+        </li>
+        <li class="step-item">
+          <div class="step-num" style="background:#7e22ce">3</div>
+          <div class="step-content">
+            <strong id="sa3-s3h">削除</strong>
+            <p id="sa3-s3b">不要になった物件データを削除できます。</p>
+          </div>
+        </li>
+      </ul>
+
+      <div class="notice red">
+        <strong id="sa3-n1h">⚠️ 削除は取り消せません</strong>
+        <span id="sa3-n1b">物件の削除操作は元に戻せません。実行前に必ず内容を確認してください。</span>
+      </div>
+    </div>
+
+    <!-- ===== SLIDE: マスター工程の編集 ===== -->
+    <div class="slide" id="slide-sa4">
+      <div class="section-tag">
+        <div class="tag purple" id="sa4-tag">管理者機能</div>
+        <h2 id="sa4-h">マスター工程テンプレートの編集</h2>
+        <p class="lead" id="sa4-lead">工程バーの元になるマスターテンプレートを編集します。変更内容は全物件のガントチャートに反映されます。</p>
+      </div>
+
+      <ul class="step-list">
+        <li class="step-item">
+          <div class="step-num" style="background:#7e22ce">1</div>
+          <div class="step-content">
+            <strong id="sa4-s1h">マスター工程を開く</strong>
+            <p id="sa4-s1b">左メニュー「マスター工程」からテンプレートを編集できます。</p>
+          </div>
+        </li>
+        <li class="step-item">
+          <div class="step-num" style="background:#7e22ce">2</div>
+          <div class="step-content">
+            <strong id="sa4-s2h">カスケード反映</strong>
+            <p id="sa4-s2b">基礎工事など基準となる工程を変更すると、後続の工程日程が自動計算されます。</p>
+          </div>
+        </li>
+        <li class="step-item">
+          <div class="step-num" style="background:#7e22ce">3</div>
+          <div class="step-content">
+            <strong id="sa4-s3h">個別物件での上書き</strong>
+            <p id="sa4-s3b">物件ごとに個別で工程を調整することも可能です（手動調整フラグが立ちます）。</p>
+          </div>
+        </li>
+      </ul>
+
+      <div class="notice yellow">
+        <strong id="sa4-n1h">⚠️ 全物件に影響します</strong>
+        <span id="sa4-n1b">マスターテンプレートの変更は全物件に影響するため、変更前に内容をよく確認してください。</span>
+      </div>
+    </div>
+
+    <!-- ===== SLIDE: 検査取りまとめ ===== -->
+    <div class="slide" id="slide-sa5">
+      <div class="section-tag">
+        <div class="tag purple" id="sa5-tag">管理者機能</div>
+        <h2 id="sa5-h">検査取りまとめ（全物件×4検査）</h2>
+        <p class="lead" id="sa5-lead">全物件の配筋・躯体・断熱・完了検査の状況を一覧で確認・管理できます。</p>
+      </div>
+
+      <ul class="step-list">
+        <li class="step-item">
+          <div class="step-num" style="background:#7e22ce">1</div>
+          <div class="step-content">
+            <strong id="sa5-s1h">一覧で全体確認</strong>
+            <p id="sa5-s1b">管理者CP「🔍 検査取りまとめ」で全物件の検査状況をまとめて確認できます。</p>
+          </div>
+        </li>
+        <li class="step-item">
+          <div class="step-num" style="background:#7e22ce">2</div>
+          <div class="step-content">
+            <strong id="sa5-s2h">未入力の物件を確認</strong>
+            <p id="sa5-s2b">検査日が未入力の物件が一目でわかります。</p>
+          </div>
+        </li>
+        <li class="step-item">
+          <div class="step-num" style="background:#7e22ce">3</div>
+          <div class="step-content">
+            <strong id="sa5-s3h">一括編集</strong>
+            <p id="sa5-s3b">必要に応じて一覧から直接検査日を編集できます。</p>
+          </div>
+        </li>
+      </ul>
+    </div>
+
+    <!-- ===== SLIDE: 納品書管理 ===== -->
+    <div class="slide" id="slide-sa6">
+      <div class="section-tag">
+        <div class="tag purple" id="sa6-tag">管理者機能</div>
+        <h2 id="sa6-h">納品書管理</h2>
+        <p class="lead" id="sa6-lead">各物件の納品書登録状況を管理者側から一括確認できます。</p>
+      </div>
+
+      <ul class="step-list">
+        <li class="step-item">
+          <div class="step-num" style="background:#7e22ce">1</div>
+          <div class="step-content">
+            <strong id="sa6-s1h">登録状況の確認</strong>
+            <p id="sa6-s1b">管理者CP「📦 納品書管理」で全物件の納品書登録状況を確認できます。</p>
+          </div>
+        </li>
+        <li class="step-item">
+          <div class="step-num" style="background:#7e22ce">2</div>
+          <div class="step-content">
+            <strong id="sa6-s2h">未登録の把握</strong>
+            <p id="sa6-s2b">未登録の工事・物件が一覧でわかります。</p>
+          </div>
+        </li>
+        <li class="step-item">
+          <div class="step-num" style="background:#7e22ce">3</div>
+          <div class="step-content">
+            <strong id="sa6-s3h">データの出力</strong>
+            <p id="sa6-s3b">必要に応じて一覧をエクスポートできます。</p>
+          </div>
+        </li>
+      </ul>
+    </div>
+
+    <!-- ===== SLIDE: データ取込・工程表取込 ===== -->
+    <div class="slide" id="slide-sa7">
+      <div class="section-tag">
+        <div class="tag purple" id="sa7-tag">管理者機能</div>
+        <h2 id="sa7-h">データ取込・工程表取込</h2>
+        <p class="lead" id="sa7-lead">Excelファイルを使って業者選定一覧や工程表データをシステムに取り込みます。</p>
+      </div>
+
+      <ul class="step-list">
+        <li class="step-item">
+          <div class="step-num" style="background:#7e22ce">1</div>
+          <div class="step-content">
+            <strong id="sa7-s1h">データ取込</strong>
+            <p id="sa7-s1b">管理者CP「📥 データ取込」で全業者選定一覧.xlsxをアップロードするとSupabaseに反映されます。</p>
+          </div>
+        </li>
+        <li class="step-item">
+          <div class="step-num" style="background:#7e22ce">2</div>
+          <div class="step-content">
+            <strong id="sa7-s2h">工程表取込</strong>
+            <p id="sa7-s2b">「📋 工程表取込」から大工程表のExcelを取り込み、ガントチャートに反映できます。</p>
+          </div>
+        </li>
+        <li class="step-item">
+          <div class="step-num" style="background:#7e22ce">3</div>
+          <div class="step-content">
+            <strong id="sa7-s3h">取込後の確認</strong>
+            <p id="sa7-s3b">取込後は必ず内容が正しく反映されているか確認してください。</p>
+          </div>
+        </li>
+      </ul>
+
+      <div class="notice yellow">
+        <strong id="sa7-n1h">⚠️ 既存データを上書きします</strong>
+        <span id="sa7-n1b">取込は既存データを上書きします。取込前にファイル内容をよくご確認ください。</span>
+      </div>
+    </div>
+
+    <!-- ===== SLIDE: お知らせ管理 ===== -->
+    <div class="slide" id="slide-sa8">
+      <div class="section-tag">
+        <div class="tag purple" id="sa8-tag">管理者機能</div>
+        <h2 id="sa8-h">お知らせ管理</h2>
+        <p class="lead" id="sa8-lead">全ユーザーに向けたお知らせを配信できます。</p>
+      </div>
+
+      <ul class="step-list">
+        <li class="step-item">
+          <div class="step-num" style="background:#7e22ce">1</div>
+          <div class="step-content">
+            <strong id="sa8-s1h">お知らせの作成</strong>
+            <p id="sa8-s1b">管理者CP「📢 お知らせ管理」から新規お知らせを作成できます。</p>
+          </div>
+        </li>
+        <li class="step-item">
+          <div class="step-num" style="background:#7e22ce">2</div>
+          <div class="step-content">
+            <strong id="sa8-s2h">表示期間の設定</strong>
+            <p id="sa8-s2b">表示開始日・終了日を設定できます。</p>
+          </div>
+        </li>
+        <li class="step-item">
+          <div class="step-num" style="background:#7e22ce">3</div>
+          <div class="step-content">
+            <strong id="sa8-s3h">配信対象の設定</strong>
+            <p id="sa8-s3b">必要に応じて対象ユーザーを絞り込めます。</p>
+          </div>
+        </li>
+      </ul>
+    </div>
+
+    <!-- ===== SLIDE: DB設定・メンテナンスモード ===== -->
+    <div class="slide" id="slide-sa9">
+      <div class="section-tag">
+        <div class="tag purple" id="sa9-tag">管理者機能</div>
+        <h2 id="sa9-h">DB設定・メンテナンスモード</h2>
+        <p class="lead" id="sa9-lead">システム全体の設定やメンテナンスモードの切り替えを行います。</p>
+      </div>
+
+      <ul class="step-list">
+        <li class="step-item">
+          <div class="step-num" style="background:#7e22ce">1</div>
+          <div class="step-content">
+            <strong id="sa9-s1h">DB設定</strong>
+            <p id="sa9-s1b">管理者CP「🔧 DB設定」からシステム全体の設定を確認・変更できます。</p>
+          </div>
+        </li>
+        <li class="step-item">
+          <div class="step-num" style="background:#7e22ce">2</div>
+          <div class="step-content">
+            <strong id="sa9-s2h">メンテナンスモード</strong>
+            <p id="sa9-s2b">メンテナンス作業中は一時的にログインを制限できます（管理者を除く）。</p>
+          </div>
+        </li>
+        <li class="step-item">
+          <div class="step-num" style="background:#7e22ce">3</div>
+          <div class="step-content">
+            <strong id="sa9-s3h">操作後の確認</strong>
+            <p id="sa9-s3b">設定変更後は必ず一般ユーザーの画面表示も確認してください。</p>
+          </div>
+        </li>
+      </ul>
+
+      <div class="notice red">
+        <strong id="sa9-n1h">⚠️ システム全体に影響します</strong>
+        <span id="sa9-n1b">DB設定・メンテナンスモードの操作はシステム全体に影響します。作業内容を十分理解した上で操作してください。</span>
+      </div>
+    </div>
+    `:''}
+
     <!-- ===== SLIDE 6: 完了 ===== -->
-    <div class="slide" id="slide-6">
+    <div class="slide" id="slide-s6">
       <div class="finish-screen">
         <div class="finish-icon">✅</div>
         <h2 id="s6-h">ガイド完了です！</h2>
@@ -9274,6 +9817,68 @@ const LANGS = {
     's5-c2h':'全現場マップ','s5-c2b':'左メニュー「全現場マップ」から現場の場所を地図で確認できます。ピンをタップすると物件情報が表示されます。',
     's5-c3h':'今すぐ同期','s5-c3b':'左メニュー「今すぐ同期」で最新データを取得できます。情報が古い場合はこちらを実行してください。',
     's5-n1h':'📱 スマートフォンでの利用','s5-n1b':'ホーム画面に追加（PWAインストール）するとアプリのように使えます。',
+    'h-admin-badge':'🔑 管理者用ガイド',
+    'sd1-tag':'物件詳細','sd1-h':'物件詳細画面の見方①','sd1-lead':'ホーム画面で物件をタップすると詳細画面が開きます。工程やマイルストーンをまとめて確認できます。',
+    'sd1-f1':'上部固定バー（マイルストーンチップ）','sd1-f1d':'着工・上棟・完了検査・引渡しなど主要な日程がチップで表示されます。タップすると該当箇所にジャンプします。',
+    'sd1-f2':'工程バー（ガントチャート）','sd1-f2d':'各工事の期間を色分けしたバーで表示します。左右にスクロールすると全体の工程を確認できます。',
+    'sd1-f3':'現場地図','sd1-f3d':'物件詳細画面内から現場の場所を地図で確認できます。',
+    'sd1-n1h':'📌 表示が古いと感じたら','sd1-n1b':'左メニュー「今すぐ同期」を実行すると最新の情報に更新されます。',
+    'sd2-tag':'検査予約','sd2-h':'物件詳細画面の見方②（検査予約）','sd2-lead':'配筋・躯体・断熱・完了検査の4種類の検査日を確認・入力できます。',
+    'sd2-s1h':'検査予約タブを開く','sd2-s1b':'物件詳細画面の「検査予約」タブから、4種類の検査状況をまとめて確認できます。',
+    'sd2-s2h':'検査日の入力','sd2-s2b':'予定日が決まったら日付を入力して保存してください。工程バーにも自動で反映されます。',
+    'sd2-s3h':'ステータス表示','sd2-s3b':'未定・予定・実施済みなどのステータスが色分けで表示されます。',
+    'sd2-n1h':'⚠️ 入力は正確に','sd2-n1b':'検査日は工程バーの表示にも反映されるため、決定した日付を正確に入力してください。',
+    'sd3-tag':'納品書','sd3-h':'物件詳細画面の見方③（📦納品書）','sd3-lead':'各工事の納品書を、日付とあわせて登録・確認できる機能です。',
+    'sd3-s1h':'📦納品書タブを開く','sd3-s1b':'物件詳細画面の「📦納品書」タブから、工事ごとの納品状況を確認できます。',
+    'sd3-s2h':'基準日の登録','sd3-s2b':'該当する工事の基準日を入力して保存すると、一覧にすぐ反映されます。',
+    'sd3-s3h':'一覧で確認','sd3-s3b':'登録済み・未登録の状態が一覧で色分け表示されます。',
+    'sd3-n1h':'💾 保存について','sd3-n1b':'入力した内容は自動的にSupabaseへ保存されます。反映されない場合は少し時間をおいて再読み込みしてください。',
+    'sd4-h':'マイ物件・工事カレンダー','sd4-lead':'担当物件を登録して素早くアクセス。カレンダー形式でも工程を確認できます。',
+    'sd4-c1h':'工事カレンダー','sd4-c1b':'左メニュー「マイ物件編集」→「工事カレンダー」から、担当物件の工程をカレンダー形式で確認できます。',
+    'sd5-tag':'便利な機能','sd5-h':'全現場マップ・同期・印刷','sd5-lead':'現場の場所をマップで確認したり、最新データへの同期や資料の印刷ができます。',
+    'sd5-c1h':'印刷','sd5-c1b':'左メニュー「印刷」から大工程表や個別物件の工程表をPDF・紙で出力できます。',
+    'sa1-tag':'管理者機能','sa1-h':'管理者CP（コントロールパネル）とは','sa1-lead':'管理者は左メニューの「🏢 管理者CP」から、システム全体の管理機能にアクセスできます。',
+    'sa1-f1':'データ管理','sa1-f1d':'ユーザー管理・物件管理・データ取込など、基礎データを扱う機能です。',
+    'sa1-f2':'現場管理','sa1-f2d':'検査取りまとめ・納品書管理・工程表取込など、現場の進捗を管理する機能です。',
+    'sa1-f3':'システム設定','sa1-f3d':'お知らせ管理・DB設定など、アプリ全体の設定を行う機能です。',
+    'sa1-n1h':'⚠️ 操作には注意してください','sa1-n1b':'管理者CPの操作はシステム全体に影響します。不明な点は事前に確認してから操作してください。',
+    'sa2-tag':'管理者機能','sa2-h':'ユーザー管理（承認フロー）','sa2-lead':'新規登録された協力業者・管理者アカウントを承認・管理します。',
+    'sa2-s1h':'承認待ちの確認','sa2-s1b':'管理者CP「👥 ユーザー管理」で承認待ちアカウントを確認できます。',
+    'sa2-s2h':'承認・却下','sa2-s2b':'内容を確認し、承認または却下を行います。承認されるまで対象ユーザーはアプリを利用できません。',
+    'sa2-s3h':'権限変更','sa2-s3b':'必要に応じて、ロール（管理者／協力業者）を変更できます。',
+    'sa2-n1h':'⚠️ 権限付与は慎重に','sa2-n1b':'誤って管理者権限を付与すると全物件データにアクセスできてしまいます。慎重に操作してください。',
+    'sa3-tag':'管理者機能','sa3-h':'物件管理','sa3-lead':'物件の新規登録・編集・削除を行います。',
+    'sa3-s1h':'物件の新規登録','sa3-s1b':'管理者CP「🏠 物件管理」から新規物件を登録できます。',
+    'sa3-s2h':'情報の編集','sa3-s2b':'着工日・引渡日などの基本情報を編集できます。',
+    'sa3-s3h':'削除','sa3-s3b':'不要になった物件データを削除できます。',
+    'sa3-n1h':'⚠️ 削除は取り消せません','sa3-n1b':'物件の削除操作は元に戻せません。実行前に必ず内容を確認してください。',
+    'sa4-tag':'管理者機能','sa4-h':'マスター工程テンプレートの編集','sa4-lead':'工程バーの元になるマスターテンプレートを編集します。変更内容は全物件のガントチャートに反映されます。',
+    'sa4-s1h':'マスター工程を開く','sa4-s1b':'左メニュー「マスター工程」からテンプレートを編集できます。',
+    'sa4-s2h':'カスケード反映','sa4-s2b':'基礎工事など基準となる工程を変更すると、後続の工程日程が自動計算されます。',
+    'sa4-s3h':'個別物件での上書き','sa4-s3b':'物件ごとに個別で工程を調整することも可能です（手動調整フラグが立ちます）。',
+    'sa4-n1h':'⚠️ 全物件に影響します','sa4-n1b':'マスターテンプレートの変更は全物件に影響するため、変更前に内容をよく確認してください。',
+    'sa5-tag':'管理者機能','sa5-h':'検査取りまとめ（全物件×4検査）','sa5-lead':'全物件の配筋・躯体・断熱・完了検査の状況を一覧で確認・管理できます。',
+    'sa5-s1h':'一覧で全体確認','sa5-s1b':'管理者CP「🔍 検査取りまとめ」で全物件の検査状況をまとめて確認できます。',
+    'sa5-s2h':'未入力の物件を確認','sa5-s2b':'検査日が未入力の物件が一目でわかります。',
+    'sa5-s3h':'一括編集','sa5-s3b':'必要に応じて一覧から直接検査日を編集できます。',
+    'sa6-tag':'管理者機能','sa6-h':'納品書管理','sa6-lead':'各物件の納品書登録状況を管理者側から一括確認できます。',
+    'sa6-s1h':'登録状況の確認','sa6-s1b':'管理者CP「📦 納品書管理」で全物件の納品書登録状況を確認できます。',
+    'sa6-s2h':'未登録の把握','sa6-s2b':'未登録の工事・物件が一覧でわかります。',
+    'sa6-s3h':'データの出力','sa6-s3b':'必要に応じて一覧をエクスポートできます。',
+    'sa7-tag':'管理者機能','sa7-h':'データ取込・工程表取込','sa7-lead':'Excelファイルを使って業者選定一覧や工程表データをシステムに取り込みます。',
+    'sa7-s1h':'データ取込','sa7-s1b':'管理者CP「📥 データ取込」で全業者選定一覧.xlsxをアップロードするとSupabaseに反映されます。',
+    'sa7-s2h':'工程表取込','sa7-s2b':'「📋 工程表取込」から大工程表のExcelを取り込み、ガントチャートに反映できます。',
+    'sa7-s3h':'取込後の確認','sa7-s3b':'取込後は必ず内容が正しく反映されているか確認してください。',
+    'sa7-n1h':'⚠️ 既存データを上書きします','sa7-n1b':'取込は既存データを上書きします。取込前にファイル内容をよくご確認ください。',
+    'sa8-tag':'管理者機能','sa8-h':'お知らせ管理','sa8-lead':'全ユーザーに向けたお知らせを配信できます。',
+    'sa8-s1h':'お知らせの作成','sa8-s1b':'管理者CP「📢 お知らせ管理」から新規お知らせを作成できます。',
+    'sa8-s2h':'表示期間の設定','sa8-s2b':'表示開始日・終了日を設定できます。',
+    'sa8-s3h':'配信対象の設定','sa8-s3b':'必要に応じて対象ユーザーを絞り込めます。',
+    'sa9-tag':'管理者機能','sa9-h':'DB設定・メンテナンスモード','sa9-lead':'システム全体の設定やメンテナンスモードの切り替えを行います。',
+    'sa9-s1h':'DB設定','sa9-s1b':'管理者CP「🔧 DB設定」からシステム全体の設定を確認・変更できます。',
+    'sa9-s2h':'メンテナンスモード','sa9-s2b':'メンテナンス作業中は一時的にログインを制限できます（管理者を除く）。',
+    'sa9-s3h':'操作後の確認','sa9-s3b':'設定変更後は必ず一般ユーザーの画面表示も確認してください。',
+    'sa9-n1h':'⚠️ システム全体に影響します','sa9-n1b':'DB設定・メンテナンスモードの操作はシステム全体に影響します。作業内容を十分理解した上で操作してください。',
     's6-h':'ガイド完了です！','s6-p':'JACKをご利用いただきありがとうございます。\nわからないことがあれば、フィリックス担当者にお問い合わせください。',
     's6-n1h':'📋 このガイドを再確認するには','s6-n1b':'左メニュー「設定」→「使い方ガイド」からいつでも確認できます。',
   },
@@ -9515,7 +10120,9 @@ const LANGS = {
 
 let currentLang = 'ja';
 let currentSlide = 1;
-const totalSlides = 6;
+// 役割（一般/管理者）によりスライド枚数が変わるため、DOM上の.slide要素を実行時に数える
+function _tutSlideEls(){ return Array.from(document.querySelectorAll('#_tutModal .slide')); }
+function _tutTotal(){ return _tutSlideEls().length; }
 
 function setLang(lang) {
   currentLang = lang;
@@ -9536,6 +10143,7 @@ function applyLang() {
   });
   const btnNext = document.getElementById('btn-next');
   const btnPrev = document.getElementById('btn-prev');
+  const totalSlides = _tutTotal();
   if (currentSlide === totalSlides) {
     btnNext.textContent = t['progress-finish'] || '✅ 完了';
     btnNext.className = 'btn-finish';
@@ -9547,14 +10155,17 @@ function applyLang() {
 }
 
 function updateProgress() {
+  const totalSlides = _tutTotal();
   const pct = (currentSlide / totalSlides) * 100;
   document.getElementById('progress-fill').style.width = pct + '%';
   document.getElementById('progress-label').textContent = currentSlide + ' / ' + totalSlides;
 }
 
 function showSlide(n) {
-  document.querySelectorAll('.slide').forEach(s => s.classList.remove('active'));
-  document.getElementById('slide-' + n).classList.add('active');
+  const slideEls = _tutSlideEls();
+  const totalSlides = slideEls.length;
+  slideEls.forEach(s => s.classList.remove('active'));
+  if (slideEls[n - 1]) slideEls[n - 1].classList.add('active');
   const btnPrev = document.getElementById('btn-prev');
   const btnNext = document.getElementById('btn-next');
   btnPrev.style.display = n === 1 ? 'none' : 'block';
@@ -9571,6 +10182,7 @@ function showSlide(n) {
 }
 
 function nextSlide() {
+  const totalSlides = _tutTotal();
   if (currentSlide < totalSlides) {
     currentSlide++;
     showSlide(currentSlide);
@@ -10988,28 +11600,25 @@ async function loadAdmSec(sec){
     }
 
     right.innerHTML='<div style="display:flex;flex-direction:column;height:100%">'
-      +'<div style="padding:10px 14px 6px;background:white;border-bottom:1px solid #e2e8f0;flex-shrink:0">'
-        +'<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">'
-          +'<div style="font-size:14px;font-weight:800;color:#1e293b">🏠 物件管理 <span id="admPropCount" style="font-size:11px;color:#94a3b8;font-weight:400"></span></div>'
+      +'<div style="padding:14px 14px 8px;background:white;border-bottom:1px solid #e2e8f0;flex-shrink:0">'
+        +'<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px">'
+          +'<div style="font-size:16px;font-weight:800;color:#1e293b">🏠 物件管理</div>'
           +'<div style="display:flex;gap:6px">'
             +'<button onclick="admSyncNewMasterSteps()" style="background:#059669;color:white;padding:5px 12px;border-radius:7px;font-size:11px;font-weight:700;border:none;cursor:pointer">🆕 新規工程を全物件に反映</button>'
             +'<button onclick="admShowMasterSummary()" style="background:#8b5cf6;color:white;padding:5px 12px;border-radius:7px;font-size:11px;font-weight:700;border:none;cursor:pointer">🔗 紐付けサマリー</button>'
             +'<button onclick="admNewProp()" style="background:#1a56db;color:white;padding:5px 12px;border-radius:7px;font-size:11px;font-weight:700;border:none;cursor:pointer">＋ 新規追加</button>'
           +'</div>'
         +'</div>'
-        // エリアタブ
-        +'<div id="admPropAreaTabs" style="display:flex;border-bottom:2px solid #e2e8f0;margin-bottom:8px"></div>'
-        +'<div style="display:flex;gap:6px;margin-bottom:8px">'
-          +'<input id="admPropSearch" type="text" placeholder="物件名・FiX No.で絞込..." oninput="admFilterProps()" '
-            +'style="flex:1;padding:6px 10px;border:1.5px solid #e2e8f0;border-radius:7px;font-size:12px">'
-          +'<select id="admPropStatus" onchange="admFilterProps()" style="padding:6px 8px;border:1.5px solid #e2e8f0;border-radius:7px;font-size:12px;color:#475569">'
-            +'<option value="">全ステータス</option>'
-            +'<option value="契約済">契約済</option><option value="販売中">販売中</option>'
-            +'<option value="未公開">未公開</option><option value="買付">買付</option>'
+        +'<div style="font-size:11px;color:#64748b;margin-bottom:12px">物件の登録・編集・削除ができます。「未設定項目」で絞り込むと入力漏れを確認できます</div>'
+        +'<div id="admPropAreaTabs" style="display:flex;gap:6px;margin-bottom:8px"></div>'
+        +'<div style="display:flex;gap:8px;margin-bottom:8px;flex-wrap:wrap;align-items:center">'
+          +'<input id="admPropSearch" type="text" placeholder="🔎 物件名・FiX No.で絞込..." oninput="admFilterProps()" '
+            +'style="flex:1;min-width:180px;padding:8px 12px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:12px;outline:none">'
+          +'<select id="admPropMissing" onchange="admFilterProps()" style="padding:8px 12px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:12px;font-weight:700;color:#1e293b;background:white">'
+            +'<option value="">未設定項目：なし</option>'
           +'</select>'
         +'</div>'
-        // 未設定項目で絞込ボタン
-        +'<div id="admMissingFilters" style="display:flex;gap:6px"></div>'
+        +'<div id="admPropSummary" style="font-size:10px;color:#64748b"></div>'
       +'</div>'
       +'<div id="admPropFormWrap" style="display:none;background:#eff6ff;border-bottom:2px solid #bfdbfe;padding:14px;flex-shrink:0">'
         +'<div id="admPropForm"></div>'
@@ -11020,7 +11629,7 @@ async function loadAdmSec(sec){
     +'</div>';
 
     window._admAllProps=props;
-    _admCurTab='all';
+    _admCurTab='東海';
     admFilterProps();
 
   } else if(sec==='kensa'){
@@ -11276,8 +11885,7 @@ async function admSaveField(input,field){
 window.admSaveField=admSaveField;
 
 // 物件リストフィルタ＆描画（エリアタブ付き）
-var _admCurTab='all';
-var _admMissingFilter=''; // '', 'tantou', 'address', 'parkings'
+var _admCurTab='東海'; // '東海' | '関東' | '東海来期' | '関東来期'
 // 物件の未設定項目チェック（担当者・現場住所・駐車場情報）
 var STATUS_WORDS=/^(未公開|未設定|公開中|契約済|販売中|買付|契約予定|販売中断|完工)$/;
 function admMissingFields(p){
@@ -11295,21 +11903,21 @@ function admFilterProps(){
   var list=document.getElementById('admPropList'); if(!list)return;
   var props=window._admAllProps||[];
   var q=(document.getElementById('admPropSearch')||{}).value||'';
-  var status=(document.getElementById('admPropStatus')||{}).value||'';
+  var missingFil=(document.getElementById('admPropMissing')||{}).value||'';
   q=q.toLowerCase();
-  // エリアタブフィルター
-  var filtered=props.filter(function(p){
+  // エリアタブ絞込（東海/関東 × 今期/来期）
+  var inTab=function(p){
     var area=normalizeArea(p);
-    var matchTab=true;
-    if(_admCurTab==='東海')matchTab=TOKAI_AREAS.indexOf(area)>=0&&!isRaikin(p)&&!isKankou(p);
-    else if(_admCurTab==='関東')matchTab=KANTO_AREAS.indexOf(area)>=0&&!isRaikin(p)&&!isKankou(p);
-    else if(_admCurTab==='来期')matchTab=isRaikin(p)&&!isKankou(p);
-    else if(_admCurTab==='完工')matchTab=isKankou(p);
-    else matchTab=!isRaikin(p)&&!isKankou(p); // 全て=今期のみ
+    if(_admCurTab==='東海')return TOKAI_AREAS.indexOf(area)>=0&&!isRaikin(p)&&!isKankou(p);
+    if(_admCurTab==='関東')return KANTO_AREAS.indexOf(area)>=0&&!isRaikin(p)&&!isKankou(p);
+    if(_admCurTab==='東海来期')return TOKAI_AREAS.indexOf(area)>=0&&isRaikin(p)&&!isKankou(p);
+    if(_admCurTab==='関東来期')return KANTO_AREAS.indexOf(area)>=0&&isRaikin(p)&&!isKankou(p);
+    return true;
+  };
+  var filtered=props.filter(function(p){
     var matchQ=!q||(p.name||'').toLowerCase().indexOf(q)>=0||String(p.fix_no||'').indexOf(q)>=0;
-    var matchS=!status||(p.status||'')===status;
-    var matchM=!_admMissingFilter||admMissingFields(p).indexOf(_admMissingFilter)>=0;
-    return matchTab&&matchQ&&matchS&&matchM;
+    var matchM=!missingFil||admMissingFields(p).indexOf(missingFil)>=0;
+    return inTab(p)&&matchQ&&matchM;
   });
   // 引渡し日順ソート
   filtered.sort(function(a,b){
@@ -11317,34 +11925,29 @@ function admFilterProps(){
     var db=normDate(b.delivery_date||'')||'9999/99/99';
     return da<db?-1:da>db?1:0;
   });
-  document.getElementById('admPropCount').textContent='（'+filtered.length+'/'+props.length+'件）';
   // タブ再描画
   var tabsEl=document.getElementById('admPropAreaTabs');
   if(tabsEl){
-    var tabs=[{id:'all',l:'全て'},{id:'東海',l:'🏙東海'},{id:'関東',l:'🌿関東'},{id:'来期',l:'📅来期'},{id:'完工',l:'✅完工'}];
+    var tabs=[{id:'東海',l:'東海'},{id:'関東',l:'関東'},{id:'東海来期',l:'東海（来期）'},{id:'関東来期',l:'関東（来期）'}];
     tabsEl.innerHTML=tabs.map(function(t){
       var act=t.id===_admCurTab;
-      return '<button onclick="admSetTab(\''+t.id+'\')" style="flex:1;padding:7px 4px;font-size:11px;font-weight:700;border:none;cursor:pointer;border-bottom:2px solid '+(act?'#1a56db':'transparent')+';color:'+(act?'#1a56db':'#94a3b8')+';background:white">'+t.l+'</button>';
+      return '<button onclick="admSetTab(\''+t.id+'\')" style="padding:6px 14px;font-size:12px;font-weight:700;border-radius:20px;border:1.5px solid '+(act?'#1a56db':'#e2e8f0')+';cursor:pointer;background:'+(act?'#1a56db':'white')+';color:'+(act?'white':'#64748b')+'">'+t.l+'</button>';
     }).join('');
   }
-  // 未設定項目で絞込ボタン再描画（全件中の未設定数をカウント）
-  var missEl=document.getElementById('admMissingFilters');
+  // サマリー表示
+  var summaryEl=document.getElementById('admPropSummary');
+  if(summaryEl)summaryEl.textContent='該当 '+filtered.length+'件 ／ 全'+props.length+'件';
+  // 未設定項目プルダウンの選択肢（件数付き）を再構築（現在の選択は維持）
+  var missEl=document.getElementById('admPropMissing');
   if(missEl){
-    var allInTab=props.filter(function(p){
-      var area=normalizeArea(p);
-      if(_admCurTab==='東海')return TOKAI_AREAS.indexOf(area)>=0&&!isRaikin(p)&&!isKankou(p);
-      if(_admCurTab==='関東')return KANTO_AREAS.indexOf(area)>=0&&!isRaikin(p)&&!isKankou(p);
-      if(_admCurTab==='来期')return isRaikin(p)&&!isKankou(p);
-      if(_admCurTab==='完工')return isKankou(p);
-      return !isRaikin(p)&&!isKankou(p);
-    });
+    var allInTab=props.filter(inTab);
     var cnt={tantou:0,address:0,parkings:0};
     allInTab.forEach(function(p){admMissingFields(p).forEach(function(k){cnt[k]++;});});
     var mf=[{id:'tantou',l:'👤 担当者未設定'},{id:'address',l:'📍 現場住所未設定'},{id:'parkings',l:'🅿️ 駐車場情報未設定'}];
-    missEl.innerHTML=mf.map(function(m){
-      var act=m.id===_admMissingFilter;
-      return '<button onclick="admSetMissingFilter(\''+m.id+'\')" style="flex:1;padding:6px 4px;font-size:10.5px;font-weight:700;border:1.5px solid '+(act?'#dc2626':'#e2e8f0')+';border-radius:7px;cursor:pointer;background:'+(act?'#fef2f2':'white')+';color:'+(act?'#dc2626':'#64748b')+'">'+m.l+' ('+cnt[m.id]+')</button>';
-    }).join('');
+    var cur=missEl.value;
+    missEl.innerHTML='<option value="">未設定項目：なし</option>'
+      +mf.map(function(m){return '<option value="'+m.id+'">'+m.l+' ('+cnt[m.id]+')</option>';}).join('');
+    missEl.value=cur;
   }
   if(!filtered.length){list.innerHTML='<div style="text-align:center;padding:20px;color:#94a3b8;font-size:12px">該当する物件がありません</div>';return;}
   list.innerHTML=filtered.map(function(p){return admPropCard(p);}).join('');
@@ -11352,8 +11955,6 @@ function admFilterProps(){
 window.admFilterProps=admFilterProps;
 function admSetTab(t){_admCurTab=t;admFilterProps();}
 window.admSetTab=admSetTab;
-function admSetMissingFilter(k){_admMissingFilter=(_admMissingFilter===k)?'':k;admFilterProps();}
-window.admSetMissingFilter=admSetMissingFilter;
 
 // ===== 検査取りまとめ（管理者CP） =====
 function _kensaBadge(status,dateVal){
@@ -11723,33 +12324,45 @@ function admShowMasterSummary(){
 }
 window.admShowMasterSummary=admShowMasterSummary;
 
+// 物件カード用ステータスバッジ（担当者・現場住所・駐車場情報を常時表示）
+function admStatusBadges(p){
+  var tantouRaw=(p.tantou||p.staff||'').trim();
+  var hasTantou=tantouRaw&&!STATUS_WORDS.test(tantouRaw);
+  var addr=(p.address||'').trim();
+  var pks=p.parkings;
+  if(typeof pks==='string'){try{pks=JSON.parse(pks);}catch(e){pks=[];}}
+  if(!Array.isArray(pks))pks=[];
+  var redStyle='font-size:9px;font-weight:700;background:#fef2f2;color:#dc2626;padding:1px 5px;border-radius:4px;border:1px solid #fecaca;white-space:nowrap;flex-shrink:0';
+  var tantouOkStyle='font-size:9px;font-weight:700;background:#475569;color:white;padding:1px 5px;border-radius:4px;white-space:nowrap;flex-shrink:0';
+  var addrOkStyle='font-size:9px;font-weight:600;background:#f1f5f9;color:#334155;padding:1px 5px;border-radius:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:160px';
+  var pOkStyle='font-size:9px;font-weight:700;background:#dbeafe;color:#1d4ed8;padding:1px 5px;border-radius:4px;white-space:nowrap;flex-shrink:0';
+  var out='';
+  out+=hasTantou?('<span style="'+tantouOkStyle+'">👤 '+tantouRaw+'</span>'):('<span style="'+redStyle+'">👤担当者未設定</span>');
+  out+=addr?('<span style="'+addrOkStyle+'" title="'+addr+'">📍 '+addr+'</span>'):('<span style="'+redStyle+'">📍住所未設定</span>');
+  out+=pks.length?('<span style="'+pOkStyle+'">🅿️ P×'+pks.length+'</span>'):('<span style="'+redStyle+'">🅿️駐車場未設定</span>');
+  return out;
+}
+window.admStatusBadges=admStatusBadges;
+
 function admPropCard(p){
-  var st=p.status||'';
-  var stColor={'契約済':'#16a34a','販売中':'#1d4ed8','未公開':'#d97706','買付':'#7c3aed'}[st]||'#64748b';
-  var stBg={'契約済':'#dcfce7','販売中':'#dbeafe','未公開':'#fef9c3','買付':'#ede9fe'}[st]||'#f1f5f9';
-  // 未設定項目バッジ（担当者・現場住所・駐車場情報）
-  var missing=admMissingFields(p);
-  var missLabels={tantou:'👤担当者',address:'📍住所',parkings:'🅿️駐車場'};
-  var missBadges=missing.map(function(k){
-    return '<span style="font-size:9px;font-weight:700;background:#fef2f2;color:#dc2626;padding:1px 5px;border-radius:4px;border:1px solid #fecaca">'+missLabels[k]+'未設定</span>';
-  }).join(' ');
-  return '<div style="background:white;border:1.5px solid #e2e8f0;border-radius:10px;margin-bottom:8px;overflow:hidden">'
+  var statusBadges=admStatusBadges(p);
+  return '<div style="background:white;border:1.5px solid #e2e8f0;border-radius:9px;margin-bottom:6px;overflow:hidden">'
     +'<div onclick="admOpenPropEdit(\''+p.fix_no+'\',\''+encodeURIComponent(p.name)+'\')" '
-      +'style="display:flex;align-items:center;gap:10px;padding:10px 12px;cursor:pointer;transition:background .1s" '
+      +'style="display:flex;align-items:center;gap:10px;padding:8px 12px;cursor:pointer;transition:background .1s" '
       +'onmouseover="this.style.background=\'#eff6ff\'" onmouseout="this.style.background=\'white\'">'
       +'<div style="background:#1e293b;color:white;font-size:10px;font-weight:800;padding:3px 7px;border-radius:5px;flex-shrink:0;font-family:monospace">'+(p.fix_no||'-')+'</div>'
-      +'<div style="flex:1;min-width:0">'
-        +'<div style="font-size:13px;font-weight:700;color:#1e293b;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+(p.name||'')+'</div>'
-        +'<div style="font-size:10px;color:#94a3b8;margin-top:1px">'+(p.area||'')+(p.delivery_date?' ／ 引渡: '+p.delivery_date:'')+(p.confirm_done?' ／ 確認申請: '+p.confirm_done:'')+'</div>'
-        +(missBadges?'<div style="margin-top:3px;display:flex;gap:4px;flex-wrap:wrap">'+missBadges+'</div>':'')
+      +'<div style="flex:1;min-width:0;display:flex;align-items:center;gap:10px">'
+        +'<div style="min-width:0;flex-shrink:1">'
+          +'<div style="font-size:13px;font-weight:700;color:#1e293b;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+(p.name||'')+'</div>'
+          +'<div style="font-size:10px;color:#94a3b8;margin-top:1px;white-space:nowrap">'+(p.area||'')+(p.delivery_date?' ／ 引渡: '+p.delivery_date:'')+(p.confirm_done?' ／ 確認申請: '+p.confirm_done:'')+'</div>'
+        +'</div>'
+        +'<div style="display:flex;gap:4px;flex-wrap:wrap">'+statusBadges+'</div>'
       +'</div>'
-      +'<div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px;flex-shrink:0">'
-        +'<span style="font-size:10px;font-weight:700;background:'+stBg+';color:'+stColor+';padding:2px 7px;border-radius:5px">'+(st||'未設定')+'</span>'
-        +'<span style="font-size:9px;color:#94a3b8">✏️ タップで編集</span>'
+      +'<div style="display:flex;align-items:center;gap:6px;flex-shrink:0">'
         +'<button onclick="event.stopPropagation();admDiagProp(\''+p.fix_no+'\',\''+encodeURIComponent(p.name||'')+'\')" '
-          +'style="background:#eff6ff;color:#1d4ed8;border:1px solid #bfdbfe;border-radius:5px;padding:2px 7px;font-size:9px;font-weight:700;cursor:pointer">🔍 診断</button>'
+          +'style="background:#eff6ff;color:#1d4ed8;border:1px solid #bfdbfe;border-radius:5px;padding:4px 9px;font-size:10px;font-weight:700;cursor:pointer;white-space:nowrap">🔍 診断</button>'
         +'<button onclick="event.stopPropagation();admConfirmDeleteProp(\''+p.id+'\',\''+encodeURIComponent(p.name||'')+'\')" '
-          +'style="background:#fef2f2;color:#dc2626;border:1px solid #fecaca;border-radius:5px;padding:2px 7px;font-size:9px;font-weight:700;cursor:pointer">🗑 削除</button>'
+          +'style="background:#fef2f2;color:#dc2626;border:1px solid #fecaca;border-radius:5px;padding:4px 9px;font-size:10px;font-weight:700;cursor:pointer;white-space:nowrap">🗑 削除</button>'
       +'</div>'
     +'</div>'
   +'</div>';
@@ -12342,7 +12955,31 @@ function admHandleXlsx(input){
       var totalNew=0,totalUpd=0;
       var deliveryColFallbackSheets=[]; // 引渡し日列を自動検出できず既定値を使ったシート名
       var deliveryColDetectedLetters=[]; // 検出できた列（Excel表記）のログ
+      var moveinColFallbackSheets=[]; // 実入居発生日列を自動検出できなかったシート名
+      var moveinColDetectedLetters=[]; // 検出できた実入居発生日列（Excel表記）のログ
       function _colLetter(idx0){var n=idx0+1,s='';while(n>0){var r=(n-1)%26;s=String.fromCharCode(65+r)+s;n=Math.floor((n-1)/26);}return s;}
+      // ★Excelの日付表記（9/20/24, 2024/9/20, 2024-09-20等）をYYYY/MM/DDへ正規化。'-'（未入力プレースホルダー）は空扱い
+      function _normXlsxDate(raw){
+        raw=String(raw||'').trim();
+        if(!raw||raw==='-')return '';
+        var clean=raw.replace(/[-]/g,'/').split(' ')[0];
+        var parts=clean.split('/');
+        var normalized='';
+        if(parts.length===3){
+          var a=parseInt(parts[0]),b=parseInt(parts[1]),c=parseInt(parts[2]);
+          if(!isNaN(a)&&!isNaN(b)&&!isNaN(c)){
+            if(a<=12&&b<=31&&(c<100||c>31)){
+              var yr=c<100?2000+c:c;
+              normalized=yr+'/'+('0'+a).slice(-2)+'/'+('0'+b).slice(-2);
+            } else if(a>31){
+              normalized=a+'/'+('0'+b).slice(-2)+'/'+('0'+c).slice(-2);
+            } else {
+              normalized=clean;
+            }
+          }
+        } else { normalized=clean; }
+        return normalized;
+      }
       // 完工物件シートは今後読まない（完工判定は引渡し日ロジックで自動）
       var sheets=['全物件進捗','来期物件'];
       for(var si=0;si<sheets.length;si++){
@@ -12363,6 +13000,18 @@ function admHandleXlsx(input){
         var deliveryColAutoDetected=!!deliveryDateCol;
         if(!deliveryDateCol){deliveryColFallbackSheets.push(sn);deliveryDateCol=237;} // 見つからない場合のデフォルト(ID列)
         else{deliveryColDetectedLetters.push(sn+':'+_colLetter(deliveryDateCol));}
+        // ★実入居発生日列も同様に動的検出（「実入居」という文字を含む列を探す）
+        //   ※見つからない場合は取込をスキップし、既存の値（手入力含む）を保持する
+        var moveinCol=null;
+        for(var hr2=0;hr2<10&&moveinCol===null;hr2++){
+          var hdrRow2=rows[hr2]||[];
+          for(var hc2=150;hc2<280;hc2++){
+            var htxt2=String(hdrRow2[hc2]||'').trim();
+            if(htxt2&&htxt2.indexOf('実入居')>=0){moveinCol=hc2;break;}
+          }
+        }
+        if(moveinCol!==null)moveinColDetectedLetters.push(sn+':'+_colLetter(moveinCol));
+        else moveinColFallbackSheets.push(sn);
         for(var ri=3;ri<rows.length;ri++){
           var row=rows[ri];
           var nameVal=String(row[4]||'').trim();
@@ -12403,6 +13052,11 @@ function admHandleXlsx(input){
             } else { normalized=clean; }
             prop[f]=normalized;
           });
+          // ★実入居発生日：値が取得できた場合のみ反映（空/'-'の場合は既存値・手入力値を保持するためキー自体を含めない）
+          if(moveinCol!==null){
+            var miNorm=_normXlsxDate(row[moveinCol]);
+            if(miNorm){prop.movein_date=miNorm;prop.movein_date_source='excel';}
+          }
           var key=fixNo+'_'+nameVal;
           if(exMap[key]){
             // 同じFIX ID+名前 → 通常更新
@@ -12423,6 +13077,10 @@ function admHandleXlsx(input){
       var deliveryColInfo='<div style="margin-top:6px;font-size:10px;color:#065f46">引渡し日列の自動検出: '
         +(deliveryColDetectedLetters.length?('✅ '+deliveryColDetectedLetters.join(' / ')):'')
         +(deliveryColFallbackSheets.length?(' ⚠️検出できず既定値(ID列)を使用: '+deliveryColFallbackSheets.join('・')):'')
+        +'</div>'
+        +'<div style="margin-top:2px;font-size:10px;color:#065f46">実入居発生日列の自動検出: '
+        +(moveinColDetectedLetters.length?('✅ '+moveinColDetectedLetters.join(' / ')):'')
+        +(moveinColFallbackSheets.length?(' ⚠️検出できず今回はスキップ（既存値を保持）: '+moveinColFallbackSheets.join('・')):'')
         +'</div>';
       if(statusEl){statusEl.innerHTML='<div style="background:#d1fae5;color:#065f46;padding:12px;border-radius:8px;font-size:12px">✅ 取込完了: 新規 '+totalNew+'件 / 更新 '+totalUpd+'件</div>'+deliveryColInfo;}
       showToast('✅ Excelを取込みました','success');
