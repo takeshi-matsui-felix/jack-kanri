@@ -745,7 +745,7 @@ body.sp-mode #areaTabsBtns{ display:none !important; }
 <div id="jackMainWrap">
 <div id="loading"><div class="ld-logo">JACK</div><div class="ld-sub">現場管理システム</div><div class="ld-dots"><span></span><span></span><span></span></div></div>
 <div id="app" class="mobile-mode">
-  <div class="top-header"><div class="th-left"><div><div class="th-logo">JACK<span id="areaBadge"></span></div><div class="th-sub">新築AP 現場管理</div></div></div><div class="th-right"><button class="vendor-toggle-btn" onclick="togglePropSearch()" title="物件検索" id="propSearchBtn">検索</button><button class="vendor-toggle-btn" id="vendorColToggleBtnSp" onclick="_setVendorColOn(!_vendorColOn())" title="業者選定の表示切替">業者選択</button><button class="vendor-toggle-btn" id="weatherToggleBtnSp" onclick="_setWeatherBarOn(!_weatherBarOn())" title="天気予報の表示切替">天気</button><button class="vendor-toggle-btn" onclick="scrollGanttToEnd()" title="検査日程列まで一気に移動">検査へ</button><div class="th-today" id="todayBadge"></div><button class="print-btn" onclick="printPage()">🖨️</button><button class="th-icon-btn" onclick="openMenu()">☰</button></div></div>
+  <div class="top-header"><div class="th-left"><div><div class="th-logo">JACK<span id="areaBadge"></span></div><div class="th-sub">新築AP 現場管理</div></div></div><div class="th-right"><button class="vendor-toggle-btn" onclick="togglePropSearch()" title="物件検索" id="propSearchBtn">検索</button><button class="vendor-toggle-btn" id="vendorColToggleBtnSp" onclick="_setVendorColOn(!_vendorColOn())" title="業者選定の表示切替">業者選択</button><button class="vendor-toggle-btn" id="weatherToggleBtnSp" onclick="_setWeatherBarOn(!_weatherBarOn())" title="天気予報の表示切替">天気</button><button class="vendor-toggle-btn" id="calMonthsBtnSp" onclick="openCalMonthsPicker()" title="カレンダー表示月数の選択">📅</button><button class="vendor-toggle-btn" onclick="scrollGanttToEnd()" title="検査日程列まで一気に移動">検査へ</button><div class="th-today" id="todayBadge"></div><button class="print-btn" onclick="printPage()">🖨️</button><button class="th-icon-btn" onclick="openMenu()">☰</button></div></div>
   <div class="sync-banner" id="syncBanner"><div style="display:flex;align-items:center;gap:6px"><div class="sync-dot"></div><span class="sync-msg">起動中...</span></div><button onclick="doSyncFull()" style="color:rgba(255,255,255,.6);font-size:10px;font-weight:600;background:rgba(255,255,255,.1);padding:2px 7px;border-radius:4px">同期</button></div>
   <div style="display:flex;align-items:center;background:#1e293b;border-bottom:1px solid rgba(255,255,255,.1);flex-shrink:0">
     <div class="area-tabs" id="areaTabs" style="flex:1;min-width:0;border-bottom:none"></div>
@@ -753,6 +753,7 @@ body.sp-mode #areaTabsBtns{ display:none !important; }
       <button class="vendor-toggle-btn" onclick="togglePropSearch()" title="物件検索" id="propSearchBtn2">検索</button>
       <button class="vendor-toggle-btn" id="vendorColToggleBtn" onclick="_setVendorColOn(!_vendorColOn())" title="業者選定の表示切替">業者選択</button>
       <button class="vendor-toggle-btn" id="weatherToggleBtn" onclick="_setWeatherBarOn(!_weatherBarOn())" title="天気予報の表示切替">天気</button>
+      <button class="vendor-toggle-btn" id="calMonthsBtn" onclick="openCalMonthsPicker()" title="カレンダー表示月数の選択">📅表示月数</button>
       <button class="vendor-toggle-btn" onclick="scrollGanttToEnd()" title="検査日程列まで一気に移動">検査へ</button>
     </div>
   </div>
@@ -979,6 +980,68 @@ function _activeFreezeCols(base){
   return _vendorColOn()?base.concat([{key:'_vendorGrid',label:'業者選定',w:VENDOR_COL_W}]):base;
 }
 
+// ★新機能【カレンダー表示月選択】：工程表（ガント）に表示する月数をユーザーが選べるようにする
+//   選んだ月数はどのタブ（今期／来期問わず）でもそのまま適用される。
+//   「来期末まで」を選ぶと来期の最終月（9月）まで一気に表示できる。
+function _calMonthsBtnLabel(){return CAL_MONTHS==='full'?'📅 来期末まで':'📅 '+CAL_MONTHS+'ヶ月';}
+function _updateCalMonthsBtns(){
+  ['calMonthsBtn','calMonthsBtnSp'].forEach(function(id){
+    var btn=document.getElementById(id);
+    if(!btn)return;
+    if(id==='calMonthsBtnSp')btn.textContent=(CAL_MONTHS==='full')?'📅末':'📅'+CAL_MONTHS;
+    else btn.textContent=_calMonthsBtnLabel();
+  });
+}
+// 現在の来期末（次の期の9/30）を「YYYY/9/30」形式で返す
+function _raikinTermEndLabel(){
+  var todayDt=new Date(TODAY);
+  var todayY=todayDt.getFullYear(), todayM=todayDt.getMonth()+1;
+  var termEndYear=todayM>=10?todayY+1:todayY;
+  return (termEndYear+1)+'/9/30';
+}
+function openCalMonthsPicker(){
+  var existing=document.getElementById('_calMonthsModal');
+  if(existing){existing.remove();return;}
+  var modal=document.createElement('div');
+  modal.id='_calMonthsModal';
+  modal.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:9999;display:flex;align-items:center;justify-content:center;';
+  modal.addEventListener('click',function(e){if(e.target===modal)modal.remove();});
+  var opts=[3,6,8,12];
+  var html='<div style="background:white;border-radius:16px;width:88%;max-width:340px;box-shadow:0 20px 60px rgba(0,0,0,.35);overflow:hidden">'
+    +'<div style="padding:14px 16px;background:linear-gradient(135deg,#1a56db,#1044b5);display:flex;align-items:center">'
+      +'<div style="flex:1;font-size:14px;font-weight:800;color:white">📅 カレンダー表示月数</div>'
+      +'<button onclick="document.getElementById(\'_calMonthsModal\').remove()" style="background:rgba(255,255,255,.2);color:white;border:none;border-radius:8px;padding:5px 10px;font-size:11px;cursor:pointer;font-weight:700">✕</button>'
+    +'</div>'
+    +'<div style="padding:12px 16px;font-size:11px;color:#64748b;line-height:1.7">'
+      +'工程表（ガント）に表示する月数を選べます。今期・来期どちらのタブでも、選んだ月数がそのまま反映されます。'
+    +'</div>'
+    +'<div style="padding:0 16px 16px;display:flex;flex-direction:column;gap:8px">'
+    +opts.map(function(n){
+      var active=(n===CAL_MONTHS);
+      return '<button onclick="setCalMonths('+n+')" style="width:100%;padding:12px;background:'+(active?'#1a56db':'#f1f5f9')+';color:'+(active?'white':'#334155')+';border:2px solid '+(active?'#1a56db':'#e2e8f0')+';border-radius:10px;font-size:13px;font-weight:800;cursor:pointer">'+n+'ヶ月表示'+(active?' ✓':'')+'</button>';
+    }).join('')
+    +'<button onclick="setCalMonths(\'full\')" style="width:100%;padding:12px;background:'+(CAL_MONTHS==='full'?'#16a34a':'#f0fdf4')+';color:'+(CAL_MONTHS==='full'?'white':'#166534')+';border:2px solid '+(CAL_MONTHS==='full'?'#16a34a':'#bbf7d0')+';border-radius:10px;font-size:13px;font-weight:800;cursor:pointer">来期末（'+_raikinTermEndLabel()+'）まで表示'+(CAL_MONTHS==='full'?' ✓':'')+'</button>'
+    +'</div>'
+  +'</div>';
+  modal.innerHTML=html;
+  document.body.appendChild(modal);
+}
+function setCalMonths(n){
+  CAL_MONTHS=n;
+  saveLS('jack_cal_months',n);
+  _recomputeVisDates();
+  if(typeof renderHeader==='function')renderHeader();
+  if(typeof renderBody==='function')renderBody();
+  if(typeof _renderWeatherBar==='function')_renderWeatherBar();
+  if(typeof _updateHScrollbar==='function')_updateHScrollbar();
+  _updateCalMonthsBtns();
+  var m=document.getElementById('_calMonthsModal');if(m)m.remove();
+  showToast((n==='full'?'来期末まで表示':n+'ヶ月表示')+'に切り替えました','success');
+  requestAnimationFrame(function(){requestAnimationFrame(scrollGanttToToday);});
+}
+window.openCalMonthsPicker=openCalMonthsPicker;
+window.setCalMonths=setCalMonths;
+
 var PRE_COLS = [
   { key:'confirm_done',  label:'確認申請\n完了日', w:56, cls:'hcell-darker' },
   { key:'delivery_date', label:'引渡し日',         w:56, cls:'hcell-darker' }
@@ -1163,61 +1226,97 @@ function _ganttTextColor(hex){
   return lum>0.55?'#000':'#fff'; // 明るい背景→黒文字／暗い背景→白文字
 }
 
-// Visible dates: TODAYを基準に15日スライドで8ヶ月表示
+// Visible dates: TODAYを基準に15日スライドでCAL_MONTHSヶ月表示
 // 開始日: 直近の15日区切り（1日または16日）
 // 例: 今日=4/19 → 4/1起点, 今日=5/1 → 4/15起点, 今日=5/16 → 5/1起点
+// ★カレンダー表示月数（新機能【カレンダー表示月選択】）。ユーザーが選択した月数をlocalStorageに保存し次回も反映。
+//   数値（3/6/8/12など）のほか、特殊値 'full' を許容する＝「来期末まで全期間表示」。
+var CAL_MONTHS = (function(){
+  var raw=null;
+  try{raw=localStorage.getItem('jack_cal_months');}catch(e){}
+  if(!raw)return 8;
+  try{
+    var v=JSON.parse(raw);
+    if(v==='full')return 'full';
+    v=parseInt(v,10);
+    return (v>=1&&v<=24)?v:8;
+  }catch(e){return 8;}
+})();
+
 (function(){
+  // FULL_DATESはDATAの広い範囲を使いつつ、動的日付範囲で補完（こちらはタブ・月数に依存しない固定範囲）
+  var todayDt0=new Date(TODAY);
+  var FULL_DATES_BASE = DATA.full_dates || DATA.dates;
+  var fullStart=new Date(2024,0,1); // 2024-01-01
+  var fullEnd=new Date(todayDt0.getFullYear()+2,11,31); // 2年後末日
+  var dynFull=[''];
+  var cf=new Date(fullStart.getTime());
+  while(cf<=fullEnd){dynFull.push(localDateStr(cf));cf.setDate(cf.getDate()+1);}
+  window.FULL_DATES = dynFull.length > FULL_DATES_BASE.length ? dynFull : FULL_DATES_BASE;
+})();
+
+// Full date lookup（固定範囲なので1回だけ計算）
+var FULL_DATE_IDX = {};
+FULL_DATES.forEach(function(d,i){ if(d) FULL_DATE_IDX[d]=i; });
+
+// ★VIS_DATES関連の再計算をまとめた関数。初回読み込み時に加え、
+//   エリアタブ切替（来期判定が変わる）・カレンダー表示月数変更のたびに呼び出す。
+function _recomputeVisDates(){
   var todayDt=new Date(TODAY);
   var day=todayDt.getDate();
-  // 直近の15日境界: day<=15 → 前月16日, day>=16 → 今月1日
+  // 直近の15日境界: day<=15 → 前月16日, day>=16 → 今月1日（開始ロジックは変更なし）
   var visStart;
   if(day<=15){
-    var prev=new Date(todayDt.getFullYear(),todayDt.getMonth()-1,16);
-    visStart=prev;
+    visStart=new Date(todayDt.getFullYear(),todayDt.getMonth()-1,16);
   } else {
     visStart=new Date(todayDt.getFullYear(),todayDt.getMonth(),1);
   }
-  // 8ヶ月後の末日まで
-  var visEnd=new Date(visStart.getFullYear(),visStart.getMonth()+8,0);
+  // CAL_MONTHSヶ月後の末日まで。'full'の場合は来期末（次の期の9/30）まで表示する
+  //   ※以前は来期タブでは選択月数を無視して強制的に来期末まで表示していたが、
+  //     「月数を選んでも来期タブでは無視される」のは選択の意味がなく分かりにくいため、
+  //     2026/8/20の指摘を受けて廃止。来期タブでも選んだ月数どおりに絞り込める。
+  //     全期間を見たい場合は選択肢の「来期末まで」を選ぶ。
+  var visEnd;
+  if(CAL_MONTHS==='full'){
+    var todayY=todayDt.getFullYear(), todayM=todayDt.getMonth()+1;
+    var termEndYear=todayM>=10?todayY+1:todayY; // 来期開始年（isRaikin()と同じロジック）
+    visEnd=new Date(termEndYear+1,8,30); // 来期末 = 来期開始年の翌年9/30
+  } else {
+    visEnd=new Date(visStart.getFullYear(),visStart.getMonth()+CAL_MONTHS,0);
+  }
   var dynDates=[''];
   var cur=new Date(visStart.getTime());
   while(cur<=visEnd){dynDates.push(localDateStr(cur));cur.setDate(cur.getDate()+1);}
 
-  // FULL_DATESはDATAの広い範囲を使いつつ、動的日付範囲で補完
-  var FULL_DATES_BASE = DATA.full_dates || DATA.dates;
-  // 動的範囲をFULL_DATESとしても使う（DB_PROPS物件のため広い範囲を生成）
-  var fullStart=new Date(2024,0,1); // 2024-01-01
-  var fullEnd=new Date(todayDt.getFullYear()+2,11,31); // 2年後末日
-  var dynFull=[''];
-  var cf=new Date(fullStart.getTime());
-  while(cf<=fullEnd){dynFull.push(localDateStr(cf));cf.setDate(cf.getDate()+1);}
-
-  window.VIS_DATES  = dynDates;
-  window.FULL_DATES = dynFull.length > FULL_DATES_BASE.length ? dynFull : FULL_DATES_BASE;
-})();
-var VIS_START_COL = 1;
-var VIS_END_COL = VIS_DATES.length - 1;
-var TODAY_VIS_COL = VIS_DATES.indexOf(TODAY);
-var VIS_START_DATE = VIS_DATES[1];
-
-// Full date lookup
-var FULL_DATE_IDX = {};
-FULL_DATES.forEach(function(d,i){ if(d) FULL_DATE_IDX[d]=i; });
-
-// Which col in VIS_DATES corresponds to FULL_DATES col
-var FULL_VIS_OFFSET = FULL_DATE_IDX[VIS_START_DATE] || 0;
-// VIS_DATE_IDX: VIS_DATESの日付→インデックス（ホーム画面バー描画に使用）
-var VIS_DATE_IDX = {};
-VIS_DATES.forEach(function(d,i){ if(d) VIS_DATE_IDX[d]=i; });
-// 表示開始日のDateオブジェクト（日数差計算用）
-// VIS_START_DATE_OBJをローカル時刻で作成（'2026-05-16'のUTC解釈を避ける）
-var VIS_START_DATE_OBJ = (function(){
+  window.VIS_DATES = dynDates;
+  window.VIS_START_COL = 1;
+  window.VIS_END_COL = VIS_DATES.length - 1;
+  window.TODAY_VIS_COL = VIS_DATES.indexOf(TODAY);
+  window.VIS_START_DATE = VIS_DATES[1];
+  // Which col in VIS_DATES corresponds to FULL_DATES col
+  window.FULL_VIS_OFFSET = FULL_DATE_IDX[VIS_START_DATE] || 0;
+  // VIS_DATE_IDX: VIS_DATESの日付→インデックス（ホーム画面バー描画に使用）
+  window.VIS_DATE_IDX = {};
+  VIS_DATES.forEach(function(d,i){ if(d) VIS_DATE_IDX[d]=i; });
+  // 表示開始日のDateオブジェクト（日数差計算用）
+  // VIS_START_DATE_OBJをローカル時刻で作成（'2026-05-16'のUTC解釈を避ける）
   var _p=VIS_START_DATE.split('-');
-  return new Date(parseInt(_p[0]),parseInt(_p[1])-1,parseInt(_p[2]));
-})();
+  window.VIS_START_DATE_OBJ = new Date(parseInt(_p[0]),parseInt(_p[1])-1,parseInt(_p[2]));
 
-var GANTT_W = VIS_DATES.length * COL_W;
-var TOTAL_SCROLL_W = PRE_W + GANTT_W + POST_W;
+  window.GANTT_W = VIS_DATES.length * COL_W;
+  window.TOTAL_SCROLL_W = PRE_W + GANTT_W + POST_W;
+}
+// 初回計算（currentAreaはこの後の「STATE」定義で'マイ物件'になるため、ここでは来期判定はfalseになる想定で問題ない）
+_recomputeVisDates();
+var VIS_START_COL = window.VIS_START_COL;
+var VIS_END_COL = window.VIS_END_COL;
+var TODAY_VIS_COL = window.TODAY_VIS_COL;
+var VIS_START_DATE = window.VIS_START_DATE;
+var FULL_VIS_OFFSET = window.FULL_VIS_OFFSET;
+var VIS_DATE_IDX = window.VIS_DATE_IDX;
+var VIS_START_DATE_OBJ = window.VIS_START_DATE_OBJ;
+var GANTT_W = window.GANTT_W;
+var TOTAL_SCROLL_W = window.TOTAL_SCROLL_W;
 
 // ===== STATE =====
 var currentArea = 'マイ物件';
@@ -2509,6 +2608,7 @@ function setMode(pc){
   var fw=activeFreezeC.reduce(function(a,c){return a+c.w;},0);
   document.documentElement.style.setProperty('--freeze-w',fw+'px');
   _updateVendorBtns();
+  _updateCalMonthsBtns();
 
   // body.sp-modeクラスで全CSS制御
   if(pc){ document.body.classList.remove('sp-mode'); }
@@ -2799,13 +2899,13 @@ function renderHeader(){
     if(!months[m])months[m]={start:i,count:0};
     months[m].count++;
   });
-  var mn={'03':'3月','04':'4月','05':'5月','06':'6月','07':'7月','08':'8月','09':'9月','10':'10月','11':'11月','12':'12月'};
+  var mn={'01':'1月','02':'2月','03':'3月','04':'4月','05':'5月','06':'6月','07':'7月','08':'8月','09':'9月','10':'10月','11':'11月','12':'12月'};
   var monthStarts={};
   Object.keys(months).forEach(function(m){
-    var v=months[m],mm=m.split('-')[1];
+    var v=months[m],parts=m.split('-'),yy=parts[0],mm=parts[1];
     var el=document.createElement('div');el.className='mband';
     el.style.cssText='left:'+(gx+v.start*COL_W)+'px;width:'+(v.count*COL_W)+'px;';
-    el.textContent='2026年'+(mn[mm]||mm);si.appendChild(el);
+    el.textContent=yy+'年'+(mn[mm]||mm);si.appendChild(el);
     monthStarts[v.start]=true;
   });
 
@@ -3402,6 +3502,7 @@ function setArea(area,btn){
   }
   renderStats();renderBody();
   if(typeof _renderWeatherBar==='function')_renderWeatherBar();
+  if(typeof _updateHScrollbar==='function')_updateHScrollbar();
   requestAnimationFrame(function(){requestAnimationFrame(scrollGanttToToday);});
 }
 function setStatus(s){currentStatus=s;renderStats();renderBody();}
