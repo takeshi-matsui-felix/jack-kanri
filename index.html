@@ -8060,15 +8060,17 @@ function showPropQR(){
   ov2.onclick=function(e){if(e.target===ov2)ov2.remove();};
 }
 window.showPropQR=showPropQR;
-function _printPageImpl(existingWin){
+function _printPageImpl(existingWin,showVendor){
   // ホーム画面を別ウィンドウで印刷（freeze列+ganttを結合してA3横に収める）
+  var SHOW_VENDOR = showVendor!==false; // ★新機能：業者選定欄の表示/非表示（デフォルトは表示＝従来通り）
   var props=getProps();
   if(!props||!props.length){showToast('印刷対象の物件がありません','error');if(existingWin)existingWin.close();return;}
 
   var PCOL=14; // 1日の幅(px)
   var PROW=100; // 行高さ(px)・基準（バー本体＋渋滞なしラベル分）★1ページの物件数を減らした分、行を大きくして文字を読みやすくする（この高さだとページを拡大縮小してもほぼ等倍で済み、左ブロックの文字が縦に歪まない）
   var LABEL_W=160; // 物件名列幅
-  var DATE_W=70;   // 確認申請完了日列幅
+  var DATE_W=86;   // 確認申請完了日列幅（2026/8/21：日付が折り返して見切れていたため拡幅）
+  var DELIV_W=86;  // 引渡し日列幅（同上）
   var VENDOR_COL_W=460; // ★印刷専用に業者選定列を大きく確保（ホーム画面側の同名グローバル変数はここではローカルで上書き、画面表示には影響しない）
   // ★ラベルが渋滞（1〜2日間に工程が密集）した場合、行の下に段(tier)を追加して縮小表示する
   var LABEL_TIER_H=14;   // 追加段1つあたりの高さ(px)
@@ -8125,7 +8127,7 @@ function _printPageImpl(existingWin){
   var printEnd=printDates[printDates.length-1]||'';
 
   var STAT_W=50;
-  var LEFT_BLOCK_W=LABEL_W+VENDOR_COL_W+DATE_W; // 物件名・業者選定・確認完了日
+  var LEFT_BLOCK_W=LABEL_W+(SHOW_VENDOR?VENDOR_COL_W:0)+DATE_W+DELIV_W; // 物件名・（業者選定）・確認完了日・引渡し日
   var totalContentW=LEFT_BLOCK_W+GANTT_W;
   // ★A3横向き(420×297mm)・余白5mmの印字可能領域をCSS px換算(96px/inch, 25.4mm/inch)
   // ★実機検証の結果、この計算値どおりだと印刷ダイアログの倍率100%では小さすぎ、
@@ -8209,10 +8211,21 @@ function _printPageImpl(existingWin){
     rowLayouts.forEach(function(rl){rowYs.push(yCursor); yCursor+=rl.rowH;});
     var totalH=yCursor;
 
-    var rowLabels='', rowBgs='', barHtml='', confirmCells='', vendorCells='';
+    var rowLabels='', rowBgs='', barHtml='', confirmCells='', deliveryCells='', vendorCells='';
     rowLayouts.forEach(function(rl,ri){
       var p=rl.p, rowY=rowYs[ri], rowH=rl.rowH;
-      var nm=p.name||'';
+      // ★物件名は「Jack」の接頭辞を印刷では省略し、省いたスペース分を活かして折り返し表示することで
+      //   省略記号(…)で切れてしまわないようにする（2026/8/20 指摘対応）。文字数に応じてフォントも自動調整。
+      var nm=(p.name||'').replace(/^Jack/i,'');
+      var nameFont=(function(){
+        var sizes=[18,16,14,12,11,10];
+        for(var szi=0;szi<sizes.length;szi++){
+          var szF=sizes[szi];
+          var perLine=Math.max(1,Math.floor((LABEL_W-12)/szF));
+          if(perLine*3>=nm.length||szi===sizes.length-1)return szF;
+        }
+        return 10;
+      })();
       var cd=p.confirm_done||'';
       var days=daysUntil(p.delivery_date);
       var isUrgent=days!==null&&days>=0&&days<=30;
@@ -8223,13 +8236,15 @@ function _printPageImpl(existingWin){
       var nameVendorBg=isDefaultSched?'#fef9c3':bg;
 
       rowLabels+='<div style="height:'+rowH+'px;display:flex;flex-direction:column;justify-content:center;padding:0 6px;background:'+nameVendorBg+';border-bottom:1px solid #e2e8f0;overflow:hidden;">'
-        +'<div style="font-size:18px;font-weight:700;color:#1e293b;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">'+nm+'</div>'
+        +'<div style="font-size:'+nameFont+'px;line-height:1.15;font-weight:700;color:#1e293b;white-space:normal;word-break:break-all;overflow:hidden;">'+nm+'</div>'
         +(isUrgent?'<div style="font-size:12px;color:#ef4444;font-weight:700;">⚡引渡まで'+days+'日</div>':'')
         +'</div>';
 
-      confirmCells+='<div style="height:'+rowH+'px;display:flex;align-items:center;padding:0 4px;background:'+bg+';border-bottom:1px solid #e2e8f0;font-size:14px;color:#475569;">'+cd+'</div>';
+      confirmCells+='<div style="height:'+rowH+'px;display:flex;align-items:center;padding:0 3px;background:'+bg+';border-bottom:1px solid #e2e8f0;font-size:13px;color:#475569;white-space:nowrap;overflow:hidden;">'+cd+'</div>';
 
-      vendorCells+='<div style="height:'+rowH+'px;display:flex;flex-direction:column;justify-content:center;padding:2px 4px;background:'+nameVendorBg+';border-bottom:1px solid #e2e8f0;overflow:hidden;">'+_vendorGridHtml(p,90,14)+'</div>';
+      deliveryCells+='<div style="height:'+rowH+'px;display:flex;align-items:center;padding:0 3px;background:'+bg+';border-bottom:1px solid #e2e8f0;font-size:13px;color:'+(isUrgent?'#dc2626':'#475569')+';font-weight:'+(isUrgent?'700':'400')+';white-space:nowrap;overflow:hidden;">'+(p.delivery_date||'')+'</div>';
+
+      vendorCells+=SHOW_VENDOR?('<div style="height:'+rowH+'px;display:flex;flex-direction:column;justify-content:center;padding:2px 4px;background:'+nameVendorBg+';border-bottom:1px solid #e2e8f0;overflow:hidden;">'+_vendorGridHtml(p,90,14)+'</div>'):'';
 
       rowBgs+='<div style="position:absolute;left:0;top:'+rowY+'px;width:'+GANTT_W+'px;height:'+rowH+'px;background:'+bg+';border-bottom:1px solid #e2e8f0;"></div>';
 
@@ -8274,7 +8289,7 @@ function _printPageImpl(existingWin){
     var todayI=dIdx[TODAY];
     if(todayI)barHtml+='<div style="position:absolute;left:'+((todayI-1)*PCOL)+'px;top:0;width:2px;height:'+totalH+'px;background:#ef4444;z-index:20;opacity:.7;"></div>';
 
-    return {rowLabels:rowLabels, confirmCells:confirmCells, vendorCells:vendorCells, rowBgs:rowBgs, barHtml:barHtml, totalH:totalH};
+    return {rowLabels:rowLabels, confirmCells:confirmCells, deliveryCells:deliveryCells, vendorCells:vendorCells, rowBgs:rowBgs, barHtml:barHtml, totalH:totalH};
   }
 
   // ★ページ分割：各ページの物件数を、①最大25件 ②文字サイズがPRINT_MIN_SCALEを下回らない、の
@@ -8313,12 +8328,15 @@ function _printPageImpl(existingWin){
       +'<div style="width:'+LABEL_W+'px;flex-shrink:0;border-right:2px solid #475569;">'
       +'<div style="height:28px;background:#1e3a5f;border-bottom:2px solid #475569;"></div>'
       +pg.rowLabels+'</div>'
-      +'<div style="width:'+VENDOR_COL_W+'px;flex-shrink:0;border-right:2px solid #475569;">'
+      +(SHOW_VENDOR?('<div style="width:'+VENDOR_COL_W+'px;flex-shrink:0;border-right:2px solid #475569;">'
       +'<div style="height:28px;background:#1e3a5f;display:flex;align-items:center;justify-content:center;font-size:8px;color:white;font-weight:700;border-bottom:2px solid #475569;">業者選定</div>'
-      +pg.vendorCells+'</div>'
+      +pg.vendorCells+'</div>'):'')
       +'<div style="width:'+DATE_W+'px;flex-shrink:0;border-right:2px solid #475569;">'
       +'<div style="height:28px;background:#1e3a5f;display:flex;align-items:center;justify-content:center;font-size:8px;color:white;font-weight:700;border-bottom:2px solid #475569;white-space:pre;">確認申請\n完了日</div>'
       +pg.confirmCells+'</div>'
+      +'<div style="width:'+DELIV_W+'px;flex-shrink:0;border-right:2px solid #475569;">'
+      +'<div style="height:28px;background:#1e3a5f;display:flex;align-items:center;justify-content:center;font-size:8px;color:white;font-weight:700;border-bottom:2px solid #475569;">引渡し日</div>'
+      +pg.deliveryCells+'</div>'
       +'</div>';
     var ganttBlock='<div style="position:relative;width:'+GANTT_W+'px;height:'+pg.totalH+'px;">'
       +'<div style="position:absolute;top:0;left:0;width:'+GANTT_W+'px;height:14px;">'+monthHtml+'</div>'
@@ -8353,19 +8371,53 @@ function _printPageImpl(existingWin){
   else showToast('ポップアップを許可してください','error');
 }
 
-// ★印刷ボタンから呼ばれる入口：ポップアップブロック対策のためクリック直後に空ウィンドウを開いておき、
-//   業者選定データ(vendors)が未ロードならバックグラウンドで取得してから実際の印刷内容を書き込む
+// ★印刷ボタンから呼ばれる入口：先に「業者選定を表示/非表示」を選んでもらい、
+//   選択後（＝ユーザー操作の直後）に印刷ウィンドウを開くことで、
+//   ①選択ダイアログが印刷ウィンドウの下に隠れてしまう、②誤って印刷ウィンドウを閉じた後に
+//   選択しても何も起きない、という2つの不具合を回避する（2026/8/21 指摘対応）。
+//   ポップアップブロック対策：window.open()はボタンclickハンドラの中で同期的に呼ぶことで
+//   ユーザー操作起因の呼び出しとみなされ、ブロックされない。
 function printPage(){
+  _openPrintVendorChoice();
+}
+// ★新機能：大工程表印刷時に「業者選定」欄を表示するか選べるダイアログ（デフォルトは表示＝従来通り）
+function _openPrintVendorChoice(){
+  var existing=document.getElementById('_printVendorModal');
+  if(existing)existing.remove();
+  var modal=document.createElement('div');
+  modal.id='_printVendorModal';
+  modal.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:9999;display:flex;align-items:center;justify-content:center;';
+  modal.addEventListener('click',function(e){if(e.target===modal)modal.remove();});
+  var html='<div style="background:white;border-radius:16px;width:88%;max-width:360px;box-shadow:0 20px 60px rgba(0,0,0,.35);overflow:hidden">'
+    +'<div style="padding:14px 16px;background:linear-gradient(135deg,#1a56db,#1044b5);display:flex;align-items:center">'
+      +'<div style="flex:1;font-size:14px;font-weight:800;color:white">🖨️ 大工程表 印刷</div>'
+      +'<button onclick="document.getElementById(\'_printVendorModal\').remove()" style="background:rgba(255,255,255,.2);color:white;border:none;border-radius:8px;padding:5px 10px;font-size:11px;cursor:pointer;font-weight:700">✕</button>'
+    +'</div>'
+    +'<div style="padding:12px 16px;font-size:11px;color:#64748b;line-height:1.7">業者選定欄を表示して印刷するか選べます。</div>'
+    +'<div style="padding:0 16px 16px;display:flex;flex-direction:column;gap:8px">'
+      +'<button onclick="_startPrintWithVendorChoice(true)" style="width:100%;padding:12px;background:#1a56db;color:white;border:2px solid #1a56db;border-radius:10px;font-size:13px;font-weight:800;cursor:pointer">業者選定を表示して印刷</button>'
+      +'<button onclick="_startPrintWithVendorChoice(false)" style="width:100%;padding:12px;background:#f1f5f9;color:#334155;border:2px solid #e2e8f0;border-radius:10px;font-size:13px;font-weight:800;cursor:pointer">業者選定を非表示で印刷</button>'
+    +'</div>'
+  +'</div>';
+  modal.innerHTML=html;
+  document.body.appendChild(modal);
+}
+function _startPrintWithVendorChoice(showVendor){
+  var m=document.getElementById('_printVendorModal');if(m)m.remove();
+  // ★このクリックハンドラ内で同期的にwindow.open()するのがポップアップブロック回避のポイント
   var w=window.open('','_blank','width=1200,height=900');
   if(w){w.document.write('<!DOCTYPE html><html><head><meta charset="UTF-8"><title>工程一覧印刷</title></head><body style="font-family:sans-serif;padding:40px;color:#64748b;">読み込み中…</body></html>');}
-  if(!window._VENDOR_LIST_DATA||!Object.keys(window._VENDOR_LIST_DATA).length){
+  if(showVendor&&(!window._VENDOR_LIST_DATA||!Object.keys(window._VENDOR_LIST_DATA).length)){
     if(typeof _loadVendorsFromCacheOrDB==='function'){
-      _loadVendorsFromCacheOrDB(false).then(function(){_printPageImpl(w);}).catch(function(){_printPageImpl(w);});
+      _loadVendorsFromCacheOrDB(false).then(function(){_printPageImpl(w,showVendor);}).catch(function(){_printPageImpl(w,showVendor);});
       return;
     }
   }
-  _printPageImpl(w);
+  _printPageImpl(w,showVendor);
 }
+window._openPrintVendorChoice=_openPrintVendorChoice;
+window._startPrintWithVendorChoice=_startPrintWithVendorChoice;
+
 
 // ===== SYNC =====
 function updateSyncBanner(msg,syncing){
