@@ -745,7 +745,7 @@ body.sp-mode #areaTabsBtns{ display:none !important; }
 <div id="jackMainWrap">
 <div id="loading"><div class="ld-logo">JACK</div><div class="ld-sub">現場管理システム</div><div class="ld-dots"><span></span><span></span><span></span></div></div>
 <div id="app" class="mobile-mode">
-  <div class="top-header"><div class="th-left"><div><div class="th-logo">JACK<span id="areaBadge"></span></div><div class="th-sub">新築AP 現場管理</div></div></div><div class="th-right"><button class="vendor-toggle-btn" onclick="togglePropSearch()" title="物件検索" id="propSearchBtn">検索</button><button class="vendor-toggle-btn" id="vendorColToggleBtnSp" onclick="_setVendorColOn(!_vendorColOn())" title="業者選定の表示切替">業者選択</button><button class="vendor-toggle-btn" id="weatherToggleBtnSp" onclick="_setWeatherBarOn(!_weatherBarOn())" title="天気予報の表示切替">天気</button><button class="vendor-toggle-btn" id="calMonthsBtnSp" onclick="openCalMonthsPicker()" title="カレンダー表示月数の選択">📅</button><button class="vendor-toggle-btn" onclick="scrollGanttToEnd()" title="検査日程列まで一気に移動">検査へ</button><div class="th-today" id="todayBadge"></div><button class="print-btn" onclick="printPage()">🖨️</button><button class="th-icon-btn" onclick="openMenu()">☰</button></div></div>
+  <div class="top-header"><div class="th-left"><div><div class="th-logo">JACK<span id="areaBadge"></span></div><div class="th-sub">新築AP 現場管理</div></div></div><div class="th-right"><button class="vendor-toggle-btn" onclick="togglePropSearch()" title="物件検索" id="propSearchBtn">検索</button><button class="vendor-toggle-btn" id="vendorColToggleBtnSp" onclick="_setVendorColOn(!_vendorColOn())" title="業者選定の表示切替">業者選択</button><button class="vendor-toggle-btn" id="weatherToggleBtnSp" onclick="_setWeatherBarOn(!_weatherBarOn())" title="天気予報の表示切替">天気</button><button class="vendor-toggle-btn" id="calMonthsBtnSp" onclick="openCalMonthsPicker()" title="カレンダー表示月数の選択">📅</button><button class="vendor-toggle-btn" id="sortModeBtnSp" onclick="openSortModePicker()" title="並び替え">⇅</button><button class="vendor-toggle-btn" id="tempSelectBtnSp" onclick="toggleTempSelectMode()" title="一時選択表示">☐選択</button><button class="vendor-toggle-btn" onclick="scrollGanttToEnd()" title="検査日程列まで一気に移動">検査へ</button><div class="th-today" id="todayBadge"></div><button class="print-btn" onclick="printPage()">🖨️</button><button class="th-icon-btn" onclick="openMenu()">☰</button></div></div>
   <div class="sync-banner" id="syncBanner"><div style="display:flex;align-items:center;gap:6px"><div class="sync-dot"></div><span class="sync-msg">起動中...</span></div><button onclick="doSyncFull()" style="color:rgba(255,255,255,.6);font-size:10px;font-weight:600;background:rgba(255,255,255,.1);padding:2px 7px;border-radius:4px">同期</button></div>
   <div style="display:flex;align-items:center;background:#1e293b;border-bottom:1px solid rgba(255,255,255,.1);flex-shrink:0">
     <div class="area-tabs" id="areaTabs" style="flex:1;min-width:0;border-bottom:none"></div>
@@ -754,6 +754,8 @@ body.sp-mode #areaTabsBtns{ display:none !important; }
       <button class="vendor-toggle-btn" id="vendorColToggleBtn" onclick="_setVendorColOn(!_vendorColOn())" title="業者選定の表示切替">業者選択</button>
       <button class="vendor-toggle-btn" id="weatherToggleBtn" onclick="_setWeatherBarOn(!_weatherBarOn())" title="天気予報の表示切替">天気</button>
       <button class="vendor-toggle-btn" id="calMonthsBtn" onclick="openCalMonthsPicker()" title="カレンダー表示月数の選択">📅表示月数</button>
+      <button class="vendor-toggle-btn" id="sortModeBtn" onclick="openSortModePicker()" title="並び替え">⇅ 並び替え</button>
+      <button class="vendor-toggle-btn" id="tempSelectBtn" onclick="toggleTempSelectMode()" title="一時選択表示">☐ 一時選択</button>
       <button class="vendor-toggle-btn" onclick="scrollGanttToEnd()" title="検査日程列まで一気に移動">検査へ</button>
     </div>
   </div>
@@ -775,7 +777,7 @@ body.sp-mode #areaTabsBtns{ display:none !important; }
   </div>
   <div id="weatherBar" style="display:none;flex-shrink:0;background:white;border-top:2px solid #e2e8f0;overflow-x:auto;-webkit-overflow-scrolling:touch;"><div id="weatherBarContent"></div></div>
 </div>
-<div class="slide-panel" id="detailPanel" style="display:flex;flex-direction:row;overflow:hidden"><div style="flex:1;display:flex;flex-direction:column;overflow:hidden"><div class="panel-header"><button class="panel-back" onclick="closePanel('detailPanel')">← 戻る</button><div style="flex:1"><div class="panel-title">物件詳細</div></div><div id="dpFavBtnWrap"></div></div><div id="dpHeroSticky" style="flex-shrink:0;padding:6px 12px;background:var(--primary-d,#1e40af);color:white;display:none"></div><div class="panel-scroll" id="dpContent" style="padding-bottom:16px"></div></div><div id="ganttEditSidebar" style="display:none;width:200px;min-width:200px;background:#1e293b;border-left:2px solid #334155;flex-direction:column;overflow-y:auto;flex-shrink:0"><div style="padding:8px;border-bottom:1px solid #334155;display:flex;flex-direction:column;gap:4px"><div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:2px"><div style="font-size:10px;font-weight:800;color:rgba(255,255,255,.5)">✏️ 工程表編集</div><button onclick="closeGanttEditSidebar()" style="background:rgba(255,255,255,.1);border:none;color:rgba(255,255,255,.6);border-radius:4px;padding:2px 7px;font-size:11px;cursor:pointer;font-weight:700">✕</button></div><div id="geAnchorDiag" style="font-size:9px;color:#fbbf24;line-height:1.5;background:#0f172a;border-radius:6px;padding:5px 7px;display:none"></div><button onclick="saveGanttEdit()" style="width:100%;padding:7px;background:#1a56db;color:white;border:none;border-radius:7px;font-size:11px;font-weight:800;cursor:pointer">💾 保存</button><div style="display:flex;gap:4px"><button onclick="shiftGanttEdit()" style="flex:1;padding:5px;background:#475569;color:white;border:none;border-radius:6px;font-size:10px;font-weight:700;cursor:pointer">📅 シフト</button><button onclick="resetGanttEdit()" style="flex:1;padding:5px;background:#475569;color:white;border:none;border-radius:6px;font-size:10px;font-weight:700;cursor:pointer">🔄 リセット</button></div></div><div style="padding:8px;border-bottom:1px solid #334155"><div style="font-size:10px;font-weight:800;color:rgba(255,255,255,.7);margin-bottom:6px">＋ 工種追加</div><div style="display:flex;flex-direction:column;gap:5px"><input type="text" id="geNewName" placeholder="工種名" style="padding:5px 7px;border:1.5px solid #475569;border-radius:6px;font-size:11px;background:#0f172a;color:white;width:100%;box-sizing:border-box"><div style="display:flex;align-items:center;gap:4px"><span style="font-size:9px;color:rgba(255,255,255,.5);white-space:nowrap">日数</span><input type="number" id="geNewDays" placeholder="日数" min="1" max="180" style="padding:4px 6px;border:1.5px solid #475569;border-radius:6px;font-size:11px;background:#0f172a;color:white;width:100%;box-sizing:border-box"></div><div style="display:flex;align-items:center;gap:4px"><span style="font-size:9px;color:rgba(255,255,255,.5);white-space:nowrap">開始日</span><input type="date" id="geNewDate" style="padding:4px 4px;border:1.5px solid #475569;border-radius:6px;font-size:10px;background:#0f172a;color:white;width:100%;box-sizing:border-box"></div><div id="geColorPicker" style="display:flex;flex-wrap:wrap;gap:4px;margin:2px 0"></div><button onclick="addGanttBar()" style="width:100%;padding:7px;background:#059669;color:white;border:none;border-radius:7px;font-size:11px;font-weight:800;cursor:pointer">バーを追加</button></div></div><div style="padding:6px 8px;flex:1"><div style="font-size:9px;font-weight:800;color:rgba(255,255,255,.4);margin-bottom:4px">工種一覧</div><div id="geSegList" style="display:flex;flex-direction:column;gap:4px;min-width:0;overflow:hidden"></div></div></div></div>
+<div class="slide-panel" id="detailPanel" style="display:flex;flex-direction:row;overflow:hidden"><div style="flex:1;display:flex;flex-direction:column;overflow:hidden"><div class="panel-header"><button class="panel-back" onclick="closePanel('detailPanel')">← 戻る</button><div style="flex:1"><div class="panel-title">物件詳細</div></div><div id="dpFavBtnWrap"></div></div><div id="dpHeroSticky" style="flex-shrink:0;padding:6px 12px;background:var(--primary-d,#1e40af);color:white;display:none"></div><div class="panel-scroll" id="dpContent" style="padding-bottom:16px"></div></div><div id="ganttEditSidebar" style="display:none;width:200px;min-width:200px;background:#1e293b;border-left:2px solid #334155;flex-direction:column;overflow-y:auto;flex-shrink:0"><div style="padding:8px;border-bottom:1px solid #334155;display:flex;flex-direction:column;gap:4px"><div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:2px"><div style="font-size:10px;font-weight:800;color:rgba(255,255,255,.5)">✏️ 工程表編集</div><button onclick="closeGanttEditSidebar()" style="background:rgba(255,255,255,.1);border:none;color:rgba(255,255,255,.6);border-radius:4px;padding:2px 7px;font-size:11px;cursor:pointer;font-weight:700">✕</button></div><div id="geAnchorDiag" style="font-size:9px;color:#fbbf24;line-height:1.5;background:#0f172a;border-radius:6px;padding:5px 7px;display:none"></div><button onclick="saveGanttEdit()" style="width:100%;padding:7px;background:#1a56db;color:white;border:none;border-radius:7px;font-size:11px;font-weight:800;cursor:pointer">💾 保存</button><div style="display:flex;gap:4px"><button onclick="shiftGanttEdit()" style="flex:1;padding:5px;background:#475569;color:white;border:none;border-radius:6px;font-size:10px;font-weight:700;cursor:pointer">📅 シフト</button><button onclick="resetGanttEdit()" style="flex:1;padding:5px;background:#475569;color:white;border:none;border-radius:6px;font-size:10px;font-weight:700;cursor:pointer">🔄 リセット</button></div><button onclick="openSlideRangeDialog()" style="width:100%;padding:5px;background:#6d28d9;color:white;border:none;border-radius:6px;font-size:10px;font-weight:700;cursor:pointer;margin-top:4px">📆 期間指定スライド</button></div><div style="padding:8px;border-bottom:1px solid #334155"><div style="font-size:10px;font-weight:800;color:rgba(255,255,255,.7);margin-bottom:6px">＋ 工種追加</div><div style="display:flex;flex-direction:column;gap:5px"><input type="text" id="geNewName" placeholder="工種名" style="padding:5px 7px;border:1.5px solid #475569;border-radius:6px;font-size:11px;background:#0f172a;color:white;width:100%;box-sizing:border-box"><div style="display:flex;align-items:center;gap:4px"><span style="font-size:9px;color:rgba(255,255,255,.5);white-space:nowrap">日数</span><input type="number" id="geNewDays" placeholder="日数" min="1" max="180" style="padding:4px 6px;border:1.5px solid #475569;border-radius:6px;font-size:11px;background:#0f172a;color:white;width:100%;box-sizing:border-box"></div><div style="display:flex;align-items:center;gap:4px"><span style="font-size:9px;color:rgba(255,255,255,.5);white-space:nowrap">開始日</span><input type="date" id="geNewDate" style="padding:4px 4px;border:1.5px solid #475569;border-radius:6px;font-size:10px;background:#0f172a;color:white;width:100%;box-sizing:border-box"></div><div id="geColorPicker" style="display:flex;flex-wrap:wrap;gap:4px;margin:2px 0"></div><button onclick="addGanttBar()" style="width:100%;padding:7px;background:#059669;color:white;border:none;border-radius:7px;font-size:11px;font-weight:800;cursor:pointer">バーを追加</button></div></div><div style="padding:8px;border-bottom:1px solid #334155"><div style="font-size:10px;font-weight:800;color:rgba(255,255,255,.7);margin-bottom:6px">🚧 仮工程／確定工程</div><div style="font-size:9px;color:rgba(255,255,255,.5);line-height:1.5;margin-bottom:6px">選んだ工程より後ろを「仮工程」としてハッチング表示にします</div><select id="geConfirmedUntilSel" style="width:100%;padding:5px 6px;border:1.5px solid #475569;border-radius:6px;font-size:11px;background:#0f172a;color:white;margin-bottom:5px;box-sizing:border-box"></select><button onclick="applyConfirmedUntil()" style="width:100%;padding:6px;background:#ea580c;color:white;border:none;border-radius:6px;font-size:10px;font-weight:800;cursor:pointer">この工程までを確定にする</button></div><div style="padding:6px 8px;flex:1"><div style="font-size:9px;font-weight:800;color:rgba(255,255,255,.4);margin-bottom:4px">工種一覧</div><div id="geSegList" style="display:flex;flex-direction:column;gap:4px;min-width:0;overflow:hidden"></div></div></div></div>
 <div class="slide-panel" id="myPagePanel"><div class="panel-header"><button class="panel-back" onclick="closePanel('myPagePanel')">← 戻る</button><div style="flex:1"><div class="panel-title">⭐ マイ物件</div></div><button onclick="openSelectProp()" style="background:rgba(255,255,255,.2);color:white;border-radius:6px;padding:4px 9px;font-size:11px;font-weight:700">＋</button><button class="print-btn" onclick="printPage()">🖨️</button></div><div class="mypage-wrap" id="myPageContent"></div></div>
 <div class="slide-panel" id="selectPropPanel"><div class="panel-header"><button class="panel-back" onclick="closePanel('selectPropPanel')">← 戻る</button><div style="flex:1"><div class="panel-title">担当物件を選択</div></div><button onclick="closePanel('selectPropPanel')" style="background:rgba(255,255,255,.2);color:white;border-radius:6px;padding:4px 9px;font-size:11px;font-weight:700">完了</button></div><div class="panel-scroll" id="selectPropContent"></div></div>
 
@@ -851,7 +853,7 @@ body.sp-mode #areaTabsBtns{ display:none !important; }
   </div>
 </div>
 <div class="menu-overlay" id="menuOverlay" onclick="closeMenu()"></div>
-<div class="side-menu" id="sideMenu"><div class="menu-head"><div class="menu-user">🏗️ 協力業者</div><div class="menu-role">JACK 現場管理アプリ</div></div><div class="menu-body"><div class="menu-section">マイ物件</div><div class="menu-item" onclick="openMyPage()"><span class="mi-icon">⭐</span>マイ物件を見る</div><div class="menu-item" onclick="openSelectProp()"><span class="mi-icon">✅</span>担当物件を選択</div><div class="menu-item sp-hide" id="sideMasterItem" onclick="closeMenu();openMasterPanel()"><span class="mi-icon">📋</span>マスター工程</div><div class="menu-divider"></div><div class="menu-section">表示</div><div class="menu-item" onclick="closeMenu();setMode(false)"><span class="mi-icon">📱</span>スマホ表示</div><div class="menu-item" onclick="closeMenu();setMode(true)"><span class="mi-icon">🖥️</span>PC横長表示</div><div class="menu-divider"></div><div class="menu-section">その他</div><div class="menu-item" onclick="closeMenu();doSync()"><span class="mi-icon">🔄</span>今すぐ同期</div><div class="menu-item" onclick="openSettings()"><span class="mi-icon">⚙️</span>設定</div><div class="menu-item" onclick="closeMenu();printPage()"><span class="mi-icon">🖨️</span>印刷</div></div></div>
+<div class="side-menu" id="sideMenu"><div class="menu-head"><div class="menu-user">🏗️ 協力業者</div><div class="menu-role">JACK 現場管理アプリ</div></div><div class="menu-body"><div class="menu-section">マイ物件</div><div class="menu-item" onclick="openMyPage()"><span class="mi-icon">⭐</span>マイ物件を見る</div><div class="menu-item" onclick="openSelectProp()"><span class="mi-icon">✅</span>担当物件を選択</div><div class="menu-item sp-hide" id="sideMasterItem" onclick="closeMenu();openMasterPanel()"><span class="mi-icon">📋</span>マスター工程</div><div class="menu-divider"></div><div class="menu-section">表示</div><div class="menu-item" onclick="closeMenu();setMode(false)"><span class="mi-icon">📱</span>スマホ表示</div><div class="menu-item" onclick="closeMenu();setMode(true)"><span class="mi-icon">🖥️</span>PC横長表示</div><div class="menu-divider"></div><div class="menu-section">その他</div><div class="menu-item" onclick="closeMenu();doSyncFull()"><span class="mi-icon">🔄</span>今すぐ同期</div><div class="menu-item" onclick="openSettings()"><span class="mi-icon">⚙️</span>設定</div><div class="menu-item" onclick="closeMenu();printPage()"><span class="mi-icon">🖨️</span>印刷</div></div></div>
 <div class="popup-overlay" id="updatePopup" style="display:none"><div class="popup-box"><div class="popup-head">🔔 データ更新情報</div><div class="popup-body" id="updateContent"></div><div class="popup-footer"><button class="popup-close" onclick="closeUpdatePopup()">閉じる</button></div></div></div>
 <div class="tooltip" id="tooltip"></div><div class="toast" id="toast"></div>
 
@@ -1041,6 +1043,109 @@ function setCalMonths(n){
 }
 window.openCalMonthsPicker=openCalMonthsPicker;
 window.setCalMonths=setCalMonths;
+
+// ★新機能【並び替え】：基礎/土台/造作/内装の各工程開始日順に一時的に並べ替えるピッカー
+function _sortBtnLabel(){return '⇅ '+(SORT_MODE==='default'?'並び替え':SORT_MODE_LABEL[SORT_MODE]);}
+function _updateSortBtns(){
+  ['sortModeBtn','sortModeBtnSp'].forEach(function(id){
+    var btn=document.getElementById(id);
+    if(!btn)return;
+    btn.textContent=(id==='sortModeBtnSp')?'⇅':_sortBtnLabel();
+    btn.style.background=(SORT_MODE==='default')?'':'#fef3c7';
+    btn.style.color=(SORT_MODE==='default')?'':'#92400e';
+  });
+}
+function openSortModePicker(){
+  var existing=document.getElementById('_sortModeModal');
+  if(existing){existing.remove();return;}
+  var modal=document.createElement('div');
+  modal.id='_sortModeModal';
+  modal.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:9999;display:flex;align-items:center;justify-content:center;';
+  modal.addEventListener('click',function(e){if(e.target===modal)modal.remove();});
+  var opts=[
+    {v:'default',label:'デフォルト（引渡日順）'},
+    {v:'foundation',label:'基礎開始日順'},
+    {v:'dodai',label:'土台開始日順'},
+    {v:'zousaku',label:'造作開始日順'},
+    {v:'naiso',label:'内装開始日順'}
+  ];
+  var html='<div style="background:white;border-radius:16px;width:88%;max-width:340px;box-shadow:0 20px 60px rgba(0,0,0,.35);overflow:hidden">'
+    +'<div style="padding:14px 16px;background:linear-gradient(135deg,#1a56db,#1044b5);display:flex;align-items:center">'
+      +'<div style="flex:1;font-size:14px;font-weight:800;color:white">⇅ 並び替え</div>'
+      +'<button onclick="document.getElementById(\'_sortModeModal\').remove()" style="background:rgba(255,255,255,.2);color:white;border:none;border-radius:8px;padding:5px 10px;font-size:11px;cursor:pointer;font-weight:700">✕</button>'
+    +'</div>'
+    +'<div style="padding:12px 16px;font-size:11px;color:#64748b;line-height:1.7">物件の並び順を一時的に切り替えられます。表示だけの変更で、データは書き換わりません。</div>'
+    +'<div style="padding:0 16px 16px;display:flex;flex-direction:column;gap:8px">'
+    +opts.map(function(o){
+      var active=(o.v===SORT_MODE);
+      return '<button onclick="setSortMode(\''+o.v+'\')" style="width:100%;padding:12px;background:'+(active?'#1a56db':'#f1f5f9')+';color:'+(active?'white':'#334155')+';border:2px solid '+(active?'#1a56db':'#e2e8f0')+';border-radius:10px;font-size:13px;font-weight:800;cursor:pointer;text-align:left">'+o.label+(active?' ✓':'')+'</button>';
+    }).join('')
+    +'</div>'
+  +'</div>';
+  modal.innerHTML=html;
+  document.body.appendChild(modal);
+}
+function setSortMode(v){
+  SORT_MODE=v;
+  saveLS('jack_sort_mode',v);
+  var m=document.getElementById('_sortModeModal');if(m)m.remove();
+  _updateSortBtns();
+  renderBody();
+  showToast((v==='default'?'デフォルトの並び順':SORT_MODE_LABEL[v])+'に切り替えました','success');
+}
+window.openSortModePicker=openSortModePicker;
+window.setSortMode=setSortMode;
+
+// ★新機能【一時選択表示】：チェックした物件だけに一時的に絞り込む
+function _tempSelectBtnLabel(){
+  var n=Object.keys(TEMP_SELECTED).filter(function(k){return TEMP_SELECTED[k];}).length;
+  return TEMP_SELECT_MODE?('☑ 一時選択中'+(n?'('+n+')':'')):'☐ 一時選択';
+}
+function _updateTempSelectBtns(){
+  ['tempSelectBtn','tempSelectBtnSp'].forEach(function(id){
+    var btn=document.getElementById(id);
+    if(!btn)return;
+    btn.textContent=(id==='tempSelectBtnSp')?(TEMP_SELECT_MODE?'☑選択中':'☐選択'):_tempSelectBtnLabel();
+    btn.style.background=TEMP_SELECT_MODE?'#dbeafe':'';
+    btn.style.color=TEMP_SELECT_MODE?'#1a56db':'';
+  });
+}
+function toggleTempSelectMode(){
+  TEMP_SELECT_MODE=!TEMP_SELECT_MODE;
+  if(!TEMP_SELECT_MODE){ TEMP_SELECTED={}; TEMP_FILTER_ACTIVE=false; }
+  _updateTempSelectBtns();
+  renderBody();
+}
+function toggleTempSelected(ck){
+  TEMP_SELECTED[ck]=!TEMP_SELECTED[ck];
+  if(!TEMP_SELECTED[ck])delete TEMP_SELECTED[ck];
+  _updateTempSelectBtns();
+  _updateTempSelectBar();
+}
+function _updateTempSelectBar(){
+  var bar=document.getElementById('_tempSelectBar');
+  var n=Object.keys(TEMP_SELECTED).filter(function(k){return TEMP_SELECTED[k];}).length;
+  if(!TEMP_SELECT_MODE){ if(bar)bar.remove(); return; }
+  if(!bar){
+    bar=document.createElement('div');
+    bar.id='_tempSelectBar';
+    bar.style.cssText='position:fixed;left:50%;bottom:18px;transform:translateX(-50%);z-index:9998;background:#1e293b;color:white;border-radius:999px;padding:8px 10px 8px 16px;display:flex;align-items:center;gap:10px;box-shadow:0 8px 24px rgba(0,0,0,.35);font-size:12px;font-weight:700;';
+    document.body.appendChild(bar);
+  }
+  bar.innerHTML='<span>☑ '+n+'件選択中</span>'
+    +'<button onclick="applyTempSelectFilter()" style="background:#1a56db;color:white;border:none;border-radius:999px;padding:7px 14px;font-size:12px;font-weight:800;cursor:pointer" '+(n?'':'disabled')+'>'+(TEMP_FILTER_ACTIVE?'絞り込み中 ✓':'この物件だけ表示')+'</button>'
+    +'<button onclick="toggleTempSelectMode()" style="background:rgba(255,255,255,.15);color:white;border:none;border-radius:999px;padding:7px 14px;font-size:12px;font-weight:800;cursor:pointer">終了</button>';
+}
+function applyTempSelectFilter(){
+  var n=Object.keys(TEMP_SELECTED).filter(function(k){return TEMP_SELECTED[k];}).length;
+  if(!n){showToast('物件が選択されていません','error');return;}
+  TEMP_FILTER_ACTIVE=true;
+  renderBody();
+  _updateTempSelectBar();
+}
+window.toggleTempSelectMode=toggleTempSelectMode;
+window.toggleTempSelected=toggleTempSelected;
+window.applyTempSelectFilter=applyTempSelectFilter;
 
 var PRE_COLS = [
   { key:'confirm_done',  label:'確認申請\n完了日', w:56, cls:'hcell-darker' },
@@ -1243,6 +1348,35 @@ var CAL_MONTHS = (function(){
   }catch(e){return 8;}
 })();
 
+// ★新機能【並び替え】：大工程表の一時的な並び替えモード（2026/8/21 追加）
+//   'default'=引渡日順＋同月内は基礎開始日順（従来通り）／それ以外は指定工程の開始日順に一時的に並べ替える
+var SORT_MODE = (function(){
+  var v=null; try{v=localStorage.getItem('jack_sort_mode');}catch(e){}
+  var allowed=['default','foundation','dodai','zousaku','naiso'];
+  return (v&&allowed.indexOf(v)>=0)?v:'default';
+})();
+var SORT_MODE_KEYWORD={foundation:'基礎', dodai:'土台', zousaku:'造作', naiso:'内装'};
+var SORT_MODE_LABEL={default:'デフォルト（引渡日順）', foundation:'基礎開始日順', dodai:'土台開始日順', zousaku:'造作開始日順', naiso:'内装開始日順'};
+
+// ★新機能【一時選択表示】：チェックした物件だけを一時的に絞り込んで表示する（2026/8/21 追加）
+var TEMP_SELECT_MODE=false;   // チェックボックスを表示するモード中か
+var TEMP_SELECTED={};         // custKey(p) -> true の選択状態
+var TEMP_FILTER_ACTIVE=false; // 選択物件のみに絞り込み表示中か
+
+// 指定した工程名（例:'基礎'）の開始日を返す。見つからなければ''（getActiveSegsのlabel/nameで前方一致検索）
+function _stepStartDate(p, keyword){
+  if(!keyword)return '';
+  try{
+    var segs=getActiveSegs(p)||[];
+    var seg=segs.find(function(s){return String(s.label||s.name||'').trim()===keyword;});
+    if(!seg)seg=segs.find(function(s){return String(s.label||s.name||'').trim().indexOf(keyword)===0;});
+    if(!seg)return '';
+    var sd=String(seg.start_date||seg.date||'');
+    if(!sd)return '';
+    return normDate(sd.replace(/-/g,'/'))||sd;
+  }catch(e){return '';}
+}
+
 (function(){
   // FULL_DATESはDATAの広い範囲を使いつつ、動的日付範囲で補完（こちらはタブ・月数に依存しない固定範囲）
   var todayDt0=new Date(TODAY);
@@ -1354,6 +1488,25 @@ if(loadLS('jack_gantt_logic_ver','')!==GANTT_LOGIC_VERSION){
 var customGantt = {};  // キャッシュ使用せず常に空（getActiveSegsは直接計算）
 var myMasters   = loadLS('jack_my_masters', []);
 var propMaster  = loadLS('jack_prop_master', {});
+// ★新機能【最終更新バッジ】：前回の同期以降に更新された物件（fix_no→updated_at）を保持（2026/8/21 追加）
+var RECENTLY_UPDATED_FIXNOS = loadLS('jack_recent_updates', {});
+// ★新機能【仮工程／確定工程】：custKey(p)→「ここまで確定」の工程名。未設定＝従来通り全て確定扱い（2026/8/21 追加）
+var confirmedUntilMap = loadLS('jack_confirmed_until', {});
+// segs（getActiveSegs結果、テンプレ順）のうち、confirmedUntilMapの区切りより後ろの工程名をSetで返す。
+// 区切り未設定 or 区切り工程が見つからない場合は空Set（＝全て確定表示のまま、既存の見た目を変えない）
+function _tentativeStepSet(p, segs){
+  var res=new Set();
+  var ck=custKey(p);
+  var markLabel=confirmedUntilMap[ck];
+  if(!markLabel||!segs||!segs.length)return res;
+  var idx=segs.findIndex(function(s){return String(s.label||s.name||'').trim()===markLabel;});
+  if(idx<0)return res;
+  for(var i=idx+1;i<segs.length;i++){
+    var nm=String(segs[i].label||segs[i].name||'').trim();
+    if(nm)res.add(nm);
+  }
+  return res;
+}
 
 function isFav(p){return myFavProps.some(function(f){return f.fix_no===p.fix_no&&f.name===p.name;});}
 function addFav(p){if(!isFav(p)){myFavProps.push({fix_no:p.fix_no,name:p.name,area:p.area});saveLS('jack_myfavs',myFavProps);}}
@@ -2049,16 +2202,31 @@ function getProps() {
   } else if (currentStatus!=='all') {
     list=list.filter(function(p){return p.status===currentStatus;});
   }
-  // ①引渡し日順 ②同じ引渡し月内は基礎着工日順
+  // ①引渡し日順 ②同じ引渡し月内は基礎着工日順（★以前は確認申請完了日(confirm_done)を誤って使っていたバグを修正／2026/8/21）
+  //   SORT_MODEが'default'以外の場合は、指定した工程（基礎/土台/造作/内装）の開始日順に一時的に並べ替える
   list.sort(function(a,b){
+    if(SORT_MODE!=='default'){
+      var kw=SORT_MODE_KEYWORD[SORT_MODE];
+      var sa=_stepStartDate(a,kw)||'9999/99/99';
+      var sbx=_stepStartDate(b,kw)||'9999/99/99';
+      if(sa!==sbx)return sa<sbx?-1:1;
+      // 同日または未設定同士は、従来通り引渡し日順で安定させる
+      var da2=normDate(a.delivery_date||'')||'9999/99/99';
+      var db2=normDate(b.delivery_date||'')||'9999/99/99';
+      return da2<db2?-1:da2>db2?1:0;
+    }
     var da=normDate(a.delivery_date||'')||'9999/99/99';
     var db=normDate(b.delivery_date||'')||'9999/99/99';
     if(da!==db)return da<db?-1:1;
-    // 引渡し日が同じ場合は基礎着工日（confirm_done）で比較
-    var ca=normDate(a.confirm_done||'')||'9999/99/99';
-    var cb=normDate(b.confirm_done||'')||'9999/99/99';
-    return ca<cb?-1:ca>cb?1:0;
+    // 引渡し日が同じ場合は実際の基礎工程の開始日で比較
+    var fa=_stepStartDate(a,'基礎')||'9999/99/99';
+    var fb=_stepStartDate(b,'基礎')||'9999/99/99';
+    return fa<fb?-1:fa>fb?1:0;
   });
+  // ★一時選択表示：選択した物件だけに絞り込む
+  if(TEMP_FILTER_ACTIVE){
+    list=list.filter(function(p){return TEMP_SELECTED[custKey(p)];});
+  }
   return list;
 }
 function getAllProps(){
@@ -2609,6 +2777,8 @@ function setMode(pc){
   document.documentElement.style.setProperty('--freeze-w',fw+'px');
   _updateVendorBtns();
   _updateCalMonthsBtns();
+  _updateSortBtns();
+  _updateTempSelectBtns();
 
   // body.sp-modeクラスで全CSS制御
   if(pc){ document.body.classList.remove('sp-mode'); }
@@ -3040,6 +3210,8 @@ function renderBars(cv, p, segs, gx, top, rowH) {
 
   // ★バー位置・ラベル段(tier)を共通ヘルパーで計算（renderBody()の行高さ事前計算と同じ結果になる）
   var _layout=_gbComputeBarLayout(segs, gx);
+  // ★新機能【仮工程／確定工程】：区切りより後ろの工程はハッチング＋半透明で「仮」であることを示す
+  var _tentativeSet=_tentativeStepSet(p, segs);
   var barLayouts=_layout.barLayouts.map(function(bl){
     var bh = Math.max(Math.floor(barH*(bl.slot>0?0.75:1)),8);
     var by = barY + bl.slot*Math.floor(barH/3);
@@ -3057,10 +3229,16 @@ function renderBars(cv, p, segs, gx, top, rowH) {
     var swW=bl.minSwatch?MIN_SWATCH_W:bl.rw;
     var bar = document.createElement('div');
     bar.className='bar';
+    var _isTent=_tentativeSet.has(bl.lbl);
+    var _bg=_isTent
+      ?('repeating-linear-gradient(135deg,'+bl.color+' 0,'+bl.color+' 4px,rgba(255,255,255,.55) 4px,rgba(255,255,255,.55) 8px)')
+      :bl.color;
     bar.style.cssText='left:'+bl.rsPx+'px;top:'+bl.by+'px;width:'+swW+'px;height:'+bl.bh+'px;'
-      +'background:'+bl.color+';color:'+bl.tcolor+';font-size:7px;font-weight:800;'
-      +'border-radius:3px;z-index:'+bl.zIdx+';opacity:'+(bl.slot>0?'0.92':'1')+';'
+      +'background:'+_bg+';color:'+bl.tcolor+';font-size:7px;font-weight:800;'
+      +'border-radius:3px;z-index:'+bl.zIdx+';opacity:'+(_isTent?'0.6':(bl.slot>0?'0.92':'1'))+';'
+      +(_isTent?'border:1px dashed rgba(0,0,0,.35);':'')
       +(bl.isPartLeft?'border-left:2px dashed rgba(255,255,255,.6);':'');
+    if(_isTent)bar.title='仮工程（未確定）';
     // ★実際に文字が収まる幅かを見積もって判定（収まらない場合は必ず外側ラベルにする＝途中で切れる表示を防ぐ）
     if (bl.inline){
       bar.textContent=bl.lbl;
@@ -3239,6 +3417,19 @@ function renderBody(){
     //   優先されるようCSS側は!importantのため、こちらはインラインstyleで指定する。
     if(!p.gantt_is_manual)fr.style.background='#fef9c3';
     (function(pp){fr.onclick=function(){window.openDetail(pp);};})(p);
+    // ★新機能【一時選択表示】：一時選択モード中は行の左上にチェックボックスを重ねて表示する
+    if(TEMP_SELECT_MODE){
+      fr.style.position='relative';
+      var ck=custKey(p);
+      var cb=document.createElement('div');
+      var checked=!!TEMP_SELECTED[ck];
+      cb.textContent=checked?'☑':'☐';
+      cb.style.cssText='position:absolute;left:2px;top:2px;z-index:5;font-size:16px;line-height:1;cursor:pointer;color:'+(checked?'#1a56db':'#94a3b8')+';background:white;border-radius:4px;padding:1px;';
+      (function(ckKey,box){
+        box.onclick=function(e){e.stopPropagation();toggleTempSelected(ckKey);box.textContent=TEMP_SELECTED[ckKey]?'☑':'☐';box.style.color=TEMP_SELECTED[ckKey]?'#1a56db':'#94a3b8';};
+      })(ck,cb);
+      fr.appendChild(cb);
+    }
     activeFreezeC.forEach(function(c){
       var cell=document.createElement('div');cell.className='fc';
       cell.style.cssText='width:'+c.w+'px;min-width:'+c.w+'px;max-width:'+c.w+'px;height:'+rowH+'px;';
@@ -3269,7 +3460,12 @@ function renderBody(){
           :'';
         // 審査機関バッジ（ハウスプラス→ハウス／住宅センター→住宅セ、に省略）
         var shinsaBadge2=_shinsaBadgeAbbr(p.shinsa_kikan);
-        md.innerHTML=tantouBadge+shinsaBadge2+(isUrgent?'<span class="urg-pill">⚡'+days+'日</span>':'')+(fav?'<span style="font-size:9px">⭐</span>':'')+parkBadge2;
+        // ★新機能【最終更新バッジ】：前回の同期から更新された物件に🆕バッジを表示（2026/8/21）
+        var updBadge2='';
+        if(RECENTLY_UPDATED_FIXNOS&&RECENTLY_UPDATED_FIXNOS[String(p.fix_no||'')]){
+          updBadge2='<span style="font-size:9px;background:#16a34a;color:white;padding:1px 5px;border-radius:3px;font-weight:700" title="前回の同期から更新されました">🆕更新</span>';
+        }
+        md.innerHTML=tantouBadge+shinsaBadge2+updBadge2+(isUrgent?'<span class="urg-pill">⚡'+days+'日</span>':'')+(fav?'<span style="font-size:9px">⭐</span>':'')+parkBadge2;
         cell.appendChild(nd);cell.appendChild(md);
       } else if(c.key==='_vendorGrid'){
         cell.style.cssText+='flex-direction:column;align-items:flex-start;justify-content:center;padding:2px 3px;overflow:hidden;';
@@ -3349,6 +3545,8 @@ function renderBody(){
       cv.appendChild(el);postX+=c.w;
     });
   });
+  // ★一時選択モードの下部フローティングバーを最新の選択件数で更新
+  if(typeof _updateTempSelectBar==='function')_updateTempSelectBar();
   // ★ renderBody完了直後にscrollToToday（rAF2フレーム）
   requestAnimationFrame(function(){
     requestAnimationFrame(function(){
@@ -4614,6 +4812,14 @@ function geShowDelConfirm(idx,lbl){
 
 function geRenderSegList(){
   var el=document.getElementById('geSegList'); if(!el)return;
+  // ★新機能【仮工程／確定工程】：区切りセレクタをgeSegsの現在の並びで更新
+  var selEl=document.getElementById('geConfirmedUntilSel');
+  if(selEl&&currentProp){
+    var ck=custKey(currentProp);
+    var curMark=confirmedUntilMap[ck]||'';
+    selEl.innerHTML='<option value="">（未設定＝全て確定）</option>'
+      +geSegs.map(function(s){var lbl=s.label||'';return '<option value="'+lbl.replace(/"/g,'&quot;')+'"'+(lbl===curMark?' selected':'')+'>'+lbl+'</option>';}).join('');
+  }
   el.innerHTML=geSegs.map(function(s,i){
     var lbl=s.label||'';
     var locked=_geIsLockedRow(s);
@@ -4738,6 +4944,85 @@ function shiftGanttEdit(){
   geRenderBars(); showToast((days>=0?'+':'')+days+'日シフトしました','success');
 }
 window.shiftGanttEdit=shiftGanttEdit;
+
+// ★新機能【期間指定スライド】：遅延などが発生した期間（開始日〜終了日）を指定すると、
+//   その日数ぶんだけ、指定開始日以降の全工程を後ろにスライドする（2026/8/21 追加）。
+//   基礎大親ロジック（offsetFrom/offsetDaysで後続工程が基礎完了日を基準に配置される仕組み）との整合性：
+//   対象の全工程を「同じ日数」だけ一律にスライドするため、各工程どうしの相対的な日数の間隔（＝基礎完了日からの
+//   オフセット関係）は保たれる。したがって基礎工程を含めてスライドしても、後続工程との間隔は崩れない。
+//   指定開始日より前（＝スライド対象外）の工程は一切動かさない。
+function openSlideRangeDialog(){
+  var existing=document.getElementById('_slideRangeModal'); if(existing){existing.remove();return;}
+  var modal=document.createElement('div');
+  modal.id='_slideRangeModal';
+  modal.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:10000;display:flex;align-items:center;justify-content:center;';
+  modal.addEventListener('click',function(e){if(e.target===modal)modal.remove();});
+  var html='<div style="background:white;border-radius:16px;width:88%;max-width:340px;box-shadow:0 20px 60px rgba(0,0,0,.35);overflow:hidden">'
+    +'<div style="padding:14px 16px;background:linear-gradient(135deg,#6d28d9,#5b21b6);display:flex;align-items:center">'
+      +'<div style="flex:1;font-size:14px;font-weight:800;color:white">📆 期間指定スライド</div>'
+      +'<button onclick="document.getElementById(\'_slideRangeModal\').remove()" style="background:rgba(255,255,255,.2);color:white;border:none;border-radius:8px;padding:5px 10px;font-size:11px;cursor:pointer;font-weight:700">✕</button>'
+    +'</div>'
+    +'<div style="padding:12px 16px;font-size:11px;color:#64748b;line-height:1.7">'
+      +'雨天等で遅れた期間を指定すると、その日数ぶん、<b style="color:#1e293b">開始日以降の全工程</b>が後ろにスライドします。開始日より前の工程は動きません。'
+    +'</div>'
+    +'<div style="padding:0 16px 12px;display:flex;flex-direction:column;gap:8px">'
+      +'<label style="font-size:11px;font-weight:700;color:#334155">開始日<input type="date" id="slideRangeStart" style="width:100%;padding:8px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:13px;margin-top:2px;box-sizing:border-box"></label>'
+      +'<label style="font-size:11px;font-weight:700;color:#334155">終了日<input type="date" id="slideRangeEnd" style="width:100%;padding:8px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:13px;margin-top:2px;box-sizing:border-box"></label>'
+    +'</div>'
+    +'<div style="padding:0 16px 16px">'
+      +'<button onclick="applySlideRange()" style="width:100%;padding:12px;background:#6d28d9;color:white;border:none;border-radius:10px;font-size:13px;font-weight:800;cursor:pointer">この期間分スライドする</button>'
+    +'</div>'
+  +'</div>';
+  modal.innerHTML=html;
+  document.body.appendChild(modal);
+}
+function applySlideRange(){
+  var sv=document.getElementById('slideRangeStart').value;
+  var ev=document.getElementById('slideRangeEnd').value;
+  if(!sv||!ev){showToast('開始日と終了日を入力してください','error');return;}
+  var sd=new Date(sv), ed=new Date(ev);
+  if(ed<sd){showToast('終了日は開始日以降にしてください','error');return;}
+  var shiftDays=Math.round((ed-sd)/86400000)+1; // 期間の日数（両端含む）
+  var count=0;
+  geSegs=geSegs.map(function(s){
+    var ssd=s.start_date||s.date||''; if(!ssd)return s;
+    var segStart=new Date(ssd);
+    if(segStart<sd)return s; // 指定開始日より前の工程は動かさない
+    count++;
+    var newStart=new Date(segStart); newStart.setDate(newStart.getDate()+shiftDays);
+    var ns=localDateStr(newStart);
+    var oldEndStr=s.end_date||'';
+    var ne=ns;
+    if(oldEndStr){
+      var oldEnd=new Date(oldEndStr);
+      var newEnd=new Date(oldEnd); newEnd.setDate(newEnd.getDate()+shiftDays);
+      ne=localDateStr(newEnd);
+    }
+    return Object.assign({},s,{start_date:ns,date:ns,end_date:ne});
+  });
+  var m=document.getElementById('_slideRangeModal'); if(m)m.remove();
+  geRenderBars();
+  showToast(count+'件の工程を'+shiftDays+'日スライドしました（画面左の「💾 保存」を押すまでは確定しません）','success');
+}
+window.openSlideRangeDialog=openSlideRangeDialog;
+window.applySlideRange=applySlideRange;
+
+// ★新機能【仮工程／確定工程】：選択した工程より後ろを「仮工程」としてマークする（2026/8/21 追加）
+//   保存はcustomGanttとは別のローカル設定（jack_confirmed_until）に持たせ、大工程画面(renderBars)の
+//   バー描画でハッチング表示に反映する。マスター/手動編集どちらのsegsに対しても、工程名(label)で照合するため
+//   工程を編集・入替してもズレにくい（ただし同名工程が無くなった場合はマークが無効化＝全て確定表示に戻る）。
+function applyConfirmedUntil(){
+  if(!currentProp){return;}
+  var selEl=document.getElementById('geConfirmedUntilSel');
+  if(!selEl)return;
+  var ck=custKey(currentProp);
+  var v=selEl.value;
+  if(v){confirmedUntilMap[ck]=v;} else {delete confirmedUntilMap[ck];}
+  saveLS('jack_confirmed_until',confirmedUntilMap);
+  renderBody(); if(typeof renderMyPage==='function')renderMyPage();
+  showToast(v?('「'+v+'」まで確定・それ以降は仮工程表示にしました'):'確定区切りを解除しました（全て確定表示）','success');
+}
+window.applyConfirmedUntil=applyConfirmedUntil;
 
 function saveGanttEdit(){
   if(!currentProp)return;
@@ -8483,10 +8768,36 @@ async function loadPropertiesFromCacheOrDB(forceRefresh){
     }catch(e){}
   }
   // Supabaseから取得してキャッシュ保存
+  // ★新機能【最終更新バッジ】：上書きする前に、前回キャッシュのupdated_atを退避しておき、
+  //   今回取得したデータと突き合わせて「前回の同期から更新された物件」を検出する（2026/8/21）
+  var oldTsMap={};
+  try{
+    var oldCached=localStorage.getItem(PROPS_CACHE_KEY);
+    if(oldCached){
+      var oldParsed=JSON.parse(oldCached);
+      if(oldParsed&&oldParsed.length){
+        oldParsed.forEach(function(op){if(op&&op.fix_no)oldTsMap[String(op.fix_no)]=op.updated_at||'';});
+      }
+    }
+  }catch(e){}
   // 軽量カラムのみ取得（custom_ganttは重いため除外→別途取得）
   var pr=await sb.from('properties').select('id,fix_no,seq_no,name,area,status,hand_kumi,tantou,delivery_date,delivery_month,land_contract,land_payment,confirm_submit,confirm_done,inspection_date,complete_date,haikin_date,haikin_status,kutai_date,kutai_status,dannetsu_date,dannetsu_status,inspection_status,shinsa_kikan,address,parkings,prop_master,gantt_is_manual,movein_date,movein_date_source,updated_at').order('fix_no');
   if(!pr.error&&pr.data&&pr.data.length>0){
     DB_PROPS=pr.data;
+    // ★前回キャッシュが存在する場合のみ差分判定（初回取得時は全件「更新扱い」にしない）
+    try{
+      var hadOldData=Object.keys(oldTsMap).length>0;
+      var changed={};
+      if(hadOldData){
+        pr.data.forEach(function(np){
+          var fn=String(np.fix_no||''); if(!fn)return;
+          var oldTs=oldTsMap[fn];
+          if(oldTs!==undefined && np.updated_at && np.updated_at!==oldTs){changed[fn]=np.updated_at;}
+        });
+      }
+      RECENTLY_UPDATED_FIXNOS=changed;
+      saveLS('jack_recent_updates',changed);
+    }catch(e){}
     try{
       localStorage.setItem(PROPS_CACHE_KEY, JSON.stringify(pr.data));
       var now=new Date();
@@ -8731,7 +9042,7 @@ function openSettings(){
         +'<div style="padding:10px 14px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid #f1f5f9">'
           +'<span style="font-size:11px;color:#64748b">最終同期</span><span style="font-size:11.5px;font-weight:700;color:#1e293b;font-family:var(--mono)">'+last+'</span>'
         +'</div>'
-        +'<div style="padding:10px 14px"><button class="btn-primary" style="width:100%" onclick="doSync();document.getElementById(\'_settingsModal\').remove()">🔄 今すぐ同期</button></div>'
+        +'<div style="padding:10px 14px"><button class="btn-primary" style="width:100%" onclick="doSyncFull();document.getElementById(\'_settingsModal\').remove()">🔄 今すぐ同期</button></div>'
       +'</div>'
       // キャッシュリセット（わかりやすく再設計）
       +'<div style="background:white;border:1px solid #e2e8f0;border-radius:12px;overflow:hidden;margin-bottom:14px">'
