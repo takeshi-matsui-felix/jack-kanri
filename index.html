@@ -7905,6 +7905,17 @@ function _saveMasterToSupabase(master, cb){
 }
 window._saveMasterToSupabase=_saveMasterToSupabase;
 
+// マスター工程をSupabaseのmastersテーブルから削除（name一致で削除）
+//   ★以前はローカルの一覧から消すだけでSupabase側は残ったままだったため、
+//     次回同期時に削除したはずのマスターが復活してしまう不具合があった（2026/8/21 統合対応時に修正）。
+function _deleteMasterFromSupabase(name, cb){
+  var sb=getSB(); if(!sb){if(cb)cb(false);return;}
+  sb.from('masters').delete().eq('name',name)
+    .then(function(r){if(cb)cb(!r.error);})
+    .catch(function(){if(cb)cb(false);});
+}
+window._deleteMasterFromSupabase=_deleteMasterFromSupabase;
+
 // Supabaseからmastersテーブルを読み込んでLocalStorageと同期
 async function _loadMastersFromDB(forceRefresh){
   // キャッシュがある場合はそれを使用、なければ取得しない（forceRefresh時のみ取得）
@@ -7952,11 +7963,15 @@ function renameMaster(idx){
 window.renameMaster=renameMaster;
 
 function deleteMaster(idx){
-  if(!confirm(myMasters[idx].name+'を削除しますか？'))return;
+  var m=myMasters[idx]; if(!m)return;
+  if(!confirm(m.name+'を削除しますか？'))return;
+  var deletedName=m.name;
   myMasters.splice(idx,1);
   saveLS('jack_my_masters',myMasters);
   renderMasterPanel();
   showToast('削除しました','');
+  // ★Supabase側のmastersテーブルからも削除（残したままだと次回同期で復活してしまう）
+  _deleteMasterFromSupabase(deletedName,function(){});
 }
 
 function assignMasterToProps(mi){
@@ -12177,8 +12192,14 @@ function admShowMasterSummary(){
       anomalies.push({p:p,reason:'エリアは'+area+'だが、該当するマスターが見つからない'});
     }
   });
+  var masterNameList=Object.keys(counts).filter(function(k){return k!=='（紐付けなし）';});
   var countRows=Object.keys(counts).sort(function(a,b){return counts[b]-counts[a];})
-    .map(function(k){return '<div style="display:flex;justify-content:space-between;padding:7px 0;border-bottom:1px solid #f1f5f9;font-size:12px"><span style="font-weight:700;color:#1e293b">'+k+'</span><span style="color:#64748b;font-weight:700">'+counts[k]+'件</span></div>';}).join('');
+    .map(function(k){
+      var mergeBtn=(k!=='（紐付けなし）'&&masterNameList.length>1)
+        ?'<button onclick="admOpenMergeMasterPicker(\''+k.replace(/'/g,"\\'")+'\','+counts[k]+')" style="font-size:9px;background:#ede9fe;color:#6d28d9;padding:2px 7px;border-radius:5px;font-weight:700;border:none;cursor:pointer;margin-left:8px;white-space:nowrap">🔀 統合</button>'
+        :'';
+      return '<div style="display:flex;justify-content:space-between;align-items:center;padding:7px 0;border-bottom:1px solid #f1f5f9;font-size:12px"><span style="font-weight:700;color:#1e293b">'+k+'</span><span style="display:flex;align-items:center"><span style="color:#64748b;font-weight:700">'+counts[k]+'件</span>'+mergeBtn+'</span></div>';
+    }).join('');
   var anomalyRows=anomalies.length
     ?anomalies.map(function(a){return '<div style="padding:7px 0;border-bottom:1px solid #f1f5f9;font-size:11px"><span style="font-family:monospace;background:#1e293b;color:white;padding:1px 5px;border-radius:4px;margin-right:6px">'+(a.p.fix_no||'')+'</span>'+(a.p.name||'')+'<div style="color:#dc2626;font-size:10px;margin-top:2px">⚠️ '+a.reason+'</div></div>';}).join('')
     :'<div style="padding:10px 0;color:#94a3b8;font-size:11px">異常なし（全物件で紐付け結果が得られています）</div>';
@@ -12201,6 +12222,86 @@ function admShowMasterSummary(){
   document.body.appendChild(modal);
 }
 window.admShowMasterSummary=admShowMasterSummary;
+
+// ★新機能【マスター統合】：内容が同じ・重複したマスター工程を1本にまとめる（2026/8/21 指摘対応）
+//   統合元(source)に紐付いている物件を全て統合先(target)へ付け替え、統合元マスター自体を削除する。
+function admOpenMergeMasterPicker(sourceName, count){
+  var all=(window._admAllProps&&window._admAllProps.length)?window._admAllProps:(DB_PROPS||[]);
+  var counts={};
+  all.forEach(function(p){var k=_resolvePropMasterName(p)||'（紐付けなし）';counts[k]=(counts[k]||0)+1;});
+  var targets=Object.keys(counts).filter(function(k){return k!==sourceName&&k!=='（紐付けなし）';});
+  if(!targets.length){showToast('統合先にできる他のマスターがありません','error');return;}
+  var existing=document.getElementById('_mergeMasterModal');if(existing)existing.remove();
+  var modal=document.createElement('div');
+  modal.id='_mergeMasterModal';
+  modal.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:10000;display:flex;align-items:center;justify-content:center;';
+  modal.addEventListener('click',function(e){if(e.target===modal)modal.remove();});
+  var html='<div style="background:white;border-radius:16px;width:88%;max-width:380px;box-shadow:0 20px 60px rgba(0,0,0,.35);overflow:hidden">'
+    +'<div style="padding:14px 16px;background:linear-gradient(135deg,#6d28d9,#5b21b6);display:flex;align-items:center">'
+      +'<div style="flex:1;font-size:14px;font-weight:800;color:white">🔀 マスターを統合</div>'
+      +'<button onclick="document.getElementById(\'_mergeMasterModal\').remove()" style="background:rgba(255,255,255,.2);color:white;border:none;border-radius:8px;padding:5px 10px;font-size:11px;cursor:pointer;font-weight:700">✕</button>'
+    +'</div>'
+    +'<div style="padding:12px 16px;font-size:11px;color:#64748b;line-height:1.7">'
+      +'「<b style="color:#1e293b">'+sourceName+'</b>」（'+count+'件）に紐付いている物件を、下で選ぶマスターへまとめて付け替えます。<br>'
+      +'<span style="color:#dc2626;font-weight:700">「'+sourceName+'」自体は統合後に削除されます。</span>この操作は元に戻せません。'
+    +'</div>'
+    +'<div style="padding:0 16px 16px;display:flex;flex-direction:column;gap:8px">'
+    +targets.map(function(t){
+      return '<button onclick="admMergeMaster(\''+sourceName.replace(/'/g,"\\'")+'\',\''+t.replace(/'/g,"\\'")+'\')" style="width:100%;padding:12px;background:#f1f5f9;color:#334155;border:2px solid #e2e8f0;border-radius:10px;font-size:13px;font-weight:800;cursor:pointer;text-align:left">→ '+t+'（'+counts[t]+'件）に統合</button>';
+    }).join('')
+    +'</div>'
+  +'</div>';
+  modal.innerHTML=html;
+  document.body.appendChild(modal);
+}
+window.admOpenMergeMasterPicker=admOpenMergeMasterPicker;
+
+async function admMergeMaster(sourceName, targetName){
+  var pickerModal=document.getElementById('_mergeMasterModal');if(pickerModal)pickerModal.remove();
+  if(!confirm('「'+sourceName+'」を「'+targetName+'」に統合します。\n対象物件の紐付けを一括で付け替え、「'+sourceName+'」は削除されます。\n\nよろしいですか？'))return;
+
+  showToast('🔀 統合中…','');
+  var all=(window._admAllProps&&window._admAllProps.length)?window._admAllProps:(DB_PROPS||[]);
+  // ★「紐付けなし（エリア自動選択）」の物件は対象外。あくまで明示的に sourceName が
+  //   紐付けられている物件（DB_PROPS.prop_master or ローカルpropMaster）だけを付け替える。
+  var targets=all.filter(function(p){return _resolvePropMasterName(p)===sourceName;});
+
+  try{
+    // ①ローカル（propMaster・DB_PROPS）を更新
+    targets.forEach(function(p){
+      propMaster[custKey(p)]=targetName;
+      if(typeof DB_PROPS!=='undefined'&&DB_PROPS){
+        var dbp=DB_PROPS.find(function(dp){return String(dp.fix_no)===String(p.fix_no)&&dp.name===p.name;});
+        if(dbp)dbp.prop_master=targetName;
+      }
+    });
+    saveLS('jack_prop_master',propMaster);
+
+    // ②Supabase側 properties.prop_master を一括更新
+    var sb=getSB();
+    var isAdm=(currentProfile&&(currentProfile.role==='admin'||currentProfile.is_admin===true));
+    if(sb&&isAdm){
+      for(var i=0;i<targets.length;i++){
+        var pp=targets[i];
+        await sb.from('properties').update({prop_master:targetName}).eq('fix_no',pp.fix_no).eq('name',pp.name);
+      }
+    }
+
+    // ③統合元マスターを削除（ローカル＋Supabase）
+    var srcIdx=myMasters.findIndex(function(m){return m.name===sourceName;});
+    if(srcIdx>=0){myMasters.splice(srcIdx,1);saveLS('jack_my_masters',myMasters);}
+    if(sb&&isAdm)await new Promise(function(resolve){_deleteMasterFromSupabase(sourceName,function(){resolve();});});
+
+    renderBody(); if(typeof renderMyPage==='function')renderMyPage(); if(typeof renderMasterPanel==='function')renderMasterPanel();
+    var summaryModal=document.getElementById('_msModal');if(summaryModal)summaryModal.remove();
+
+    showToast('✅ '+targets.length+'件を「'+targetName+'」に統合し、「'+sourceName+'」を削除しました'+(sb&&isAdm?'（DB保存済み）':'（ローカルのみ）'),'success');
+    admShowMasterSummary();
+  }catch(e){
+    showToast('統合中にエラーが発生しました: '+e.message,'error');
+  }
+}
+window.admMergeMaster=admMergeMaster;
 
 // 物件カード用ステータスバッジ（担当者・現場住所・駐車場情報を常時表示）
 function admStatusBadges(p){
