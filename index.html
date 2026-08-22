@@ -1690,7 +1690,13 @@ function _normalizeTmplSteps(steps){
   return result;
 }
 
-function computeMasterSegs(confirmDoneStr, template, handKumi, masterName) {
+// ★新機能【造成/地盤の起点修正】：以前は全工程が確認申請完了日(confirm_done)起点の連鎖だったため、
+//   土地決済(land_payment)より前に確認申請が終わっている物件で「土地決済前に造成が始まる」という
+//   おかしな表示になっていた（2026/8/21 指摘対応）。
+//   ・造成：土地決済日のみを起点にする（確認申請完了日は見ない）
+//   ・地盤（造成の次工程）：土地決済日・確認申請完了日のうち「遅い方」を基準にする
+//   ・基礎以降：従来通り（地盤の連鎖・基礎完了日からのoffsetFrom）変更なし
+function computeMasterSegs(confirmDoneStr, template, handKumi, masterName, landPaymentStr) {
   if (!confirmDoneStr || !String(confirmDoneStr).match(/\d{4}/)) return [];
   var isHandKumi = !!(handKumi && (
     String(handKumi).indexOf('〇')>=0 ||
@@ -1704,9 +1710,18 @@ function computeMasterSegs(confirmDoneStr, template, handKumi, masterName) {
   cd=cd.replace(/\//g,'-').split(' ')[0];
   if(!cd.match(/^\d{4}-\d{2}-\d{2}$/))return [];
 
+  var lp='';
+  if(landPaymentStr){
+    var rawLp=String(landPaymentStr);
+    lp=(typeof normDate==='function'?normDate(rawLp):rawLp)||rawLp;
+    lp=lp.replace(/\//g,'-').split(' ')[0];
+    if(!lp.match(/^\d{4}-\d{2}-\d{2}$/))lp='';
+  }
+
   var segs=[];
   var prevEnd=cd;      // 前工程の終了日（順次連鎖用）
   var kisoEndDate='';  // ★基礎完了日（大親）: 基礎stepが処理されたら記録
+  var soseiHandled=false; // ★造成工程を処理済みか（地盤の遅い方判定に使う）
 
   for(var ti=0;ti<tmpl.length;ti++){
     var step=tmpl[ti];
@@ -1719,9 +1734,18 @@ function computeMasterSegs(confirmDoneStr, template, handKumi, masterName) {
       // ★基礎完了日からのオフセットで固定配置
       var od=step.offsetDays;
       startDate=od>0?addWorkdays(kisoEndDate,od):kisoEndDate;
+    } else if(nm==='造成'&&lp){
+      // ★造成：確認申請完了日は見ず、土地決済日のみを起点にする
+      startDate=addWorkdays(lp,1);
+      soseiHandled=true;
     } else {
       // 前工程終了の翌稼働日から（造成・地盤・基礎は順次連鎖）
       startDate=addWorkdays(prevEnd,1);
+      // ★地盤（造成の直後の工程）：土地決済日・確認申請完了日のうち「遅い方」以降になるよう補正
+      if(soseiHandled&&nm==='地盤'){
+        soseiHandled=false; // 地盤で一度だけ判定（以降の工程には影響させない）
+        if(cd>startDate)startDate=cd;
+      }
     }
 
     // 日曜スキップ
@@ -2098,21 +2122,12 @@ function _getActiveSegsRaw(p) {
 
   // ⑤ confirm_doneがあればマスターから計算
   // ⑤ confirm_doneがあればマスターから計算（tmplStepsを正規化してからcomputeMasterSegsに渡す）
+  //   ★造成/地盤の起点ロジックはcomputeMasterSegs内部で統一対応済み（土地決済日を渡すだけでよい）。
+  //     以前は関東エリアのみ「土地決済と確認申請完了の遅い方＋4稼働日」で全体を底上げしていたが、
+  //     全エリア共通で「造成＝土地決済起点／地盤＝遅い方が基準」に統一した（2026/8/21）。
   if(hasCd){
     var normalizedSteps=_normalizeTmplSteps(tmplSteps);
-    var soseStart=cd;
-    var area5=normalizeArea(p);
-    if(KANTO_AREAS.indexOf(area5)>=0){
-      var lp5=normDate(p.land_payment||'')||'';
-      if(lp5){
-        var base5=cd>=lp5?cd:lp5;
-        soseStart=addWorkdays(base5,4);
-        var sdt5=new Date(soseStart.replace(/[/]/g,'-'));
-        while(sdt5.getDay()===0)sdt5.setDate(sdt5.getDate()+1);
-        soseStart=localDateStr(sdt5);
-      }
-    }
-    return computeMasterSegs(soseStart,normalizedSteps,p.hand_kumi,masterName);
+    return computeMasterSegs(cd,normalizedSteps,p.hand_kumi,masterName,p.land_payment||'');
   }
 
   // ⑥ confirm_doneなし → セグメントデータにフォールバック
@@ -3460,10 +3475,13 @@ function renderBody(){
           :'';
         // 審査機関バッジ（ハウスプラス→ハウス／住宅センター→住宅セ、に省略）
         var shinsaBadge2=_shinsaBadgeAbbr(p.shinsa_kikan);
-        // ★新機能【最終更新バッジ】：前回の同期から更新された物件に🆕バッジを表示（2026/8/21）
+        // ★新機能【最終更新バッジ】：本日更新された物件に🆕バッジを表示。タップすると更新日時をトースト表示（2026/8/21）
         var updBadge2='';
-        if(RECENTLY_UPDATED_FIXNOS&&RECENTLY_UPDATED_FIXNOS[String(p.fix_no||'')]){
-          updBadge2='<span style="font-size:9px;background:#16a34a;color:white;padding:1px 5px;border-radius:3px;font-weight:700" title="前回の同期から更新されました">🆕更新</span>';
+        var updTsRaw=RECENTLY_UPDATED_FIXNOS&&RECENTLY_UPDATED_FIXNOS[String(p.fix_no||'')];
+        if(updTsRaw){
+          var updD=new Date(updTsRaw);
+          var updLabel=(updD.getMonth()+1)+'/'+updD.getDate()+' '+updD.getHours()+':'+('0'+updD.getMinutes()).slice(-2);
+          updBadge2='<span onclick="event.stopPropagation();showToast(\'🕒 最終更新: '+updLabel+'\',\'\')" style="font-size:9px;background:#16a34a;color:white;padding:1px 5px;border-radius:3px;font-weight:700;cursor:pointer" title="タップで更新日時を表示">🆕更新</span>';
         }
         md.innerHTML=tantouBadge+shinsaBadge2+updBadge2+(isUrgent?'<span class="urg-pill">⚡'+days+'日</span>':'')+(fav?'<span style="font-size:9px">⭐</span>':'')+parkBadge2;
         cell.appendChild(nd);cell.appendChild(md);
@@ -4976,33 +4994,49 @@ function openSlideRangeDialog(){
   modal.innerHTML=html;
   document.body.appendChild(modal);
 }
+// 純粋なカレンダー日付をY/M/Dで組み立てる（'2026-08-09'のようなISO文字列をnew Date()に渡すとUTC解釈され、
+//   タイムゾールによっては日付がずれる／曜日判定が変わることがあるため、必ず年月日を分解して構築する）
+function _ymdLocal(str){
+  if(!str)return null;
+  var s=String(str).replace(/\//g,'-').split(' ')[0];
+  var m=s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
+  if(!m)return null;
+  return new Date(parseInt(m[1],10), parseInt(m[2],10)-1, parseInt(m[3],10));
+}
 function applySlideRange(){
   var sv=document.getElementById('slideRangeStart').value;
   var ev=document.getElementById('slideRangeEnd').value;
   if(!sv||!ev){showToast('開始日と終了日を入力してください','error');return;}
-  var sd=new Date(sv), ed=new Date(ev);
+  var sd=_ymdLocal(sv), ed=_ymdLocal(ev);
+  if(!sd||!ed){showToast('日付の形式が正しくありません','error');return;}
   if(ed<sd){showToast('終了日は開始日以降にしてください','error');return;}
+  // ★純粋なカレンダー日数（日曜休工ロジックは一切使わない：ご指摘により2026/8/21 修正）
   var shiftDays=Math.round((ed-sd)/86400000)+1; // 期間の日数（両端含む）
   var count=0;
   geSegs=geSegs.map(function(s){
     var ssd=s.start_date||s.date||''; if(!ssd)return s;
-    var segStart=new Date(ssd);
+    var segStart=_ymdLocal(ssd); if(!segStart)return s;
     if(segStart<sd)return s; // 指定開始日より前の工程は動かさない
     count++;
-    var newStart=new Date(segStart); newStart.setDate(newStart.getDate()+shiftDays);
+    var newStart=new Date(segStart.getTime()); newStart.setDate(newStart.getDate()+shiftDays);
     var ns=localDateStr(newStart);
     var oldEndStr=s.end_date||'';
     var ne=ns;
     if(oldEndStr){
-      var oldEnd=new Date(oldEndStr);
-      var newEnd=new Date(oldEnd); newEnd.setDate(newEnd.getDate()+shiftDays);
-      ne=localDateStr(newEnd);
+      var oldEnd=_ymdLocal(oldEndStr);
+      if(oldEnd){
+        var newEnd=new Date(oldEnd.getTime()); newEnd.setDate(newEnd.getDate()+shiftDays);
+        ne=localDateStr(newEnd);
+      }
     }
-    return Object.assign({},s,{start_date:ns,date:ns,end_date:ne});
+    // ★スライドした工程は、以後どの画面でも「基礎完了+n稼働日」等のオフセット計算で再解釈されないよう、
+    //   offsetFrom/offsetDaysを解除して絶対日付（このstart_date/end_dateそのもの）として確定させる。
+    //   これにより日曜休工ロジック（addWorkdays系）が後から混ざり込む余地を断つ。
+    return Object.assign({},s,{start_date:ns,date:ns,end_date:ne,offsetFrom:'',offsetDays:0});
   });
   var m=document.getElementById('_slideRangeModal'); if(m)m.remove();
   geRenderBars();
-  showToast(count+'件の工程を'+shiftDays+'日スライドしました（画面左の「💾 保存」を押すまでは確定しません）','success');
+  showToast(count+'件の工程を'+shiftDays+'日スライドしました（カレンダー日数・日曜休工ロジックなし／画面左の「💾 保存」を押すまでは確定しません）','success');
 }
 window.openSlideRangeDialog=openSlideRangeDialog;
 window.applySlideRange=applySlideRange;
@@ -8768,35 +8802,23 @@ async function loadPropertiesFromCacheOrDB(forceRefresh){
     }catch(e){}
   }
   // Supabaseから取得してキャッシュ保存
-  // ★新機能【最終更新バッジ】：上書きする前に、前回キャッシュのupdated_atを退避しておき、
-  //   今回取得したデータと突き合わせて「前回の同期から更新された物件」を検出する（2026/8/21）
-  var oldTsMap={};
-  try{
-    var oldCached=localStorage.getItem(PROPS_CACHE_KEY);
-    if(oldCached){
-      var oldParsed=JSON.parse(oldCached);
-      if(oldParsed&&oldParsed.length){
-        oldParsed.forEach(function(op){if(op&&op.fix_no)oldTsMap[String(op.fix_no)]=op.updated_at||'';});
-      }
-    }
-  }catch(e){}
   // 軽量カラムのみ取得（custom_ganttは重いため除外→別途取得）
   var pr=await sb.from('properties').select('id,fix_no,seq_no,name,area,status,hand_kumi,tantou,delivery_date,delivery_month,land_contract,land_payment,confirm_submit,confirm_done,inspection_date,complete_date,haikin_date,haikin_status,kutai_date,kutai_status,dannetsu_date,dannetsu_status,inspection_status,shinsa_kikan,address,parkings,prop_master,gantt_is_manual,movein_date,movein_date_source,updated_at').order('fix_no');
   if(!pr.error&&pr.data&&pr.data.length>0){
     DB_PROPS=pr.data;
-    // ★前回キャッシュが存在する場合のみ差分判定（初回取得時は全件「更新扱い」にしない）
+    // ★新機能【最終更新バッジ】：以前は「前回キャッシュとの差分」で判定していたが、DB側の何らかの
+    //   要因で全件のupdated_atが一律で変わってしまい「全物件にバッジが付く」不具合が発生したため撤去。
+    //   代わりに単純に「本日中に更新されたか」で判定するシンプルな方式に変更（2026/8/21）。
     try{
-      var hadOldData=Object.keys(oldTsMap).length>0;
-      var changed={};
-      if(hadOldData){
-        pr.data.forEach(function(np){
-          var fn=String(np.fix_no||''); if(!fn)return;
-          var oldTs=oldTsMap[fn];
-          if(oldTs!==undefined && np.updated_at && np.updated_at!==oldTs){changed[fn]=np.updated_at;}
-        });
-      }
-      RECENTLY_UPDATED_FIXNOS=changed;
-      saveLS('jack_recent_updates',changed);
+      var todayMap={};
+      pr.data.forEach(function(np){
+        var fn=String(np.fix_no||''); if(!fn||!np.updated_at)return;
+        var d=new Date(np.updated_at);
+        var localYmd=d.getFullYear()+'-'+('0'+(d.getMonth()+1)).slice(-2)+'-'+('0'+d.getDate()).slice(-2);
+        if(localYmd===TODAY.replace(/\//g,'-'))todayMap[fn]=np.updated_at;
+      });
+      RECENTLY_UPDATED_FIXNOS=todayMap;
+      saveLS('jack_recent_updates',todayMap);
     }catch(e){}
     try{
       localStorage.setItem(PROPS_CACHE_KEY, JSON.stringify(pr.data));
@@ -12419,20 +12441,9 @@ async function admSyncNewMasterSteps(){
     }).map(function(st){return st.name||st.label;});
     if(!newStepNames.length)continue; // 新規項目なし→対象外
 
-    // ★マスター全体をこの物件の確認完了日で再計算し、新規項目の初期配置日を算出する
-    var soseStart=cd;
-    var area5=normalizeArea(p);
-    if(KANTO_AREAS.indexOf(area5)>=0){
-      var lp5=normDate(p.land_payment||'')||'';
-      if(lp5){
-        var base5=cd>=lp5?cd:lp5;
-        soseStart=addWorkdays(base5,4);
-        var sdt5=new Date(soseStart.replace(/[/]/g,'-'));
-        while(sdt5.getDay()===0)sdt5.setDate(sdt5.getDate()+1);
-        soseStart=localDateStr(sdt5);
-      }
-    }
-    var freshSegs=computeMasterSegs(soseStart,normalizedSteps,p.hand_kumi,masterName);
+    // ★マスター全体をこの物件の確認完了日・土地決済日で再計算し、新規項目の初期配置日を算出する
+    //   （造成/地盤の起点ロジックはcomputeMasterSegs内部に統一済み。2026/8/21）
+    var freshSegs=computeMasterSegs(cd,normalizedSteps,p.hand_kumi,masterName,p.land_payment||'');
     if(!freshSegs||!freshSegs.length)continue;
 
     // ★マージ：既存工程（手動調整済み）はそのまま維持し、新規工程だけマスターの初期計算値を採用
