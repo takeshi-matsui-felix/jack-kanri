@@ -2012,7 +2012,10 @@ var DELIVERY_GANTT_LINK=[
   {deliveryId:2, rowName:'①レッカー'},
   {deliveryId:4, rowName:'②レッカー'},
   {deliveryId:7, rowName:'③レッカー'},
-  {deliveryId:11,rowName:'④レッカー'}
+  {deliveryId:11,rowName:'④レッカー'},
+  // ★新機能【東海：防蟻＝③レッカー連動】：防蟻の開始日を③レッカーの納品日と同じにし、
+  //   防蟻より後ろの工程も同じ日数分だけ自動でスライドする（cascade:true）。東海エリアのみ適用（2026/8/22 追加）。
+  {deliveryId:7, rowName:'防蟻', cascade:true, areaOnly:'TOKAI'}
 ];
 var DELIVERY_LINKED_ROW_NAMES=DELIVERY_GANTT_LINK.map(function(l){return l.rowName;});
 function _isDeliveryLinkedRow(seg){
@@ -2028,7 +2031,10 @@ function _applyDeliveryGanttLink(p,segs){
   if(!dn||!dn.base_date)return segs;
   var overrideMap={};
   var found=false;
+  var areaG=(typeof normalizeArea==='function')?normalizeArea(p):'';
+  var isTokaiG=(typeof TOKAI_AREAS!=='undefined')&&TOKAI_AREAS.indexOf(areaG)>=0;
   DELIVERY_GANTT_LINK.forEach(function(link){
+    if(link.areaOnly==='TOKAI'&&!isTokaiG)return; // ★エリア限定リンク（防蟻＝③レッカーは東海のみ）
     var m=DELIVERY_MASTER.find(function(x){return x.id===link.deliveryId;});
     if(!m)return;
     var dateStr=_deliveryItemDate(dn,m); // 'YYYY-MM-DD'
@@ -2048,6 +2054,28 @@ function _applyDeliveryGanttLink(p,segs){
     newEdDate.setDate(newEdDate.getDate()+durDays-1);
     var newEd=_dkey(newEdDate);
     overrideMap[idx]=Object.assign({},seg,{start_date:dateStr,date:dateStr,end_date:newEd});
+
+    // ★新機能【カスケード連動】：防蟻など cascade:true の工程は、後続の工程も同じ日数だけスライド表示する
+    //   （非破壊：あくまで表示時オーバーライド。customGanttの実データは書き換えない）
+    if(link.cascade&&origSd){
+      var deltaDays=Math.round((new Date(dateStr+'T00:00:00')-new Date(origSd+'T00:00:00'))/86400000);
+      if(deltaDays!==0){
+        for(var j=idx+1;j<segs.length;j++){
+          var s2=segs[j];
+          if(_isDeliveryLinkedRow(s2))continue; // 他の納品書リンク行は対象外（重複調整を防ぐ）
+          var sd2=(s2.start_date||s2.date||'').replace(/\//g,'-');
+          if(!sd2)continue;
+          var ed2=(s2.end_date||sd2).replace(/\//g,'-');
+          var nsd2=new Date(sd2+'T00:00:00'); nsd2.setDate(nsd2.getDate()+deltaDays);
+          var ned2str=_dkey(nsd2);
+          if(ed2){
+            var ned2=new Date(ed2+'T00:00:00'); ned2.setDate(ned2.getDate()+deltaDays);
+            ned2str=_dkey(ned2);
+          }
+          overrideMap[j]=Object.assign({},overrideMap[j]||s2,{start_date:_dkey(nsd2),date:_dkey(nsd2),end_date:ned2str});
+        }
+      }
+    }
   });
   if(!found)return segs;
   return segs.map(function(s,i){return overrideMap[i]?overrideMap[i]:s;});
@@ -3824,6 +3852,25 @@ function _deliveryRenderRows(rows,startRowIndex,ROW_H){
 //   ガント本体（コンパクト行・複数行）の中身だけを差し替える（外側のタブごと入れ替えない）2026/8/7
 function _refreshDetailGanttBadges(p){
   if(typeof buildGanttTab!=='function')return;
+  // ★新機能【分割表示バグ修正】：以前はここで detail-gantt-multi のDOMを丸ごと「表示専用HTML」に
+  //   置き換えていたため、工程表編集モード中（分割表示）に納品書を変更すると、
+  //   ①ドラッグ編集用のイベントが失われて工程バーを掴んで動かせなくなる
+  //   ②その後に別の工程を編集してgeRenderBars()が再描画されると、geSegs自体は納品書の
+  //     最新日付を反映していないため、表示が古い状態に巻き戻る
+  //   という2つの不具合が起きていた（2026/8/22 指摘対応）。
+  //   編集モード中は、DOMを置き換えず、geSegsのうち納品書と紐づく行（土台/レッカー/防蟻等）
+  //   の日付だけを最新の値に同期してからgeRenderBars()で再描画する。
+  if(ganttEditMode&&currentProp&&String(currentProp.fix_no||'')===String(p.fix_no||'')){
+    var freshLinked=(typeof _applyDeliveryGanttLink==='function')?_applyDeliveryGanttLink(p, getActiveSegs(p)||[]):[];
+    geSegs=geSegs.map(function(s){
+      if(!(typeof _isDeliveryLinkedRow==='function'&&_isDeliveryLinkedRow(s)))return s;
+      var nm=String(s.label||s.name||'').trim();
+      var match=freshLinked.find(function(fs){return String(fs.label||fs.name||'').trim()===nm;});
+      return match?Object.assign({},s,{start_date:match.start_date,date:match.date,end_date:match.end_date}):s;
+    });
+    if(typeof geRenderBars==='function')geRenderBars();
+    return;
+  }
   var liveCompact=document.getElementById('detail-gantt-compact');
   var liveMulti=document.getElementById('detail-gantt-multi');
   if(!liveCompact&&!liveMulti)return; // ガントタブがまだ描画されていない
@@ -5839,6 +5886,8 @@ function renderDeliveryNoteSection(p,containerId){
     }else if(dn.approved_snapshot){
       approvedBadge='<span style="background:#fee2e2;color:#b91c1c;font-weight:800;font-size:10px;padding:3px 9px;border-radius:6px;text-decoration:line-through;text-decoration-thickness:2px">✅ 承認済み</span>'
         +'<span style="background:#fef3c7;color:#b45309;font-weight:800;font-size:10px;padding:3px 9px;border-radius:6px;margin-left:4px">⚠️ 承認後に変更あり・要再承認</span>';
+    }else if(dn.tentative_at){
+      approvedBadge='<span style="background:#dbeafe;color:#1e40af;font-weight:800;font-size:10px;padding:3px 9px;border-radius:6px" title="'+(dn.tentative_by||'')+'　'+dn.tentative_at.slice(0,16).replace('T',' ')+'">🔖 仮確定（正式承認ではありません）</span>';
     }else{
       approvedBadge='<span style="background:#fef3c7;color:#b45309;font-weight:800;font-size:10px;padding:3px 9px;border-radius:6px">未承認</span>';
     }
@@ -5892,6 +5941,7 @@ function renderDeliveryNoteSection(p,containerId){
         +approvedBadge
         +'<div style="margin-left:auto;display:flex;gap:6px">'
           +'<button onclick="printDeliveryNote()" style="background:#475569;color:white;border:none;border-radius:6px;padding:6px 12px;font-size:11px;font-weight:700;cursor:pointer">🖨️ 納品書印刷</button>'
+          +(isAdmin?'<button onclick="tentativeConfirmDeliveryNote()" style="background:#2563eb;color:white;border:none;border-radius:6px;padding:6px 12px;font-size:11px;font-weight:700;cursor:pointer" title="正式な承認とは別の、軽い目印です">🔖 仮確定</button>':'')
           +(isAdmin?'<button onclick="approveDeliveryNote()" style="background:#059669;color:white;border:none;border-radius:6px;padding:6px 12px;font-size:11px;font-weight:700;cursor:pointer">✅ '+(dn.approved_snapshot?'再確定（再承認印）':'確定（承認印）')+'</button>':'')
         +'</div>'
       +'</div>'
@@ -5911,6 +5961,7 @@ window.renderDeliveryNoteSection=renderDeliveryNoteSection;
 
 function _touchDeliveryUnapproved(dn){
   if(dn.approved_at){dn.approved_at=null;} // ★内容変更で未承認に戻す（承認印＝その時点の内容の正、を担保）
+  if(dn.tentative_at){dn.tentative_at=null;dn.tentative_by=null;} // ★仮確定も内容変更でリセット
 }
 function deliverySetBaseDate(v){
   var p=currentProp;if(!p)return;
@@ -5992,6 +6043,22 @@ function approveDeliveryNote(){
   showToast(isReapprove?'✅ 再承認しました':'✅ 納品書を確定しました','success');
 }
 window.approveDeliveryNote=approveDeliveryNote;
+
+// ★新機能【仮確定】：正式な承認（監査履歴つき）とは別に、「今の内容でだいたい固まった」という
+//   軽量なステータスだけを付けられるようにする（2026/8/22 追加）。承認履歴・差分記録は残さない。
+//   先の工期でまだ動く可能性がある納品書に対して、「作業中」と「承認済み」の中間の状態を示すのに使う。
+function tentativeConfirmDeliveryNote(){
+  var p=currentProp;if(!p)return;
+  var dn=_getOrInitDeliveryNote(p);
+  if(!dn.base_date){showToast('基準日（土台日）を入力してから仮確定してください','error');return;}
+  var nowIso=new Date().toISOString();
+  var by=(typeof currentProfile!=='undefined'&&currentProfile)?(currentProfile.name||''):'';
+  dn.tentative_at=nowIso;
+  dn.tentative_by=by;
+  _saveDeliveryNote(p);renderDeliveryNoteSection(p);
+  showToast('🔖 仮確定にしました（正式な承認ではありません）','success');
+}
+window.tentativeConfirmDeliveryNote=tentativeConfirmDeliveryNote;
 var _deliverySaveTimer=null;
 function _saveDeliveryNote(p){
   var fixNo=String(p.fix_no||'');
@@ -6023,7 +6090,10 @@ window._getDeliveryGanttBadges=_getDeliveryGanttBadges;
 // ===== 納品書管理（管理者CP・一括管理用） =====
 // ★3区分：未作成（下書き中も含む・未承認）／承認済／承認後修正承認済（2回以上承認）
 function _deliveryNoteStatus(dn){
-  if(!dn||!dn.approved_at)return 'none';
+  if(!dn||!dn.approved_at){
+    if(dn&&dn.tentative_at)return 'tentative';
+    return 'none';
+  }
   return ((dn.approval_history||[]).length>1)?'reapproved':'approved';
 }
 var DELIVERY_STATUS_LABEL={
