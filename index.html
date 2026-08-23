@@ -157,6 +157,7 @@ input,textarea,select{font-family:var(--font)}
 .dcell{position:absolute;top:14px;bottom:0;width:var(--col-w);display:flex;align-items:flex-end;justify-content:center;padding-bottom:2px;font-size:7px;font-weight:700;color:rgba(255,255,255,.75);border-right:1px solid rgba(255,255,255,.08);font-family:var(--mono)}
 .dcell.sun{color:#fca5a5;background:rgba(255,182,193,.18)}
 .dcell.sat{color:#93c5fd;background:rgba(173,216,230,.18)}
+.dcell.hol{color:#fcd34d;background:rgba(252,211,77,.22)}
 .dcell.today-d{background:rgba(239,68,68,.3);color:#fca5a5}
 .dcell.month-start{border-left:2px solid rgba(255,255,255,.5)} /* month boundary in day row */
 .today-lbl{position:absolute;top:0;background:#ef4444;color:white;font-size:7px;font-weight:800;padding:1px 3px;border-radius:2px;transform:translateX(-50%);white-space:nowrap;z-index:30;font-family:var(--mono)}
@@ -727,9 +728,6 @@ body.sp-mode #areaTabsBtns{ display:none !important; }
     <div class="sb-item" onclick="openVendorList()"><span class="sb-icon">👷</span><span class="sb-label">全業者選定一覧</span></div>
     <div id="vendorSbTs" style="padding:2px 16px 6px;font-size:9px;color:#64748b;line-height:1.4"></div>
     <div class="sb-divider"></div>
-    <div class="sb-section">工程管理</div>
-    <div class="sb-item" onclick="openMasterPanel()"><span class="sb-icon">📐</span><span class="sb-label">マスター工程</span></div>
-    <div class="sb-divider"></div>
     <div class="sb-section">その他</div>
     <div class="sb-item" onclick="doSyncFull()"><span class="sb-icon">🔄</span><span class="sb-label">今すぐ同期</span></div>
     <div class="sb-item" onclick="openSettings()"><span class="sb-icon">⚙️</span><span class="sb-label">設定</span></div>
@@ -853,7 +851,7 @@ body.sp-mode #areaTabsBtns{ display:none !important; }
   </div>
 </div>
 <div class="menu-overlay" id="menuOverlay" onclick="closeMenu()"></div>
-<div class="side-menu" id="sideMenu"><div class="menu-head"><div class="menu-user">🏗️ 協力業者</div><div class="menu-role">JACK 現場管理アプリ</div></div><div class="menu-body"><div class="menu-section">マイ物件</div><div class="menu-item" onclick="openMyPage()"><span class="mi-icon">⭐</span>マイ物件を見る</div><div class="menu-item" onclick="openSelectProp()"><span class="mi-icon">✅</span>担当物件を選択</div><div class="menu-item sp-hide" id="sideMasterItem" onclick="closeMenu();openMasterPanel()"><span class="mi-icon">📋</span>マスター工程</div><div class="menu-divider"></div><div class="menu-section">表示</div><div class="menu-item" onclick="closeMenu();setMode(false)"><span class="mi-icon">📱</span>スマホ表示</div><div class="menu-item" onclick="closeMenu();setMode(true)"><span class="mi-icon">🖥️</span>PC横長表示</div><div class="menu-divider"></div><div class="menu-section">その他</div><div class="menu-item" onclick="closeMenu();doSyncFull()"><span class="mi-icon">🔄</span>今すぐ同期</div><div class="menu-item" onclick="openSettings()"><span class="mi-icon">⚙️</span>設定</div><div class="menu-item" onclick="closeMenu();printPage()"><span class="mi-icon">🖨️</span>印刷</div></div></div>
+<div class="side-menu" id="sideMenu"><div class="menu-head"><div class="menu-user">🏗️ 協力業者</div><div class="menu-role">JACK 現場管理アプリ</div></div><div class="menu-body"><div class="menu-section">マイ物件</div><div class="menu-item" onclick="openMyPage()"><span class="mi-icon">⭐</span>マイ物件を見る</div><div class="menu-item" onclick="openSelectProp()"><span class="mi-icon">✅</span>担当物件を選択</div><div class="menu-divider"></div><div class="menu-section">表示</div><div class="menu-item" onclick="closeMenu();setMode(false)"><span class="mi-icon">📱</span>スマホ表示</div><div class="menu-item" onclick="closeMenu();setMode(true)"><span class="mi-icon">🖥️</span>PC横長表示</div><div class="menu-divider"></div><div class="menu-section">その他</div><div class="menu-item" onclick="closeMenu();doSyncFull()"><span class="mi-icon">🔄</span>今すぐ同期</div><div class="menu-item" onclick="openSettings()"><span class="mi-icon">⚙️</span>設定</div><div class="menu-item" onclick="closeMenu();printPage()"><span class="mi-icon">🖨️</span>印刷</div></div></div>
 <div class="popup-overlay" id="updatePopup" style="display:none"><div class="popup-box"><div class="popup-head">🔔 データ更新情報</div><div class="popup-body" id="updateContent"></div><div class="popup-footer"><button class="popup-close" onclick="closeUpdatePopup()">閉じる</button></div></div></div>
 <div class="tooltip" id="tooltip"></div><div class="toast" id="toast"></div>
 
@@ -1201,6 +1199,26 @@ function _isWorkday(d){
   return true;
 }
 window._isWorkday=_isWorkday;
+// ★日曜／土曜ではないが、祝日・年末年始・盆休みなど長期休暇として色塗り対象にすべき日か判定
+//   （日曜は別途赤系の色で表現されるため対象外。土曜は元々休工日ではないが、祝日等に重なった場合はこちらで塗る）
+function _isLongHoliday(d){
+  if(d.getDay()===0)return false;
+  var m=d.getMonth()+1, day=d.getDate();
+  if(m===12&&day>=29)return true;
+  if(m===1&&day<=4)return true;
+  if(m===8&&day>=13&&day<=16)return true;
+  if(JP_HOLIDAY_SET[_dkey(d)])return true;
+  return false;
+}
+window._isLongHoliday=_isLongHoliday;
+// 文字列日付(YYYY-MM-DD)から祝日/長期休暇判定を行うヘルパー（既存コードのdowループでDateを作らず済むように）
+function _isLongHolidayStr(dstr){
+  if(!dstr)return false;
+  var d=new Date(dstr.replace(/\//g,'-')+'T00:00:00');
+  if(isNaN(d.getTime()))return false;
+  return _isLongHoliday(d);
+}
+window._isLongHolidayStr=_isLongHolidayStr;
 // 基準日（土台日）からn稼働日後の日付を返す（n=0は基準日そのもの）
 function _addWorkdays(baseDate,n){
   var d=new Date(baseDate.getFullYear(),baseDate.getMonth(),baseDate.getDate());
@@ -1231,7 +1249,7 @@ var DELIVERY_MASTER = [
   {id:9, name:'ユニット配線',    offsetWd:3,  ganttExclude:false, vendorOptions:['ユニティ']},
   {id:10,name:'電材１期',        offsetWd:3,  ganttExclude:false, vendorOptions:['ユニティ','深田電機']},
   {id:11,name:'小屋',           offsetWd:8,  ganttExclude:true, mirrorFrom:1},
-  {id:12,name:'1床パネル',       offsetWd:17, ganttExclude:true, vendorOptions:['阪和興業','フィリックス'], defaultNote:'荷卸あり'},
+  {id:12,name:'1床パネル',       offsetWd:17, ganttExclude:false, vendorOptions:['阪和興業','フィリックス'], defaultNote:'荷卸あり'},
   {id:13,name:'軒断熱材（建材副資）',offsetWd:19, ganttExclude:false, mirrorFrom:5, defaultNote:'午後（１階搬入）'},
   {id:14,name:'ENTドア',        offsetWd:15, ganttExclude:false, vendorOptions:['神谷商店']},
   {id:15,name:'サッシ搬入',      offsetWd:18, ganttExclude:false, vendorOptions:['LIXILトータル販売','メイゴー','ホームズマルホ'], defaultNote:'荷揚げ間配り※床パネル同日注意！'},
@@ -1266,20 +1284,109 @@ DELIVERY_MASTER.forEach(function(m){
     DELIVERY_MIRROR_TARGETS[m.mirrorFrom].push(m.id);
   }
 });
+// ★新機能【納品書マスター：東海／関東エリア別デフォルト】：DELIVERY_MASTERのoffsetWdはこれまで
+//   コード直書きの単一値（実質関東仕様）だったが、東海エリアだけデフォルトの搬入タイミングが異なる
+//   ため、エリア別の上書き値を持てるようにした（2026/8/22 追加）。
+//   {TOKAI:{itemId:offsetWd,...}, KANTO:{itemId:offsetWd,...}}。値が無い項目は従来通りDELIVERY_MASTERの
+//   offsetWdをそのまま使う。管理者CP「📦 納品書マスター設定」から編集可能（コード変更不要）。
+var DELIVERY_AREA_OVERRIDES = (function(){
+  var v=loadLS('jack_delivery_area_overrides', null);
+  if(v&&v.TOKAI&&Object.keys(v.TOKAI).length)return v; // 既に設定済みならそのまま使う
+  // ★初回のみ：ご指示のあった東海エリアの初期値をシード（関東は一切変更しない＝{}のまま）
+  return {
+    TOKAI:{12:11, 13:16, 14:19, 15:13, 16:15, 17:22, 21:28, 23:34, 25:39, 26:43, 29:47, 30:59, 31:59},
+    KANTO:{}
+  };
+})();
+saveLS('jack_delivery_area_overrides', DELIVERY_AREA_OVERRIDES);
+window.DELIVERY_AREA_OVERRIDES=DELIVERY_AREA_OVERRIDES;
+// dnの物件エリアからTOKAI/KANTO/'' を判定
+function _deliveryAreaKey(dn){
+  if(!dn||!dn.area)return '';
+  if(typeof TOKAI_AREAS!=='undefined'&&TOKAI_AREAS.indexOf(dn.area)>=0)return 'TOKAI';
+  if(typeof KANTO_AREAS!=='undefined'&&KANTO_AREAS.indexOf(dn.area)>=0)return 'KANTO';
+  return '';
+}
+// 指定項目の実効offsetWd（エリア別上書きがあればそちらを優先、無ければDELIVERY_MASTERの標準値）
+function _deliveryEffectiveOffsetWd(dn, masterItem){
+  var areaKey=_deliveryAreaKey(dn);
+  if(areaKey&&DELIVERY_AREA_OVERRIDES[areaKey]&&DELIVERY_AREA_OVERRIDES[areaKey][masterItem.id]!==undefined){
+    return DELIVERY_AREA_OVERRIDES[areaKey][masterItem.id];
+  }
+  return masterItem.offsetWd;
+}
+// ★仮確定／確定の時点で使われているオフセット値を全項目分まとめて保存する（凍結用スナップショット。2026/8/23追加）
+//   これを保存しておくことで、以後マスター（DELIVERY_AREA_OVERRIDES等）を変更しても
+//   既に仮確定／確定済みの納品書の表示日付は動かなくなる。
+function _deliveryOffsetSnapshot(dn){
+  var snap={};
+  DELIVERY_MASTER.forEach(function(m){
+    snap[m.id]=_deliveryEffectiveOffsetWd(dn, m);
+  });
+  return snap;
+}
+// ★納品書マスター設定の変更をSupabaseに保存（masters テーブルを間借りし、name='__delivery_overrides__'として保存。
+//   新規テーブルを作らずに済むよう既存の仕組みを再利用している）
+function _saveDeliveryOverridesToSupabase(cb){
+  saveLS('jack_delivery_area_overrides', DELIVERY_AREA_OVERRIDES);
+  var sb=getSB(); if(!sb){if(cb)cb(false);return;}
+  var payload={name:'__delivery_overrides__', steps:JSON.stringify(DELIVERY_AREA_OVERRIDES), updated_at:new Date().toISOString()};
+  sb.from('masters').select('id').eq('name','__delivery_overrides__').single()
+    .then(function(r){
+      if(r.data&&r.data.id)return sb.from('masters').update(payload).eq('id',r.data.id);
+      return sb.from('masters').insert(payload);
+    })
+    .then(function(r){if(cb)cb(!r.error);})
+    .catch(function(){if(cb)cb(false);});
+}
+window._saveDeliveryOverridesToSupabase=_saveDeliveryOverridesToSupabase;
+async function _loadDeliveryOverridesFromDB(){
+  var sb=getSB(); if(!sb)return;
+  try{
+    var r=await sb.from('masters').select('steps').eq('name','__delivery_overrides__').limit(1);
+    var row=r.data&&r.data[0];
+    if(!r.error&&row&&row.steps){
+      var loaded=typeof row.steps==='string'?JSON.parse(row.steps):row.steps;
+      if(loaded&&loaded.TOKAI&&loaded.KANTO){
+        var before=JSON.stringify(DELIVERY_AREA_OVERRIDES);
+        DELIVERY_AREA_OVERRIDES.TOKAI=loaded.TOKAI;
+        DELIVERY_AREA_OVERRIDES.KANTO=loaded.KANTO;
+        saveLS('jack_delivery_area_overrides', DELIVERY_AREA_OVERRIDES);
+        // ★このフェッチは非同期のため、起動直後の初回描画は古い（localStorageキャッシュの）
+        //   オフセット値で先に描画されてしまう可能性がある。サーバー側の値と差分があれば、
+        //   納品書関連の画面だけを対象を絞って再描画する（2026/8/23 修正：東海オフセットが反映されない不具合対応）。
+        //   ★2026/8/23再修正：全体再描画(renderAll)はどのタイミングで非同期完了するか分からず、
+        //   別パネル操作中に割り込んで予期せぬ副作用を起こすリスクがあるため、納品書関連の画面のみに限定した。
+        if(before!==JSON.stringify(DELIVERY_AREA_OVERRIDES)){
+          if(typeof renderDeliveryNoteSection==='function'&&typeof currentProp!=='undefined'&&currentProp){
+            try{renderDeliveryNoteSection(currentProp);}catch(e2){}
+          }
+          if(typeof admRenderDeliveryMasterSettings==='function'&&typeof _admSec!=='undefined'&&_admSec==='deliverymaster'){
+            var admRight=document.getElementById('admRight');
+            if(admRight){try{admRenderDeliveryMasterSettings(admRight);}catch(e2){}}
+          }
+          if(typeof admRenderDeliveryTable==='function'&&typeof _admSec!=='undefined'&&_admSec==='delivery'){
+            try{admRenderDeliveryTable();}catch(e2){}
+          }
+        }
+      }
+    }
+  }catch(e){}
+}
+window._loadDeliveryOverridesFromDB=_loadDeliveryOverridesFromDB;
 // マスター内訳テキスト（PDF下部の建材内訳。物件ごとにコピーして微調整可能）
 var DELIVERY_BREAKDOWN_MASTER =
-  '【建材副資】軒断熱材 天井断熱材50・屋根断熱材100・防湿機密シート・気密テープ\n'+
-  '【副資材Ⅰ（2階用）】床材・建具枠・玄関扉枠・UB扉枠\n'+
-  '【副資材Ⅱ（3階用）】遮音シート（界壁）・床養生材・床下点検口（1階のみ）・床ボンド・防振吊具\n'+
-  '【建材本体】1/2階構造用ラワン合板12・1・2階合板9・２階用合板15・２階用針葉樹合板24\n'+
-  '　　　　　　3階構造用ラワン合板12・1・2階合板9・２階用合板15・２階用針葉樹合板24\n'+
+  '【副資材Ⅰ（2階用）】1/2階構造用ラワン合板12・1・2階合板9・２階用合板15・２階用針葉樹合板24\n'+
+  '　　　　　　センチュリー18・ベランダくん12・ケイカル8・遮音マット18・強化PB15（懐含む）\n'+
+  '　　　　　　普通PB12.5（界壁懐）・遮音PB12.5・サンドカット・ラワン系ベニヤ4＆5.5\n'+
+  '【副資材Ⅱ（3階用）】３階構造用ラワン合板12・1・2階合板9・３階用合板15・３階用針葉樹合板24・センチュリー18・ベランダくん12・ケイカル8・遮音マット18・強化PB15（懐含む）・普通PB12.5（界壁懐）・遮音PB12.5・サンドカット・ラワン系ベニヤ4＆5.5\n'+
+  '【軒断熱材】天井断熱材50・屋根断熱材100・防湿機密シート・気密テープ\n'+
+  '【建材副資】遮音シート（界壁）・床養生材・床下点検口（1階のみ）・床ボンド・防振吊具\n'+
+  '【☆建材Ⅰ】床材・建具枠・玄関扉枠・UB扉枠\n'+
+  '【断熱材】グラスウール（壁、天井、界床）・ロックウール（界壁）\n'+
   '【ボード】強化石膏ボード（壁）・普通石膏ボード（界壁）・強化石膏ボード（天井）\n'+
-  '【☆建材Ⅰ】センチュリー18・ベランダくん12・ケイカル8・遮音マット18・強化PB15（懐含む）\n'+
-  '　　　　　　普通PB12.5（界壁懐）・遮音PB12.5・サンドカット・ラワン系ベニヤ4＆5.5\n'+
-  '【☆建材Ⅱ】センチュリー18・ベランダくん12・ケイカル8・遮音マット18・強化PB15（懐含む）\n'+
-  '　　　　　　普通PB12.5（界壁懐）・遮音PB12.5・サンドカット・ラワン系ベニヤ4＆5.5\n'+
-  '【☆建材Ⅲ】グラスウール（壁、天井、界床）・ロックウール（界壁）\n'+
-  '【断熱材】シューズボックス・巾木・枕棚\n'+
+  '【☆建材Ⅱ】シューズボックス・巾木・枕棚\n'+
+  '【☆建材Ⅲ】建具本体\n'+
   '【物干し金物】神谷商店入れ';
 window.DELIVERY_MASTER=DELIVERY_MASTER;
 window.DELIVERY_BREAKDOWN_MASTER=DELIVERY_BREAKDOWN_MASTER;
@@ -1522,13 +1629,14 @@ function _cgSegsArr(cg){
 }
 
 // ===== MASTER SCHEDULE =====
-// 日曜スキップで n 稼働日を返す（startStr の翌日から）
+// 稼働日スキップ（日曜／祝日／年末年始／盆）で n 稼働日を返す（startStr の翌日から）
+// ★2026/8/23：納品書マスター側の_isWorkday（祝日・年末年始・盆を考慮）と揃え、日曜のみのスキップだったロジックを統一
 function workdaysFrom(startStr, n) {
   var cur = new Date(startStr.replace(/[/]/g,'-'));
   var days = [];
   while (days.length < n) {
     cur.setDate(cur.getDate()+1);
-    if (cur.getDay() !== 0) days.push(new Date(cur.getTime()));
+    if (_isWorkday(cur)) days.push(new Date(cur.getTime()));
   }
   return days;
 }
@@ -1557,7 +1665,7 @@ function countWorkdays(fromStr, toStr){
   var cur=new Date(d.getTime());
   cur.setDate(cur.getDate()+1);
   while(cur<=end){
-    if(cur.getDay()!==0)count++;
+    if(_isWorkday(cur))count++;
     cur.setDate(cur.getDate()+1);
   }
   return count;
@@ -1568,7 +1676,7 @@ function addWorkdays(startStr, n) {
   return localDateStr(days[days.length-1]);
 }
 
-// ★ addWorkdaysの符号付き版：nが負の場合は稼働日を過去方向に遡る（日曜スキップ）
+// ★ addWorkdaysの符号付き版：nが負の場合は稼働日を過去方向に遡る（日曜／祝日／年末年始／盆スキップ）
 function addWorkdaysSigned(startStr, n){
   if(!n)return startStr;
   if(n>0)return addWorkdays(startStr,n);
@@ -1576,7 +1684,7 @@ function addWorkdaysSigned(startStr, n){
   var remaining=-n;
   while(remaining>0){
     cur.setDate(cur.getDate()-1);
-    if(cur.getDay()!==0)remaining--;
+    if(_isWorkday(cur))remaining--;
   }
   return localDateStr(cur);
 }
@@ -1669,7 +1777,7 @@ function _normalizeTmplSteps(steps){
       // offsetFromが未設定で基礎より後ろ → prevEndから連鎖して補正
       startDate=addWorkdays(prevEnd,1);
       var sd0=new Date(startDate.replace(/[/]/g,'-'));
-      while(sd0.getDay()===0)sd0.setDate(sd0.getDate()+1);
+      while(!_isWorkday(sd0))sd0.setDate(sd0.getDate()+1);
       startDate=localDateStr(sd0);
       var endStr0=endOfWorkdays(startDate,dur);
       result[ti].offsetFrom='基礎完了';
@@ -1681,7 +1789,7 @@ function _normalizeTmplSteps(steps){
       startDate=addWorkdays(prevEnd,1);
     }
     var sd=new Date(startDate.replace(/[/]/g,'-'));
-    while(sd.getDay()===0)sd.setDate(sd.getDate()+1);
+    while(!_isWorkday(sd))sd.setDate(sd.getDate()+1);
     startDate=localDateStr(sd);
     var endStr=endOfWorkdays(startDate,dur);
     if(nm==='基礎')kisoEnd=endStr;
@@ -1750,7 +1858,7 @@ function computeMasterSegs(confirmDoneStr, template, handKumi, masterName, landP
 
     // 日曜スキップ
     var sd=new Date(startDate.replace(/[/]/g,'-'));
-    while(sd.getDay()===0)sd.setDate(sd.getDate()+1);
+    while(!_isWorkday(sd))sd.setDate(sd.getDate()+1);
     startDate=localDateStr(sd);
 
     var endStr=endOfWorkdays(startDate,dur);
@@ -1804,7 +1912,7 @@ function recomputeSegsFromKiso(segs, newKisoStart, tmpl) {
     if(step.offsetFrom==='基礎完了'&&step.offsetDays!=null){
       var od=step.offsetDays;
       var st=od>0?addWorkdays(kisoEnd,od):kisoEnd;
-      var sd=new Date(st.replace(/[/]/g,'-'));while(sd.getDay()===0)sd.setDate(sd.getDate()+1);st=localDateStr(sd);
+      var sd=new Date(st.replace(/[/]/g,'-'));while(!_isWorkday(sd))sd.setDate(sd.getDate()+1);st=localDateStr(sd);
       var ed=endOfWorkdays(st,s.dur);
       var cl=FULL_DATE_IDX[st]||(function(){var fkeys=Object.keys(FULL_DATE_IDX);for(var fi=0;fi<fkeys.length;fi++){if(fkeys[fi]>=st)return FULL_DATE_IDX[fkeys[fi]];}return 0;})();
       return Object.assign({},s,{start_date:st,date:st,end_date:ed,col:cl,calendar_dur:calendarDur(st,ed)});
@@ -2037,7 +2145,7 @@ function _applyDeliveryGanttLink(p,segs){
     if(link.areaOnly==='TOKAI'&&!isTokaiG)return; // ★エリア限定リンク（防蟻＝③レッカーは東海のみ）
     var m=DELIVERY_MASTER.find(function(x){return x.id===link.deliveryId;});
     if(!m)return;
-    var dateStr=_deliveryItemDate(dn,m); // 'YYYY-MM-DD'
+    var dateStr=_deliveryItemDate(dn,m,areaG); // 'YYYY-MM-DD'
     if(!dateStr)return;
     var idx=segs.findIndex(function(s){return String(s.label||s.name||'').trim()===link.rowName;});
     if(idx<0)return;
@@ -2853,11 +2961,6 @@ function setMode(pc){
   if(adminBtn){
     adminBtn.style.display=(pc&&_isAdminNow)?'':'none';
   }
-  // マスター工程メニュー：管理者以外はPCモードでも非表示
-  var masterItem=document.getElementById('sideMasterItem');
-  if(masterItem){
-    masterItem.style.display=(pc&&_isAdminNow)?'':'none';
-  }
 
   renderBody();
   if(!pc) spSetupAccordion();
@@ -3130,6 +3233,7 @@ function renderHeader(){
       if(d===TODAY)el.classList.add('today-d');
       else if(dow===0)el.classList.add('sun');
       else if(dow===6)el.classList.add('sat');
+      else if(_isLongHolidayStr(d))el.classList.add('hol');
       if(monthStarts[i])el.classList.add('month-start');
       el.textContent=day;
     }
@@ -3439,8 +3543,8 @@ function renderBody(){
     }
   });
   // Store weekend cols info for per-row rendering
-  var sunCols=[], satCols=[];
-  VIS_DATES.forEach(function(d,i){if(!d)return;var dow=getDow(d);if(dow===0)sunCols.push(i);else if(dow===6)satCols.push(i);});
+  var sunCols=[], satCols=[], holCols=[];
+  VIS_DATES.forEach(function(d,i){if(!d)return;var dow=getDow(d);if(dow===0)sunCols.push(i);else if(dow===6)satCols.push(i);else if(_isLongHolidayStr(d))holCols.push(i);});
 
   rowPlans.forEach(function(rp,ri){
     var p=rp.p;
@@ -3535,6 +3639,11 @@ function renderBody(){
     satCols.forEach(function(i){
       var wf=document.createElement('div');
       wf.style.cssText='position:absolute;left:'+(gx+i*COL_W)+'px;top:'+top+'px;width:'+COL_W+'px;height:'+rowH+'px;background:rgba(173,216,230,.25);pointer-events:none;z-index:2;';
+      cv.appendChild(wf);
+    });
+    holCols.forEach(function(i){
+      var wf=document.createElement('div');
+      wf.style.cssText='position:absolute;left:'+(gx+i*COL_W)+'px;top:'+top+'px;width:'+COL_W+'px;height:'+rowH+'px;background:rgba(252,211,77,.22);pointer-events:none;z-index:2;';
       cv.appendChild(wf);
     });
 
@@ -3933,8 +4042,8 @@ function buildGanttTab(p){
     var dayNums='';
     gDates.forEach(function(d,i){
       if(!d)return;
-      var dow=getDow(d),day=parseInt(d.split('-')[2]),isToday=d===TODAY;
-      dayNums+='<div style="position:absolute;left:'+((i-1)*GCW)+'px;top:14px;width:'+GCW+'px;height:14px;display:flex;align-items:center;justify-content:center;font-size:6px;font-weight:700;font-family:var(--mono);z-index:5;color:'+(isToday?'#ef4444':dow===0?'#fca5a5':dow===6?'#93c5fd':'rgba(255,255,255,.7)')+';background:'+(isToday?'rgba(239,68,68,.35)':dow===0?'rgba(255,182,193,.22)':dow===6?'rgba(173,216,230,.18)':'transparent')+';border-right:1px solid rgba(255,255,255,.15);">'+day+'</div>';
+      var dow=getDow(d),day=parseInt(d.split('-')[2]),isToday=d===TODAY,isHol=_isLongHolidayStr(d);
+      dayNums+='<div style="position:absolute;left:'+((i-1)*GCW)+'px;top:14px;width:'+GCW+'px;height:14px;display:flex;align-items:center;justify-content:center;font-size:6px;font-weight:700;font-family:var(--mono);z-index:5;color:'+(isToday?'#ef4444':dow===0?'#fca5a5':dow===6?'#93c5fd':isHol?'#fcd34d':'rgba(255,255,255,.7)')+';background:'+(isToday?'rgba(239,68,68,.35)':dow===0?'rgba(255,182,193,.22)':dow===6?'rgba(173,216,230,.18)':isHol?'rgba(252,211,77,.3)':'transparent')+';border-right:1px solid rgba(255,255,255,.15);">'+day+'</div>';
     });
     var todayCol=gDateIdx[TODAY]||0;
     var todayLine=todayCol>0?'<div style="position:absolute;left:'+((todayCol-1)*GCW)+'px;top:0;width:2px;height:'+(rowH+28)+'px;background:#ef4444;z-index:10;pointer-events:none;"></div>':'';
@@ -3965,13 +4074,14 @@ function buildGanttTab(p){
         if(lbl)bars+='<div style="position:absolute;left:'+(sx+bw+2)+'px;top:'+by+'px;height:'+bh+'px;display:flex;align-items:center;font-size:6px;font-weight:800;color:#000;white-space:nowrap;background:white;border:1px solid '+color+';border-radius:2px;padding:0 2px;z-index:'+(layer===1?13:11)+';">'+lbl+'</div>';
       }
     });
-    // ★ 土日着色（表示画面）
+    // ★ 土日・祝日/年末年始/盆着色（表示画面）
     var weekendFills='';
     gDates.forEach(function(d,i){
       if(!d)return;
-      var dow=getDow(d);
+      var dow=getDow(d),isHol=_isLongHolidayStr(d);
       if(dow===0)weekendFills+='<div style="position:absolute;left:'+((i-1)*GCW)+'px;top:28px;width:'+GCW+'px;height:'+rowH+'px;background:rgba(255,182,193,.28);pointer-events:none;z-index:0;"></div>';
       else if(dow===6)weekendFills+='<div style="position:absolute;left:'+((i-1)*GCW)+'px;top:28px;width:'+GCW+'px;height:'+rowH+'px;background:rgba(173,216,230,.25);pointer-events:none;z-index:0;"></div>';
+      else if(isHol)weekendFills+='<div style="position:absolute;left:'+((i-1)*GCW)+'px;top:28px;width:'+GCW+'px;height:'+rowH+'px;background:rgba(252,211,77,.3);pointer-events:none;z-index:0;"></div>';
     });
     var moveinBarCompact=buildMoveinBar(p,gDateIdx,GCW,rowH+28);
     return '<div style="overflow-x:auto;-webkit-overflow-scrolling:touch;cursor:pointer;max-height:80px;border:1px solid #e2e8f0;border-radius:6px">'
@@ -4008,11 +4118,11 @@ function buildGanttTab(p){
     rDates.forEach(function(d,i){if(d)rDateIdx[d]=i;});
     var totalW=(rDates.length-1)*GCW2;
 
-    // ★納品バッジの行割り当て（重なる場合は最大4行まで自動的に分けて表示。2026/8/7）
+    // ★納品バッジの行割り当て（重なる場合は最大7行まで自動的に分けて表示。2026/8/7、2026/8/23に4→7行へ拡張）
     var deliveryRowAssign=[];
     if(deliveryBadgeList&&deliveryBadgeList.length){
-      deliveryRowAssign=_deliveryAssignRows(deliveryBadgeList,rDateIdx,GCW2,4);
-      var dLabels=['納品','納品2','納品3','納品4'];
+      deliveryRowAssign=_deliveryAssignRows(deliveryBadgeList,rDateIdx,GCW2,7);
+      var dLabels=['納品','納品2','納品3','納品4','納品5','納品6','納品7'];
       deliveryRowAssign.forEach(function(_,i){segs.push({name:dLabels[i],label:dLabels[i],__deliveryRow:true});});
     }
     var deliveryStartRowIdx=segs.length-deliveryRowAssign.length;
@@ -4026,19 +4136,20 @@ function buildGanttTab(p){
     var dayNums='';
     rDates.forEach(function(d,i){
       if(!d)return;
-      var dow=getDow(d),day=parseInt(d.split('-')[2]),isToday=d===TODAY;
+      var dow=getDow(d),day=parseInt(d.split('-')[2]),isToday=d===TODAY,isHol=_isLongHolidayStr(d);
       // ★ z-index:10で最前面、背景不透明で日付を確実に表示
-      dayNums+='<div style="position:absolute;left:'+((i-1)*GCW2)+'px;top:14px;width:'+GCW2+'px;height:14px;display:flex;align-items:center;justify-content:center;font-size:6px;font-weight:700;z-index:10;color:'+(isToday?'#ef4444':dow===0?'#dc2626':dow===6?'#1d4ed8':'#334155')+';background:'+(isToday?'rgba(239,68,68,.3)':dow===0?'rgba(255,150,150,.8)':dow===6?'rgba(120,190,230,.8)':'white')+';border-right:1px solid #e2e8f0;">'+day+'</div>';
+      dayNums+='<div style="position:absolute;left:'+((i-1)*GCW2)+'px;top:14px;width:'+GCW2+'px;height:14px;display:flex;align-items:center;justify-content:center;font-size:6px;font-weight:700;z-index:10;color:'+(isToday?'#ef4444':dow===0?'#dc2626':dow===6?'#1d4ed8':isHol?'#b45309':'#334155')+';background:'+(isToday?'rgba(239,68,68,.3)':dow===0?'rgba(255,150,150,.8)':dow===6?'rgba(120,190,230,.8)':isHol?'rgba(252,211,77,.85)':'white')+';border-right:1px solid #e2e8f0;">'+day+'</div>';
     });
     var todayCol=rDateIdx[TODAY]||0;
     var bodyH=numRows*ROW_H; // ★ヘッダーを本体スクロール領域の外に出したため、本体の高さから28px分を除く
     var todayLine=todayCol>0?'<div style="position:absolute;left:'+((todayCol-1)*GCW2)+'px;top:0;width:2px;height:'+bodyH+'px;background:#ef4444;z-index:10;pointer-events:none;"></div>':'';
     var fills='';
     rDates.forEach(function(d,i){
-      if(!d)return;var dow=getDow(d);
-      // ★土日: top:0 height:bodyH で上から下まで全列
+      if(!d)return;var dow=getDow(d),isHol=_isLongHolidayStr(d);
+      // ★土日・祝日/年末年始/盆: top:0 height:bodyH で上から下まで全列
       if(dow===0)fills+='<div style="position:absolute;left:'+((i-1)*GCW2)+'px;top:0;width:'+GCW2+'px;height:'+bodyH+'px;background:rgba(255,182,193,.25);pointer-events:none;z-index:1;"></div>';
       else if(dow===6)fills+='<div style="position:absolute;left:'+((i-1)*GCW2)+'px;top:0;width:'+GCW2+'px;height:'+bodyH+'px;background:rgba(173,216,230,.25);pointer-events:none;z-index:1;"></div>';
+      else if(isHol)fills+='<div style="position:absolute;left:'+((i-1)*GCW2)+'px;top:0;width:'+GCW2+'px;height:'+bodyH+'px;background:rgba(252,211,77,.3);pointer-events:none;z-index:1;"></div>';
       if(d.slice(8)==='01'&&i>1)fills+='<div style="position:absolute;left:'+((i-1)*GCW2)+'px;top:0;width:2px;height:'+bodyH+'px;background:#94a3b8;pointer-events:none;z-index:3;"></div>';
       fills+='<div style="position:absolute;left:'+((i-1)*GCW2+GCW2-1)+'px;top:0;width:1px;height:'+(numRows*ROW_H)+'px;background:#e2e8f0;pointer-events:none;z-index:1;"></div>';
     });
@@ -4394,18 +4505,19 @@ function geRenderBars(){
   var months={}; gDates.forEach(function(d,i){if(!d)return;var m=d.substring(0,7);if(!months[m])months[m]={start:i-1,count:0};months[m].count++;});
   var hdrBands=''; Object.keys(months).forEach(function(m){var v=months[m],mm=m.split('-')[1];hdrBands+='<div style="position:absolute;left:'+(v.start*GCW)+'px;top:0;width:'+(v.count*GCW)+'px;height:14px;background:var(--primary);color:white;font-size:7px;font-weight:800;display:flex;align-items:center;justify-content:center;border-right:2px solid rgba(255,255,255,.4);overflow:hidden;z-index:5;">'+m.split('-')[0]+'年'+(mn[mm]||mm)+'</div>';});
   var dayNums=''; gDates.forEach(function(d,i){
-    if(!d)return;var dow=getDow(d),day=parseInt(d.split('-')[2]),isToday=d===TODAY;
+    if(!d)return;var dow=getDow(d),day=parseInt(d.split('-')[2]),isToday=d===TODAY,isHol=_isLongHolidayStr(d);
     // ★ z-index:10で最前面、背景を不透明にして日付を確実に表示
-    dayNums+='<div style="position:absolute;left:'+((i-1)*GCW)+'px;top:14px;width:'+GCW+'px;height:14px;display:flex;align-items:center;justify-content:center;font-size:6px;font-weight:700;font-family:var(--mono);z-index:10;color:'+(isToday?'#ef4444':dow===0?'#dc2626':dow===6?'#1d4ed8':'rgba(255,255,255,.9)')+';background:'+(isToday?'rgba(239,68,68,.5)':dow===0?'rgba(255,150,150,.7)':dow===6?'rgba(120,190,230,.7)':'rgba(30,41,59,.6)')+';border-right:1px solid rgba(255,255,255,.2);">'+day+'</div>';
+    dayNums+='<div style="position:absolute;left:'+((i-1)*GCW)+'px;top:14px;width:'+GCW+'px;height:14px;display:flex;align-items:center;justify-content:center;font-size:6px;font-weight:700;font-family:var(--mono);z-index:10;color:'+(isToday?'#ef4444':dow===0?'#dc2626':dow===6?'#1d4ed8':isHol?'#fcd34d':'rgba(255,255,255,.9)')+';background:'+(isToday?'rgba(239,68,68,.5)':dow===0?'rgba(255,150,150,.7)':dow===6?'rgba(120,190,230,.7)':isHol?'rgba(252,211,77,.35)':'rgba(30,41,59,.6)')+';border-right:1px solid rgba(255,255,255,.2);">'+day+'</div>';
   });
   var todayCol=gDateIdx[TODAY]||0;
   var bodyH=numRows*ROW_H; // ★ヘッダーを縦スクロール領域の外に出したため、本体の高さから28px分を除く
   var todayLine=todayCol>0?'<div style="position:absolute;left:'+((todayCol-1)*GCW)+'px;top:0;width:2px;height:'+bodyH+'px;background:#ef4444;z-index:10;pointer-events:none;"></div>':'';
   var fills=''; gDates.forEach(function(d,i){
-    if(!d)return;var dow=getDow(d);
-    // ★土日: top:0 height:bodyH で上から下まで全列着色（z-index:0）
+    if(!d)return;var dow=getDow(d),isHol=_isLongHolidayStr(d);
+    // ★土日・祝日/年末年始/盆: top:0 height:bodyH で上から下まで全列着色（z-index:0）
     if(dow===0)fills+='<div style="position:absolute;left:'+((i-1)*GCW)+'px;top:0;width:'+GCW+'px;height:'+bodyH+'px;background:rgba(255,182,193,.25);pointer-events:none;z-index:1;"></div>';
     else if(dow===6)fills+='<div style="position:absolute;left:'+((i-1)*GCW)+'px;top:0;width:'+GCW+'px;height:'+bodyH+'px;background:rgba(173,216,230,.25);pointer-events:none;z-index:1;"></div>';
+    else if(isHol)fills+='<div style="position:absolute;left:'+((i-1)*GCW)+'px;top:0;width:'+GCW+'px;height:'+bodyH+'px;background:rgba(252,211,77,.22);pointer-events:none;z-index:1;"></div>';
     if(d.slice(8)==='01'&&i>1)fills+='<div style="position:absolute;left:'+((i-1)*GCW)+'px;top:0;width:2px;height:'+bodyH+'px;background:#94a3b8;pointer-events:none;z-index:3;"></div>';
     fills+='<div style="position:absolute;left:'+((i-1)*GCW+GCW-1)+'px;top:0;width:1px;height:'+(numRows*ROW_H)+'px;background:#e2e8f0;pointer-events:none;z-index:1;"></div>';
   });
@@ -4621,7 +4733,7 @@ function geApplyKisoAnchor(movedIdx){
     if(offsetFrom==='基礎完了'){
       var startDate=offsetDays>0?addWorkdays(kisoEnd,offsetDays):kisoEnd;
       var sd2=new Date(startDate.replace(/[/]/g,'-'));
-      while(sd2.getDay()===0)sd2.setDate(sd2.getDate()+1);
+      while(!_isWorkday(sd2))sd2.setDate(sd2.getDate()+1);
       startDate=localDateStr(sd2);
       // ★ 後工程もcalendar_durを優先（元テンプレのdurは使わない）
       var segDur=s.calendar_dur||s.duration||s.dur||1;
@@ -4658,7 +4770,7 @@ function geApplyBousuiAnchor(movedIdx){
     {
       var startDate=addWorkdaysSigned(bousuiEnd,offsetDays);
       var sd2=new Date(startDate.replace(/[/]/g,'-'));
-      while(sd2.getDay()===0)sd2.setDate(sd2.getDate()+1);
+      while(!_isWorkday(sd2))sd2.setDate(sd2.getDate()+1);
       startDate=localDateStr(sd2);
       var segDur=s.calendar_dur||s.duration||s.dur||1;
       var endStr2=addCalendarDays(startDate,segDur);
@@ -4693,7 +4805,7 @@ function geApplyNaisouAnchor(movedIdx){
     {
       var startDate=addWorkdaysSigned(naisouEnd,offsetDays);
       var sd2=new Date(startDate.replace(/[/]/g,'-'));
-      while(sd2.getDay()===0)sd2.setDate(sd2.getDate()+1);
+      while(!_isWorkday(sd2))sd2.setDate(sd2.getDate()+1);
       startDate=localDateStr(sd2);
       var segDur=s.calendar_dur||s.duration||s.dur||1;
       var endStr2=addCalendarDays(startDate,segDur);
@@ -5286,8 +5398,8 @@ function _buildPrintGanttHtml(p,pageWmm,pageHmm,includeHeader){
       var estDateIdx={};
       var estCur=new Date(bandStartDt.getTime()),estI=1;
       while(estCur<=bandEndDt){estDateIdx[localDateStr(estCur)]=estI;estCur.setDate(estCur.getDate()+1);estI++;}
-      var estRows=_deliveryAssignRows(bandDeliveryBadges,estDateIdx,15,4);
-      var dLabels2=['納品','納品2','納品3','納品4'];
+      var estRows=_deliveryAssignRows(bandDeliveryBadges,estDateIdx,15,7);
+      var dLabels2=['納品','納品2','納品3','納品4','納品5','納品6','納品7'];
       for(var dri=0;dri<estRows.length;dri++)bandSegs=bandSegs.concat([{name:dLabels2[dri],label:dLabels2[dri],__deliveryRow:true}]);
     }
     bandRanges.push({start:bandStartDt,end:bandEndDt,segs:bandSegs,deliveryBadges:bandDeliveryBadges});
@@ -5323,8 +5435,8 @@ function _buildPrintGanttHtml(p,pageWmm,pageHmm,includeHeader){
     var dayNums='';
     dates.forEach(function(d,i){
       if(!d)return;
-      var dow=getDow(d),day=parseInt(d.split('-')[2]),isToday=d===TODAY;
-      dayNums+='<div style="position:absolute;left:'+((i-1)*GCW)+'px;top:18px;width:'+GCW+'px;height:18px;display:flex;align-items:center;justify-content:center;font-size:8px;font-weight:700;color:'+(isToday?'#ef4444':dow===0?'#dc2626':dow===6?'#1d4ed8':'#334155')+';background:'+(isToday?'#fecaca':dow===0?'#fee2e2':dow===6?'#dbeafe':'white')+';border-right:1px solid #e2e8f0;">'+day+'</div>';
+      var dow=getDow(d),day=parseInt(d.split('-')[2]),isToday=d===TODAY,isHol=_isLongHolidayStr(d);
+      dayNums+='<div style="position:absolute;left:'+((i-1)*GCW)+'px;top:18px;width:'+GCW+'px;height:18px;display:flex;align-items:center;justify-content:center;font-size:8px;font-weight:700;color:'+(isToday?'#ef4444':dow===0?'#dc2626':dow===6?'#1d4ed8':isHol?'#b45309':'#334155')+';background:'+(isToday?'#fecaca':dow===0?'#fee2e2':dow===6?'#dbeafe':isHol?'#fef3c7':'white')+';border-right:1px solid #e2e8f0;">'+day+'</div>';
     });
 
     var rowLabels='';
@@ -5340,9 +5452,10 @@ function _buildPrintGanttHtml(p,pageWmm,pageHmm,includeHeader){
 
     var weekendFills='';
     dates.forEach(function(d,i){
-      if(!d)return;var dow=getDow(d);
+      if(!d)return;var dow=getDow(d),isHol=_isLongHolidayStr(d);
       if(dow===0)weekendFills+='<div style="position:absolute;left:'+((i-1)*GCW)+'px;top:0;width:'+GCW+'px;height:'+bodyH+'px;background:rgba(255,182,193,.28)"></div>';
       else if(dow===6)weekendFills+='<div style="position:absolute;left:'+((i-1)*GCW)+'px;top:0;width:'+GCW+'px;height:'+bodyH+'px;background:rgba(173,216,230,.25)"></div>';
+      else if(isHol)weekendFills+='<div style="position:absolute;left:'+((i-1)*GCW)+'px;top:0;width:'+GCW+'px;height:'+bodyH+'px;background:rgba(252,211,77,.3)"></div>';
     });
 
     // ★このバンドの表示期間で工程バーを切り出す（月区切りのExcel資料と同様、段をまたぐバーは各段で分割表示される）
@@ -5376,7 +5489,7 @@ function _buildPrintGanttHtml(p,pageWmm,pageHmm,includeHeader){
     // ★納品バッジ（この段の最後尾・複数行に配置。実際のGCWで最終配置を再計算）
     var deliveryBars='';
     if(bandDeliveryBadges&&bandDeliveryBadges.length){
-      var dLabels3=['納品','納品2','納品3','納品4'];
+      var dLabels3=['納品','納品2','納品3','納品4','納品5','納品6','納品7'];
       var reservedCount=bandSegs.filter(function(s){return s.__deliveryRow;}).length;
       var finalRows=_deliveryAssignRows(bandDeliveryBadges,dateIdx,GCW,Math.max(1,reservedCount));
       var deliveryStartIdx=bandSegs.length-reservedCount;
@@ -5801,6 +5914,7 @@ function _getOrInitDeliveryNote(p){
       approved_at:null,
       approved_by:null,
       approved_snapshot:null, // ★直近の承認時点の内容（変更差分検出用）
+      offset_snapshot:null,   // ★仮確定／確定時点でのオフセット値（凍結用。2026/8/23追加）
       approval_history:[]     // ★承認履歴 [{approved_at,approved_by,snapshot,diff}]
     };
   }
@@ -5810,6 +5924,8 @@ function _getOrInitDeliveryNote(p){
     if(!dn.items.find(function(it){return it.id===m.id;}))dn.items.push({id:m.id,manual:false,date:'',vendor:'',note:m.defaultNote||''});
   });
   if(!dn.approval_history)dn.approval_history=[];
+  // ★エリア情報を常に最新化しておく（東海/関東で納品書のデフォルト搬入日を出し分けるため）
+  dn.area=(typeof normalizeArea==='function')?normalizeArea(p):(p.area||'');
   return dn;
 }
 function _deliveryVendorOptions(masterItem){
@@ -5828,13 +5944,43 @@ function _deliveryVendorValue(dn,masterItem){
   if(opts.length===1)return opts[0]; // ★1社表記項目はデフォルトで表示
   return '';
 }
-function _deliveryItemDate(dn,masterItem){
+function _deliveryItemDate(dn,masterItem,areaOverride){
   var it=dn.items.find(function(i){return i.id===masterItem.id;});
   if(it&&it.manual&&it.date)return it.date;
   if(!dn.base_date)return '';
   var bd=new Date(dn.base_date+'T00:00:00');
   if(isNaN(bd.getTime()))return '';
-  var d=_addWorkdays(bd,masterItem.offsetWd);
+  var offsetWd;
+  // ★仮確定／確定済みの納品書は、以後マスターのオフセットを変更しても表示日付が動かないよう、
+  //   確定時点のオフセット値（offset_snapshot）を凍結して優先使用する（2026/8/23追加）。
+  //   offset_snapshotが無い場合（この機能を追加する前に確定済みだった納品書など）は
+  //   従来通りマスターの値をリアルタイムに使う。
+  if((dn.tentative_at||dn.approved_at)&&dn.offset_snapshot&&dn.offset_snapshot[masterItem.id]!==undefined){
+    offsetWd=dn.offset_snapshot[masterItem.id];
+  }else{
+    // ★東海／関東エリア別のデフォルト搬入タイミング上書きに対応（2026/8/22）
+    offsetWd=_deliveryEffectiveOffsetWd({area:areaOverride||dn.area}, masterItem);
+  }
+  // ★東海限定：③レッカー（id:7）が手動で日付をずらされている場合、それより後ろの自動計算項目
+  //   （id>7・manual:falseのもの）は同じ日数分だけ連動してずれる。工程ガント側の「防蟻＝③レッカー連動」
+  //   （東海のみ）と整合性を取るための機能（2026/8/23追加。工程は全てマスターで決まっているという前提のもと、
+  //   東海のみ適用。関東は対象外）。
+  var areaKey=_deliveryAreaKey({area:areaOverride||dn.area});
+  if(areaKey==='TOKAI'&&masterItem.id>7){
+    var lecIt=dn.items.find(function(i){return i.id===7;});
+    if(lecIt&&lecIt.manual&&lecIt.date){
+      var lecMaster=DELIVERY_MASTER.find(function(m){return m.id===7;});
+      if(lecMaster){
+        var lecBaseOffset=((dn.tentative_at||dn.approved_at)&&dn.offset_snapshot&&dn.offset_snapshot[7]!==undefined)
+          ?dn.offset_snapshot[7]
+          :_deliveryEffectiveOffsetWd({area:areaOverride||dn.area}, lecMaster);
+        var lecManualOffset=countWorkdays(dn.base_date, lecIt.date);
+        var delta=lecManualOffset-lecBaseOffset;
+        if(delta)offsetWd+=delta;
+      }
+    }
+  }
+  var d=_addWorkdays(bd,offsetWd);
   return _dkey(d);
 }
 // ★現時点の内容のスナップショットを取る（承認時に保存し、以後の変更差分検出に使う）
@@ -5911,6 +6057,9 @@ function renderDeliveryNoteSection(p,containerId){
         }).join('')
         +'</div>';
     }
+    var _lecItForHint=dn.items.find(function(i){return i.id===7;});
+    var _tokaiForHint=_deliveryAreaKey(dn)==='TOKAI';
+    var _lecCascadeActive=_tokaiForHint&&_lecItForHint&&_lecItForHint.manual&&_lecItForHint.date;
     var rows=DELIVERY_MASTER.map(function(m){
       var it=dn.items.find(function(i){return i.id===m.id;})||{};
       var date=_deliveryItemDate(dn,m);
@@ -5920,6 +6069,10 @@ function renderDeliveryNoteSection(p,containerId){
       var dlId='dl-deliv-'+m.id;
       var dlHtml=opts.length?('<datalist id="'+dlId+'">'+opts.map(function(o){return '<option value="'+o+'">';}).join('')+'</datalist>'):'';
       var mirrorHint=m.mirrorFrom?'<div style="font-size:9px;color:#94a3b8">項目'+m.mirrorFrom+'と連動</div>':'';
+      // ★東海限定：③レッカー（id:7）が手動でずれている場合、それより後ろの自動計算項目は連動してずれる旨のヒント表示（2026/8/23追加）
+      if(_lecCascadeActive&&m.id>7&&!(it&&it.manual&&it.date)){
+        mirrorHint+='<div style="font-size:9px;color:#0369a1">↳③レッカーの変更に連動してずれています</div>';
+      }
       var dateChg=_deliveryFieldChanged(diffs,m.id,'date');
       var vendorChg=_deliveryFieldChanged(diffs,m.id,'vendor');
       var noteChg=_deliveryFieldChanged(diffs,m.id,'note');
@@ -6033,6 +6186,7 @@ function approveDeliveryNote(){
   if(!confirm(isReapprove?'変更内容を反映して再承認します。\nよろしいですか？':'現時点の内容で納品書を確定し、承認印を押します。\nよろしいですか？'))return;
   var nowIso=new Date().toISOString();
   var by=(typeof currentProfile!=='undefined'&&currentProfile)?(currentProfile.name||''):'';
+  dn.offset_snapshot=_deliveryOffsetSnapshot(dn); // ★確定時点のオフセットを凍結（2026/8/23追加）
   var snap=_deliverySnapshot(dn);
   if(!dn.approval_history)dn.approval_history=[];
   dn.approval_history.push({approved_at:nowIso,approved_by:by,snapshot:snap,diff:diffs});
@@ -6053,6 +6207,7 @@ function tentativeConfirmDeliveryNote(){
   if(!dn.base_date){showToast('基準日（土台日）を入力してから仮確定してください','error');return;}
   var nowIso=new Date().toISOString();
   var by=(typeof currentProfile!=='undefined'&&currentProfile)?(currentProfile.name||''):'';
+  dn.offset_snapshot=_deliveryOffsetSnapshot(dn); // ★仮確定時点のオフセットを凍結（2026/8/23追加）
   dn.tentative_at=nowIso;
   dn.tentative_by=by;
   _saveDeliveryNote(p);renderDeliveryNoteSection(p);
@@ -6081,8 +6236,9 @@ function _getDeliveryGanttBadges(p){
   var fixNo=String(p.fix_no||'');
   var dn=deliveryNotes[fixNo];
   if(!dn||!dn.base_date)return [];
+  var areaB=(typeof normalizeArea==='function')?normalizeArea(p):(p.area||'');
   return DELIVERY_MASTER.filter(function(m){return !m.ganttExclude;}).map(function(m){
-    return {id:m.id,name:m.name,date:_deliveryItemDate(dn,m),vendor:_deliveryVendorValue(dn,m)};
+    return {id:m.id,name:m.name,date:_deliveryItemDate(dn,m,areaB),vendor:_deliveryVendorValue(dn,m)};
   }).filter(function(b){return b.date;});
 }
 window._getDeliveryGanttBadges=_getDeliveryGanttBadges;
@@ -6171,6 +6327,63 @@ function admRenderDeliveryTable(){
     +'</table>';
 }
 window.admRenderDeliveryTable=admRenderDeliveryTable;
+
+// ★新機能【納品書マスター設定（管理者CP）】：東海／関東エリア別に、納品書各項目のデフォルト搬入
+//   タイミング（基準日からの稼働日数）をアプリ上で編集できるようにする（2026/8/22 追加）。
+//   以前はコード（DELIVERY_MASTERのoffsetWd）を直接書き換える必要があったが、これで管理者が
+//   画面から調整可能になる。空欄＝標準値（DELIVERY_MASTERのoffsetWd）をそのまま使う。
+function admRenderDeliveryMasterSettings(right){
+  var rowsHtml=DELIVERY_MASTER.map(function(m){
+    var tokaiV=DELIVERY_AREA_OVERRIDES.TOKAI[m.id];
+    var kantoV=DELIVERY_AREA_OVERRIDES.KANTO[m.id];
+    return '<tr style="border-bottom:1px solid #f1f5f9">'
+      +'<td style="padding:6px 8px;font-size:10px;color:#94a3b8;text-align:center">'+m.id+'</td>'
+      +'<td style="padding:6px 8px;font-size:12px;font-weight:700">'+m.name+'</td>'
+      +'<td style="padding:6px 8px;font-size:11px;color:#94a3b8;text-align:center">'+m.offsetWd+'日</td>'
+      +'<td style="padding:6px 8px;text-align:center">'
+        +'<input type="number" value="'+(tokaiV!==undefined?tokaiV:'')+'" placeholder="'+m.offsetWd+'" '
+          +'onchange="admSetDeliveryOverride('+m.id+',\'TOKAI\',this.value)" '
+          +'style="width:60px;padding:4px 6px;border:1.5px solid #93c5fd;border-radius:6px;font-size:12px;text-align:center">'
+      +'</td>'
+      +'<td style="padding:6px 8px;text-align:center">'
+        +'<input type="number" value="'+(kantoV!==undefined?kantoV:'')+'" placeholder="'+m.offsetWd+'" '
+          +'onchange="admSetDeliveryOverride('+m.id+',\'KANTO\',this.value)" '
+          +'style="width:60px;padding:4px 6px;border:1.5px solid #86efac;border-radius:6px;font-size:12px;text-align:center">'
+      +'</td>'
+    +'</tr>';
+  }).join('');
+  right.innerHTML='<div style="padding:16px">'
+    +'<div style="font-size:16px;font-weight:800;color:#1e293b;margin-bottom:4px">🧾 納品書マスター設定</div>'
+    +'<div style="font-size:11px;color:#64748b;margin-bottom:14px">各項目の「基準日（土台日）から何稼働日後に納品するか」を、東海／関東エリア別に設定できます。'
+    +'空欄のままなら「標準」の日数がそのまま使われます。変更は入力後すぐに保存されます。</div>'
+    +'<div style="overflow-x:auto;background:white;border-radius:12px;border:1px solid #e2e8f0;box-shadow:0 1px 3px rgba(0,0,0,.04)">'
+    +'<table style="width:100%;border-collapse:collapse">'
+      +'<thead><tr style="background:#1e293b;color:white">'
+        +'<th style="padding:8px;font-size:10px">No</th>'
+        +'<th style="padding:8px;font-size:10px;text-align:left">項目名</th>'
+        +'<th style="padding:8px;font-size:10px">標準</th>'
+        +'<th style="padding:8px;font-size:10px;color:#93c5fd">東海（個別設定）</th>'
+        +'<th style="padding:8px;font-size:10px;color:#86efac">関東（個別設定）</th>'
+      +'</tr></thead>'
+      +'<tbody>'+rowsHtml+'</tbody>'
+    +'</table></div>'
+  +'</div>';
+}
+window.admRenderDeliveryMasterSettings=admRenderDeliveryMasterSettings;
+function admSetDeliveryOverride(id,areaKey,val){
+  val=String(val).trim();
+  if(val===''){
+    delete DELIVERY_AREA_OVERRIDES[areaKey][id];
+  }else{
+    var n=parseInt(val,10);
+    if(isNaN(n)){showToast('数値を入力してください','error');return;}
+    DELIVERY_AREA_OVERRIDES[areaKey][id]=n;
+  }
+  _saveDeliveryOverridesToSupabase(function(ok){
+    showToast(ok?'✅ 保存しました':'⚠️ ローカルには保存しましたがDB反映に失敗しました','' );
+  });
+}
+window.admSetDeliveryOverride=admSetDeliveryOverride;
 // ★管理者CPから対象物件の納品書編集を開く：物件詳細へ遷移せず、CP内モーダルで同じ編集画面を表示する
 //   （以前はopenDetailで物件詳細へ遷移していたため、戻るとホーム画面に出てしまい連続編集できなかった）
 var _admDeliveryPrevProp=null;
@@ -6667,7 +6880,13 @@ function removeFavAction(){if(currentProp){removeFav(currentProp);renderBody();s
 
 // ===== PANELS =====
 function openPanel(id){
-  document.getElementById(id).classList.add('open');
+  var el=document.getElementById(id);
+  // ★2026/8/23再修正（根本原因判明）：masterPanel等の一部パネルは#jackMainWrapの中に入れ子になっており、
+  //   jackAdminCPPanel（bodyの直下）とは別の階層にあったため、これまでのz-index調整やパネル内での
+  //   DOM並び替えは重なり順に何の効果もなかった。document.bodyの直下・最後の子要素として
+  //   強制的に付け替えることで、他の全パネルと同じ土俵で重なり順（DOM順）を確実に制御する。
+  document.body.appendChild(el); // body直下・最後尾へ付け替え（既に直下でも並べ替えて最前面にする）
+  el.classList.add('open');
   // スマホモード時：パネルを開いたらサイドバーを非表示
   if(!isPcMode){
     var sb=document.getElementById('jackSidebar');
@@ -6877,7 +7096,6 @@ function renderMyPage(){
   var all=getAllProps();
   var html='<div style="padding:8px 12px 4px;font-size:11px;color:var(--g400)">登録物件 '+myFavProps.length+'件</div>'
     +'<div style="padding:4px 12px 8px;display:flex;gap:6px;flex-wrap:wrap">'
-    +(currentProfile&&currentProfile.role==='admin'?'<button class="btn-secondary" style="font-size:11px;padding:7px 12px" onclick="openMasterPanel()">📋 マスター工程</button>':'')
     +'<button class="btn-secondary" style="font-size:11px;padding:7px 12px" onclick="printPage()">🖨️ 印刷</button>'
     +'</div>';
   html+=myFavProps.map(function(fav){
@@ -6947,7 +7165,7 @@ function printAllGantt(){
     var totalH=numRows*ROW_H+28;
     var months={};dates.forEach(function(d,i){if(!d)return;var m=d.substring(0,7);if(!months[m])months[m]={start:i-1,count:0};months[m].count++;});
     var hdr='';Object.keys(months).forEach(function(m){var v=months[m],mm=m.split('-')[1];hdr+='<div style="position:absolute;left:'+(v.start*GCW)+'px;top:0;width:'+(v.count*GCW)+'px;height:14px;background:#1a56db;color:white;font-size:7px;font-weight:800;display:flex;align-items:center;justify-content:center;border-right:1px solid rgba(255,255,255,.4);overflow:hidden">'+m.split('-')[0]+'年'+(mn[mm]||mm)+'</div>';});
-    var days='';dates.forEach(function(d,i){if(!d)return;var dow=new Date(d).getDay(),day=parseInt(d.split('-')[2]),isT=d===TODAY;days+='<div style="position:absolute;left:'+((i-1)*GCW)+'px;top:14px;width:'+GCW+'px;height:14px;display:flex;align-items:center;justify-content:center;font-size:6px;font-weight:700;color:'+(isT?'#ef4444':dow===0?'#fca5a5':dow===6?'#93c5fd':'#475569')+';background:'+(isT?'rgba(239,68,68,.2)':dow===0?'rgba(255,182,193,.3)':dow===6?'rgba(173,216,230,.25)':'transparent')+';border-right:1px solid rgba(0,0,0,.05)">'+day+'</div>';});
+    var days='';dates.forEach(function(d,i){if(!d)return;var dow=new Date(d).getDay(),day=parseInt(d.split('-')[2]),isT=d===TODAY,isHol=_isLongHolidayStr(d);days+='<div style="position:absolute;left:'+((i-1)*GCW)+'px;top:14px;width:'+GCW+'px;height:14px;display:flex;align-items:center;justify-content:center;font-size:6px;font-weight:700;color:'+(isT?'#ef4444':dow===0?'#fca5a5':dow===6?'#93c5fd':isHol?'#b45309':'#475569')+';background:'+(isT?'rgba(239,68,68,.2)':dow===0?'rgba(255,182,193,.3)':dow===6?'rgba(173,216,230,.25)':isHol?'rgba(252,211,77,.3)':'transparent')+';border-right:1px solid rgba(0,0,0,.05)">'+day+'</div>';});
     var todayC=dateIdx[TODAY]||0;
     var todayLine=todayC>0?'<div style="position:absolute;left:'+((todayC-1)*GCW)+'px;top:0;width:2px;height:'+totalH+'px;background:#ef4444;z-index:10;pointer-events:none"></div>':'';
     var bars='';segs.forEach(function(seg,idx){
@@ -7061,16 +7279,17 @@ function renderEditorCanvas(){
 
   var dayNums='';
   gDates.forEach(function(d,i){if(!d)return;
-    var dow=getDow(d),day=parseInt(d.split('-')[2]),isToday=d===TODAY;
-    dayNums+='<div style="position:absolute;left:'+((i-1)*GCW)+'px;top:14px;width:'+GCW+'px;height:14px;display:flex;align-items:center;justify-content:center;font-size:6px;font-weight:700;font-family:var(--mono);color:'+(isToday?'#ef4444':dow===0?'#fca5a5':dow===6?'#93c5fd':'rgba(255,255,255,.7)')+';background:'+(isToday?'rgba(239,68,68,.35)':dow===0?'rgba(255,182,193,.22)':dow===6?'rgba(173,216,230,.18)':'transparent')+';border-right:1px solid rgba(255,255,255,.15);">'+day+'</div>';});
+    var dow=getDow(d),day=parseInt(d.split('-')[2]),isToday=d===TODAY,isHol=_isLongHolidayStr(d);
+    dayNums+='<div style="position:absolute;left:'+((i-1)*GCW)+'px;top:14px;width:'+GCW+'px;height:14px;display:flex;align-items:center;justify-content:center;font-size:6px;font-weight:700;font-family:var(--mono);color:'+(isToday?'#ef4444':dow===0?'#fca5a5':dow===6?'#93c5fd':isHol?'#fcd34d':'rgba(255,255,255,.7)')+';background:'+(isToday?'rgba(239,68,68,.35)':dow===0?'rgba(255,182,193,.22)':dow===6?'rgba(173,216,230,.18)':isHol?'rgba(252,211,77,.3)':'transparent')+';border-right:1px solid rgba(255,255,255,.15);">'+day+'</div>';});
 
   var todayCol=gDateIdx[TODAY]||0;
   var todayLine=todayCol>0?'<div style="position:absolute;left:'+((todayCol-1)*GCW)+'px;top:0;width:2px;height:'+(numRows*ROW_H+28)+'px;background:#ef4444;z-index:10;pointer-events:none;"></div>':'';
 
   var fills='';
   gDates.forEach(function(d,i){if(!d)return;
-    var dow=getDow(d);
+    var dow=getDow(d),isHol=_isLongHolidayStr(d);
     if(dow===0||dow===6)fills+='<div style="position:absolute;left:'+((i-1)*GCW)+'px;top:28px;width:'+GCW+'px;height:'+(numRows*ROW_H)+'px;background:'+(dow===0?'rgba(255,182,193,.22)':'rgba(173,216,230,.18)')+';pointer-events:none;z-index:1;"></div>';
+    else if(isHol)fills+='<div style="position:absolute;left:'+((i-1)*GCW)+'px;top:28px;width:'+GCW+'px;height:'+(numRows*ROW_H)+'px;background:rgba(252,211,77,.25);pointer-events:none;z-index:1;"></div>';
     if(d.slice(8)==='01'&&i>1)fills+='<div style="position:absolute;left:'+((i-1)*GCW)+'px;top:0;width:2px;height:'+(numRows*ROW_H+28)+'px;background:#94a3b8;pointer-events:none;z-index:2;"></div>';fills+='<div style="position:absolute;left:'+((i-1)*GCW+GCW-1)+'px;top:28px;width:1px;height:'+(numRows*ROW_H)+'px;background:#e2e8f0;pointer-events:none;z-index:1;"></div>';
   });
 
@@ -7227,7 +7446,7 @@ function edApplyKisoAnchor(movedIdx){
       startDate=addWorkdays(kisoEnd,1);
     }
     var sd2=new Date(startDate.replace(/[/]/g,'-'));
-    while(sd2.getDay()===0)sd2.setDate(sd2.getDate()+1);
+    while(!_isWorkday(sd2))sd2.setDate(sd2.getDate()+1);
     startDate=localDateStr(sd2);
     var endStr2=endOfWorkdays(startDate,dur);
     s.start_date=startDate; s.date=startDate; s.end_date=endStr2;
@@ -7658,8 +7877,15 @@ function ensureDefaultMaster(){
     console.log('[JACK] デフォルトマスター「マスター工程(5.5カ月)」を自動登録しました');
   } else {
     // 既存マスターのstepsにoffsetFrom/offsetDaysが未設定の場合は5.5カ月定義で補完
+    // ★2026/8/23修正：ローカルストレージ内のマスターデータが壊れていて steps が配列でない場合、
+    //   ここで例外が発生すると以降の初期化処理（window.onloadの登録等）が一切実行されず、
+    //   アプリがローディング画面のまま固まってしまう不具合があったため、防御的に処理する。
     var updated=false;
     myMasters.forEach(function(m){
+      if(!m||!Array.isArray(m.steps)){
+        if(m)m.steps=[]; // 壊れたデータは空配列にフォールバックして復旧させる
+        return;
+      }
       m.steps.forEach(function(s){
         var ref=MASTER_55MONTH_STEPS.find(function(r){return r.name===s.name;});
         if(ref&&!s.offsetFrom&&ref.offsetFrom){
@@ -7670,7 +7896,7 @@ function ensureDefaultMaster(){
     if(updated)saveLS('jack_my_masters',myMasters);
   }
 }
-ensureDefaultMaster();
+try{ensureDefaultMaster();}catch(e){console.error('[JACK] ensureDefaultMaster失敗（続行します）:',e);}
 
 function startNewMaster(){
   var nm=prompt('マスター工程名を入力してください','マイマスター');
@@ -8522,8 +8748,9 @@ function _printPageImpl(existingWin,showVendor){
     var dow=new Date(d).getDay();
     var day=parseInt(d.split('-')[2]);
     var isToday=d===TODAY;
-    var bg=isToday?'#fee2e2':dow===0?'#ffe4e8':dow===6?'#dbeafe':'#f8fafc';
-    var fc=isToday?'#dc2626':dow===0?'#dc2626':dow===6?'#1d4ed8':'#64748b';
+    var isHol=_isLongHolidayStr(d);
+    var bg=isToday?'#fee2e2':dow===0?'#ffe4e8':dow===6?'#dbeafe':isHol?'#fef3c7':'#f8fafc';
+    var fc=isToday?'#dc2626':dow===0?'#dc2626':dow===6?'#1d4ed8':isHol?'#b45309':'#64748b';
     dayHtml+='<div style="position:absolute;left:'+((i-1)*PCOL)+'px;top:14px;width:'+PCOL+'px;height:14px;display:flex;align-items:center;justify-content:center;font-size:7px;font-weight:'+(day===1?'800':'400')+';color:'+fc+';background:'+bg+';border-right:1px solid #e2e8f0;">' +day+'</div>';
   });
 
@@ -8657,6 +8884,8 @@ function _printPageImpl(existingWin,showVendor){
         var dow=new Date(d).getDay();
         if(dow===0||dow===6){
           rowBgs+='<div style="position:absolute;left:'+((di-1)*PCOL)+'px;top:'+rowY+'px;width:'+PCOL+'px;height:'+rowH+'px;background:'+(dow===0?'rgba(255,100,100,.1)':'rgba(100,150,255,.1)')+';"></div>';
+        } else if(_isLongHolidayStr(d)){
+          rowBgs+='<div style="position:absolute;left:'+((di-1)*PCOL)+'px;top:'+rowY+'px;width:'+PCOL+'px;height:'+rowH+'px;background:rgba(252,211,77,.18);"></div>';
         }
       });
 
@@ -8900,6 +9129,7 @@ async function loadPropertiesFromCacheOrDB(forceRefresh){
     _loadSharedGanttFromDB();
     if(typeof _loadVendorsFromCacheOrDB==='function')_loadVendorsFromCacheOrDB(false);
     if(typeof _loadMastersFromDB==='function')_loadMastersFromDB();
+    if(typeof _loadDeliveryOverridesFromDB==='function')_loadDeliveryOverridesFromDB();
     if(typeof renderAll==='function')renderAll();
     setMode(isPcMode);
   }
@@ -10758,8 +10988,6 @@ async function onAuthSuccess(isNewLogin){
   updateSidebarUser();
   var adminBtn=document.getElementById('sbAdminBtn');
   if(adminBtn&&currentProfile.role==='admin'&&isPcMode)adminBtn.style.display='';
-  var masterItem=document.getElementById('sideMasterItem');
-  if(masterItem)masterItem.style.display=(isPcMode&&currentProfile.role==='admin')?'':'none';
   loadPropertiesFromCacheOrDB(false);
   if(isNewLogin)showToast('✅ ログインしました','success');
   // 新規業者: tutorial_doneがfalseなら自動起動
@@ -11601,9 +11829,10 @@ function renderCalendar(){
       var ds=yr+'-'+('0'+(mn+1)).slice(-2)+'-'+('0'+day).slice(-2);
       var isToday=ds===todayStr;
       var dow=new Date(yr,mn,day).getDay();
+      var isHol=_isLongHolidayStr(ds);
       var dayTasks=calTasks.filter(function(t){return t.startDate<=ds&&t.endDate>=ds;});
-      months+='<div class="cal-day" data-date="'+ds+'" style="min-height:60px;border:1px solid '+(isToday?'#1a56db':'#e2e8f0')+';border-radius:5px;padding:2px;background:'+(isToday?'#eff6ff':'white')+'">'
-        +'<div style="font-size:10px;font-weight:700;text-align:right;margin-bottom:1px;color:'+(isToday?'#1a56db':dow===0?'#ef4444':dow===6?'#3b82f6':'#475569')+'">'+day+'</div>';
+      months+='<div class="cal-day" data-date="'+ds+'" style="min-height:60px;border:1px solid '+(isToday?'#1a56db':'#e2e8f0')+';border-radius:5px;padding:2px;background:'+(isToday?'#eff6ff':isHol?'#fef9e7':'white')+'">'
+        +'<div style="font-size:10px;font-weight:700;text-align:right;margin-bottom:1px;color:'+(isToday?'#1a56db':dow===0?'#ef4444':dow===6?'#3b82f6':isHol?'#b45309':'#475569')+'">'+day+'</div>';
       // 同色バーが重なる場合に色を自動調整するユーティリティ
       var colorUsedInDay={};
       dayTasks.slice(0,3).forEach(function(t){
@@ -11732,6 +11961,8 @@ function renderAdminCPShell(){
       +admMenuItem('props','🏠','物件管理')
       +admMenuItem('kensa','🔍','検査取りまとめ')
       +admMenuItem('delivery','📦','納品書管理')
+      +admMenuItem('deliverymaster','🧾','納品書マスター設定')
+      +admMenuItem('masterproc','📐','マスター工程')
       +'<div style="height:1px;background:rgba(255,255,255,.08);margin:3px 10px"></div>'
       +admMenuItem('import','📥','データ取込')
       +admMenuItem('vendors','👷','全業者選定一覧')
@@ -12012,6 +12243,17 @@ async function loadAdmSec(sec){
       +'<div id="admDeliveryTableWrap" style="overflow-x:auto;background:white;border-radius:12px;border:1px solid #e2e8f0;box-shadow:0 1px 3px rgba(0,0,0,.04)"></div>'
     +'</div>';
     admRenderDeliveryTable();
+
+  } else if(sec==='deliverymaster'){
+    admRenderDeliveryMasterSettings(right);
+
+  } else if(sec==='masterproc'){
+    right.innerHTML='<div style="padding:16px">'
+      +'<div style="font-size:16px;font-weight:800;color:#1e293b;margin-bottom:4px">📐 マスター工程</div>'
+      +'<div style="font-size:11px;color:#64748b;margin-bottom:14px">工程表のマスターテンプレート（東海マスター工程、関東マスターなど）の追加・編集・削除、物件への紐付け状況の確認ができます。'
+      +'<br>従来通りの編集画面を別パネルで開きます。</div>'
+      +'<button onclick="openMasterPanel()" style="background:#1a56db;color:white;border:none;border-radius:8px;padding:10px 18px;font-size:13px;font-weight:800;cursor:pointer">📐 マスター工程編集を開く</button>'
+    +'</div>';
 
   } else if(sec==='import'){
     right.innerHTML='<div style="padding:14px">'
@@ -14223,7 +14465,7 @@ function buildGanttSheetSection(data){
       +'<div style="display:flex;flex:1">';
     for(var d=1;d<=days;d++){
       var dt=new Date(sec.year,sec.month-1,d);var dow=dt.getDay();
-      var wkColor=dow===0?'#fca5a5':dow===6?'#93c5fd':'rgba(255,255,255,.7)';
+      var wkColor=dow===0?'#fca5a5':dow===6?'#93c5fd':_isLongHoliday(dt)?'#fcd34d':'rgba(255,255,255,.7)';
       html+='<div style="width:'+COL+'px;min-width:'+COL+'px;text-align:center;color:'+wkColor+';font-size:8px;border-right:1px solid rgba(255,255,255,.08)">'+d+'</div>';
     }
     html+='</div></div>';
