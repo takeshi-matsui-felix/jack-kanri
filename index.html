@@ -2083,29 +2083,64 @@ function getActiveSegs(p) {
   return segs;
 }
 
-// ===== 全現場進捗管理（2026/8/24追加） =====
+// ===== 全現場進捗管理（2026/8/24追加、2026/8/25：今期/来期分割・診断情報を追加） =====
 // ①着工中物件数（造成の着手日〜引渡し日の間にある物件）と②工種別に何件進行中かを、
-//   全現場／東海／関東で集計する。各種検査（配筋・躯体・断熱・完了）は件数集計ではなく
+//   今期／来期 × 全現場／東海／関東で集計する。各種検査（配筋・躯体・断熱・完了）は件数集計ではなく
 //   「物件名＋検査名」の個別リストとして別扱いする。
 var SITE_PROGRESS_INSPECTION_NAMES=['配筋検査','躯体検査','断熱検査','完了検査'];
 function computeSiteProgressSummary(){
   var today=TODAY;
   var mkBucket=function(){return {underConstruction:0, byType:{}};};
-  var result={all:mkBucket(), tokai:mkBucket(), kanto:mkBucket(), inspections:[], asOf:today};
+  var mkTerm=function(){return {all:mkBucket(), tokai:mkBucket(), kanto:mkBucket()};};
+  var result={
+    asOf:today,
+    thisTerm:mkTerm(), nextTerm:mkTerm(),
+    inspections:[],
+    // ★診断情報：関東が0件など明らかにおかしい集計になった場合に原因を切り分けるための内訳（2026/8/25追加、8/25再拡張）
+    diagnostics:{
+      totalProps:0, segError:0, segErrorSamples:[], unknownArea:0, unknownAreaSamples:[],
+      areaTotal:{tokai:0,kanto:0}, areaWithSegs:{tokai:0,kanto:0}, areaWithZousei:{tokai:0,kanto:0},
+      areaNoDelivery:{tokai:0,kanto:0}
+    }
+  };
   var props=(typeof DB_PROPS!=='undefined'&&DB_PROPS)?DB_PROPS:[];
+  result.diagnostics.totalProps=props.length;
   props.forEach(function(p){
     var areaKey=isTokaiProp(p)?'tokai':(isKantoProp(p)?'kanto':null);
+    if(!areaKey){
+      result.diagnostics.unknownArea++;
+      if(result.diagnostics.unknownAreaSamples.length<10)result.diagnostics.unknownAreaSamples.push((p.name||p.fix_no||'?')+'（area:'+(p.area||'未設定')+'）');
+    } else {
+      result.diagnostics.areaTotal[areaKey]++;
+    }
+    var termKey=isRaikin(p)?'nextTerm':'thisTerm';
     var segs;
-    try{segs=getActiveSegs(p);}catch(e){segs=null;}
+    try{segs=getActiveSegs(p);}catch(e){
+      segs=null;
+      result.diagnostics.segError++;
+      if(result.diagnostics.segErrorSamples.length<10)result.diagnostics.segErrorSamples.push((p.name||p.fix_no||'?')+'：'+e.message);
+    }
     if(!segs||!segs.length)return;
-    // ①着工中判定：造成のstart_date ≦ 本日 ≦ 引渡し日
-    var zousei=segs.find(function(s){return (s.name||s.label)==='造成';});
+    if(areaKey)result.diagnostics.areaWithSegs[areaKey]++;
+    var term=result[termKey];
+    // ①着工中判定：着工基準日 ≦ 本日 ≦ 引渡し日
+    //   ★2026/8/25修正：「造成」という名前のセグメントに依存すると、マスターによって最初の工程名が
+    //   異なる場合（関東マスター等）に着工基準日が取得できず件数が0になってしまうため、
+    //   名前に関係なく「開始日が最も早いセグメント」を着工基準として使うよう変更（より頑健な方式）
+    var zousei=segs.reduce(function(min,s){
+      var sd=String(s.start_date||s.date||'');
+      if(!sd)return min;
+      if(!min)return s;
+      return sd<String(min.start_date||min.date||'')?s:min;
+    },null);
+    if(zousei&&areaKey)result.diagnostics.areaWithZousei[areaKey]++;
     var startKey=zousei?String(zousei.start_date||zousei.date||'').replace(/\//g,'-'):'';
     var deliveryKey=(normDate(p.delivery_date||'')||'').replace(/\//g,'-');
+    if(!deliveryKey&&areaKey)result.diagnostics.areaNoDelivery[areaKey]++;
     var underConstruction=!!(startKey&&deliveryKey&&startKey<=today&&today<=deliveryKey);
     if(underConstruction){
-      result.all.underConstruction++;
-      if(areaKey)result[areaKey].underConstruction++;
+      term.all.underConstruction++;
+      if(areaKey)term[areaKey].underConstruction++;
     }
     // ②工種別・検査別：本日がstart_date〜end_dateに含まれるセグメントを集計
     //   （着工中判定と独立。検査等は引渡し後にずれ込むケースもあるため）
@@ -2118,13 +2153,13 @@ function computeSiteProgressSummary(){
       if(!(sd<=today&&today<=ed))return;
       var baseNm=String(s._kensaDef||nm).replace(/\s*[\(（][^)）]*[\)）]\s*$/,'');
       if(SITE_PROGRESS_INSPECTION_NAMES.indexOf(baseNm)>=0){
-        result.inspections.push({propName:p.name||'', fixNo:p.fix_no||'', type:baseNm, area:areaKey});
+        result.inspections.push({propName:p.name||'', fixNo:p.fix_no||'', type:baseNm, area:areaKey, term:termKey});
         return;
       }
       // 建て方内訳の単日マーカー（土台・①〜④レッカー等）は建て方本体の集計に含めるため個別カウントしない
       if(nm==='土台'||/レッカー/.test(nm))return;
-      result.all.byType[baseNm]=(result.all.byType[baseNm]||0)+1;
-      if(areaKey)result[areaKey].byType[baseNm]=(result[areaKey].byType[baseNm]||0)+1;
+      term.all.byType[baseNm]=(term.all.byType[baseNm]||0)+1;
+      if(areaKey)term[areaKey].byType[baseNm]=(term[areaKey].byType[baseNm]||0)+1;
     });
   });
   return result;
@@ -2146,75 +2181,117 @@ function _siteProgressSortedTypes(byTypeAll){
 
 function admRenderSiteProgress(container){
   var s=computeSiteProgressSummary();
-  var types=_siteProgressSortedTypes(s.all.byType);
+  var d=s.diagnostics;
   var card=function(label,val){
     return '<div style="flex:1;background:white;border:1px solid #e2e8f0;border-radius:10px;padding:14px;text-align:center">'
       +'<div style="font-size:11px;color:#64748b;font-weight:700;margin-bottom:4px">'+label+'</div>'
       +'<div style="font-size:24px;font-weight:800;color:#1e293b">'+val+'<span style="font-size:12px;font-weight:600;color:#94a3b8">件</span></div>'
     +'</div>';
   };
-  var rows=types.map(function(t){
-    return '<tr>'
-      +'<td style="padding:6px 10px;font-size:12px;color:#334155;border-bottom:1px solid #f1f5f9">'+t+'</td>'
-      +'<td style="padding:6px 10px;font-size:12px;text-align:right;font-weight:700;color:#1e293b;border-bottom:1px solid #f1f5f9">'+(s.all.byType[t]||0)+'</td>'
-      +'<td style="padding:6px 10px;font-size:12px;text-align:right;color:#0369a1;border-bottom:1px solid #f1f5f9">'+(s.tokai.byType[t]||0)+'</td>'
-      +'<td style="padding:6px 10px;font-size:12px;text-align:right;color:#7c3aed;border-bottom:1px solid #f1f5f9">'+(s.kanto.byType[t]||0)+'</td>'
-    +'</tr>';
-  }).join('');
-  var inspRows=s.inspections.length
-    ? s.inspections.map(function(i){
-        return '<div style="padding:6px 10px;font-size:12px;color:#334155;border-bottom:1px solid #f1f5f9">'+(i.propName||'(物件名不明)')+'　で　<strong>'+i.type+'</strong>'+(i.area?'　<span style="color:#94a3b8">（'+(i.area==='tokai'?'東海':'関東')+'）</span>':'')+'</div>';
-      }).join('')
-    : '<div style="padding:10px;font-size:12px;color:#94a3b8">本日実施中の検査はありません</div>';
+  var renderTermSection=function(title,term){
+    var types=_siteProgressSortedTypes(term.all.byType);
+    var rows=types.map(function(t){
+      return '<tr>'
+        +'<td style="padding:6px 10px;font-size:12px;color:#334155;border-bottom:1px solid #f1f5f9">'+t+'</td>'
+        +'<td style="padding:6px 10px;font-size:12px;text-align:right;font-weight:700;color:#1e293b;border-bottom:1px solid #f1f5f9">'+(term.all.byType[t]||0)+'</td>'
+        +'<td style="padding:6px 10px;font-size:12px;text-align:right;color:#0369a1;border-bottom:1px solid #f1f5f9">'+(term.tokai.byType[t]||0)+'</td>'
+        +'<td style="padding:6px 10px;font-size:12px;text-align:right;color:#7c3aed;border-bottom:1px solid #f1f5f9">'+(term.kanto.byType[t]||0)+'</td>'
+      +'</tr>';
+    }).join('');
+    return '<div style="font-size:14px;font-weight:800;color:#1e293b;margin:18px 0 8px">'+title+'</div>'
+      +'<div style="display:flex;gap:10px;margin-bottom:12px">'
+        +card('着工中（全現場）',term.all.underConstruction)
+        +card('着工中（東海）',term.tokai.underConstruction)
+        +card('着工中（関東）',term.kanto.underConstruction)
+      +'</div>'
+      +'<table style="width:100%;border-collapse:collapse;background:white;border:1px solid #e2e8f0;border-radius:10px;overflow:hidden">'
+        +'<thead><tr style="background:#f8fafc">'
+          +'<th style="padding:8px 10px;text-align:left;font-size:11px;color:#64748b">工種</th>'
+          +'<th style="padding:8px 10px;text-align:right;font-size:11px;color:#64748b">全現場</th>'
+          +'<th style="padding:8px 10px;text-align:right;font-size:11px;color:#0369a1">東海</th>'
+          +'<th style="padding:8px 10px;text-align:right;font-size:11px;color:#7c3aed">関東</th>'
+        +'</tr></thead>'
+        +'<tbody>'+(rows||'<tr><td colspan="4" style="padding:14px;text-align:center;color:#94a3b8;font-size:12px">該当データがありません</td></tr>')+'</tbody>'
+      +'</table>';
+  };
+  var inspRowsFor=function(term){
+    var list=s.inspections.filter(function(i){return i.term===term;});
+    return list.length
+      ? list.map(function(i){
+          return '<div style="padding:6px 10px;font-size:12px;color:#334155;border-bottom:1px solid #f1f5f9">'+(i.propName||'(物件名不明)')+'　で　<strong>'+i.type+'</strong>'+(i.area?'　<span style="color:#94a3b8">（'+(i.area==='tokai'?'東海':'関東')+'）</span>':'')+'</div>';
+        }).join('')
+      : '<div style="padding:10px;font-size:12px;color:#94a3b8">本日実施中の検査はありません</div>';
+  };
+  // ★診断情報：関東が0件など明らかに異常な場合の原因切り分け用（2026/8/25追加、常時表示に変更）
+  var diagBanner='<div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:12px 14px;margin-bottom:16px;font-size:11px;color:#475569">'
+    +'<div style="font-weight:800;margin-bottom:4px;color:#334155">🔎 集計の内訳（診断用）</div>'
+    +'<div>全物件数：'+d.totalProps+'件　／　東海判定：'+d.areaTotal.tokai+'件　／　関東判定：'+d.areaTotal.kanto+'件　／　エリア不明：'+d.unknownArea+'件</div>'
+    +'<div>工程データ取得成功：東海'+d.areaWithSegs.tokai+'件　／　関東'+d.areaWithSegs.kanto+'件（エラー：'+d.segError+'件）</div>'
+    +'<div>着工基準日を特定できた件数：東海'+d.areaWithZousei.tokai+'件　／　関東'+d.areaWithZousei.kanto+'件</div>'
+    +'<div>引渡し日が未設定：東海'+d.areaNoDelivery.tokai+'件　／　関東'+d.areaNoDelivery.kanto+'件</div>'
+    +(d.segError>0?('<div style="color:#b45309;margin-top:4px">⚠️エラー例：'+d.segErrorSamples.join('　/　')+'</div>'):'')
+    +(d.unknownArea>0?('<div style="color:#b45309;margin-top:4px">⚠️エリア不明の例：'+d.unknownAreaSamples.join('　/　')+'</div>'):'')
+  +'</div>';
+  var combinedAll=s.thisTerm.all.underConstruction+s.nextTerm.all.underConstruction;
+  var combinedTokai=s.thisTerm.tokai.underConstruction+s.nextTerm.tokai.underConstruction;
+  var combinedKanto=s.thisTerm.kanto.underConstruction+s.nextTerm.kanto.underConstruction;
   container.innerHTML='<div style="padding:16px">'
     +'<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px">'
       +'<div style="font-size:16px;font-weight:800;color:#1e293b">📊 全現場進捗管理</div>'
       +'<button onclick="admExportSiteProgressText()" style="background:#1a56db;color:white;border:none;border-radius:8px;padding:8px 14px;font-size:12px;font-weight:800;cursor:pointer">📋 テキストで書き出す</button>'
     +'</div>'
-    +'<div style="font-size:11px;color:#64748b;margin-bottom:14px">本日（'+s.asOf+'）時点のスナップショットです。着工中＝造成の着手日〜引渡し日の間にある物件。</div>'
-    +'<div style="display:flex;gap:10px;margin-bottom:18px">'
-      +card('着工中（全現場）',s.all.underConstruction)
-      +card('着工中（東海）',s.tokai.underConstruction)
-      +card('着工中（関東）',s.kanto.underConstruction)
+    +'<div style="font-size:11px;color:#64748b;margin-bottom:14px">本日（'+s.asOf+'）時点のスナップショットです。着工中＝造成の着手日〜引渡し日の間にある物件。今期／来期は引渡し日基準（来期＝直近の9/30より後の期）で分けています。</div>'
+    +'<div style="font-size:13px;font-weight:800;color:#1e293b;margin-bottom:8px">■ 今期＋来期 合算</div>'
+    +'<div style="display:flex;gap:10px;margin-bottom:16px">'
+      +card('着工中（全現場）',combinedAll)
+      +card('着工中（東海）',combinedTokai)
+      +card('着工中（関東）',combinedKanto)
     +'</div>'
-    +'<div style="font-size:13px;font-weight:800;color:#1e293b;margin-bottom:8px">工種別内訳</div>'
-    +'<table style="width:100%;border-collapse:collapse;background:white;border:1px solid #e2e8f0;border-radius:10px;overflow:hidden;margin-bottom:20px">'
-      +'<thead><tr style="background:#f8fafc">'
-        +'<th style="padding:8px 10px;text-align:left;font-size:11px;color:#64748b">工種</th>'
-        +'<th style="padding:8px 10px;text-align:right;font-size:11px;color:#64748b">全現場</th>'
-        +'<th style="padding:8px 10px;text-align:right;font-size:11px;color:#0369a1">東海</th>'
-        +'<th style="padding:8px 10px;text-align:right;font-size:11px;color:#7c3aed">関東</th>'
-      +'</tr></thead>'
-      +'<tbody>'+(rows||'<tr><td colspan="4" style="padding:14px;text-align:center;color:#94a3b8;font-size:12px">該当データがありません</td></tr>')+'</tbody>'
-    +'</table>'
-    +'<div style="font-size:13px;font-weight:800;color:#1e293b;margin-bottom:8px">本日実施中の検査</div>'
-    +'<div style="background:white;border:1px solid #e2e8f0;border-radius:10px;overflow:hidden">'+inspRows+'</div>'
+    +diagBanner
+    +renderTermSection('■ 今期',s.thisTerm)
+    +'<div style="font-size:13px;font-weight:800;color:#1e293b;margin-top:10px;margin-bottom:8px">今期：本日実施中の検査</div>'
+    +'<div style="background:white;border:1px solid #e2e8f0;border-radius:10px;overflow:hidden;margin-bottom:8px">'+inspRowsFor('thisTerm')+'</div>'
+    +renderTermSection('■ 来期',s.nextTerm)
+    +'<div style="font-size:13px;font-weight:800;color:#1e293b;margin-top:10px;margin-bottom:8px">来期：本日実施中の検査</div>'
+    +'<div style="background:white;border:1px solid #e2e8f0;border-radius:10px;overflow:hidden">'+inspRowsFor('nextTerm')+'</div>'
   +'</div>';
 }
 window.admRenderSiteProgress=admRenderSiteProgress;
 
 function _siteProgressToText(){
   var s=computeSiteProgressSummary();
-  var types=_siteProgressSortedTypes(s.all.byType);
   var lines=[];
   lines.push('【全現場進捗報告】'+s.asOf+'時点');
+  // ★今期+来期の合算着工数を一番上に表示（2026/8/25追加）
+  var combinedAll=s.thisTerm.all.underConstruction+s.nextTerm.all.underConstruction;
+  var combinedTokai=s.thisTerm.tokai.underConstruction+s.nextTerm.tokai.underConstruction;
+  var combinedKanto=s.thisTerm.kanto.underConstruction+s.nextTerm.kanto.underConstruction;
   lines.push('');
-  lines.push('■着工中物件数');
-  lines.push('　全現場：'+s.all.underConstruction+'件（東海'+s.tokai.underConstruction+'件／関東'+s.kanto.underConstruction+'件）');
-  lines.push('');
-  lines.push('■工種別内訳');
-  if(types.length){
-    types.forEach(function(t){
-      lines.push('　'+t+'　：'+(s.all.byType[t]||0)+'件（東海'+(s.tokai.byType[t]||0)+'／関東'+(s.kanto.byType[t]||0)+'）');
-    });
-  } else {
-    lines.push('　該当データがありません');
-  }
+  lines.push('■着工中物件数（今期＋来期 合算）');
+  lines.push('　全現場：'+combinedAll+'件（東海'+combinedTokai+'件／関東'+combinedKanto+'件）');
+  var addTerm=function(title,term){
+    lines.push('');
+    lines.push('==='+title+'===');
+    lines.push('■着工中物件数');
+    lines.push('　全現場：'+term.all.underConstruction+'件（東海'+term.tokai.underConstruction+'件／関東'+term.kanto.underConstruction+'件）');
+    lines.push('');
+    lines.push('■工種別内訳');
+    var types=_siteProgressSortedTypes(term.all.byType);
+    if(types.length){
+      types.forEach(function(t){
+        lines.push('　'+t+'　：'+(term.all.byType[t]||0)+'件（東海'+(term.tokai.byType[t]||0)+'／関東'+(term.kanto.byType[t]||0)+'）');
+      });
+    } else {
+      lines.push('　該当データがありません');
+    }
+  };
+  addTerm('今期',s.thisTerm);
+  addTerm('来期',s.nextTerm);
   lines.push('');
   lines.push('■本日実施中の検査');
   if(s.inspections.length){
     s.inspections.forEach(function(i){
-      lines.push('　'+(i.propName||'(物件名不明)')+'で'+i.type);
+      lines.push('　['+(i.term==='nextTerm'?'来期':'今期')+']　'+(i.propName||'(物件名不明)')+'で'+i.type);
     });
   } else {
     lines.push('　本日実施中の検査はありません');
