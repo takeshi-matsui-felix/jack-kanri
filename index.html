@@ -5460,7 +5460,15 @@ function applyConfirmedUntil(){
   var v=selEl.value;
   if(v){confirmedUntilMap[ck]=v;} else {delete confirmedUntilMap[ck];}
   saveLS('jack_confirmed_until',confirmedUntilMap);
-  renderBody(); if(typeof renderMyPage==='function')renderMyPage();
+  // ★2026/8/25：renderBody()で例外が起きても保存自体は完了しているのに画面が無反応に見える不具合を防ぐため、
+  //   try/catchでエラーを可視化する（原因特定用）
+  try{
+    renderBody(); if(typeof renderMyPage==='function')renderMyPage();
+  }catch(e){
+    console.error('[JACK] applyConfirmedUntil: renderBody失敗',e);
+    showToast('保存はできましたが、表示の更新でエラーが発生しました：'+e.message,'error');
+    return;
+  }
   showToast(v?('「'+v+'」まで確定・それ以降は仮工程表示にしました'):'確定区切りを解除しました（全て確定表示）','success');
 }
 window.applyConfirmedUntil=applyConfirmedUntil;
@@ -12469,9 +12477,24 @@ async function loadAdmSec(sec){
 
   } else if(sec==='delivery'){
     var sbd=getSB();
-    var prd=await sbd.from('properties').select('*').order('fix_no',{ascending:true});
+    var prd=null, prdErrMsg='';
+    try{
+      prd=await sbd.from('properties').select('*').order('fix_no',{ascending:true});
+      if(prd&&prd.error)prdErrMsg=(prd.error.message||JSON.stringify(prd.error));
+    }catch(e){prdErrMsg=e.message||String(e);}
     // ★完工済み（引渡日が今日以前）の物件は納品書管理の対象外にする（2026/8/8）
-    window._admDeliveryAll=(prd.data||[]).filter(function(p){return !isKankou(p);});
+    // ★2026/8/25：取得エラーを握りつぶさず画面に表示するよう変更（原因特定用）
+    window._admDeliveryAll=((prd&&prd.data)||[]).filter(function(p){return !isKankou(p);});
+    if(prdErrMsg){
+      right.innerHTML='<div style="padding:16px">'
+        +'<div style="font-size:16px;font-weight:800;color:#1e293b;margin-bottom:4px">📦 納品書管理</div>'
+        +'<div style="background:#fef2f2;border:1px solid #fca5a5;border-radius:10px;padding:14px;font-size:12px;color:#b91c1c">'
+          +'<div style="font-weight:800;margin-bottom:4px">⚠️ 物件データの取得に失敗しました</div>'
+          +'<div style="font-family:var(--mono);word-break:break-all">'+prdErrMsg.replace(/</g,'&lt;')+'</div>'
+        +'</div>'
+      +'</div>';
+      return;
+    }
     right.innerHTML='<div style="padding:16px">'
       +'<div style="font-size:16px;font-weight:800;color:#1e293b;margin-bottom:4px">📦 納品書管理</div>'
       +'<div style="font-size:11px;color:#64748b;margin-bottom:14px">全物件（完工済みを除く）の納品書ステータスを一覧確認できます。「開く」から納品書編集をその場（一覧を離れず）で開けます</div>'
