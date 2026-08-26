@@ -1331,14 +1331,25 @@ function _deliveryOffsetSnapshot(dn){
 }
 // ★納品書マスター設定の変更をSupabaseに保存（masters テーブルを間借りし、name='__delivery_overrides__'として保存。
 //   新規テーブルを作らずに済むよう既存の仕組みを再利用している）
+// ★2026/8/26修正：以前は.single()で既存行の有無を確認していたが、既に重複行が2件以上ある状態だと
+//   .single()がエラーになり「既存行なし」と誤判定→毎回insertしてしまい、保存するたびに複製が
+//   増殖するバグがあった（マスター工程一覧に__delivery_overrides__が無数に出てくる不具合の原因）。
+//   .limit(1)+件数チェックに変更し、重複が見つかった場合は余分な行を削除してから1件に集約する。
 function _saveDeliveryOverridesToSupabase(cb){
   saveLS('jack_delivery_area_overrides', DELIVERY_AREA_OVERRIDES);
   var sb=getSB(); if(!sb){if(cb)cb(false);return;}
   var payload={name:'__delivery_overrides__', steps:JSON.stringify(DELIVERY_AREA_OVERRIDES), updated_at:new Date().toISOString()};
-  sb.from('masters').select('id').eq('name','__delivery_overrides__').single()
+  sb.from('masters').select('id').eq('name','__delivery_overrides__').order('id')
     .then(function(r){
-      if(r.data&&r.data.id)return sb.from('masters').update(payload).eq('id',r.data.id);
-      return sb.from('masters').insert(payload);
+      var rows=r.data||[];
+      if(rows.length===0)return sb.from('masters').insert(payload);
+      var keepId=rows[0].id;
+      var extraIds=rows.slice(1).map(function(row){return row.id;});
+      var p=sb.from('masters').update(payload).eq('id',keepId);
+      if(extraIds.length>0){
+        p=p.then(function(ur){return sb.from('masters').delete().in('id',extraIds).then(function(){return ur;});});
+      }
+      return p;
     })
     .then(function(r){if(cb)cb(!r.error);})
     .catch(function(){if(cb)cb(false);});
@@ -8126,6 +8137,17 @@ window.MASTER_55MONTH_STEPS=MASTER_55MONTH_STEPS;
 
 // ★ アプリ起動時にmyMastersが空なら「マスター工程(5.5カ月)」を自動登録
 function ensureDefaultMaster(){
+  // ★2026/8/26修正：_saveDeliveryOverridesToSupabase/_loadMastersFromDBの不具合により、
+  //   マスター工程一覧に「__delivery_overrides__」等の内部設定行が無数に複製されてしまう問題が
+  //   発生していたため、起動時に自動でクリーンアップする（「__」始まりの名前は内部設定行として除外）。
+  if(myMasters&&myMasters.length>0){
+    var beforeLen=myMasters.length;
+    myMasters=myMasters.filter(function(m){return m&&m.name&&m.name.indexOf('__')!==0;});
+    if(myMasters.length!==beforeLen){
+      saveLS('jack_my_masters',myMasters);
+      console.log('[JACK] マスター工程一覧から内部設定行（__delivery_overrides__等）'+(beforeLen-myMasters.length)+'件をクリーンアップしました');
+    }
+  }
   if(!myMasters||myMasters.length===0){
     var def={name:'マスター工程(5.5カ月)', steps:MASTER_55MONTH_STEPS.map(function(s){return Object.assign({},s);})};
     myMasters=[def];
@@ -8800,14 +8822,24 @@ async function _loadMastersFromDB(forceRefresh){
   try{
     var r=await sb.from('masters').select('*').order('id');
     if(r.error||!r.data||!r.data.length)return;
-    var loaded=r.data.map(function(row){
-      return {name:row.name, steps: typeof row.steps==='string'?JSON.parse(row.steps):row.steps||[]};
-    });
+    // ★2026/8/26修正：__delivery_overrides__ 等の「__」始まりの名前は内部設定用の行であり、
+    //   ユーザー向けの工程マスターではないため、マスター工程一覧に取り込まない（除外）。
+    var loaded=r.data
+      .filter(function(row){return row.name&&row.name.indexOf('__')!==0;})
+      .map(function(row){
+        return {name:row.name, steps: typeof row.steps==='string'?JSON.parse(row.steps):row.steps||[]};
+      });
     // ローカルと統合（DBを優先。ローカルのみのものは保持）
+    // ★2026/8/26修正：以前はlocalNamesをループ開始前に1回だけ計算しており、DB側に同名の重複行が
+    //   複数あった場合、毎回「ローカルに無い」と誤判定して重複をpushし続ける不具合があった。
+    //   ループ中に取り込んだ名前も反映されるよう、pushの都度localNamesを更新する。
     var localNames=myMasters.map(function(m){return m.name;});
+    var seenNames={};
     loaded.forEach(function(m){
+      if(seenNames[m.name])return; // ★DB側の重複行はここでも弾く（1件目のみ採用）
+      seenNames[m.name]=true;
       var li=localNames.indexOf(m.name);
-      if(li>=0)myMasters[li]=m; else myMasters.push(m);
+      if(li>=0){myMasters[li]=m;} else {myMasters.push(m); localNames.push(m.name);}
     });
     saveLS('jack_my_masters',myMasters);
   }catch(e){console.warn('masters load err:',e);}
