@@ -1389,6 +1389,67 @@ async function _loadDeliveryOverridesFromDB(){
   }catch(e){}
 }
 window._loadDeliveryOverridesFromDB=_loadDeliveryOverridesFromDB;
+
+// ===== 担当者マスター（2026/8/26追加） =====
+// ★masters テーブルを間借りし、name='__staff_master__' として保存（新規テーブルを作らずに済む既存パターンを踏襲）。
+//   物件のtantou/staff欄（自由入力）の入力ゆれを防ぐため、担当者名の一覧をマスターとして持てるようにする。
+var STAFF_MASTER = loadLS('jack_staff_master', []);
+window.STAFF_MASTER=STAFF_MASTER;
+function _saveStaffMasterToSupabase(cb){
+  saveLS('jack_staff_master', STAFF_MASTER);
+  var sb=getSB(); if(!sb){if(cb)cb(false);return;}
+  var payload={name:'__staff_master__', steps:JSON.stringify(STAFF_MASTER), updated_at:new Date().toISOString()};
+  // ★重複行対策は納品書マスター設定の修正と同じ考え方（2026/8/26）：既存行が複数あっても1件に統合する
+  sb.from('masters').select('id').eq('name','__staff_master__').order('id')
+    .then(function(r){
+      var rows=r.data||[];
+      if(rows.length===0)return sb.from('masters').insert(payload);
+      var keepId=rows[0].id;
+      var extraIds=rows.slice(1).map(function(row){return row.id;});
+      var p=sb.from('masters').update(payload).eq('id',keepId);
+      if(extraIds.length>0){
+        p=p.then(function(ur){return sb.from('masters').delete().in('id',extraIds).then(function(){return ur;});});
+      }
+      return p;
+    })
+    .then(function(r){if(cb)cb(!r.error);})
+    .catch(function(){if(cb)cb(false);});
+}
+window._saveStaffMasterToSupabase=_saveStaffMasterToSupabase;
+async function _loadStaffMasterFromDB(){
+  var sb=getSB(); if(!sb)return;
+  try{
+    var r=await sb.from('masters').select('steps').eq('name','__staff_master__').limit(1);
+    var row=r.data&&r.data[0];
+    if(!r.error&&row&&row.steps){
+      var loaded=typeof row.steps==='string'?JSON.parse(row.steps):row.steps;
+      if(Array.isArray(loaded)){
+        var before=JSON.stringify(STAFF_MASTER);
+        STAFF_MASTER.length=0;
+        loaded.forEach(function(n){STAFF_MASTER.push(n);});
+        saveLS('jack_staff_master', STAFF_MASTER);
+        if(before!==JSON.stringify(STAFF_MASTER)){
+          if(typeof admRenderStaffMaster==='function'&&typeof _admSec!=='undefined'&&_admSec==='staffmaster'){
+            var admRight=document.getElementById('admRight');
+            if(admRight){try{admRenderStaffMaster(admRight);}catch(e2){}}
+          }
+        }
+      }
+    }
+  }catch(e){}
+}
+window._loadStaffMasterFromDB=_loadStaffMasterFromDB;
+// 担当者選択用の<select>のHTMLを生成（現在値がマスターに無くても選択肢として保持し、データが消えないようにする）
+function staffSelectHtml(id, currentVal, extraAttrs){
+  var cur=String(currentVal||'').trim();
+  var names=STAFF_MASTER.slice();
+  if(cur&&names.indexOf(cur)<0)names.push(cur);
+  names.sort(function(a,b){return a.localeCompare(b,'ja');});
+  var opts='<option value=""'+(!cur?' selected':'')+'>未設定</option>'
+    +names.map(function(n){return '<option value="'+n.replace(/"/g,'&quot;')+'"'+(n===cur?' selected':'')+'>'+n+'</option>';}).join('');
+  return '<select id="'+id+'" '+(extraAttrs||'')+'>'+opts+'</select>';
+}
+window.staffSelectHtml=staffSelectHtml;
 // マスター内訳テキスト（PDF下部の建材内訳。物件ごとにコピーして微調整可能）
 var DELIVERY_BREAKDOWN_MASTER =
   '【副資材Ⅰ（2階用）】1/2階構造用ラワン合板12・1・2階合板9・２階用合板15・２階用針葉樹合板24\n'+
@@ -2337,6 +2398,71 @@ function _siteProgressCopyText(btn){
   }
 }
 window._siteProgressCopyText=_siteProgressCopyText;
+
+// ===== 担当者マスター管理画面（2026/8/26追加） =====
+function admRenderStaffMaster(container){
+  var names=STAFF_MASTER.slice().sort(function(a,b){return a.localeCompare(b,'ja');});
+  var rows=names.length
+    ? names.map(function(n){
+        return '<div style="display:flex;align-items:center;justify-content:space-between;padding:9px 14px;border-bottom:1px solid #f1f5f9">'
+          +'<div style="font-size:12px;font-weight:700;color:#1e293b">'+n+'</div>'
+          +'<div style="display:flex;gap:6px">'
+            +'<button onclick="renameStaffMaster(\''+n.replace(/'/g,"\\'")+'\')" style="font-size:10px;background:#fef9c3;color:#854d0e;padding:4px 9px;border-radius:6px;font-weight:700;border:none;cursor:pointer">✏️ 名称変更</button>'
+            +'<button onclick="deleteStaffMaster(\''+n.replace(/'/g,"\\'")+'\')" style="font-size:10px;background:#fee2e2;color:#b91c1c;padding:4px 9px;border-radius:6px;font-weight:700;border:none;cursor:pointer">削除</button>'
+          +'</div>'
+        +'</div>';
+      }).join('')
+    : '<div style="padding:20px;text-align:center;color:#94a3b8;font-size:12px">担当者が登録されていません。「＋ 担当者を追加」から登録してください。</div>';
+  container.innerHTML='<div style="padding:16px">'
+    +'<div style="font-size:16px;font-weight:800;color:#1e293b;margin-bottom:4px">👤 担当者マスター</div>'
+    +'<div style="font-size:11px;color:#64748b;margin-bottom:14px">物件情報編集や検査取りまとめ等、担当者を入力する場面でここに登録した担当者から選択できるようになります。既存の自由入力データは消えません（マスターに無い名前でも表示・選択は維持されます）。</div>'
+    +'<button onclick="addStaffMaster()" style="background:#1a56db;color:white;border:none;border-radius:8px;padding:9px 16px;font-size:12px;font-weight:800;cursor:pointer;margin-bottom:14px">＋ 担当者を追加</button>'
+    +'<div style="background:white;border:1px solid #e2e8f0;border-radius:10px;overflow:hidden">'+rows+'</div>'
+  +'</div>';
+}
+window.admRenderStaffMaster=admRenderStaffMaster;
+
+function addStaffMaster(){
+  var name=prompt('追加する担当者名を入力してください');
+  if(!name)return;
+  name=name.trim();
+  if(!name)return;
+  if(STAFF_MASTER.indexOf(name)>=0){showToast('既に登録されています','info');return;}
+  STAFF_MASTER.push(name);
+  _saveStaffMasterToSupabase(function(ok){
+    showToast(ok?'追加しました':'追加しました（サーバー同期は失敗しました）',ok?'success':'error');
+  });
+  admRenderStaffMaster(document.getElementById('admRight'));
+}
+window.addStaffMaster=addStaffMaster;
+
+function renameStaffMaster(oldName){
+  var newName=prompt('担当者名を変更してください',oldName);
+  if(!newName)return;
+  newName=newName.trim();
+  if(!newName||newName===oldName)return;
+  var idx=STAFF_MASTER.indexOf(oldName);
+  if(idx<0)return;
+  STAFF_MASTER[idx]=newName;
+  _saveStaffMasterToSupabase(function(ok){
+    showToast(ok?'変更しました':'変更しました（サーバー同期は失敗しました）',ok?'success':'error');
+  });
+  admRenderStaffMaster(document.getElementById('admRight'));
+}
+window.renameStaffMaster=renameStaffMaster;
+
+function deleteStaffMaster(name){
+  if(!confirm('「'+name+'」をマスターから削除します。\n既にこの担当者が設定されている物件のデータ自体は消えません。\nよろしいですか？'))return;
+  var idx=STAFF_MASTER.indexOf(name);
+  if(idx<0)return;
+  STAFF_MASTER.splice(idx,1);
+  _saveStaffMasterToSupabase(function(ok){
+    showToast(ok?'削除しました':'削除しました（サーバー同期は失敗しました）',ok?'success':'error');
+  });
+  admRenderStaffMaster(document.getElementById('admRight'));
+}
+window.deleteStaffMaster=deleteStaffMaster;
+
 
 // ★検査4種（配筋検査・躯体検査・断熱検査・完了検査）の予約日/ステータスを、
 //   ガント上の同名工程行があればその行の日付・色に直接反映する（非破壊：新しい配列を返す）
@@ -6927,7 +7053,7 @@ function openPropEditModal(){
       +'<div style="font-size:11px;font-weight:800;color:#475569;margin-bottom:8px;padding-bottom:4px;border-bottom:2px solid #e2e8f0">🏠 基本情報</div>'
       +'<div style="display:flex;flex-direction:column;gap:10px;margin-bottom:16px">'
       +'<div><label style="font-size:10px;color:#64748b;display:block;margin-bottom:3px">担当者</label>'
-      +'<input id="pe-tantou" type="text" value="'+(cur.tantou||cur.staff||'')+'" placeholder="担当者名" style="'+iStyle+'"></div>'
+      +staffSelectHtml('pe-tantou', cur.tantou||cur.staff||'', 'style="'+iStyle+'"')+'</div>'
       +'<div><label style="font-size:10px;color:#64748b;display:block;margin-bottom:3px">住所</label>'
       +'<input id="pe-address" type="text" value="'+(typeof cur.address==='string'?cur.address:(cur.address&&cur.address.address)||'')+'" placeholder="例: 愛知県常滑市新開町1-1" style="'+iStyle+'"></div>'
       +'<div><label style="font-size:10px;color:#64748b;display:block;margin-bottom:3px">販売ステータス</label>'
@@ -7361,11 +7487,48 @@ function renderMyPage(){
     return;
   }
   var all=getAllProps();
+  // ★担当者フィルター（2026/8/26追加）：登録済みマイ物件に実在する担当者名から選択肢を生成
+  var tantouOpts=[];
+  myFavProps.forEach(function(fav){
+    var p=all.find(function(x){return x.fix_no===fav.fix_no&&x.name===fav.name;});
+    var t=p?String(p.tantou||p.staff||'').trim():'';
+    if(t&&tantouOpts.indexOf(t)<0)tantouOpts.push(t);
+  });
+  tantouOpts.sort(function(a,b){return a.localeCompare(b,'ja');});
+  var curTantouFilter=window._myPageTantouFilter||'';
+  var curSort=window._myPageSort||'default';
   var html='<div style="padding:8px 12px 4px;font-size:11px;color:var(--g400)">登録物件 '+myFavProps.length+'件</div>'
     +'<div style="padding:4px 12px 8px;display:flex;gap:6px;flex-wrap:wrap">'
     +'<button class="btn-secondary" style="font-size:11px;padding:7px 12px" onclick="printPage()">🖨️ 印刷</button>'
+    +(tantouOpts.length?('<select onchange="window._myPageTantouFilter=this.value;renderMyPage();" style="font-size:11px;padding:7px 10px;border:1.5px solid var(--g200);border-radius:8px;font-weight:700;color:var(--g700);background:white">'
+      +'<option value=""'+(!curTantouFilter?' selected':'')+'>担当者：全員</option>'
+      +tantouOpts.map(function(n){return '<option value="'+n.replace(/"/g,'&quot;')+'"'+(n===curTantouFilter?' selected':'')+'>'+n+'</option>';}).join('')
+    +'</select>'):'')
+    +'<select onchange="window._myPageSort=this.value;renderMyPage();" style="font-size:11px;padding:7px 10px;border:1.5px solid var(--g200);border-radius:8px;font-weight:700;color:var(--g700);background:white">'
+      +'<option value="default"'+(curSort==='default'?' selected':'')+'>並び替え：登録順</option>'
+      +'<option value="tantou"'+(curSort==='tantou'?' selected':'')+'>並び替え：担当者順</option>'
+    +'</select>'
     +'</div>';
-  html+=myFavProps.map(function(fav){
+  var favList=myFavProps.slice();
+  if(curTantouFilter){
+    favList=favList.filter(function(fav){
+      var p=all.find(function(x){return x.fix_no===fav.fix_no&&x.name===fav.name;});
+      return p&&String(p.tantou||p.staff||'').trim()===curTantouFilter;
+    });
+  }
+  if(curSort==='tantou'){
+    favList.sort(function(a,b){
+      var pa=all.find(function(x){return x.fix_no===a.fix_no&&x.name===a.name;});
+      var pb=all.find(function(x){return x.fix_no===b.fix_no&&x.name===b.name;});
+      var ta=pa?String(pa.tantou||pa.staff||'').trim():'';
+      var tb=pb?String(pb.tantou||pb.staff||'').trim():'';
+      if(!ta&&!tb)return 0;
+      if(!ta)return 1;
+      if(!tb)return -1;
+      return ta.localeCompare(tb,'ja');
+    });
+  }
+  html+=favList.map(function(fav){
     var p=all.find(function(x){return x.fix_no===fav.fix_no&&x.name===fav.name;});
     // 完工・非表示物件は getAllProps() に含まれないが削除ボタンは表示する
     if(!p){
@@ -9418,6 +9581,7 @@ async function loadPropertiesFromCacheOrDB(forceRefresh){
     if(typeof _loadVendorsFromCacheOrDB==='function')_loadVendorsFromCacheOrDB(false);
     if(typeof _loadMastersFromDB==='function')_loadMastersFromDB();
     if(typeof _loadDeliveryOverridesFromDB==='function')_loadDeliveryOverridesFromDB();
+    if(typeof _loadStaffMasterFromDB==='function')_loadStaffMasterFromDB();
     if(typeof renderAll==='function')renderAll();
     setMode(isPcMode);
   }
@@ -12252,6 +12416,7 @@ function renderAdminCPShell(){
       +admMenuItem('props','🏠','物件管理')
       +admMenuItem('kensa','🔍','検査取りまとめ')
       +admMenuItem('siteprogress','📊','全現場進捗管理')
+      +admMenuItem('staffmaster','👤','担当者マスター')
       +admMenuItem('delivery','📦','納品書管理')
       +admMenuItem('deliverymaster','🧾','納品書マスター設定')
       +admMenuItem('masterproc','📐','マスター工程')
@@ -12483,6 +12648,14 @@ async function loadAdmSec(sec){
       kprops=prk.data||[];
     }
     window._admKensaAll=kprops;
+    // ★担当者フィルターの選択肢は担当者マスター＋実データに実在する値の和集合にする（2026/8/26追加）
+    //   マスター未整備の担当者名でも絞り込めるようにするため
+    var _kensaTantouOpts=STAFF_MASTER.slice();
+    kprops.forEach(function(p){
+      var t=String(p.tantou||p.staff||'').trim();
+      if(t&&_kensaTantouOpts.indexOf(t)<0)_kensaTantouOpts.push(t);
+    });
+    _kensaTantouOpts.sort(function(a,b){return a.localeCompare(b,'ja');});
     right.innerHTML='<div style="padding:16px">'
       +'<div style="font-size:16px;font-weight:800;color:#1e293b;margin-bottom:4px">🔍 検査取りまとめ</div>'
       +'<div style="font-size:11px;color:#64748b;margin-bottom:14px">配筋・躯体・断熱・完了の4検査の予約状況を一覧で確認・編集できます（引渡日順）。ここで入力した予約日は物件詳細・ガントにも即時反映されます</div>'
@@ -12499,6 +12672,14 @@ async function loadAdmSec(sec){
           +'<option value="kanto">関東</option>'
           +'<option value="tokai_raikin">東海来期</option>'
           +'<option value="kanto_raikin">関東来期</option>'
+        +'</select>'
+        +'<select id="admKensaSort" onchange="admRenderKensaTable()" style="padding:8px 12px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:12px;font-weight:700;color:#1e293b;background:white">'
+          +'<option value="delivery">並び替え：引渡日順</option>'
+          +'<option value="tantou">並び替え：担当者順</option>'
+        +'</select>'
+        +'<select id="admKensaTantouFilter" onchange="admRenderKensaTable()" style="padding:8px 12px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:12px;font-weight:700;color:#1e293b;background:white">'
+          +'<option value="">担当者：全員</option>'
+          +_kensaTantouOpts.map(function(n){return '<option value="'+n.replace(/"/g,'&quot;')+'">'+n+'</option>';}).join('')
         +'</select>'
       +'</div>'
       +'<div style="display:flex;gap:6px;margin-bottom:14px;flex-wrap:wrap" id="admKensaShinsaTabs"></div>'
@@ -12565,6 +12746,9 @@ async function loadAdmSec(sec){
 
   } else if(sec==='siteprogress'){
     admRenderSiteProgress(right);
+
+  } else if(sec==='staffmaster'){
+    admRenderStaffMaster(right);
 
   } else if(sec==='import'){
     right.innerHTML='<div style="padding:14px">'
@@ -12835,6 +13019,7 @@ function admRenderKensaTable(){
   var areaMode=(document.getElementById('admKensaArea')||{}).value||'all';
   var deliveryMode=(document.getElementById('admKensaDelivery')||{}).value||'before';
   var shinsaMode=window._admKensaShinsa||'';
+  var tantouFilter=(document.getElementById('admKensaTantouFilter')||{}).value||'';
 
   // 審査機関タブの描画
   var shinsaTabsEl=document.getElementById('admKensaShinsaTabs');
@@ -12854,6 +13039,8 @@ function admRenderKensaTable(){
   ];
   var rows=all.filter(function(p){
     if(q&&!((p.name||'').toLowerCase().indexOf(q)>=0||String(p.fix_no||'').indexOf(q)>=0))return false;
+    // 担当者絞込（2026/8/26追加）
+    if(tantouFilter&&String(p.tantou||p.staff||'').trim()!==tantouFilter)return false;
     // エリア絞込（物件管理・メイン画面と同じ判定ロジックを使用）
     var area=normalizeArea(p);
     if(areaMode==='tokai'){if(!(TOKAI_AREAS.indexOf(area)>=0&&!isRaikin(p)&&!isKankou(p)))return false;}
@@ -12873,9 +13060,20 @@ function admRenderKensaTable(){
     }
     return true;
   });
-  // ★引渡日順に並び替え（未設定は最後）。delivery_dateは物件によって表記ゆれ（YYYY/M/D・M/D/YY等）が
-  //   混在しているため、単純な文字列比較ではなくnormDate()で正規化してから比較する
+  // ★並び替え：引渡日順（デフォルト）または担当者順を選択可能にする（2026/8/26追加）
+  //   delivery_dateは物件によって表記ゆれ（YYYY/M/D・M/D/YY等）が混在しているため、
+  //   単純な文字列比較ではなくnormDate()で正規化してから比較する
+  var sortMode=(document.getElementById('admKensaSort')||{}).value||'delivery';
   rows.sort(function(a,b){
+    if(sortMode==='tantou'){
+      var ta=String(a.tantou||a.staff||'').trim(), tb=String(b.tantou||b.staff||'').trim();
+      if(!ta&&!tb)return 0;
+      if(!ta)return 1;
+      if(!tb)return -1;
+      var c=ta.localeCompare(tb,'ja');
+      if(c!==0)return c;
+      // 同じ担当者内では引渡日順で並べる
+    }
     var da=normDate(a.delivery_date)||'', db=normDate(b.delivery_date)||'';
     if(!da&&!db)return 0;
     if(!da)return 1;
@@ -12884,12 +13082,13 @@ function admRenderKensaTable(){
   });
   if(!rows.length){wrap.innerHTML='<div style="text-align:center;padding:32px;color:#94a3b8;font-size:12px">該当する物件がありません</div>';return;}
   var html='<table style="width:100%;border-collapse:collapse;font-size:11px;table-layout:fixed">'
-    +'<colgroup><col style="width:18%"><col style="width:12%"><col style="width:14%"><col style="width:14%"><col style="width:14%"><col style="width:14%"><col style="width:14%"></colgroup>'
+    +'<colgroup><col style="width:16%"><col style="width:10%"><col style="width:13%"><col style="width:13%"><col style="width:13%"><col style="width:13%"><col style="width:11%"><col style="width:11%"></colgroup>'
     +'<thead><tr style="background:#f8fafc">'
       +'<th style="text-align:left;padding:10px 12px;border-bottom:2px solid #e2e8f0;font-size:10px;color:#64748b">物件名</th>'
       +'<th style="text-align:left;padding:10px 12px;border-bottom:2px solid #e2e8f0;font-size:10px;color:#64748b">審査機関</th>'
       +defs.map(function(d){return '<th style="text-align:left;padding:10px 12px;border-bottom:2px solid #e2e8f0;font-size:10px;color:#64748b">'+d.label+'</th>';}).join('')
       +'<th style="text-align:left;padding:10px 12px;border-bottom:2px solid #e2e8f0;font-size:10px;color:#64748b">引渡日</th>'
+      +'<th style="text-align:left;padding:10px 12px;border-bottom:2px solid #e2e8f0;font-size:10px;color:#64748b">担当</th>'
     +'</tr></thead><tbody>';
   rows.forEach(function(p,i){
     var fixNoAttr=String(p.fix_no||'');
@@ -12916,6 +13115,7 @@ function admRenderKensaTable(){
         +'</td>';
       }).join('')
       +'<td style="padding:9px 12px;color:#475569;white-space:nowrap">'+(normDate(p.delivery_date)||'')+'</td>'
+      +'<td style="padding:9px 12px;color:#475569;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+(p.tantou||p.staff||'—')+'</td>'
     +'</tr>';
   });
   html+='</tbody></table>';
