@@ -7334,6 +7334,14 @@ function openSelectProp(){
     tabDefs[0].label='関東（今期）';
   }
   var selTab='all';
+  var selTantou='';
+  // ★担当者フィルター（2026/8/26追加）：担当者マスター＋実データに実在する値の和集合
+  var tantouOpts=STAFF_MASTER.slice();
+  active.forEach(function(p){
+    var t=String(p.tantou||p.staff||'').trim();
+    if(t&&tantouOpts.indexOf(t)<0)tantouOpts.push(t);
+  });
+  tantouOpts.sort(function(a,b){return a.localeCompare(b,'ja');});
 
   var searchQuery='';
   function renderSelectContent(){
@@ -7342,9 +7350,12 @@ function openSelectProp(){
       if(FIXED_AREA==='tokai'){var a=normalizeArea(p);if(TOKAI_AREAS.indexOf(a)<0)return false;}
       if(FIXED_AREA==='kanto'){var a=normalizeArea(p);if(KANTO_AREAS.indexOf(a)<0)return false;}
       var td=tabDefs.find(function(t){return t.id===selTab;});
-      if(!td||td.id==='all')return !isRaikin(p)&&!isKankou(p);
-      if(td.raikin)return isRaikin(p)&&!isKankou(p);
-      return td.areas&&td.areas.indexOf(normalizeArea(p))>=0&&!isRaikin(p)&&!isKankou(p);
+      if(!td||td.id==='all'){if(isRaikin(p)||isKankou(p))return false;}
+      else if(td.raikin){if(!isRaikin(p)||isKankou(p))return false;}
+      else{if(!td.areas||td.areas.indexOf(normalizeArea(p))<0||isRaikin(p)||isKankou(p))return false;}
+      // 担当者フィルター（2026/8/26追加）
+      if(selTantou&&String(p.tantou||p.staff||'').trim()!==selTantou)return false;
+      return true;
     });
     // 検索フィルタ
     if(searchQuery){
@@ -7367,6 +7378,10 @@ function openSelectProp(){
             +'style="flex:1;border:none;background:transparent;font-size:16px;outline:none;color:#1e293b" />'
           +'<button id="selectPropSearchClear" style="border:none;background:none;color:#94a3b8;font-size:14px;cursor:pointer;padding:0;display:none">✕</button>'
         +'</div>'
+        +(tantouOpts.length?('<select id="selectPropTantou" style="margin-top:6px;width:100%;font-size:12px;padding:7px 10px;border:1.5px solid #e2e8f0;border-radius:8px;font-weight:700;color:#1e293b;background:white">'
+          +'<option value="">担当者：全員</option>'
+          +tantouOpts.map(function(n){return '<option value="'+n.replace(/"/g,'&quot;')+'">'+n+'</option>';}).join('')
+        +'</select>'):'')
       +'</div>'
       +'</div>'
       +'<div id="_spList"></div>';
@@ -7423,6 +7438,15 @@ function openSelectProp(){
           renderListOnly();
         });
       }
+      // 担当者フィルターのイベント（2026/8/26追加）
+      var tantouEl=document.getElementById('selectPropTantou');
+      if(tantouEl){
+        tantouEl.value=selTantou;
+        tantouEl.addEventListener('change',function(){
+          selTantou=this.value;
+          renderListOnly();
+        });
+      }
     } else {
       // 再描画時: タブのアクティブ状態だけ更新
       el.querySelectorAll('[data-stab]').forEach(function(btn){
@@ -7442,6 +7466,8 @@ function openSelectProp(){
         if(!td||td.id==='all'){if(isRaikin(p)||isKankou(p))return false;}
         else if(td.raikin){if(!isRaikin(p)||isKankou(p))return false;}
         else{if(!td.areas||td.areas.indexOf(normalizeArea(p))<0||isRaikin(p)||isKankou(p))return false;}
+        // 担当者フィルター（2026/8/26追加）
+        if(selTantou&&String(p.tantou||p.staff||'').trim()!==selTantou)return false;
         if(!q)return true;
         return (p.name||'').toLowerCase().indexOf(q)>=0||(p.fix_no||'').toLowerCase().indexOf(q)>=0;
       });
