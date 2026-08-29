@@ -775,7 +775,7 @@ body.sp-mode #areaTabsBtns{ display:none !important; }
   </div>
   <div id="weatherBar" style="display:none;flex-shrink:0;background:white;border-top:2px solid #e2e8f0;overflow-x:auto;-webkit-overflow-scrolling:touch;"><div id="weatherBarContent"></div></div>
 </div>
-<div class="slide-panel" id="detailPanel" style="display:flex;flex-direction:row;overflow:hidden"><div style="flex:1;display:flex;flex-direction:column;overflow:hidden"><div class="panel-header"><button class="panel-back" onclick="closePanel('detailPanel')">← 戻る</button><div style="flex:1"><div class="panel-title">物件詳細</div></div><div id="dpFavBtnWrap"></div></div><div id="dpHeroSticky" style="flex-shrink:0;padding:6px 12px;background:var(--primary-d,#1e40af);color:white;display:none"></div><div class="panel-scroll" id="dpContent" style="padding-bottom:16px"></div></div><div id="ganttEditSidebar" style="display:none;width:200px;min-width:200px;background:#1e293b;border-left:2px solid #334155;flex-direction:column;overflow-y:auto;flex-shrink:0"><div style="padding:8px;border-bottom:1px solid #334155;display:flex;flex-direction:column;gap:4px"><div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:2px"><div style="font-size:10px;font-weight:800;color:rgba(255,255,255,.5)">✏️ 工程表編集</div><button onclick="closeGanttEditSidebar()" style="background:rgba(255,255,255,.1);border:none;color:rgba(255,255,255,.6);border-radius:4px;padding:2px 7px;font-size:11px;cursor:pointer;font-weight:700">✕</button></div><div id="geAnchorDiag" style="font-size:9px;color:#fbbf24;line-height:1.5;background:#0f172a;border-radius:6px;padding:5px 7px;display:none"></div><button onclick="saveGanttEdit()" style="width:100%;padding:7px;background:#1a56db;color:white;border:none;border-radius:7px;font-size:11px;font-weight:800;cursor:pointer">💾 保存</button><div style="display:flex;gap:4px"><button onclick="shiftGanttEdit()" style="flex:1;padding:5px;background:#475569;color:white;border:none;border-radius:6px;font-size:10px;font-weight:700;cursor:pointer">📅 シフト</button><button onclick="resetGanttEdit()" style="flex:1;padding:5px;background:#475569;color:white;border:none;border-radius:6px;font-size:10px;font-weight:700;cursor:pointer">🔄 リセット</button></div><button onclick="openSlideRangeDialog()" style="width:100%;padding:5px;background:#6d28d9;color:white;border:none;border-radius:6px;font-size:10px;font-weight:700;cursor:pointer;margin-top:4px">📆 期間指定スライド</button></div><div style="padding:8px;border-bottom:1px solid #334155"><div style="font-size:10px;font-weight:800;color:rgba(255,255,255,.7);margin-bottom:6px">＋ 工種追加</div><div style="display:flex;flex-direction:column;gap:5px"><input type="text" id="geNewName" placeholder="工種名" style="padding:5px 7px;border:1.5px solid #475569;border-radius:6px;font-size:11px;background:#0f172a;color:white;width:100%;box-sizing:border-box"><div style="display:flex;align-items:center;gap:4px"><span style="font-size:9px;color:rgba(255,255,255,.5);white-space:nowrap">日数</span><input type="number" id="geNewDays" placeholder="日数" min="1" max="180" style="padding:4px 6px;border:1.5px solid #475569;border-radius:6px;font-size:11px;background:#0f172a;color:white;width:100%;box-sizing:border-box"></div><div style="display:flex;align-items:center;gap:4px"><span style="font-size:9px;color:rgba(255,255,255,.5);white-space:nowrap">開始日</span><input type="date" id="geNewDate" style="padding:4px 4px;border:1.5px solid #475569;border-radius:6px;font-size:10px;background:#0f172a;color:white;width:100%;box-sizing:border-box"></div><div id="geColorPicker" style="display:flex;flex-wrap:wrap;gap:4px;margin:2px 0"></div><button onclick="addGanttBar()" style="width:100%;padding:7px;background:#059669;color:white;border:none;border-radius:7px;font-size:11px;font-weight:800;cursor:pointer">バーを追加</button></div></div><div style="padding:8px;border-bottom:1px solid #334155"><div style="font-size:10px;font-weight:800;color:rgba(255,255,255,.7);margin-bottom:6px">🚧 仮工程／確定工程</div><div style="font-size:9px;color:rgba(255,255,255,.5);line-height:1.5;margin-bottom:6px">選んだ工程より後ろを「仮工程」としてハッチング表示にします</div><select id="geConfirmedUntilSel" style="width:100%;padding:5px 6px;border:1.5px solid #475569;border-radius:6px;font-size:11px;background:#0f172a;color:white;margin-bottom:5px;box-sizing:border-box"></select><button onclick="applyConfirmedUntil()" style="width:100%;padding:6px;background:#ea580c;color:white;border:none;border-radius:6px;font-size:10px;font-weight:800;cursor:pointer">この工程までを確定にする</button></div><div style="padding:6px 8px;flex:1"><div style="font-size:9px;font-weight:800;color:rgba(255,255,255,.4);margin-bottom:4px">工種一覧</div><div id="geSegList" style="display:flex;flex-direction:column;gap:4px;min-width:0;overflow:hidden"></div></div></div></div>
+<div class="slide-panel" id="detailPanel" style="display:flex;flex-direction:row;overflow:hidden"><div style="flex:1;display:flex;flex-direction:column;overflow:hidden"><div class="panel-header"><button class="panel-back" onclick="closePanel('detailPanel')">← 戻る</button><div style="flex:1"><div class="panel-title">物件詳細</div></div><div id="dpFavBtnWrap"></div></div><div id="dpHeroSticky" style="flex-shrink:0;padding:6px 12px;background:var(--primary-d,#1e40af);color:white;display:none"></div><div class="panel-scroll" id="dpContent" style="padding-bottom:16px"></div></div><div id="ganttEditSidebar" style="display:none;width:200px;min-width:200px;background:#1e293b;border-left:2px solid #334155;flex-direction:column;overflow-y:auto;flex-shrink:0"><div style="padding:8px;border-bottom:1px solid #334155;display:flex;flex-direction:column;gap:4px"><div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:2px"><div style="font-size:10px;font-weight:800;color:rgba(255,255,255,.5)">✏️ 工程表編集</div><button onclick="closeGanttEditSidebar()" style="background:rgba(255,255,255,.1);border:none;color:rgba(255,255,255,.6);border-radius:4px;padding:2px 7px;font-size:11px;cursor:pointer;font-weight:700">✕</button></div><div id="geAnchorDiag" style="font-size:9px;color:#fbbf24;line-height:1.5;background:#0f172a;border-radius:6px;padding:5px 7px;display:none"></div><button onclick="saveGanttEdit()" style="width:100%;padding:7px;background:#1a56db;color:white;border:none;border-radius:7px;font-size:11px;font-weight:800;cursor:pointer">💾 保存</button><div style="display:flex;gap:4px"><button onclick="shiftGanttEdit()" style="flex:1;padding:5px;background:#475569;color:white;border:none;border-radius:6px;font-size:10px;font-weight:700;cursor:pointer">📅 シフト</button><button onclick="resetGanttEdit()" style="flex:1;padding:5px;background:#475569;color:white;border:none;border-radius:6px;font-size:10px;font-weight:700;cursor:pointer">🔄 リセット</button></div><button onclick="fixHolidayMisalignedSegs()" style="width:100%;padding:5px;background:#b45309;color:white;border:none;border-radius:6px;font-size:10px;font-weight:700;cursor:pointer;margin-top:4px">☀️ 休日開始の工程を補正</button><button onclick="openSlideRangeDialog()" style="width:100%;padding:5px;background:#6d28d9;color:white;border:none;border-radius:6px;font-size:10px;font-weight:700;cursor:pointer;margin-top:4px">📆 期間指定スライド</button></div><div style="padding:8px;border-bottom:1px solid #334155"><div style="font-size:10px;font-weight:800;color:rgba(255,255,255,.7);margin-bottom:6px">＋ 工種追加</div><div style="display:flex;flex-direction:column;gap:5px"><input type="text" id="geNewName" placeholder="工種名" style="padding:5px 7px;border:1.5px solid #475569;border-radius:6px;font-size:11px;background:#0f172a;color:white;width:100%;box-sizing:border-box"><div style="display:flex;align-items:center;gap:4px"><span style="font-size:9px;color:rgba(255,255,255,.5);white-space:nowrap">日数</span><input type="number" id="geNewDays" placeholder="日数" min="1" max="180" style="padding:4px 6px;border:1.5px solid #475569;border-radius:6px;font-size:11px;background:#0f172a;color:white;width:100%;box-sizing:border-box"></div><div style="display:flex;align-items:center;gap:4px"><span style="font-size:9px;color:rgba(255,255,255,.5);white-space:nowrap">開始日</span><input type="date" id="geNewDate" style="padding:4px 4px;border:1.5px solid #475569;border-radius:6px;font-size:10px;background:#0f172a;color:white;width:100%;box-sizing:border-box"></div><div id="geColorPicker" style="display:flex;flex-wrap:wrap;gap:4px;margin:2px 0"></div><button onclick="addGanttBar()" style="width:100%;padding:7px;background:#059669;color:white;border:none;border-radius:7px;font-size:11px;font-weight:800;cursor:pointer">バーを追加</button></div></div><div style="padding:8px;border-bottom:1px solid #334155"><div style="font-size:10px;font-weight:800;color:rgba(255,255,255,.7);margin-bottom:6px">🚧 仮工程／確定工程</div><div style="font-size:9px;color:rgba(255,255,255,.5);line-height:1.5;margin-bottom:6px">選んだ工程より後ろを「仮工程」としてハッチング表示にします</div><select id="geConfirmedUntilSel" style="width:100%;padding:5px 6px;border:1.5px solid #475569;border-radius:6px;font-size:11px;background:#0f172a;color:white;margin-bottom:5px;box-sizing:border-box"></select><button onclick="applyConfirmedUntil()" style="width:100%;padding:6px;background:#ea580c;color:white;border:none;border-radius:6px;font-size:10px;font-weight:800;cursor:pointer">この工程までを確定にする</button></div><div style="padding:6px 8px;flex:1"><div style="font-size:9px;font-weight:800;color:rgba(255,255,255,.4);margin-bottom:4px">工種一覧</div><div id="geSegList" style="display:flex;flex-direction:column;gap:4px;min-width:0;overflow:hidden"></div></div></div></div>
 <div class="slide-panel" id="myPagePanel"><div class="panel-header"><button class="panel-back" onclick="closePanel('myPagePanel')">← 戻る</button><div style="flex:1"><div class="panel-title">⭐ マイ物件</div></div><button onclick="openSelectProp()" style="background:rgba(255,255,255,.2);color:white;border-radius:6px;padding:4px 9px;font-size:11px;font-weight:700">＋</button><button class="print-btn" onclick="printPage()">🖨️</button></div><div class="mypage-wrap" id="myPageContent"></div><div style="padding:6px 12px;text-align:center;font-size:10px;color:#94a3b8" id="myPageVersionFooter"></div></div>
 <div class="slide-panel" id="selectPropPanel"><div class="panel-header"><button class="panel-back" onclick="closePanel('selectPropPanel')">← 戻る</button><div style="flex:1"><div class="panel-title">担当物件を選択</div></div><button onclick="closePanel('selectPropPanel')" style="background:rgba(255,255,255,.2);color:white;border-radius:6px;padding:4px 9px;font-size:11px;font-weight:700">完了</button></div><div class="panel-scroll" id="selectPropContent"></div></div>
 
@@ -792,8 +792,9 @@ body.sp-mode #areaTabsBtns{ display:none !important; }
   <div style="flex:1;display:flex;overflow:hidden;min-height:0">
     <!-- ガントエリア -->
     <div style="flex:1;display:flex;flex-direction:column;overflow:hidden;background:#f8fafc;min-width:0">
-      <div style="padding:3px 10px 3px 100px;background:#f1f5f9;border-bottom:1px solid #e2e8f0;font-size:9px;color:#64748b;flex-shrink:0">
-        📋 マスター工程ガント（稼働日ベース・日曜休工）
+      <div style="padding:3px 10px 3px 100px;background:#f1f5f9;border-bottom:1px solid #e2e8f0;font-size:9px;color:#64748b;flex-shrink:0;display:flex;align-items:center;justify-content:space-between;gap:8px">
+        <span>📋 マスター工程ガント（稼働日ベース／実日付・曜日には非対応）</span>
+        <span id="masterEdDeliveryToggleWrap" style="display:flex;gap:4px;flex-shrink:0"></span>
       </div>
       <div id="masterGanttWrap" style="flex:1;display:flex;overflow:hidden;background:white;">
         <div id="masterGanttLabelCol" style="width:90px;min-width:90px;flex-shrink:0;background:#1e293b;border-right:2px solid #334155;overflow-y:auto;overflow-x:hidden;scrollbar-width:none;"></div>
@@ -5507,6 +5508,68 @@ function shiftGanttEdit(){
 }
 window.shiftGanttEdit=shiftGanttEdit;
 
+// ★新機能【休日を含む工程の補正＋後工程への連鎖ずれ対応】：Q6修正（日曜/祝日/年末年始/盆を考慮した
+//   _isWorkday統一）より前に計算・保存された古いデータでは、(1)開始日が休日に乗っている、
+//   または(2)開始日は稼働日でも工程の途中に休日を挟んでいるのに終了日がそれを考慮せず計算されている
+//   （＝稼働日数分の実working日が確保できておらず工期が足りなくなる）ケースが残っている。
+//   これを開始日の早い順に走査して補正し、あるセグメントの終了位置が伸びた（またはずれた）分は、
+//   累積のずれとしてそれより後ろの全セグメントの開始位置にも伝播させる（2026/8/26修正：休日を含む
+//   工程全て＋後工程への連鎖ずれに対応）。検査行・納品連動行（防蟻等）・建て方内の単日マーカーは対象外。
+function fixHolidayMisalignedSegs(){
+  var order=geSegs.map(function(s,i){return i;});
+  order.sort(function(a,b){
+    var da=geSegs[a].start_date||geSegs[a].date||'';
+    var db=geSegs[b].start_date||geSegs[b].date||'';
+    return da<db?-1:(da>db?1:0);
+  });
+  var cumulativeDelta=0; // カレンダー日数での累積ずれ（これより後ろのセグメントに伝播させる）
+  var fixedCount=0;
+  var fixedNames=[];
+  order.forEach(function(idx){
+    var s=geSegs[idx];
+    var nm=s.label||s.name||'';
+    if(nm==='土台'||/レッカー/.test(nm))return; // 建て方内の単日マーカーは対象外
+    if(typeof _geIsLockedRow==='function'&&_geIsLockedRow(s))return; // 検査行・納品連動行は対象外
+    var origStart=s.start_date||s.date||'';
+    var origEnd=s.end_date||origStart;
+    if(!origStart)return;
+    var dur=s.dur||s.duration||1;
+
+    // ①これまでの累積ずれをこのセグメントの開始日にも適用（後工程への連鎖）
+    //   ★addCalendarDaysは「期間dur日分の終了日計算」用のため単純な日数加算には使えない。直接日付演算する。
+    var shiftedStart=origStart;
+    if(cumulativeDelta){
+      var sd0=new Date(origStart.replace(/[/]/g,'-'));
+      sd0.setDate(sd0.getDate()+cumulativeDelta);
+      shiftedStart=localDateStr(sd0);
+    }
+    var d=new Date(shiftedStart.replace(/[/]/g,'-'));
+    if(isNaN(d.getTime()))return;
+    // ②開始日が休日ならさらに次の稼働日までずらす
+    while(!_isWorkday(d))d.setDate(d.getDate()+1);
+    var newStart=localDateStr(d);
+    // ③稼働日数(dur)を変えずに終了日を再計算（休日を挟んでいれば自動的にその分伸びる）
+    var newEnd=endOfWorkdays(newStart,dur);
+
+    if(newStart!==origStart||newEnd!==origEnd){
+      fixedCount++; fixedNames.push(nm);
+      geSegs[idx]=Object.assign({},s,{start_date:newStart,date:newStart,end_date:newEnd,calendar_dur:calendarDur(newStart,newEnd)});
+    }
+
+    // ④このセグメントの終了位置が元の終了位置からどれだけずれたかを、以降のセグメントへの累積ずれとして持ち越す
+    var newEndDays=Math.floor(new Date(newEnd.replace(/[/]/g,'-')).getTime()/86400000);
+    var origEndDays=Math.floor(new Date(origEnd.replace(/[/]/g,'-')).getTime()/86400000);
+    cumulativeDelta=newEndDays-origEndDays;
+  });
+  geRenderBars();
+  if(fixedCount>0){
+    showToast(fixedCount+'件の工程を休日考慮で補正し、後工程も連動してずらしました（'+fixedNames.join('・')+'）。保存を押して確定してください','success');
+  } else {
+    showToast('休日の影響を受けている工程はありませんでした','info');
+  }
+}
+window.fixHolidayMisalignedSegs=fixHolidayMisalignedSegs;
+
 // ★新機能【期間指定スライド】：遅延などが発生した期間（開始日〜終了日）を指定すると、
 //   その日数ぶんだけ、指定開始日以降の全工程を後ろにスライドする（2026/8/21 追加）。
 //   基礎大親ロジック（offsetFrom/offsetDaysで後続工程が基礎完了日を基準に配置される仕組み）との整合性：
@@ -8181,6 +8244,38 @@ window.showEdDeleteConfirm=showEdDeleteConfirm;
 // ===== MASTER TEMPLATE PANEL =====
 var editingMaster = null;
 var editingMasterIdx = -1;
+// ★納品書マスター同時表示機能（2026/8/26追加）：マスター工程エディタで現在表示中の納品書マスターエリア（TOKAI/KANTO）
+var _masterEdDeliveryArea = 'TOKAI';
+function renderMasterEdDeliveryToggle(){
+  var wrap=document.getElementById('masterEdDeliveryToggleWrap');
+  if(!wrap)return;
+  var mk=function(area,label){
+    var active=_masterEdDeliveryArea===area;
+    return '<button onclick="_masterEdDeliveryArea=\''+area+'\';renderMasterGantt();renderMasterEdDeliveryToggle();" style="padding:2px 8px;border-radius:5px;border:none;font-size:9px;font-weight:800;cursor:pointer;background:'+(active?'#f59e0b':'#e2e8f0')+';color:'+(active?'#3f2d0a':'#64748b')+'">'+label+'</button>';
+  };
+  wrap.innerHTML='<span style="color:#64748b">📦納品書マスター:</span>'+mk('TOKAI','東海')+mk('KANTO','関東');
+}
+window.renderMasterEdDeliveryToggle=renderMasterEdDeliveryToggle;
+
+// ★納品書マスター同時編集 Phase2（2026/8/29追加）：マスター工程ガント上の納品バッジをクリックすると、
+//   土台からの稼働日数（オフセット）をテキストで直接編集できる。編集内容は現在表示中のエリア
+//   （東海／関東）のDELIVERY_AREA_OVERRIDESに反映し、Supabaseへ保存する（重複対策済みの既存関数を再利用）。
+function editMasterDeliveryOffset(itemId,itemName){
+  if(!DELIVERY_AREA_OVERRIDES[_masterEdDeliveryArea])DELIVERY_AREA_OVERRIDES[_masterEdDeliveryArea]={};
+  var overrides=DELIVERY_AREA_OVERRIDES[_masterEdDeliveryArea];
+  var master=DELIVERY_MASTER.find(function(m){return m.id===itemId;});
+  var current=overrides[itemId]!==undefined?overrides[itemId]:(master?master.offsetWd:0);
+  var v=prompt('「'+itemName+'」の土台からの稼働日数を入力してください（'+(_masterEdDeliveryArea==='TOKAI'?'東海':'関東')+'）\n※休日・祝日は考慮しない稼働日ベースの数値です',current);
+  if(v===null)return; // キャンセル
+  var n=parseInt(v,10);
+  if(isNaN(n)||n<0){showToast('0以上の整数を入力してください','error');return;}
+  overrides[itemId]=n;
+  _saveDeliveryOverridesToSupabase(function(ok){
+    showToast(ok?'保存しました':'保存しました（サーバー同期は失敗しました。通信環境をご確認ください）',ok?'success':'error');
+  });
+  renderMasterGantt();
+}
+window.editMasterDeliveryOffset=editMasterDeliveryOffset;
 var masterEdDates = [];
 // Drag state for master gantt bars
 var mDragBar=null, mDragStartX=0, mDragStartStep=0;
@@ -8358,6 +8453,13 @@ function ensureDefaultMaster(){
         if(ref&&!s.offsetFrom&&ref.offsetFrom){
           s.offsetFrom=ref.offsetFrom; s.offsetDays=ref.offsetDays; updated=true;
         }
+        // ★2026/8/26修正：マスター工程エディタの架空カレンダーを実日付文字列（2000年始まり）から
+        //   単純な連番トークン（'D1'等）に置き換えたため、旧形式で保存されていたstart_date
+        //   （実日付文字列）が残っていると位置を見つけられなくなる。旧形式を検出したら消去し、
+        //   前工程連鎖／offsetFromベースの計算にフォールバックさせる（安全な移行）。
+        if(s.start_date&&/^\d{4}-\d{2}-\d{2}$/.test(s.start_date)){
+          delete s.start_date; updated=true;
+        }
       });
     });
     if(updated)saveLS('jack_my_masters',myMasters);
@@ -8392,6 +8494,9 @@ function openMasterEditor(){
   buildMasterEditorDates();
   // ★既存ステップのoffsetFrom/offsetDaysを自動補正（基礎より後のステップを基礎完了日起点に統一）
   _normalizeMasterStepsToKiso(editingMaster.steps);
+  // ★納品書マスター同時表示（2026/8/26追加）：マスター名から東海／関東を推測してデフォルト表示エリアを決める
+  _masterEdDeliveryArea=/関東/.test(editingMaster.name)?'KANTO':'TOKAI';
+  renderMasterEdDeliveryToggle();
   renderMasterStepList();
   renderMasterGantt();
   openPanel('masterEditorPanel');
@@ -8410,6 +8515,11 @@ function _normalizeMasterStepsToKiso(steps){
   var kisoSeg=segs.find(function(s){return s.name==='基礎';});
   if(!kisoSeg||!kisoSeg.end_date)return;
   var kisoEnd=kisoSeg.end_date;
+  // ★2026/8/26修正：以前はcountWorkdays()（実日付・実休日判定用の関数）を、
+  //   masterEdDatesの架空トークンに対して呼んでいたため、月日だけで判定される年末年始・盆の
+  //   ロジックと意図せず衝突しオフセットがズレる不具合があった。マスター工程は実稼働日数だけを
+  //   扱う架空のDay軸なので、単純なインデックス差で計算する（暦・休日の概念を一切持ち込まない）。
+  var kisoEndIdx=masterEdDates.indexOf(kisoEnd);
   // 基礎より後ろのstepで、まだoffsetFromが設定されていないものを変換
   for(var i=kisoIdx+1;i<steps.length;i++){
     var step=steps[i];
@@ -8419,26 +8529,22 @@ function _normalizeMasterStepsToKiso(steps){
     var seg=segs.find(function(s){return s.stepIdx===i;});
     if(!seg||!seg.start_date)continue;
     step.offsetFrom='基礎完了';
-    step.offsetDays=countWorkdays(kisoEnd, seg.start_date);
+    var segIdx=masterEdDates.indexOf(seg.start_date);
+    step.offsetDays=(kisoEndIdx>=0&&segIdx>=0)?(segIdx-kisoEndIdx):0;
     delete step.start_date; // start_dateの直接指定を解除
   }
 }
 
+// ★2026/8/26修正：マスター工程は実稼働日数だけを扱う架空の「Day軸」であるべきで、暦日付・曜日の概念を
+//   一切持ち込まない設計に変更した。以前は2000年始まりの日付文字列を使い「日曜だけを除外」していたが、
+//   これを実日付用の休日判定関数（_isWorkday／countWorkdays、月日だけで年末年始・盆を判定）と
+//   組み合わせた箇所があり、架空カレンダー上でたまたま1/2〜1/4や8/13〜8/16に相当する位置に工程を
+//   置くと、見た目の位置と実際に保存されるオフセット日数がズレる不具合があった。
+//   単純な連番トークン（'D1','D2',...）に置き換え、日付関連の関数を一切使わないようにする。
+var MASTER_ED_TOTAL_SLOTS=183; // 従来の7ヶ月分（日曜除く）とおおよそ同じ範囲を確保
 function buildMasterEditorDates(){
-  // 架空の基準日：2000年1月1日スタート（実際の日付に依存しない）
-  // カレンダーは7ヶ月分（Day1〜Day約210）
-  var BASE_YEAR=2000;
-  var BASE_MONTH=1; // 1月
-  var start=new Date(BASE_YEAR, BASE_MONTH-1, 1); // 2000/01/01
-  var end=new Date(BASE_YEAR, BASE_MONTH-1+7, 0); // 7ヶ月後の月末
   masterEdDates=[''];
-  var cur=new Date(start.getTime());
-  while(cur<=end){
-    // ★マスター工程は実日付に紐付かない架空カレンダーなので、日曜休工ロジックで飛ばすのではなく
-    //   そもそも日曜日をカレンダー自体に含めない（物件詳細・大工程表は実日付を扱うため対象外）
-    if(cur.getDay()!==0)masterEdDates.push(localDateStr(cur));
-    cur.setDate(cur.getDate()+1);
-  }
+  for(var i=1;i<=MASTER_ED_TOTAL_SLOTS;i++)masterEdDates.push('D'+i);
 }
 
 // Compute master gantt: sequential scheduling with step offsets
@@ -8692,6 +8798,45 @@ function pickMasterColor(c){
 
 function renderMasterGantt(){
   var segs=computeMasterEditorSegs(editingMaster.steps);
+  // ★納品書マスター同時表示（2026/8/26追加・Phase1：表示のみ）：土台の開始日を基準0として
+  //   DELIVERY_MASTERの各項目を同じDay軸上にバッジ表示する。編集はまだできない（読み取り専用）。
+  // ★2026/8/29修正：「建て方」という工程は東海・関東どちらのマスターにも既に存在せず（土台として
+  //   独立した工程に置き換わっている）、旧名称のままだったため納品バッジが常に表示されなかった。
+  //   「土台」を優先的に探し、見つからない場合のみ旧名称「建て方」にフォールバックする。
+  var tateKataSeg=segs.find(function(s){return s.name==='土台';})||segs.find(function(s){return s.name==='建て方';});
+  var deliveryBadges=[];
+  if(tateKataSeg&&tateKataSeg.col>=1){
+    var baseCol=tateKataSeg.col; // 土台の開始列（オフセット0）
+    DELIVERY_MASTER.forEach(function(m){
+      if(m.ganttExclude)return; // 既存工程バーに含まれる項目は対象外（実物件側と同じ扱い）
+      var overrides=DELIVERY_AREA_OVERRIDES[_masterEdDeliveryArea]||{};
+      var offsetWd=overrides[m.id]!==undefined?overrides[m.id]:m.offsetWd;
+      var col=baseCol+offsetWd;
+      if(col<1||col>=masterEdDates.length)return;
+      deliveryBadges.push({id:m.id,name:m.name,col:col});
+    });
+  }
+  // 重なる納品バッジを行に振り分け（既存の_deliveryAssignRowsと同じ考え方を簡易再実装）
+  var deliveryRows=[];
+  deliveryBadges.sort(function(a,b){return a.col-b.col;});
+  deliveryBadges.forEach(function(b){
+    var placed=false;
+    for(var r=0;r<deliveryRows.length;r++){
+      var last=deliveryRows[r][deliveryRows[r].length-1];
+      if(b.col>last.col){deliveryRows[r].push(b);placed=true;break;}
+    }
+    if(!placed)deliveryRows.push([b]);
+  });
+  // ★2026/8/26修正：納品行は一番下ではなく「土台」の直後に差し込む。
+  //   納品項目のオフセットは工程全体の中でも早い段階に集中するため、末尾に置くとスクロールしないと
+  //   見えず気づかれにくかった（実際に見つからないというご指摘を受けて修正）。
+  var tateKataStepIdx=editingMaster.steps.findIndex(function(s){return s.name==='土台';});
+  if(tateKataStepIdx<0)tateKataStepIdx=editingMaster.steps.findIndex(function(s){return s.name==='建て方';});
+  var insertAt=tateKataStepIdx>=0?tateKataStepIdx+1:editingMaster.steps.length;
+  function stepDisplayRow(stepIdx){
+    return stepIdx<insertAt?stepIdx:stepIdx+deliveryRows.length;
+  }
+
   var cv=document.getElementById('masterGanttCanvas');
   var hdr=document.getElementById('masterGanttHeader');
   var wrap=document.getElementById('masterGanttScroll'); // スクロール領域
@@ -8701,33 +8846,30 @@ function renderMasterGantt(){
   var savedScroll=wrap?wrap.scrollLeft:-1;
   var COL=COL_W;
   var rowH=22;
-  var numRows=editingMaster.steps.length;
+  var numRows=editingMaster.steps.length+deliveryRows.length;
+  var stepRowCount=editingMaster.steps.length;
   var totalW=(masterEdDates.length-1)*COL;
   cv.innerHTML=''; hdr.innerHTML='';
 
-  // ヘッダー
+  // ヘッダー（★2026/8/26修正：暦月ではなく「稼働日◯日目」の単純な連番グルーピングに変更。
+  //   マスター工程は実日付を持たない架空のDay軸のため、月・曜日という概念自体を持ち込まない）
   hdr.style.cssText='width:'+totalW+'px;height:28px;position:sticky;top:0;left:0;z-index:10;background:#1e293b;-webkit-transform:translateZ(0);transform:translateZ(0);';
-  var months={};
-  masterEdDates.forEach(function(d,i){if(!d)return;var m=d.substring(0,7);if(!months[m])months[m]={start:i-1,count:0};months[m].count++;});
-  var mn2={'01':'1月','02':'2月','03':'3月','04':'4月','05':'5月','06':'6月','07':'7月','08':'8月','09':'9月','10':'10月','11':'11月','12':'12月'};
-  Object.keys(months).forEach(function(m){
-    var v=months[m],mm=m.split('-')[1];
+  var CHUNK=26; // 表示グルーピングの目安（実日付とは無関係）
+  var groups={};
+  masterEdDates.forEach(function(d,i){if(!d)return;var g=Math.floor((i-1)/CHUNK);if(!groups[g])groups[g]={start:i-1,count:0};groups[g].count++;});
+  Object.keys(groups).forEach(function(g){
+    var v=groups[g];
     var el=document.createElement('div');
     el.style.cssText='position:absolute;left:'+(v.start*COL)+'px;top:0;width:'+(v.count*COL)+'px;height:14px;background:var(--primary);color:white;font-size:7px;font-weight:800;display:flex;align-items:center;justify-content:center;border-right:2px solid rgba(255,255,255,.4);overflow:hidden;';
-    el.textContent=m.split('-')[0]+'年'+(mn2[mm]||mm); hdr.appendChild(el);
+    el.textContent=(parseInt(g)+1)+'ヶ月目'; hdr.appendChild(el);
   });
   masterEdDates.forEach(function(d,i){
     if(!d)return;
-    var dow=getDow(d),isToday=d===TODAY,day=parseInt(d.split('-')[2]);
     var el=document.createElement('div');
-    el.style.cssText='position:absolute;left:'+((i-1)*COL)+'px;top:14px;width:'+COL+'px;height:14px;display:flex;align-items:center;justify-content:center;font-size:6px;font-weight:700;border-right:1px solid #e2e8f0;font-family:var(--mono);'
-      +'color:'+(isToday?'#ef4444':dow===0?'#ef4444':dow===6?'#1d4ed8':'#334155')+';'
-      +'background:'+(isToday?'rgba(239,68,68,.12)':dow===0?'rgba(255,182,193,.25)':dow===6?'rgba(173,216,230,.25)':'white')+';';
-    el.textContent=day;
+    el.style.cssText='position:absolute;left:'+((i-1)*COL)+'px;top:14px;width:'+COL+'px;height:14px;display:flex;align-items:center;justify-content:center;font-size:6px;font-weight:700;border-right:1px solid #e2e8f0;font-family:var(--mono);color:#334155;background:white;';
+    el.textContent=i;
     hdr.appendChild(el);
   });
-  var todayI=masterEdDates.indexOf(TODAY);
-  if(todayI>0){var tm=document.createElement('div');tm.style.cssText='position:absolute;left:'+((todayI-1)*COL)+'px;top:0;width:2px;height:'+28+'px;background:#ef4444;z-index:10;pointer-events:none;';hdr.appendChild(tm);}
 
   // Canvas: 白背景に変更
   cv.style.cssText='width:'+totalW+'px;height:'+(numRows*rowH)+'px;position:relative;background:white;';
@@ -8744,12 +8886,32 @@ function renderMasterGantt(){
     var lbody=document.createElement('div');
     lbody.id='masterLabelBody';
     lbody.style.cssText='flex:1;overflow:hidden;';
-    editingMaster.steps.forEach(function(s,ri){
+    editingMaster.steps.forEach(function(s,si){
       var el=document.createElement('div');
+      var ri=stepDisplayRow(si);
       el.style.cssText='height:'+rowH+'px;display:flex;align-items:center;padding:0 5px;font-size:9px;font-weight:700;color:rgba(255,255,255,.85);overflow:hidden;white-space:nowrap;background:'+(ri%2===0?'#1e293b':'#0f172a')+';border-bottom:1px solid #334155;';
       el.textContent=s.name;
       lbody.appendChild(el);
+      // ★納品行のラベルを「土台」の直後に差し込む（2026/8/26修正：末尾だとスクロールしないと
+      //   見えず気づかれにくかったため、納品項目のオフセットが集中する土台付近に移動）
+      if(si===insertAt-1){
+        deliveryRows.forEach(function(row,dri){
+          var del=document.createElement('div');
+          del.style.cssText='height:'+rowH+'px;display:flex;align-items:center;padding:0 5px;font-size:9px;font-weight:700;color:#fbbf24;overflow:hidden;white-space:nowrap;background:#3f2d0a;border-bottom:1px solid #334155;';
+          del.textContent='📦納品'+(dri>0?(dri+1):'');
+          lbody.appendChild(del);
+        });
+      }
     });
+    // 建て方が見つからない場合の保険（末尾に追加）
+    if(tateKataStepIdx<0){
+      deliveryRows.forEach(function(row,dri){
+        var del=document.createElement('div');
+        del.style.cssText='height:'+rowH+'px;display:flex;align-items:center;padding:0 5px;font-size:9px;font-weight:700;color:#fbbf24;overflow:hidden;white-space:nowrap;background:#3f2d0a;border-bottom:1px solid #334155;';
+        del.textContent='📦納品'+(dri>0?(dri+1):'');
+        lbody.appendChild(del);
+      });
+    }
     // ★横スクロールバー分の空白行を末尾に追加（最下部の1行ずれ解消）
     var pad=document.createElement('div');
     pad.style.cssText='height:18px;background:#1e293b;flex-shrink:0;';
@@ -8766,19 +8928,17 @@ function renderMasterGantt(){
     }
   }
 
-  // 週末・月境界塗り
+  // ★2026/8/26修正：曜日・週末という概念は架空のDay軸には存在しないため塗りを廃止。
+  //   月境界の代わりに、ヘッダーと同じCHUNK単位でグルーピング線を引く
   masterEdDates.forEach(function(d,i){
     if(!d)return;
-    var dow=getDow(d);
-    if(dow===0||dow===6){var f=document.createElement('div');f.style.cssText='position:absolute;left:'+((i-1)*COL)+'px;top:0;width:'+COL+'px;height:'+(numRows*rowH)+'px;background:'+(dow===0?'rgba(255,182,193,.22)':'rgba(173,216,230,.18)')+';pointer-events:none;z-index:0;';cv.appendChild(f);}
-    if(d.slice(8)==='01'&&i>1){var ml=document.createElement('div');ml.style.cssText='position:absolute;left:'+((i-1)*COL)+'px;top:0;width:2px;height:'+(numRows*rowH)+'px;background:#94a3b8;pointer-events:none;z-index:1;';cv.appendChild(ml);}
-    // 全日付に縦罫線
+    if((i-1)%CHUNK===0&&i>1){var ml=document.createElement('div');ml.style.cssText='position:absolute;left:'+((i-1)*COL)+'px;top:0;width:2px;height:'+(numRows*rowH)+'px;background:#94a3b8;pointer-events:none;z-index:1;';cv.appendChild(ml);}
+    // 全Dayに縦罫線
     var dl=document.createElement('div');dl.style.cssText='position:absolute;left:'+((i-1)*COL+COL-1)+'px;top:0;width:1px;height:'+(numRows*rowH)+'px;background:#e2e8f0;pointer-events:none;z-index:1;';cv.appendChild(dl);
   });
   // 行背景（白ベース）
   for(var ri2=0;ri2<numRows;ri2++){var rb=document.createElement('div');rb.style.cssText='position:absolute;left:0;top:'+(ri2*rowH)+'px;width:'+totalW+'px;height:'+rowH+'px;background:'+(ri2%2===0?'white':'#f8fafc')+';border-bottom:1px solid #e2e8f0;';cv.appendChild(rb);}
-  // 今日線
-  if(todayI>0){var tl=document.createElement('div');tl.style.cssText='position:absolute;left:'+((todayI-1)*COL)+'px;top:0;width:2px;height:'+(numRows*rowH)+'px;background:#ef4444;z-index:5;pointer-events:none;';cv.appendChild(tl);}
+  // ★2026/8/26修正：架空Day軸には「今日」の概念が存在しないため今日線を廃止
 
   // バー
   segs.forEach(function(seg){
@@ -8787,7 +8947,7 @@ function renderMasterGantt(){
     var sx=(col-1)*COL;
     var bw=Math.max(calDur*COL-1,COL-1);
     var layer=seg.layer||0;
-    var ri=seg.stepIdx;
+    var ri=stepDisplayRow(seg.stepIdx);
     var by=ri*rowH+(layer===1?3:0);
     var bh=layer===1?rowH-7:rowH-3;
     var color=seg.color||'#64748b';
@@ -8830,6 +8990,19 @@ function renderMasterGantt(){
       startMasterDrag(e,seg.stepIdx,bar,sx);
     });
     cv.appendChild(bar);
+  });
+
+  // ★納品バッジ描画（2026/8/26追加・Phase2：2026/8/29でクリック編集に対応）
+  deliveryRows.forEach(function(row,ri){
+    row.forEach(function(b){
+      var sx=(b.col-1)*COL;
+      var by=(insertAt+ri)*rowH;
+      var badge=document.createElement('div');
+      badge.style.cssText='position:absolute;left:'+sx+'px;top:'+(by+3)+'px;width:'+Math.max(COL-1,16)+'px;height:'+(rowH-6)+'px;background:#f59e0b;color:#3f2d0a;font-size:6px;font-weight:800;border-radius:2px;display:flex;align-items:center;justify-content:center;overflow:hidden;box-shadow:0 1px 2px rgba(0,0,0,.2);z-index:10;cursor:pointer;';
+      badge.title=b.name+'（'+_masterEdDeliveryArea+'／土台+'+(b.col-baseCol)+'日、クリックで編集）';
+      badge.onclick=function(){editMasterDeliveryOffset(b.id,b.name);};
+      cv.appendChild(badge);
+    });
   });
 
   // スクロール位置を復元（初回は先頭へ・架空日付のためTODAYは無効）
@@ -8907,7 +9080,7 @@ function stopMasterBarDrag(){
             // ★基礎完了日から新start_dateまでのオフセットは、実日付ではなくmasterEdDates上のインデックス差で算出する
             var kisoIdx=masterEdDates.indexOf(kisoSeg.end_date);
             step.offsetFrom='基礎完了';
-            step.offsetDays=(kisoIdx>=0)?(newIdx2-kisoIdx):countWorkdays(kisoSeg.end_date, movedStart);
+            step.offsetDays=(kisoIdx>=0)?(newIdx2-kisoIdx):0; // ★2026/8/26修正：実日付用countWorkdaysの使用をやめ、フォールバックも0に統一（架空Day軸のため）
             // start_dateはクリア（offsetDaysで管理するため）
             delete step.start_date;
           } else {
