@@ -2839,9 +2839,9 @@ function getAllProps(){
        'kutai_date','kutai_status','dannetsu_date','dannetsu_status',
        'inspection_status','parkings','updated_at',
        // ★2026/8/30追加：Excel再取込で土地決済日・確認完了日が更新されても、埋め込み静的データ(DATA)側の
-       //   古い値が使われ続け、工程表（master_segs）も再計算されずに古いまま固定される不具合があった。
-       //   DB_PROPS側の最新値・再計算済みmaster_segsで確実に上書きされるよう対象に追加する。
-       'land_payment','confirm_done','land_contract','confirm_submit','hand_kumi','master_segs'
+       //   古い値が使われ続けていた不具合の修正。DB_PROPS側の最新値で確実に上書きされるよう対象に追加する。
+       //   ★master_segsは同日中に撤回：properties テーブルに実在しない列だったため対象から外す
+       'land_payment','confirm_done','land_contract','confirm_submit','hand_kumi'
       ].forEach(function(k){
         if(db[k]!=null&&db[k]!=='')merged[k]=db[k];
       });
@@ -9885,11 +9885,11 @@ async function loadPropertiesFromCacheOrDB(forceRefresh){
   }
   // Supabaseから取得してキャッシュ保存
   // 軽量カラムのみ取得（custom_ganttは重いため除外→別途取得）
-  // ★2026/8/30追加：master_segsは本来重いためbulk取得から除外していたが、未編集物件（custom_gantt無し）
-  //   の工程表が、埋め込み静的データ(DATA)の古いmaster_segsのまま固定され、Excel再取込でも更新されない
-  //   不具合が見つかったため、ここでのみ例外的に含める（Excel取込時にcomputeMasterSegsで再計算して
-  //   保存する仕組みとセット。正確性を優先した意図的なトレードオフ）
-  var pr=await sb.from('properties').select('id,fix_no,seq_no,name,area,status,hand_kumi,tantou,delivery_date,delivery_month,land_contract,land_payment,confirm_submit,confirm_done,inspection_date,complete_date,haikin_date,haikin_status,kutai_date,kutai_status,dannetsu_date,dannetsu_status,inspection_status,shinsa_kikan,address,parkings,prop_master,gantt_is_manual,movein_date,movein_date_source,master_segs,updated_at').order('fix_no');
+  // ★2026/8/30追加→同日中に撤回：master_segsをSupabase側のカラムだと誤認して追加してしまい、
+  //   実際には存在しない列だったため大量の書き込みエラーが発生した。properties テーブルに
+  //   master_segs列は存在しない（埋め込み静的データ内にのみ存在するフィールド）。このSELECTからは除外し、
+  //   代わりにland_payment/confirm_done等のマージ（getAllProps側）だけで正しく直る設計に一本化する。
+  var pr=await sb.from('properties').select('id,fix_no,seq_no,name,area,status,hand_kumi,tantou,delivery_date,delivery_month,land_contract,land_payment,confirm_submit,confirm_done,inspection_date,complete_date,haikin_date,haikin_status,kutai_date,kutai_status,dannetsu_date,dannetsu_status,inspection_status,shinsa_kikan,address,parkings,prop_master,gantt_is_manual,movein_date,movein_date_source,updated_at').order('fix_no');
   if(!pr.error&&pr.data&&pr.data.length>0){
     DB_PROPS=pr.data;
     // ★新機能【最終更新バッジ】：以前は「前回キャッシュとの差分」で判定していたが、DB側の何らかの
@@ -14396,16 +14396,9 @@ function admHandleXlsx(input){
         confirm_submit:14,confirm_done:15,inspection:231,completion:232,delivery_date:237,
         delivery_month:237,status:242};
       var sb=getSB();
-      var existing=await sb.from('properties').select('id,fix_no,name,custom_gantt,prop_master');
+      var existing=await sb.from('properties').select('id,fix_no,name');
       var exMap={};
-      var exCustomGanttMap={}; // ★このFiXは手動編集済み（custom_gantt保持）か（2026/8/30追加）
-      var exPropMasterMap={};
-      (existing.data||[]).forEach(function(p){
-        var k=String(p.fix_no)+'_'+p.name;
-        exMap[k]=p.id;
-        exCustomGanttMap[k]=!!p.custom_gantt;
-        exPropMasterMap[k]=p.prop_master||'';
-      });
+      (existing.data||[]).forEach(function(p){exMap[String(p.fix_no)+'_'+p.name]=p.id;});
       var totalNew=0,totalUpd=0;
       var importErrors=[]; // ★Supabase書き込みエラーを収集（サイレント失敗を防ぐ）
       var deliveryColFallbackSheets=[]; // 引渡し日列を自動検出できず既定値を使ったシート名
@@ -14513,25 +14506,11 @@ function admHandleXlsx(input){
             if(miNorm){prop.movein_date=miNorm;prop.movein_date_source='excel';}
           }
           var key=fixNo+'_'+nameVal;
-          // ★工程表ガントの自動再計算（2026/8/30追加）：手動編集済み（custom_gantt保持）の物件は
-          //   個別調整を尊重してそのまま維持する。一方、未編集（黄色バーのまま）の物件は、
-          //   Excel取込のたびに土地決済日・確認完了日を反映した最新ロジック（computeMasterSegs、
-          //   土地決済起点の造成ロジック含む）で工程表を再計算し、master_segsとして保存する。
-          //   これにより「エクセルで日程だけ更新され、工程表が古いロジックのまま固定される」問題を解消する。
-          //   ※物件名変更（FiX Noは同じで名前だけ変わるケース）にも対応するため、旧名のキーも確認する
+          // ★2026/8/30追加→同日中に撤回：Excel取込時にmaster_segsを再計算して保存する仕組みを
+          //   入れていたが、properties テーブルに master_segs 列が実在せず大量の書き込みエラーが
+          //   発生したため削除。工程表の自動反映は getAllProps() 側のland_payment/confirm_done
+          //   マージ修正（ライブ計算）のみで対応する。
           var _sameFixIdKey=exMap[key]?null:Object.keys(exMap).find(function(k){return k.split('_')[0]===fixNo;});
-          var _hasCustomGantt=exCustomGanttMap[key]||(_sameFixIdKey&&exCustomGanttMap[_sameFixIdKey]);
-          if(!_hasCustomGantt&&(prop.land_payment||prop.confirm_done)){
-            try{
-              var _masterName=exPropMasterMap[key]||(_sameFixIdKey&&exPropMasterMap[_sameFixIdKey])||_autoAreaMasterName(prop);
-              var _mt=(typeof myMasters!=='undefined'&&myMasters)?myMasters.find(function(m){return m.name===_masterName;}):null;
-              if(_mt&&_mt.steps&&_mt.steps.length){
-                var _normSteps=_normalizeTmplSteps(_mt.steps);
-                var _freshSegs=computeMasterSegs(prop.confirm_done||'',_normSteps,prop.hand_kumi||'',_masterName,prop.land_payment||'');
-                if(_freshSegs&&_freshSegs.length)prop.master_segs=_freshSegs;
-              }
-            }catch(_e){} // 再計算に失敗しても取込自体は継続する（既存のmaster_segsは変更しない）
-          }
           if(exMap[key]){
             // 同じFIX ID+名前 → 通常更新
             var upR=await sb.from('properties').update(prop).eq('id',exMap[key]);
