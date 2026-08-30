@@ -747,6 +747,7 @@ body.sp-mode #areaTabsBtns{ display:none !important; }
   <div class="sync-banner" id="syncBanner"><div style="display:flex;align-items:center;gap:6px"><div class="sync-dot"></div><span class="sync-msg">起動中...</span></div><button onclick="doSyncFull()" style="color:rgba(255,255,255,.6);font-size:10px;font-weight:600;background:rgba(255,255,255,.1);padding:2px 7px;border-radius:4px">同期</button></div>
   <div style="display:flex;align-items:center;background:#1e293b;border-bottom:1px solid rgba(255,255,255,.1);flex-shrink:0">
     <div class="area-tabs" id="areaTabs" style="flex:1;min-width:0;border-bottom:none"></div>
+    <div id="lastExcelImportInfo" style="font-size:10px;color:rgba(255,255,255,.55);white-space:nowrap;padding:0 6px;flex-shrink:0"></div>
     <div id="areaTabsBtns" style="display:flex;align-items:center;gap:5px;padding:0 8px;flex-shrink:0">
       <button class="vendor-toggle-btn" onclick="togglePropSearch()" title="物件検索" id="propSearchBtn2">検索</button>
       <button class="vendor-toggle-btn" id="vendorColToggleBtn" onclick="_setVendorColOn(!_vendorColOn())" title="業者選定の表示切替">業者選択</button>
@@ -775,7 +776,7 @@ body.sp-mode #areaTabsBtns{ display:none !important; }
   </div>
   <div id="weatherBar" style="display:none;flex-shrink:0;background:white;border-top:2px solid #e2e8f0;overflow-x:auto;-webkit-overflow-scrolling:touch;"><div id="weatherBarContent"></div></div>
 </div>
-<div class="slide-panel" id="detailPanel" style="display:flex;flex-direction:row;overflow:hidden"><div style="flex:1;display:flex;flex-direction:column;overflow:hidden"><div class="panel-header"><button class="panel-back" onclick="closePanel('detailPanel')">← 戻る</button><div style="flex:1"><div class="panel-title">物件詳細</div></div><div id="dpFavBtnWrap"></div></div><div id="dpHeroSticky" style="flex-shrink:0;padding:6px 12px;background:var(--primary-d,#1e40af);color:white;display:none"></div><div class="panel-scroll" id="dpContent" style="padding-bottom:16px"></div></div><div id="ganttEditSidebar" style="display:none;width:200px;min-width:200px;background:#1e293b;border-left:2px solid #334155;flex-direction:column;overflow-y:auto;flex-shrink:0"><div style="padding:8px;border-bottom:1px solid #334155;display:flex;flex-direction:column;gap:4px"><div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:2px"><div style="font-size:10px;font-weight:800;color:rgba(255,255,255,.5)">✏️ 工程表編集</div><button onclick="closeGanttEditSidebar()" style="background:rgba(255,255,255,.1);border:none;color:rgba(255,255,255,.6);border-radius:4px;padding:2px 7px;font-size:11px;cursor:pointer;font-weight:700">✕</button></div><div id="geAnchorDiag" style="font-size:9px;color:#fbbf24;line-height:1.5;background:#0f172a;border-radius:6px;padding:5px 7px;display:none"></div><button onclick="saveGanttEdit()" style="width:100%;padding:7px;background:#1a56db;color:white;border:none;border-radius:7px;font-size:11px;font-weight:800;cursor:pointer">💾 保存</button><div style="display:flex;gap:4px"><button onclick="shiftGanttEdit()" style="flex:1;padding:5px;background:#475569;color:white;border:none;border-radius:6px;font-size:10px;font-weight:700;cursor:pointer">📅 シフト</button><button onclick="resetGanttEdit()" style="flex:1;padding:5px;background:#475569;color:white;border:none;border-radius:6px;font-size:10px;font-weight:700;cursor:pointer">🔄 リセット</button></div><button onclick="fixHolidayMisalignedSegs()" style="width:100%;padding:5px;background:#b45309;color:white;border:none;border-radius:6px;font-size:10px;font-weight:700;cursor:pointer;margin-top:4px">☀️ 休日開始の工程を補正</button><button onclick="openSlideRangeDialog()" style="width:100%;padding:5px;background:#6d28d9;color:white;border:none;border-radius:6px;font-size:10px;font-weight:700;cursor:pointer;margin-top:4px">📆 期間指定スライド</button></div><div style="padding:8px;border-bottom:1px solid #334155"><div style="font-size:10px;font-weight:800;color:rgba(255,255,255,.7);margin-bottom:6px">＋ 工種追加</div><div style="display:flex;flex-direction:column;gap:5px"><input type="text" id="geNewName" placeholder="工種名" style="padding:5px 7px;border:1.5px solid #475569;border-radius:6px;font-size:11px;background:#0f172a;color:white;width:100%;box-sizing:border-box"><div style="display:flex;align-items:center;gap:4px"><span style="font-size:9px;color:rgba(255,255,255,.5);white-space:nowrap">日数</span><input type="number" id="geNewDays" placeholder="日数" min="1" max="180" style="padding:4px 6px;border:1.5px solid #475569;border-radius:6px;font-size:11px;background:#0f172a;color:white;width:100%;box-sizing:border-box"></div><div style="display:flex;align-items:center;gap:4px"><span style="font-size:9px;color:rgba(255,255,255,.5);white-space:nowrap">開始日</span><input type="date" id="geNewDate" style="padding:4px 4px;border:1.5px solid #475569;border-radius:6px;font-size:10px;background:#0f172a;color:white;width:100%;box-sizing:border-box"></div><div id="geColorPicker" style="display:flex;flex-wrap:wrap;gap:4px;margin:2px 0"></div><button onclick="addGanttBar()" style="width:100%;padding:7px;background:#059669;color:white;border:none;border-radius:7px;font-size:11px;font-weight:800;cursor:pointer">バーを追加</button></div></div><div style="padding:8px;border-bottom:1px solid #334155"><div style="font-size:10px;font-weight:800;color:rgba(255,255,255,.7);margin-bottom:6px">🚧 仮工程／確定工程</div><div style="font-size:9px;color:rgba(255,255,255,.5);line-height:1.5;margin-bottom:6px">選んだ工程より後ろを「仮工程」としてハッチング表示にします</div><select id="geConfirmedUntilSel" style="width:100%;padding:5px 6px;border:1.5px solid #475569;border-radius:6px;font-size:11px;background:#0f172a;color:white;margin-bottom:5px;box-sizing:border-box"></select><button onclick="applyConfirmedUntil()" style="width:100%;padding:6px;background:#ea580c;color:white;border:none;border-radius:6px;font-size:10px;font-weight:800;cursor:pointer">この工程までを確定にする</button></div><div style="padding:6px 8px;flex:1"><div style="font-size:9px;font-weight:800;color:rgba(255,255,255,.4);margin-bottom:4px">工種一覧</div><div id="geSegList" style="display:flex;flex-direction:column;gap:4px;min-width:0;overflow:hidden"></div></div></div></div>
+<div class="slide-panel" id="detailPanel" style="display:flex;flex-direction:row;overflow:hidden"><div style="flex:1;display:flex;flex-direction:column;overflow:hidden"><div class="panel-header"><button class="panel-back" onclick="closePanel('detailPanel')">← 戻る</button><div style="flex:1"><div class="panel-title">物件詳細</div></div><div id="dpFavBtnWrap"></div></div><div id="dpHeroSticky" style="flex-shrink:0;padding:6px 12px;background:var(--primary-d,#1e40af);color:white;display:none"></div><div class="panel-scroll" id="dpContent" style="padding-bottom:16px"></div></div><div id="ganttEditSidebar" style="display:none;width:200px;min-width:200px;background:#1e293b;border-left:2px solid #334155;flex-direction:column;overflow-y:auto;flex-shrink:0"><div style="padding:8px;border-bottom:1px solid #334155;display:flex;flex-direction:column;gap:4px"><div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:2px"><div style="font-size:10px;font-weight:800;color:rgba(255,255,255,.5)">✏️ 工程表編集</div><button onclick="closeGanttEditSidebar()" style="background:rgba(255,255,255,.1);border:none;color:rgba(255,255,255,.6);border-radius:4px;padding:2px 7px;font-size:11px;cursor:pointer;font-weight:700">✕</button></div><div id="geAnchorDiag" style="font-size:9px;color:#fbbf24;line-height:1.5;background:#0f172a;border-radius:6px;padding:5px 7px;display:none"></div><button onclick="saveGanttEdit()" style="width:100%;padding:7px;background:#1a56db;color:white;border:none;border-radius:7px;font-size:11px;font-weight:800;cursor:pointer">💾 保存</button><div style="display:flex;gap:4px"><button onclick="shiftGanttEdit()" style="flex:1;padding:5px;background:#475569;color:white;border:none;border-radius:6px;font-size:10px;font-weight:700;cursor:pointer">📅 シフト</button><button onclick="resetGanttEdit()" style="flex:1;padding:5px;background:#475569;color:white;border:none;border-radius:6px;font-size:10px;font-weight:700;cursor:pointer">🔄 リセット</button></div><button onclick="fixHolidayMisalignedSegs()" style="width:100%;padding:5px;background:#b45309;color:white;border:none;border-radius:6px;font-size:10px;font-weight:700;cursor:pointer;margin-top:4px">☀️ 休日開始の工程を補正</button><button onclick="fixLandPaymentMisalignedSegs()" style="width:100%;padding:5px;background:#0e7490;color:white;border:none;border-radius:6px;font-size:10px;font-weight:700;cursor:pointer;margin-top:4px">🏠 土地決済前の着工を補正</button><button onclick="openSlideRangeDialog()" style="width:100%;padding:5px;background:#6d28d9;color:white;border:none;border-radius:6px;font-size:10px;font-weight:700;cursor:pointer;margin-top:4px">📆 期間指定スライド</button></div><div style="padding:8px;border-bottom:1px solid #334155"><div style="font-size:10px;font-weight:800;color:rgba(255,255,255,.7);margin-bottom:6px">＋ 工種追加</div><div style="display:flex;flex-direction:column;gap:5px"><input type="text" id="geNewName" placeholder="工種名" style="padding:5px 7px;border:1.5px solid #475569;border-radius:6px;font-size:11px;background:#0f172a;color:white;width:100%;box-sizing:border-box"><div style="display:flex;align-items:center;gap:4px"><span style="font-size:9px;color:rgba(255,255,255,.5);white-space:nowrap">日数</span><input type="number" id="geNewDays" placeholder="日数" min="1" max="180" style="padding:4px 6px;border:1.5px solid #475569;border-radius:6px;font-size:11px;background:#0f172a;color:white;width:100%;box-sizing:border-box"></div><div style="display:flex;align-items:center;gap:4px"><span style="font-size:9px;color:rgba(255,255,255,.5);white-space:nowrap">開始日</span><input type="date" id="geNewDate" style="padding:4px 4px;border:1.5px solid #475569;border-radius:6px;font-size:10px;background:#0f172a;color:white;width:100%;box-sizing:border-box"></div><div id="geColorPicker" style="display:flex;flex-wrap:wrap;gap:4px;margin:2px 0"></div><button onclick="addGanttBar()" style="width:100%;padding:7px;background:#059669;color:white;border:none;border-radius:7px;font-size:11px;font-weight:800;cursor:pointer">バーを追加</button></div></div><div style="padding:8px;border-bottom:1px solid #334155"><div style="font-size:10px;font-weight:800;color:rgba(255,255,255,.7);margin-bottom:6px">🚧 仮工程／確定工程</div><div style="font-size:9px;color:rgba(255,255,255,.5);line-height:1.5;margin-bottom:6px">選んだ工程より後ろを「仮工程」としてハッチング表示にします</div><select id="geConfirmedUntilSel" style="width:100%;padding:5px 6px;border:1.5px solid #475569;border-radius:6px;font-size:11px;background:#0f172a;color:white;margin-bottom:5px;box-sizing:border-box"></select><button onclick="applyConfirmedUntil()" style="width:100%;padding:6px;background:#ea580c;color:white;border:none;border-radius:6px;font-size:10px;font-weight:800;cursor:pointer">この工程までを確定にする</button></div><div style="padding:6px 8px;flex:1"><div style="font-size:9px;font-weight:800;color:rgba(255,255,255,.4);margin-bottom:4px">工種一覧</div><div id="geSegList" style="display:flex;flex-direction:column;gap:4px;min-width:0;overflow:hidden"></div></div></div></div>
 <div class="slide-panel" id="myPagePanel"><div class="panel-header"><button class="panel-back" onclick="closePanel('myPagePanel')">← 戻る</button><div style="flex:1"><div class="panel-title">⭐ マイ物件</div></div><button onclick="openSelectProp()" style="background:rgba(255,255,255,.2);color:white;border-radius:6px;padding:4px 9px;font-size:11px;font-weight:700">＋</button><button class="print-btn" onclick="printPage()">🖨️</button></div><div class="mypage-wrap" id="myPageContent"></div><div style="padding:6px 12px;text-align:center;font-size:10px;color:#94a3b8" id="myPageVersionFooter"></div></div>
 <div class="slide-panel" id="selectPropPanel"><div class="panel-header"><button class="panel-back" onclick="closePanel('selectPropPanel')">← 戻る</button><div style="flex:1"><div class="panel-title">担当物件を選択</div></div><button onclick="closePanel('selectPropPanel')" style="background:rgba(255,255,255,.2);color:white;border-radius:6px;padding:4px 9px;font-size:11px;font-weight:700">完了</button></div><div class="panel-scroll" id="selectPropContent"></div></div>
 
@@ -1391,6 +1392,57 @@ async function _loadDeliveryOverridesFromDB(){
 }
 window._loadDeliveryOverridesFromDB=_loadDeliveryOverridesFromDB;
 
+// ===== エクセル取込の最終更新日時（2026/8/30追加） =====
+// ★masters テーブルを間借りし、name='__import_meta__' として保存（既存パターンを踏襲）
+var LAST_EXCEL_IMPORT_META = loadLS('jack_last_excel_import', null);
+window.LAST_EXCEL_IMPORT_META=LAST_EXCEL_IMPORT_META;
+function _saveImportMetaToDB(meta,cb){
+  LAST_EXCEL_IMPORT_META=meta;
+  saveLS('jack_last_excel_import', meta);
+  window.LAST_EXCEL_IMPORT_META=meta;
+  var sb=getSB(); if(!sb){if(cb)cb(false);return;}
+  var payload={name:'__import_meta__', steps:JSON.stringify(meta), updated_at:new Date().toISOString()};
+  sb.from('masters').select('id').eq('name','__import_meta__').order('id')
+    .then(function(r){
+      var rows=r.data||[];
+      if(rows.length===0)return sb.from('masters').insert(payload);
+      var keepId=rows[0].id;
+      var extraIds=rows.slice(1).map(function(row){return row.id;});
+      var p=sb.from('masters').update(payload).eq('id',keepId);
+      if(extraIds.length>0){
+        p=p.then(function(ur){return sb.from('masters').delete().in('id',extraIds).then(function(){return ur;});});
+      }
+      return p;
+    })
+    .then(function(r){if(cb)cb(!r.error);})
+    .catch(function(){if(cb)cb(false);});
+}
+window._saveImportMetaToDB=_saveImportMetaToDB;
+async function _loadImportMetaFromDB(){
+  var sb=getSB(); if(!sb)return;
+  try{
+    var r=await sb.from('masters').select('steps').eq('name','__import_meta__').limit(1);
+    var row=r.data&&r.data[0];
+    if(!r.error&&row&&row.steps){
+      var loaded=typeof row.steps==='string'?JSON.parse(row.steps):row.steps;
+      if(loaded&&loaded.at){
+        LAST_EXCEL_IMPORT_META=loaded;
+        saveLS('jack_last_excel_import', loaded);
+        window.LAST_EXCEL_IMPORT_META=loaded;
+        if(typeof updateImportMetaDisplay==='function')updateImportMetaDisplay();
+      }
+    }
+  }catch(e){}
+}
+window._loadImportMetaFromDB=_loadImportMetaFromDB;
+function updateImportMetaDisplay(){
+  var el=document.getElementById('lastExcelImportInfo');
+  if(!el)return;
+  var m=LAST_EXCEL_IMPORT_META;
+  el.textContent=m&&m.at?('📥 エクセル最終更新: '+m.at+(m.by?'（'+m.by+'）':'')):'';
+}
+window.updateImportMetaDisplay=updateImportMetaDisplay;
+
 // ===== 担当者マスター（2026/8/26追加） =====
 // ★masters テーブルを間借りし、name='__staff_master__' として保存（新規テーブルを作らずに済む既存パターンを踏襲）。
 //   物件のtantou/staff欄（自由入力）の入力ゆれを防ぐため、担当者名の一覧をマスターとして持てるようにする。
@@ -1919,15 +1971,20 @@ function computeMasterSegs(confirmDoneStr, template, handKumi, masterName, landP
       // ★基礎完了日からのオフセットで固定配置
       var od=step.offsetDays;
       startDate=od>0?addWorkdays(kisoEndDate,od):kisoEndDate;
-    } else if(nm==='造成'&&lp){
+    } else if(!soseiHandled&&nm.indexOf('造成')>=0&&lp){
       // ★造成：確認申請完了日は見ず、土地決済日のみを起点にする
+      //   ★2026/8/30修正：以前は名前が完全一致する'造成'のみ対象にしていたため、
+      //   関東マスターの実際の工程名「造成工事」では発動せず、土地決済日を無視して
+      //   確認完了日だけで着工してしまう不具合があった（東海='造成'／関東='造成工事'）。
+      //   マスターによる名称のゆれに対応できるよう「造成」を含むかどうかの判定に変更する。
       startDate=addWorkdays(lp,1);
       soseiHandled=true;
     } else {
       // 前工程終了の翌稼働日から（造成・地盤・基礎は順次連鎖）
       startDate=addWorkdays(prevEnd,1);
       // ★地盤（造成の直後の工程）：土地決済日・確認申請完了日のうち「遅い方」以降になるよう補正
-      if(soseiHandled&&nm==='地盤'){
+      //   ★2026/8/30修正：同様の理由で「地盤」を含む名前まで対象を広げる
+      if(soseiHandled&&nm.indexOf('地盤')>=0){
         soseiHandled=false; // 地盤で一度だけ判定（以降の工程には影響させない）
         if(cd>startDate)startDate=cd;
       }
@@ -2780,7 +2837,12 @@ function getAllProps(){
       ['tantou','status','address','custom_gantt','delivery_date',
        'inspection_date','complete_date','haikin_date','haikin_status',
        'kutai_date','kutai_status','dannetsu_date','dannetsu_status',
-       'inspection_status','parkings','updated_at'].forEach(function(k){
+       'inspection_status','parkings','updated_at',
+       // ★2026/8/30追加：Excel再取込で土地決済日・確認完了日が更新されても、埋め込み静的データ(DATA)側の
+       //   古い値が使われ続け、工程表（master_segs）も再計算されずに古いまま固定される不具合があった。
+       //   DB_PROPS側の最新値・再計算済みmaster_segsで確実に上書きされるよう対象に追加する。
+       'land_payment','confirm_done','land_contract','confirm_submit','hand_kumi','master_segs'
+      ].forEach(function(k){
         if(db[k]!=null&&db[k]!=='')merged[k]=db[k];
       });
       return merged;
@@ -5569,6 +5631,77 @@ function fixHolidayMisalignedSegs(){
   }
 }
 window.fixHolidayMisalignedSegs=fixHolidayMisalignedSegs;
+
+// ★新機能【土地決済チェックのズレを補正】：computeMasterSegsの造成起点ロジック修正（2026/8/30）は
+//   新規計算にしか反映されず、既に custom_gantt を持つ既存物件（＝この物件はほぼ全て該当する）には
+//   自動反映されない。マスター紐付け直しも「既存工程は維持・新規項目のみ追加」という設計のため
+//   同様に反映されない。個別物件で明示的に補正できるボタンとして用意する（2026/8/30追加）。
+//   造成（名前に「造成」を含む工程）の開始日が「土地決済日の翌稼働日」より前になっている場合、
+//   そこまで押し出し、稼働日数(dur)は変えずに終了日を再計算、後工程へも累積で連鎖させる
+//   （fixHolidayMisalignedSegsと同じ考え方のcascade処理を流用）。
+function fixLandPaymentMisalignedSegs(){
+  if(!currentProp){showToast('物件情報が取得できません','error');return;}
+  var lp=normDate(currentProp.land_payment||'');
+  if(!lp){showToast('この物件には土地決済日が設定されていません','info');return;}
+  lp=lp.replace(/\//g,'-');
+  var requiredStart=addWorkdays(lp,1);
+
+  var order=geSegs.map(function(s,i){return i;});
+  order.sort(function(a,b){
+    var da=geSegs[a].start_date||geSegs[a].date||'';
+    var db=geSegs[b].start_date||geSegs[b].date||'';
+    return da<db?-1:(da>db?1:0);
+  });
+  var cumulativeDelta=0;
+  var fixedCount=0;
+  var fixedNames=[];
+  var soseiFixed=false; // 造成工程を1回だけ補正対象にする
+  order.forEach(function(idx){
+    var s=geSegs[idx];
+    var nm=s.label||s.name||'';
+    if(nm==='土台'||/レッカー/.test(nm))return;
+    if(typeof _geIsLockedRow==='function'&&_geIsLockedRow(s))return;
+    var origStart=s.start_date||s.date||'';
+    var origEnd=s.end_date||origStart;
+    if(!origStart)return;
+    var dur=s.dur||s.duration||1;
+
+    var shiftedStart=origStart;
+    if(cumulativeDelta){
+      var sd0=new Date(origStart.replace(/[/]/g,'-'));
+      sd0.setDate(sd0.getDate()+cumulativeDelta);
+      shiftedStart=localDateStr(sd0);
+    }
+
+    // 造成工程（名前に「造成」を含む、最初の1件のみ）が土地決済の翌稼働日より前なら押し出す
+    if(!soseiFixed&&nm.indexOf('造成')>=0){
+      soseiFixed=true;
+      if(shiftedStart<requiredStart)shiftedStart=requiredStart;
+    }
+
+    var d=new Date(shiftedStart.replace(/[/]/g,'-'));
+    if(isNaN(d.getTime()))return;
+    while(!_isWorkday(d))d.setDate(d.getDate()+1);
+    var newStart=localDateStr(d);
+    var newEnd=endOfWorkdays(newStart,dur);
+
+    if(newStart!==origStart||newEnd!==origEnd){
+      fixedCount++; fixedNames.push(nm);
+      geSegs[idx]=Object.assign({},s,{start_date:newStart,date:newStart,end_date:newEnd,calendar_dur:calendarDur(newStart,newEnd)});
+    }
+
+    var newEndDays=Math.floor(new Date(newEnd.replace(/[/]/g,'-')).getTime()/86400000);
+    var origEndDays=Math.floor(new Date(origEnd.replace(/[/]/g,'-')).getTime()/86400000);
+    cumulativeDelta=newEndDays-origEndDays;
+  });
+  geRenderBars();
+  if(fixedCount>0){
+    showToast('土地決済日（'+lp+'）を踏まえて'+fixedCount+'件の工程を補正し、後工程も連動してずらしました。保存を押して確定してください','success');
+  } else {
+    showToast('土地決済日より前に着工している工程はありませんでした','info');
+  }
+}
+window.fixLandPaymentMisalignedSegs=fixLandPaymentMisalignedSegs;
 
 // ★新機能【期間指定スライド】：遅延などが発生した期間（開始日〜終了日）を指定すると、
 //   その日数ぶんだけ、指定開始日以降の全工程を後ろにスライドする（2026/8/21 追加）。
@@ -9752,7 +9885,11 @@ async function loadPropertiesFromCacheOrDB(forceRefresh){
   }
   // Supabaseから取得してキャッシュ保存
   // 軽量カラムのみ取得（custom_ganttは重いため除外→別途取得）
-  var pr=await sb.from('properties').select('id,fix_no,seq_no,name,area,status,hand_kumi,tantou,delivery_date,delivery_month,land_contract,land_payment,confirm_submit,confirm_done,inspection_date,complete_date,haikin_date,haikin_status,kutai_date,kutai_status,dannetsu_date,dannetsu_status,inspection_status,shinsa_kikan,address,parkings,prop_master,gantt_is_manual,movein_date,movein_date_source,updated_at').order('fix_no');
+  // ★2026/8/30追加：master_segsは本来重いためbulk取得から除外していたが、未編集物件（custom_gantt無し）
+  //   の工程表が、埋め込み静的データ(DATA)の古いmaster_segsのまま固定され、Excel再取込でも更新されない
+  //   不具合が見つかったため、ここでのみ例外的に含める（Excel取込時にcomputeMasterSegsで再計算して
+  //   保存する仕組みとセット。正確性を優先した意図的なトレードオフ）
+  var pr=await sb.from('properties').select('id,fix_no,seq_no,name,area,status,hand_kumi,tantou,delivery_date,delivery_month,land_contract,land_payment,confirm_submit,confirm_done,inspection_date,complete_date,haikin_date,haikin_status,kutai_date,kutai_status,dannetsu_date,dannetsu_status,inspection_status,shinsa_kikan,address,parkings,prop_master,gantt_is_manual,movein_date,movein_date_source,master_segs,updated_at').order('fix_no');
   if(!pr.error&&pr.data&&pr.data.length>0){
     DB_PROPS=pr.data;
     // ★新機能【最終更新バッジ】：以前は「前回キャッシュとの差分」で判定していたが、DB側の何らかの
@@ -9781,6 +9918,7 @@ async function loadPropertiesFromCacheOrDB(forceRefresh){
     if(typeof _loadMastersFromDB==='function')_loadMastersFromDB();
     if(typeof _loadDeliveryOverridesFromDB==='function')_loadDeliveryOverridesFromDB();
     if(typeof _loadStaffMasterFromDB==='function')_loadStaffMasterFromDB();
+    if(typeof _loadImportMetaFromDB==='function')_loadImportMetaFromDB();
     if(typeof renderAll==='function')renderAll();
     setMode(isPcMode);
   }
@@ -10015,6 +10153,9 @@ function openSettings(){
         +'<div style="padding:10px 14px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid #f1f5f9">'
           +'<span style="font-size:11px;color:#64748b">最終同期</span><span style="font-size:11.5px;font-weight:700;color:#1e293b;font-family:var(--mono)">'+last+'</span>'
         +'</div>'
+        +'<div style="padding:10px 14px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid #f1f5f9">'
+          +'<span style="font-size:11px;color:#64748b">📥 エクセル最終更新</span><span style="font-size:11.5px;font-weight:700;color:#1e293b;font-family:var(--mono)">'+((LAST_EXCEL_IMPORT_META&&LAST_EXCEL_IMPORT_META.at)||'記録なし')+'</span>'
+        +'</div>'
         +'<div style="padding:10px 14px"><button class="btn-primary" style="width:100%" onclick="doSyncFull();document.getElementById(\'_settingsModal\').remove()">🔄 今すぐ同期</button></div>'
       +'</div>'
       // キャッシュリセット（わかりやすく再設計）
@@ -10156,6 +10297,8 @@ window.onload=function(){
   // ★バージョン表示（不具合問い合わせ対応用。2026/8/23追加）
   var vf=document.getElementById('myPageVersionFooter');
   if(vf)vf.textContent='v'+APP_VERSION;
+  // ★エクセル最終更新日時表示（2026/8/30追加、localStorageキャッシュがあれば即表示、DB取得後も再更新される）
+  if(typeof updateImportMetaDisplay==='function')updateImportMetaDisplay();
   // Build area tabs
   var tabsEl=document.getElementById('areaTabs');
   tabsEl.innerHTML='<div class="area-tabs-inner">'+AREA_TABS.map(function(t,i){
@@ -14253,9 +14396,16 @@ function admHandleXlsx(input){
         confirm_submit:14,confirm_done:15,inspection:231,completion:232,delivery_date:237,
         delivery_month:237,status:242};
       var sb=getSB();
-      var existing=await sb.from('properties').select('id,fix_no,name');
+      var existing=await sb.from('properties').select('id,fix_no,name,custom_gantt,prop_master');
       var exMap={};
-      (existing.data||[]).forEach(function(p){exMap[String(p.fix_no)+'_'+p.name]=p.id;});
+      var exCustomGanttMap={}; // ★このFiXは手動編集済み（custom_gantt保持）か（2026/8/30追加）
+      var exPropMasterMap={};
+      (existing.data||[]).forEach(function(p){
+        var k=String(p.fix_no)+'_'+p.name;
+        exMap[k]=p.id;
+        exCustomGanttMap[k]=!!p.custom_gantt;
+        exPropMasterMap[k]=p.prop_master||'';
+      });
       var totalNew=0,totalUpd=0;
       var importErrors=[]; // ★Supabase書き込みエラーを収集（サイレント失敗を防ぐ）
       var deliveryColFallbackSheets=[]; // 引渡し日列を自動検出できず既定値を使ったシート名
@@ -14363,13 +14513,32 @@ function admHandleXlsx(input){
             if(miNorm){prop.movein_date=miNorm;prop.movein_date_source='excel';}
           }
           var key=fixNo+'_'+nameVal;
+          // ★工程表ガントの自動再計算（2026/8/30追加）：手動編集済み（custom_gantt保持）の物件は
+          //   個別調整を尊重してそのまま維持する。一方、未編集（黄色バーのまま）の物件は、
+          //   Excel取込のたびに土地決済日・確認完了日を反映した最新ロジック（computeMasterSegs、
+          //   土地決済起点の造成ロジック含む）で工程表を再計算し、master_segsとして保存する。
+          //   これにより「エクセルで日程だけ更新され、工程表が古いロジックのまま固定される」問題を解消する。
+          //   ※物件名変更（FiX Noは同じで名前だけ変わるケース）にも対応するため、旧名のキーも確認する
+          var _sameFixIdKey=exMap[key]?null:Object.keys(exMap).find(function(k){return k.split('_')[0]===fixNo;});
+          var _hasCustomGantt=exCustomGanttMap[key]||(_sameFixIdKey&&exCustomGanttMap[_sameFixIdKey]);
+          if(!_hasCustomGantt&&(prop.land_payment||prop.confirm_done)){
+            try{
+              var _masterName=exPropMasterMap[key]||(_sameFixIdKey&&exPropMasterMap[_sameFixIdKey])||_autoAreaMasterName(prop);
+              var _mt=(typeof myMasters!=='undefined'&&myMasters)?myMasters.find(function(m){return m.name===_masterName;}):null;
+              if(_mt&&_mt.steps&&_mt.steps.length){
+                var _normSteps=_normalizeTmplSteps(_mt.steps);
+                var _freshSegs=computeMasterSegs(prop.confirm_done||'',_normSteps,prop.hand_kumi||'',_masterName,prop.land_payment||'');
+                if(_freshSegs&&_freshSegs.length)prop.master_segs=_freshSegs;
+              }
+            }catch(_e){} // 再計算に失敗しても取込自体は継続する（既存のmaster_segsは変更しない）
+          }
           if(exMap[key]){
             // 同じFIX ID+名前 → 通常更新
             var upR=await sb.from('properties').update(prop).eq('id',exMap[key]);
             if(upR.error){importErrors.push(fixNo+' '+nameVal+': '+upR.error.message);}else{totalUpd++;}
           } else {
             // ★ FIX IDが同じで名前が違う（物件名変更）→ 最新名に上書き更新
-            var sameFixId=Object.keys(exMap).find(function(k){return k.split('_')[0]===fixNo;});
+            var sameFixId=_sameFixIdKey;
             if(sameFixId){
               // 旧名のレコードを最新名で更新
               var upR2=await sb.from('properties').update(prop).eq('id',exMap[sameFixId]);
@@ -14400,6 +14569,12 @@ function admHandleXlsx(input){
         statusEl.innerHTML='<div style="background:#d1fae5;color:#065f46;padding:12px;border-radius:8px;font-size:12px">✅ 取込完了: 新規 '+totalNew+'件 / 更新 '+totalUpd+'件</div>'+deliveryColInfo+errBlock;
       }
       showToast('✅ Excelを取込みました','success');
+      // ★エクセル最終更新日時を記録（2026/8/30追加：ホーム画面表示用）
+      if(typeof _saveImportMetaToDB==='function'){
+        var _importedBy=(typeof currentProfile!=='undefined'&&currentProfile)?(currentProfile.name||''):'';
+        _saveImportMetaToDB({at:new Date().toLocaleString('ja-JP',{year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'}),by:_importedBy});
+        if(typeof updateImportMetaDisplay==='function')updateImportMetaDisplay();
+      }
       // Reload DB props
       var pr=await sb.from('properties').select('*').order('fix_no');
       if(!pr.error&&pr.data){DB_PROPS=pr.data;if(typeof renderAll==='function')renderAll();}
