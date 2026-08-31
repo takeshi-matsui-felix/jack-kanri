@@ -5632,13 +5632,14 @@ function fixHolidayMisalignedSegs(){
 }
 window.fixHolidayMisalignedSegs=fixHolidayMisalignedSegs;
 
-// ★新機能【土地決済チェックのズレを補正】：computeMasterSegsの造成起点ロジック修正（2026/8/30）は
-//   新規計算にしか反映されず、既に custom_gantt を持つ既存物件（＝この物件はほぼ全て該当する）には
-//   自動反映されない。マスター紐付け直しも「既存工程は維持・新規項目のみ追加」という設計のため
-//   同様に反映されない。個別物件で明示的に補正できるボタンとして用意する（2026/8/30追加）。
-//   造成（名前に「造成」を含む工程）の開始日が「土地決済日の翌稼働日」より前になっている場合、
-//   そこまで押し出し、稼働日数(dur)は変えずに終了日を再計算、後工程へも累積で連鎖させる
-//   （fixHolidayMisalignedSegsと同じ考え方のcascade処理を流用）。
+// ★新機能【土地決済チェックのズレを補正】：custom_gantt保持済み（手動編集扱い）の既存物件には、
+//   getAllProps()側のマージ修正（land_payment/confirm_done反映）が及ばないため、個別物件で
+//   明示的に補正できるボタンとして用意する（2026/8/30追加）。
+//   ★2026/8/31修正：当初「造成」という名前の工程だけを対象にしていたが、実際には「地盤」が
+//   「造成工事」より前に来てしまっているなど、工程の並び自体が想定と異なる（壊れた）データが
+//   存在することが判明。名前に頼らず「時系列で最初に来る工程」を対象にすることで、土地決済日より
+//   前には何も着工しないことを保証する方式に変更。稼働日数(dur)は変えずに終了日を再計算し、
+//   後工程へも累積で連鎖させる（fixHolidayMisalignedSegsと同じ考え方のcascade処理を流用）。
 function fixLandPaymentMisalignedSegs(){
   if(!currentProp){showToast('物件情報が取得できません','error');return;}
   var lp=normDate(currentProp.land_payment||'');
@@ -5655,7 +5656,9 @@ function fixLandPaymentMisalignedSegs(){
   var cumulativeDelta=0;
   var fixedCount=0;
   var fixedNames=[];
-  var soseiFixed=false; // 造成工程を1回だけ補正対象にする
+  var firstProcessed=false; // ★2026/8/31修正：「造成」という名前限定ではなく、時系列で最初に来る
+  // 工程に対して土地決済日を基準として適用する（地盤等、名前や順序が想定と異なる場合でも
+  // 「土地決済日より前には何も着工しない」を保証するため。名前一致に頼らない方式に変更）
   order.forEach(function(idx){
     var s=geSegs[idx];
     var nm=s.label||s.name||'';
@@ -5673,9 +5676,9 @@ function fixLandPaymentMisalignedSegs(){
       shiftedStart=localDateStr(sd0);
     }
 
-    // 造成工程（名前に「造成」を含む、最初の1件のみ）が土地決済の翌稼働日より前なら押し出す
-    if(!soseiFixed&&nm.indexOf('造成')>=0){
-      soseiFixed=true;
+    // 時系列で最初に処理される工程（名前を問わない）が土地決済の翌稼働日より前なら押し出す
+    if(!firstProcessed){
+      firstProcessed=true;
       if(shiftedStart<requiredStart)shiftedStart=requiredStart;
     }
 
@@ -5698,7 +5701,20 @@ function fixLandPaymentMisalignedSegs(){
   if(fixedCount>0){
     showToast('土地決済日（'+lp+'）を踏まえて'+fixedCount+'件の工程を補正し、後工程も連動してずらしました。保存を押して確定してください','success');
   } else {
-    showToast('土地決済日より前に着工している工程はありませんでした','info');
+    // ★2026/8/31追加：「補正なし」の判定自体が実態と食い違うケースの原因を切り分けるため、
+    //   診断情報（土地決済日・時系列で最初の工程・先頭数件のセグメント）を表示する
+    var firstSeg=geSegs.slice().sort(function(a,b){
+      var da=a.start_date||a.date||''; var db=b.start_date||b.date||'';
+      return da<db?-1:(da>db?1:0);
+    })[0];
+    var firstFew=geSegs.slice().sort(function(a,b){
+      var da=a.start_date||a.date||''; var db=b.start_date||b.date||'';
+      return da<db?-1:(da>db?1:0);
+    }).slice(0,5).map(function(s){return (s.label||s.name||'?')+'('+(s.start_date||s.date||'?')+')';}).join('、');
+    alert('土地決済日より前に着工している工程はありませんでした。\n\n【診断情報】\n'
+      +'土地決済日：'+lp+'（基準：'+requiredStart+'以降）\n'
+      +'時系列で最初の工程：'+(firstSeg?((firstSeg.label||firstSeg.name)+'／'+(firstSeg.start_date||firstSeg.date)):'見つかりませんでした')+'\n'
+      +'先頭5件の工程：'+(firstFew||'（データなし）'));
   }
 }
 window.fixLandPaymentMisalignedSegs=fixLandPaymentMisalignedSegs;
@@ -14555,8 +14571,21 @@ function admHandleXlsx(input){
         if(typeof updateImportMetaDisplay==='function')updateImportMetaDisplay();
       }
       // Reload DB props
+      // ★2026/8/31修正：取込直後はDB_PROPS（メモリ上）は最新化されるが、localStorageキャッシュを
+      //   更新していなかったため、取込後にページを再読み込みすると、キャッシュ優先の起動ロジックにより
+      //   取込前の古いキャッシュに巻き戻ってしまう不具合があった（「取込・リロードしても直らない」の
+      //   直接の原因）。キャッシュとタイムスタンプも合わせて更新する。
       var pr=await sb.from('properties').select('*').order('fix_no');
-      if(!pr.error&&pr.data){DB_PROPS=pr.data;if(typeof renderAll==='function')renderAll();}
+      if(!pr.error&&pr.data){
+        DB_PROPS=pr.data;
+        if(typeof renderAll==='function')renderAll();
+        try{
+          localStorage.setItem('jack_props_cache',JSON.stringify(DB_PROPS));
+          var _ts=new Date().toLocaleString('ja-JP',{year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'});
+          localStorage.setItem('jack_props_cache_ts',_ts);
+          if(typeof updateSyncBanner==='function')updateSyncBanner('最終同期: '+_ts,false);
+        }catch(e){}
+      }
     }catch(err){
       if(statusEl)statusEl.innerHTML='<div style="background:#fee2e2;color:#dc2626;padding:10px;border-radius:8px;font-size:12px">エラー: '+err.message+'</div>';
     }
