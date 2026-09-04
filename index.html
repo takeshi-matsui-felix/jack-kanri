@@ -1171,7 +1171,7 @@ var POST_END_PAD = 120; // ★スクロール終端の余白：完了検査列�
 // ===== 納品書機能：休工日カレンダー・稼働日計算 =====
 // ★日本の祝日（政府発表・国立天文台暦要項ベース、2025〜2028年分）
 // ★アプリバージョン（不具合問い合わせ対応用。リリースごとに更新すること。2026/8/23追加）
-var APP_VERSION = '2026.09.04.2';
+var APP_VERSION = '2026.09.04.3';
 window.APP_VERSION=APP_VERSION;
 console.log('[JACK] version', APP_VERSION);
 var JP_HOLIDAYS = [
@@ -4515,6 +4515,9 @@ function buildGanttTab(p){
   //   ※実際の行数（1〜4行、重なり具合で自動決定）はbuildMultiRow内で決める
   var deliveryBadgeList=(typeof _getDeliveryGanttBadges==='function')?_getDeliveryGanttBadges(p):[];
   segs=segs.slice();
+  // ★新機能【仮工程／確定工程】：編集画面（geRenderBars）だけでなく、編集前の表示専用ガント
+  //   （buildCompactRow／buildMultiRow）でも同じハッチング表示にする（2026/9/4追加）
+  var _tentativeSet=(typeof _tentativeStepSet==='function')?_tentativeStepSet(p,segs):{has:function(){return false;}};
 
   // Build date range: from earliest seg start to latest seg end + 1 month
   var gStart=new Date(TODAY); gStart.setMonth(gStart.getMonth()-1); gStart.setDate(1);
@@ -4525,6 +4528,16 @@ function buildGanttTab(p){
     var ed=seg.end_date||'';
     if(ed){var dt=new Date(ed.replace(/[/]/g,'-'));if(dt>gEnd)gEnd=new Date(dt.getFullYear(),dt.getMonth()+1,0);}
   });
+  // ★2026/9/4追加：フリーズ防止ガード（geRenderBars同様）。工程データに極端に離れた日付
+  //   （マスターの架空Day軸基準日が個別物件に反映しきれず残っているケース等）が混ざっていると、
+  //   表示範囲が数年単位に膨れてブラウザが重くなる／固まるため上限を設ける。
+  var _MAX_SPAN_DAYS_GT=550;
+  if(Math.round((gEnd-gStart)/86400000)>_MAX_SPAN_DAYS_GT){
+    console.warn('[JACK] buildGanttTab: 工程データの日付範囲が異常に広いため表示範囲を'+_MAX_SPAN_DAYS_GT+'日に制限しました。');
+    var _gtBase=new Date(TODAY); _gtBase.setMonth(_gtBase.getMonth()-1); _gtBase.setDate(1);
+    if(gStart<_gtBase)gStart=_gtBase;
+    gEnd=new Date(gStart.getTime()); gEnd.setDate(gEnd.getDate()+_MAX_SPAN_DAYS_GT);
+  }
   var gDates=[''];
   var cur=new Date(gStart.getTime());
   while(cur<=gEnd){gDates.push(localDateStr(cur));cur.setDate(cur.getDate()+1);}
@@ -4571,10 +4584,15 @@ function buildGanttTab(p){
 
       var isPast=seg.end_date&&new Date(seg.end_date.replace(/\//g,'-'))<todayDt;
       var neededW2=lbl.length*7.2+4;
+      var _crIsTent=_tentativeSet.has(String(lbl).trim());
+      var _crBg=_crIsTent
+        ?('repeating-linear-gradient(135deg,'+color+' 0,'+color+' 4px,rgba(255,255,255,.55) 4px,rgba(255,255,255,.55) 8px)')
+        :color;
+      var _crTentAttr=_crIsTent?' title="仮工程（未確定）"':'';
       if(bw>=neededW2){
-        bars+='<div style="position:absolute;left:'+sx+'px;top:'+by+'px;width:'+bw+'px;height:'+bh+'px;background:'+color+';color:'+tcolor+';font-size:6px;font-weight:800;border-radius:2px;display:flex;align-items:center;padding:0 2px;overflow:hidden;white-space:nowrap;box-shadow:0 1px 2px rgba(0,0,0,.2);z-index:'+(layer===1?12:10)+';opacity:'+(isPast?'.65':'1')+';">'+lbl+'</div>';
+        bars+='<div'+_crTentAttr+' style="position:absolute;left:'+sx+'px;top:'+by+'px;width:'+bw+'px;height:'+bh+'px;background:'+_crBg+';color:'+tcolor+';font-size:6px;font-weight:800;border-radius:2px;display:flex;align-items:center;padding:0 2px;overflow:hidden;white-space:nowrap;box-shadow:0 1px 2px rgba(0,0,0,.2);z-index:'+(layer===1?12:10)+';opacity:'+(_crIsTent?'0.6':(isPast?'.65':'1'))+';'+(_crIsTent?'border:1px dashed rgba(0,0,0,.4);':'')+'">'+lbl+'</div>';
       } else {
-        bars+='<div style="position:absolute;left:'+sx+'px;top:'+by+'px;width:'+bw+'px;height:'+bh+'px;background:'+color+';border-radius:2px;box-shadow:0 1px 2px rgba(0,0,0,.2);z-index:'+(layer===1?12:10)+';opacity:'+(isPast?'.65':'1')+';"></div>';
+        bars+='<div'+_crTentAttr+' style="position:absolute;left:'+sx+'px;top:'+by+'px;width:'+bw+'px;height:'+bh+'px;background:'+_crBg+';border-radius:2px;box-shadow:0 1px 2px rgba(0,0,0,.2);z-index:'+(layer===1?12:10)+';opacity:'+(_crIsTent?'0.6':(isPast?'.65':'1'))+';'+(_crIsTent?'border:1px dashed rgba(0,0,0,.4);':'')+'"></div>';
         if(lbl)bars+='<div style="position:absolute;left:'+(sx+bw+2)+'px;top:'+by+'px;height:'+bh+'px;display:flex;align-items:center;font-size:6px;font-weight:800;color:#000;white-space:nowrap;background:white;border:1px solid '+color+';border-radius:2px;padding:0 2px;z-index:'+(layer===1?13:11)+';">'+lbl+'</div>';
       }
     });
@@ -4614,6 +4632,11 @@ function buildGanttTab(p){
     } else {
       rangeStart=new Date(TODAY);rangeStart.setDate(rangeStart.getDate()-10);
       rangeEnd=new Date(TODAY);rangeEnd.setDate(rangeEnd.getDate()+60);
+    }
+    // ★2026/9/4追加：フリーズ防止ガード（buildGanttTab冒頭・geRenderBarsと同様）
+    if(Math.round((rangeEnd-rangeStart)/86400000)>550){
+      console.warn('[JACK] buildMultiRow: 工程データの日付範囲が異常に広いため表示範囲を550日に制限しました。');
+      rangeEnd=new Date(rangeStart.getTime());rangeEnd.setDate(rangeEnd.getDate()+550);
     }
     var rDates=[''];
     var cur=new Date(rangeStart.getTime());
@@ -4674,10 +4697,16 @@ function buildGanttTab(p){
       var isDark=!!DARK_TEXT[lbl];var tcOvr=seg.textColor||seg.text_color;var tcolor=tcOvr&&tcOvr!=='auto'?tcOvr:_ganttTextColor(color);
       var isPast=seg.end_date&&new Date(seg.end_date.replace(/\//g,'-'))<todayDt;
       var isAct=!isPast&&sd&&new Date(sd.replace(/\//g,'-'))<=todayDt;
+      var _mrIsTent=_tentativeSet.has(String(lbl).trim());
+      var _mrBg=_mrIsTent
+        ?('repeating-linear-gradient(135deg,'+color+' 0,'+color+' 4px,rgba(255,255,255,.55) 4px,rgba(255,255,255,.55) 8px)')
+        :color;
+      var _mrTentAttr=_mrIsTent?' title="仮工程（未確定）"':'';
+      var _mrTentStyle=_mrIsTent?'border:1.5px dashed rgba(0,0,0,.4);':'';
       // ★造成バーはテキスト表示（ガントバーなし）
       if(_isSoseiLabel(lbl)){
         var soseiTxt=_soseiBarlabel(sd,seg.end_date||sd);
-        bars+='<div style="position:absolute;left:'+sx+'px;top:'+by+'px;height:'+bh+'px;display:flex;align-items:center;font-size:10px;font-weight:800;color:#1e293b;white-space:nowrap;z-index:15;">'+soseiTxt+'</div>';
+        bars+='<div'+_mrTentAttr+' style="position:absolute;left:'+sx+'px;top:'+by+'px;height:'+bh+'px;display:flex;align-items:center;font-size:10px;font-weight:800;color:#1e293b;white-space:nowrap;z-index:15;opacity:'+(_mrIsTent?'0.6':'1')+';">'+soseiTxt+'</div>';
       } else {
         // ★3日以内の短い工程：バー外に工程名を表示する（拡大表示でも、左の行ラベルから距離があると分かりにくいため）
         //   行ラベルと紛らわしくならないよう、白背景+バー色の縁取りのバッジ風デザインにして視覚的に区別する
@@ -4686,7 +4715,7 @@ function buildGanttTab(p){
         if(calDur<=3){
           lblHtml='<div style="position:absolute;left:'+(sx+bw+3)+'px;top:'+by+'px;height:'+bh+'px;display:flex;align-items:center;font-size:8px;font-weight:700;color:#334155;white-space:nowrap;z-index:15;background:white;border:1px solid '+color+';border-radius:4px;padding:0 5px;box-shadow:0 1px 2px rgba(0,0,0,.12);">'+lbl+'</div>';
         }
-        bars+='<div style="position:absolute;left:'+sx+'px;top:'+by+'px;width:'+bw+'px;height:'+bh+'px;background:'+color+';color:'+tcolor+';font-size:7px;font-weight:800;border-radius:2px;display:flex;align-items:center;padding:0 3px;overflow:hidden;white-space:nowrap;box-shadow:0 1px 2px rgba(0,0,0,.15);z-index:'+(layer===1?12:10)+';opacity:'+(isPast?'.6':'1')+';'+(isAct?'outline:2px solid rgba(255,255,0,.6);outline-offset:0;':'')+'">'+(lblInside&&calDur>3?lbl:'')+'</div>'+lblHtml;
+        bars+='<div'+_mrTentAttr+' style="position:absolute;left:'+sx+'px;top:'+by+'px;width:'+bw+'px;height:'+bh+'px;background:'+_mrBg+';color:'+tcolor+';font-size:7px;font-weight:800;border-radius:2px;display:flex;align-items:center;padding:0 3px;overflow:hidden;white-space:nowrap;box-shadow:0 1px 2px rgba(0,0,0,.15);z-index:'+(layer===1?12:10)+';opacity:'+(_mrIsTent?'0.6':(isPast?'.6':'1'))+';'+_mrTentStyle+(isAct?'outline:2px solid rgba(255,255,0,.6);outline-offset:0;':'')+'">'+(lblInside&&calDur>3?lbl:'')+'</div>'+lblHtml;
       }
     });
     // ★左固定ラベル列（横スクロールのみsticky。縦方向はヘッダーごと外に出したので単純な行リストでOK）
