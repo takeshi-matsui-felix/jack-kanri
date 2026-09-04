@@ -1171,7 +1171,7 @@ var POST_END_PAD = 120; // ★スクロール終端の余白：完了検査列�
 // ===== 納品書機能：休工日カレンダー・稼働日計算 =====
 // ★日本の祝日（政府発表・国立天文台暦要項ベース、2025〜2028年分）
 // ★アプリバージョン（不具合問い合わせ対応用。リリースごとに更新すること。2026/8/23追加）
-var APP_VERSION = '2026.09.04.1';
+var APP_VERSION = '2026.09.04.2';
 window.APP_VERSION=APP_VERSION;
 console.log('[JACK] version', APP_VERSION);
 var JP_HOLIDAYS = [
@@ -4998,6 +4998,17 @@ function geRenderBars(){
     gStart=new Date(TODAY);gStart.setDate(gStart.getDate()-10);
     gEnd=new Date(TODAY);gEnd.setDate(gEnd.getDate()+60);
   }
+  // ★2026/9/4追加：フリーズ防止ガード。工程データの中に1件でも極端に離れた日付（データ不整合や誤入力）が
+  //   混ざっていると、gStart〜gEndの表示範囲が数年単位に膨れ上がり、日数分（数千個）のDOM要素と
+  //   数万px幅のグリッドを生成しようとしてブラウザが固まる不具合があった（画面がフリーズする、の原因）。
+  //   表示範囲を最大MAX_SPAN_DAYS日に制限し、範囲外の工程は下記のcol計算でスキップされる（描画自体は継続）。
+  //   ※工種一覧（geSegList）側は制限を受けず全件そのまま表示されるので、日付がおかしい工程は
+  //   そちらで見つけて修正できる。
+  var MAX_SPAN_DAYS=550; // 約18ヶ月。5.5ヶ月マスターの3倍程度は余裕を持たせた目安
+  if(Math.round((gEnd-gStart)/86400000)>MAX_SPAN_DAYS){
+    console.warn('[JACK] geRenderBars: 工程データの日付範囲が異常に広いため表示範囲を'+MAX_SPAN_DAYS+'日に制限しました。日付がおかしい工程が無いか工種一覧を確認してください。');
+    gEnd=new Date(gStart.getTime());gEnd.setDate(gEnd.getDate()+MAX_SPAN_DAYS);
+  }
   var gDates=[''],cur=new Date(gStart);
   while(cur<=gEnd){gDates.push(localDateStr(cur));cur.setDate(cur.getDate()+1);}
   // ★ gDateIdxをグローバルに保持（geStartDrag/geStopDragから参照するため）
@@ -5501,6 +5512,7 @@ function geShowDelConfirm(idx,lbl){
 
 function geRenderSegList(){
   var el=document.getElementById('geSegList'); if(!el)return;
+  var todayDt=new Date(TODAY);
   // ★新機能【仮工程／確定工程】：区切りセレクタをgeSegsの現在の並びで更新
   var selEl=document.getElementById('geConfirmedUntilSel');
   if(selEl&&currentProp){
@@ -5522,6 +5534,10 @@ function geRenderSegList(){
       edVal=localDateStr(d);
     }
     var inputStyle='padding:3px 4px;border:1px solid #334155;border-radius:4px;font-size:10px;background:#0f172a;color:white;width:100%;box-sizing:border-box;';
+    // ★2026/9/4追加：TODAYから3年以上離れた日付は誤入力の可能性が高いため警告表示（フリーズ原因の特定用）
+    var _isSuspicious=false;
+    if(sd){var _sdDt=new Date(sd);if(!isNaN(_sdDt.getTime()))_isSuspicious=Math.abs(_sdDt-todayDt)>1095*86400000;}
+    var warnBadge=_isSuspicious?'<span title="日付が現在から3年以上離れています。誤入力の可能性があります" style="font-size:9px;background:#dc2626;color:white;padding:1px 4px;border-radius:3px;font-weight:800;">⚠️日付要確認</span>':'';
     if(locked){
       return '<div style="display:flex;flex-direction:column;gap:4px;padding:6px 6px;background:#0f172a;border-radius:6px;border-left:3px solid '+(s.color||'#64748b')+';opacity:.75;">'
         +'<div style="display:flex;align-items:center;gap:4px;">'
@@ -5530,11 +5546,12 @@ function geRenderSegList(){
         +'<div style="font-size:8px;color:#fbbf24;line-height:1.4;">予約日は物件編集画面から設定してください</div>'
         +'</div>';
     }
-    return '<div style="display:flex;flex-direction:column;gap:4px;padding:6px 6px;background:#0f172a;border-radius:6px;border-left:3px solid '+(s.color||'#64748b')+';">'
+    return '<div style="display:flex;flex-direction:column;gap:4px;padding:6px 6px;background:#0f172a;border-radius:6px;border-left:3px solid '+(_isSuspicious?'#dc2626':(s.color||'#64748b'))+';">'
       +'<div style="display:flex;align-items:center;gap:4px;">'
       +'<div style="flex:1;font-size:10px;font-weight:700;color:rgba(255,255,255,.9);overflow:hidden;white-space:nowrap;">'+lbl+'</div>'
       +'<div style="font-size:9px;color:rgba(255,255,255,.4);white-space:nowrap;flex-shrink:0;">'+dur+'日</div>'
       +'</div>'
+      +(warnBadge?'<div>'+warnBadge+'</div>':'')
       +'<div style="display:flex;flex-direction:column;gap:2px;">'
       +'<label style="font-size:8px;color:rgba(255,255,255,.35);">開始日</label>'
       +'<input type="date" data-idx="'+i+'" data-field="start" value="'+sd+'" style="'+inputStyle+'" onchange="geUpdateSegDate(this)">'
