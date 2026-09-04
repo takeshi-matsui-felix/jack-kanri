@@ -1171,7 +1171,7 @@ var POST_END_PAD = 120; // ★スクロール終端の余白：完了検査列�
 // ===== 納品書機能：休工日カレンダー・稼働日計算 =====
 // ★日本の祝日（政府発表・国立天文台暦要項ベース、2025〜2028年分）
 // ★アプリバージョン（不具合問い合わせ対応用。リリースごとに更新すること。2026/8/23追加）
-var APP_VERSION = '2026.09.04.3';
+var APP_VERSION = '2026.09.04.4';
 window.APP_VERSION=APP_VERSION;
 console.log('[JACK] version', APP_VERSION);
 var JP_HOLIDAYS = [
@@ -2619,10 +2619,12 @@ var DELIVERY_GANTT_LINK=[
   {deliveryId:2, rowName:'①レッカー'},
   {deliveryId:4, rowName:'②レッカー'},
   {deliveryId:7, rowName:'③レッカー'},
-  {deliveryId:11,rowName:'④レッカー'},
-  // ★新機能【東海：防蟻＝③レッカー連動】：防蟻の開始日を③レッカーの納品日と同じにし、
-  //   防蟻より後ろの工程も同じ日数分だけ自動でスライドする（cascade:true）。東海エリアのみ適用（2026/8/22 追加）。
-  {deliveryId:7, rowName:'防蟻', cascade:true, areaOnly:'TOKAI'}
+  {deliveryId:11,rowName:'④レッカー'}
+  // ★2026/9/4削除【防蟻＝③レッカー連動の廃止】：防蟻（施工）は納品書（搬入）から独立させる方針に変更。
+  //   代わりに、防蟻は「2段階大親ロジック」（geApplyBougiAnchor、基礎とは独立した第2の起点）で
+  //   施工側のドラッグ／日付編集のみに連動するようにした。
+  //   ※納品書内部での「③レッカーがずれたらid>7の納品項目も連動してずれる」仕組み（_deliveryItemDate内）は
+  //   納品書どうしの自明な連動のため引き続き維持する（今回の変更対象外）。
 ];
 var DELIVERY_LINKED_ROW_NAMES=DELIVERY_GANTT_LINK.map(function(l){return l.rowName;});
 function _isDeliveryLinkedRow(seg){
@@ -4900,6 +4902,9 @@ function toggleGanttEditMode(){
     //   A=基礎〜防水未満：基礎完了基準のまま（既存動作）
     //   B=防水〜内装未満：防水完了基準に変換し、基礎の移動から完全に独立させる
     //   C=内装以降（内装自身含む）：内装完了基準に変換し、基礎・防水の移動から完全に独立させる
+    // ★2段階大親ロジック（東海マスターのみ、2026/9/4追加）
+    //   A=基礎〜防蟻未満：基礎完了基準のまま（既存動作）
+    //   B=防蟻以降（防蟻自身含む）：防蟻完了基準に変換し、基礎の移動から完全に独立させる
     (function(){
       var _mnRaw=_resolvePropMasterName(currentProp)||'';
       var _mn=_mnRaw.trim();
@@ -4956,10 +4961,47 @@ function toggleGanttEditMode(){
           }
         }
       } else {
-        _diagLines.push('（関東マスター／関東手組マスターに該当しないため2段階大親ロジックは対象外）');
+        _diagLines.push('（関東マスター／関東手組マスターに該当しないため3段階大親ロジックは対象外）');
+      }
+      // ★2段階大親ロジック（東海マスターのみ、2026/9/4追加）
+      //   A=基礎〜防蟻未満：基礎完了基準のまま（既存動作。配筋検査・土台・先行足場・①〜④レッカー等）
+      //   B=防蟻以降（防蟻自身含む）：防蟻完了基準に変換し、基礎の移動から完全に独立させる
+      //   ※以前あった「防蟻＝③レッカー納品連動」は廃止し、施工（本ロジック）と納品書を完全に切り離した
+      var _isTargetTokai=(_mn.indexOf('東海')>=0);
+      if(_isTargetTokai){
+        var gIdx=geSegs.findIndex(function(s){return _stripWs(s.name||s.label)==='防蟻';});
+        if(gIdx>=0){
+          var gSeg=geSegs[gIdx];
+          gSeg.offsetFrom=''; // 防蟻自身はB群の起点。基礎の追随対象から外す
+          var _cntG=0;
+          if(gSeg.end_date){
+            for(var gi2=gIdx+1; gi2<geSegs.length; gi2++){
+              var gs2=geSegs[gi2];
+              var gn2=gs2.name||gs2.label||'';
+              if(gn2==='造成'||gn2==='地盤')continue;
+              if(!gs2.start_date)continue;
+              gs2.offsetFrom='防蟻完了';
+              gs2.offsetDays=countWorkdays(gSeg.end_date, gs2.start_date);
+              _cntG++;
+            }
+            _diagLines.push('✅ 防蟻アンカー適用済み（'+_cntG+'工程が防蟻完了基準）');
+          } else {
+            _diagLines.push('⚠️「防蟻」工程に終了日が無いため未適用');
+          }
+        } else {
+          var _namesT=geSegs.map(function(s){return s.name||s.label||'';}).join('、');
+          console.warn('[2段階大親ロジック] マスター「'+_mn+'」に「防蟻」という名前の工程が見つかりません。現在の工程一覧：'+_namesT);
+          _diagLines.push('⚠️「防蟻」という名前の工程が見つかりません');
+          _diagLines.push('現在の工程一覧：'+_namesT);
+          if(typeof showToast==='function'){
+            showToast('⚠️「'+_mn+'」に「防蟻」という工程が見つかりません','warn');
+          }
+        }
+      } else if(!_isTarget){
+        _diagLines.push('（東海マスターにも該当しないため2段階大親ロジックも対象外）');
       }
       if(_diagEl){_diagEl.style.display='block';_diagEl.innerHTML=_diagLines.join('<br>');}
-      console.log('[3段階大親ロジック診断] '+_diagLines.join(' / '));
+      console.log('[大親ロジック診断] '+_diagLines.join(' / '));
     })();
     document.getElementById('geNewDate').value=TODAY;
     geInitColorPicker();
@@ -5336,6 +5378,41 @@ function geApplyBousuiAnchor(movedIdx){
   }
 }
 
+// ★防蟻を動かしたら、防蟻完了基準の工程（B群：防蟻自身含む以降）を順次再計算（東海専用・2026/9/4追加）
+// 基礎ロジック(geApplyKisoAnchor)とは完全に独立。offsetFrom==='防蟻完了'の工程だけを対象にする
+function geApplyBougiAnchor(movedIdx){
+  var movedSeg=geSegs[movedIdx];
+  if(!movedSeg||String(movedSeg.name||movedSeg.label||'').trim()!=='防蟻')return;
+  if(!movedSeg.start_date)return;
+  var gDur=movedSeg.calendar_dur||movedSeg.duration||1;
+  movedSeg.end_date=addCalendarDays(movedSeg.start_date, gDur);
+  movedSeg.calendar_dur=calendarDur(movedSeg.start_date,movedSeg.end_date);
+  movedSeg.duration=movedSeg.calendar_dur;
+  var bougiEnd=movedSeg.end_date;
+  for(var i=0;i<geSegs.length;i++){
+    if(i===movedIdx)continue;
+    var s=geSegs[i];
+    var offsetFrom=s.offsetFrom||'';
+    if(offsetFrom!=='防蟻完了')continue;
+    if(s.offsetDays==null)continue; // ★オフセット未確定の項目は動かさない
+    var offsetDays=s.offsetDays;
+    {
+      var startDate=addWorkdaysSigned(bougiEnd,offsetDays);
+      var sd2=new Date(startDate.replace(/[/]/g,'-'));
+      while(!_isWorkday(sd2))sd2.setDate(sd2.getDate()+1);
+      startDate=localDateStr(sd2);
+      var segDur=s.calendar_dur||s.duration||s.dur||1;
+      var endStr2=addCalendarDays(startDate,segDur);
+      s.start_date=startDate;s.date=startDate;s.end_date=endStr2;
+      s.calendar_dur=calendarDur(startDate,endStr2);
+      s.duration=s.calendar_dur;
+      var nc=FULL_DATE_IDX[startDate];
+      if(nc===undefined){var fks=Object.keys(FULL_DATE_IDX);for(var fki=0;fki<fks.length;fki++){if(fks[fki]>=startDate){nc=FULL_DATE_IDX[fks[fki]];break;}}}
+      if(nc!==undefined)s.col=nc;
+    }
+  }
+}
+
 // 内装を動かしたら、内装完了基準の工程（C群：内装自身含む以降）を順次再計算
 // ★基礎ロジック(geApplyKisoAnchor)・防水ロジック(geApplyBousuiAnchor)とは完全に独立。offsetFrom==='内装完了'の工程だけを対象にする
 function geApplyNaisouAnchor(movedIdx){
@@ -5391,8 +5468,11 @@ function geStopDrag(){
     } else if(dragName==='内装'){
       // 内装を動かした → C群（内装以降・内装自身含む）のみ追随。A群・B群には一切影響しない
       geApplyNaisouAnchor(dragIdx);
+    } else if(dragName==='防蟻'){
+      // ★東海専用：防蟻を動かした → B群（防蟻以降・防蟻自身含む）のみ追随。A群（基礎〜防蟻未満）には一切影響しない
+      geApplyBougiAnchor(dragIdx);
     } else {
-      // 基礎・防水・内装以外を動かした → 単体移動確定。元々属していた群（offsetFrom）を維持したまま基準日を再計算
+      // 基礎・防水・内装・防蟻以外を動かした → 単体移動確定。元々属していた群（offsetFrom）を維持したまま基準日を再計算
       var sn=dragSeg.name||dragSeg.label||'';
       if(sn!=='造成'&&sn!=='地盤'){
         if(dragSeg.offsetFrom==='内装完了'){
@@ -5406,6 +5486,12 @@ function geStopDrag(){
           if(bousuiSeg&&bousuiSeg.end_date&&dragSeg.start_date){
             dragSeg.offsetDays=countWorkdays(bousuiSeg.end_date, dragSeg.start_date);
             dragSeg.offsetFrom='防水完了';
+          }
+        } else if(dragSeg.offsetFrom==='防蟻完了'){
+          var bougiSeg=geSegs.find(function(s){return (s.name||s.label||'')==='防蟻';});
+          if(bougiSeg&&bougiSeg.end_date&&dragSeg.start_date){
+            dragSeg.offsetDays=countWorkdays(bougiSeg.end_date, dragSeg.start_date);
+            dragSeg.offsetFrom='防蟻完了';
           }
         } else {
           var kisoSeg=geSegs.find(function(s){return (s.name||s.label||'')==='基礎';});
@@ -5480,8 +5566,17 @@ function geStopResize(){
         rsC.calendar_dur=calendarDur(rsC.start_date,rsC.end_date);
       }
       geApplyNaisouAnchor(resIdx);
+    } else if(resName==='防蟻'){
+      // ★東海専用：防蟻自身をリサイズ → B群（防蟻完了基準）を再計算。A群には一切影響しない
+      var rsG=geSegs[resIdx];
+      if(rsG&&rsG.start_date){
+        rsG.duration=rsG.calendar_dur;
+        rsG.end_date=addCalendarDays(rsG.start_date, rsG.calendar_dur);
+        rsG.calendar_dur=calendarDur(rsG.start_date,rsG.end_date);
+      }
+      geApplyBougiAnchor(resIdx);
     } else {
-      // 基礎・防水・内装以外リサイズ → end_date再計算 + 元々属していた群（offsetFrom）を維持したままoffsetDays更新
+      // 基礎・防水・内装・防蟻以外リサイズ → end_date再計算 + 元々属していた群（offsetFrom）を維持したままoffsetDays更新
       var rs2=geSegs[resIdx];
       if(rs2&&rs2.start_date){
         // ★ calendar_durはカレンダー日数なのでaddCalendarDaysを使う
@@ -5499,6 +5594,12 @@ function geStopResize(){
         if(bousuiSeg2&&bousuiSeg2.end_date&&rs2.start_date){
           rs2.offsetDays=countWorkdays(bousuiSeg2.end_date, rs2.start_date);
           rs2.offsetFrom='防水完了';
+        }
+      } else if(rs2&&String(rs2.offsetFrom||'').trim()==='防蟻完了'){
+        var bougiSeg2=geSegs.find(function(s){return String(s.name||s.label||'').trim()==='防蟻';});
+        if(bougiSeg2&&bougiSeg2.end_date&&rs2.start_date){
+          rs2.offsetDays=countWorkdays(bougiSeg2.end_date, rs2.start_date);
+          rs2.offsetFrom='防蟻完了';
         }
       } else {
         var kisoSeg2=geSegs.find(function(s){return (s.name||s.label||'')==='基礎';});
@@ -5615,7 +5716,7 @@ function geUpdateSegDate(input){
       s.duration=s.calendar_dur;
     }
   }
-  // ★基礎・防水・内装の日付変更時は、それぞれの群（A/B/C）を追随させる
+  // ★基礎・防水・内装・防蟻の日付変更時は、それぞれの群（A/B/C）を追随させる
   var sname=s.name||s.label||'';
   if(sname==='基礎'){
     // ★ calendar_durをdurationにも同期してからアンカー適用
@@ -5627,8 +5728,12 @@ function geUpdateSegDate(input){
   } else if(sname==='内装'){
     s.duration=s.calendar_dur;
     geApplyNaisouAnchor(idx);
+  } else if(sname==='防蟻'){
+    // ★東海専用：防蟻の日付変更 → B群（防蟻完了基準）のみ追随
+    s.duration=s.calendar_dur;
+    geApplyBougiAnchor(idx);
   } else if(sname!=='造成'&&sname!=='地盤'){
-    // ★単体項目の日付変更 → 元々属していた群（内装完了／防水完了／基礎完了）を維持したまま基準日を再計算
+    // ★単体項目の日付変更 → 元々属していた群（内装完了／防水完了／防蟻完了／基礎完了）を維持したまま基準日を再計算
     if(s.offsetFrom==='内装完了'){
       var naisouSeg3=geSegs.find(function(seg){return (seg.name||seg.label||'')==='内装';});
       if(naisouSeg3&&naisouSeg3.end_date&&s.start_date){
@@ -5640,6 +5745,12 @@ function geUpdateSegDate(input){
       if(bousuiSeg3&&bousuiSeg3.end_date&&s.start_date){
         s.offsetDays=countWorkdays(bousuiSeg3.end_date,s.start_date);
         s.offsetFrom='防水完了';
+      }
+    } else if(s.offsetFrom==='防蟻完了'){
+      var bougiSeg3=geSegs.find(function(seg){return (seg.name||seg.label||'')==='防蟻';});
+      if(bougiSeg3&&bougiSeg3.end_date&&s.start_date){
+        s.offsetDays=countWorkdays(bougiSeg3.end_date,s.start_date);
+        s.offsetFrom='防蟻完了';
       }
     } else {
       var kisoSeg3=geSegs.find(function(seg){return (seg.name||seg.label||'')==='基礎';});
