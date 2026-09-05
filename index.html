@@ -1174,7 +1174,7 @@ var POST_END_PAD = 120; // ★スクロール終端の余白：完了検査列�
 // ===== 納品書機能：休工日カレンダー・稼働日計算 =====
 // ★日本の祝日（政府発表・国立天文台暦要項ベース、2025〜2028年分）
 // ★アプリバージョン（不具合問い合わせ対応用。リリースごとに更新すること。2026/8/23追加）
-var APP_VERSION = '2026.09.05.2';
+var APP_VERSION = '2026.09.05.5';
 window.APP_VERSION=APP_VERSION;
 console.log('[JACK] version', APP_VERSION);
 var JP_HOLIDAYS = [
@@ -2276,7 +2276,7 @@ function getActiveSegs(p) {
 // ①着工中物件数（造成の着手日〜引渡し日の間にある物件）と②工種別に何件進行中かを、
 //   今期／来期 × 全現場／東海／関東で集計する。各種検査（配筋・躯体・断熱・完了）は件数集計ではなく
 //   「物件名＋検査名」の個別リストとして別扱いする。
-var SITE_PROGRESS_INSPECTION_NAMES=['配筋検査','躯体検査','断熱検査','完了検査'];
+var SITE_PROGRESS_INSPECTION_NAMES=['配筋検査','躯体検査','中間検査','断熱検査','完了検査','完成検査'];
 function computeSiteProgressSummary(){
   var today=TODAY;
   var mkBucket=function(){return {underConstruction:0, byType:{}};};
@@ -2588,33 +2588,63 @@ function _applyKensaOverrides(p,segs){
   var defs=[
     {rowName:'配筋検査',dateKey:'haikin_date',statusKey:'haikin_status'},
     {rowName:'躯体検査',dateKey:'kutai_date',statusKey:'kutai_status'},
-    {rowName:'中間検査',dateKey:'chukan_date',statusKey:'chukan_status'}, // ★関東限定（2026/9/5追加）。マスター側に同名行が無ければ自動的に無視される
+    {rowName:'中間検査',dateKey:'chukan_date',statusKey:'chukan_status'}, // ★関東限定（2026/9/5追加）
     {rowName:'断熱検査',dateKey:'dannetsu_date',statusKey:'dannetsu_status'},
     {rowName:'完了検査',dateKey:'inspection_date',statusKey:'inspection_status'},
-    {rowName:'完成検査',dateKey:'kansei_date',statusKey:'kansei_status'} // ★関東限定（2026/9/5追加）。マスター側に同名行が無ければ自動的に無視される
+    {rowName:'完成検査',dateKey:'kansei_date',statusKey:'kansei_status'} // ★関東限定（2026/9/5追加）
   ];
   var overrideMap={};
   var found=false;
-  defs.forEach(function(d){
+  var pendingInserts=[]; // ★マスター側に対応する行が無かった検査（2026/9/5追加分）
+  function findRowIdx(list,rowName){
+    return list.findIndex(function(s){
+      if(s._kensaDef===rowName)return true;
+      var nm=String(s.name||s.label||'').trim().replace(/\s*[\(（][^)）]*[\)）]\s*$/,'');
+      return nm===rowName;
+    });
+  }
+  defs.forEach(function(d,defIdx){
     var raw=p[d.dateKey]; if(!raw)return;
     // ★以前このオーバーライドで書き換えられた「工程名(m/d)」表記がcustomGanttに永続保存されてしまっていても、
     //   末尾の「(m/d)」を取り除いた上で照合することで、以後ずっと正しく再照合できるようにする（自己修復）
-    var idx=segs.findIndex(function(s){
-      if(s._kensaDef===d.rowName)return true;
-      var nm=String(s.name||s.label||'').trim().replace(/\s*[\(（][^)）]*[\)）]\s*$/,'');
-      return nm===d.rowName;
-    });
-    if(idx<0)return;
-    found=true;
+    var idx=findRowIdx(segs,d.rowName);
     var norm=(typeof normDate==='function'?(normDate(raw)||raw):raw);
     var dateKeyStr=String(norm).replace(/\//g,'-');
     var isReserved=(p[d.statusKey]||'before')==='reserved';
     var mm=parseInt(dateKeyStr.slice(5,7),10),dd=parseInt(dateKeyStr.slice(8,10),10);
     var newLbl=d.rowName+'('+mm+'/'+dd+')';
+    if(idx<0){
+      // ★2026/9/5追加：マスター工程に「中間検査」等の行がまだ追加されていない場合でも、
+      //   予約日さえ入っていればガントに表示されるよう、合成の1日マーカー行を挿入する
+      pendingInserts.push({defIdx:defIdx,rowName:d.rowName,seg:{
+        start_date:dateKeyStr,date:dateKeyStr,end_date:dateKeyStr,calendar_dur:1,duration:1,dur:1,
+        color:isReserved?'#3b82f6':'#f97316',name:newLbl,label:newLbl,_kensaDef:d.rowName,_kensaSynthetic:true
+      }});
+      found=true;
+      return;
+    }
+    found=true;
     overrideMap[idx]={start_date:dateKeyStr,date:dateKeyStr,end_date:dateKeyStr,calendar_dur:1,duration:1,dur:1,color:isReserved?'#3b82f6':'#f97316',name:newLbl,label:newLbl,_kensaDef:d.rowName};
   });
   if(!found)return segs;
-  return segs.map(function(s,i){return overrideMap[i]?Object.assign({},s,overrideMap[i]):s;});
+  var result=segs.map(function(s,i){return overrideMap[i]?Object.assign({},s,overrideMap[i]):s;});
+  pendingInserts.forEach(function(ins){
+    // ★挿入位置：直前の検査（defs順で手前）が実在する行の直後に入れる。無ければ直後の検査の手前。それも無ければ先頭。
+    var insertAt=-1;
+    for(var b=ins.defIdx-1;b>=0;b--){
+      var pIdx=findRowIdx(result,defs[b].rowName);
+      if(pIdx>=0){insertAt=pIdx+1;break;}
+    }
+    if(insertAt<0){
+      for(var f=ins.defIdx+1;f<defs.length;f++){
+        var nIdx=findRowIdx(result,defs[f].rowName);
+        if(nIdx>=0){insertAt=nIdx;break;}
+      }
+    }
+    if(insertAt<0)insertAt=0;
+    result.splice(insertAt,0,ins.seg);
+  });
+  return result;
 }
 
 // ★納品書↔工程ガント紐付け（2026/8/8）：納品書側の日付を正として、対応する工程バーの開始日を上書きする
@@ -13927,9 +13957,23 @@ async function admSyncNewMasterSteps(){
   if(!confirm('マスター工程に新しく追加された項目を、既に手動編集済みの物件にも追加します。\n（既存の調整済み日付・工程は変更されません。新規項目だけを追加します）\n\n実行しますか？'))return;
   showToast('🔍 新規工程を確認中…','');
 
-  var props=getProps();
+  // ★2026/9/5修正：以前はgetProps()を使っていたため、実行時に管理者CPで選択中のタブ（例:マイ物件）
+  //   だけに絞り込まれてしまい、ボタン名（全物件に反映）通りに動いていなかった不具合を修正。
+  //   タブによる絞り込みを受けない「全物件（データ不整合行を除く）」を対象にする。
+  var props=getAllProps().filter(function(p){
+    var name=String(p.name||'').trim();
+    var fixNo=String(p.fix_no||'').trim();
+    if(!name)return false;
+    if(/^\d{4,}$/.test(fixNo)&&name.length<=4)return false;
+    if(/^(エリア|月度|計|来期|前期|愛知|東京|神奈川|長野|埼玉|静岡|三重|岐阜|千葉|茨城|栃木|群馬)$/.test(name))return false;
+    if(/^[~〜]?\d{4}\/?\d*$/.test(name))return false;
+    return true;
+  });
   var updated=[];
-  var noMasterCount=0;
+  var noMasterCount=0, noMasterNames=[];
+  var alreadyLiveCount=0; // ★手動編集なし＝マスター変更が自動反映される対象（対象外ではなく「対応不要」）
+  var noConfirmDoneCount=0;
+  var noNewStepCount=0;
 
   for(var i=0;i<props.length;i++){
     var p=props[i];
@@ -13949,14 +13993,17 @@ async function admSyncNewMasterSteps(){
         }catch(e){}
       }
     }
-    if(!cachedSegs)continue; // 手動編集なし→対象外（マスター変更は自動反映される）
+    if(!cachedSegs){alreadyLiveCount++;continue;} // 手動編集なし→対応不要（マスター変更は自動反映される）
 
     var cd=normDate(p.confirm_done||'')||p.confirm_done||'';
-    if(!cd||!String(cd).match(/\d{4}/))continue; // 確認完了日が無いと計算不可
+    if(!cd||!String(cd).match(/\d{4}/)){noConfirmDoneCount++;continue;} // 確認完了日が無いと計算不可
 
-    var masterName=_resolvePropMasterName(p);
-    var mt=masterName?myMasters.find(function(m){return m.name===masterName;}):null;
-    if(!mt||!mt.steps||!mt.steps.length){noMasterCount++;continue;}
+    // ★2026/9/5修正：完全一致(===)だと、マスター名の前後に空白や全角/半角揺れがあると
+    //   マッチせず静かにスキップされてしまっていた（「思ったより少ない件数」の主因の一つ）。
+    //   trim()した上で比較するよう緩和。
+    var masterName=String(_resolvePropMasterName(p)||'').trim();
+    var mt=masterName?myMasters.find(function(m){return String(m.name||'').trim()===masterName;}):null;
+    if(!mt||!mt.steps||!mt.steps.length){noMasterCount++;noMasterNames.push((p.name||p.fix_no)+'（マスター名:'+(masterName||'未設定')+'）');continue;}
 
     var normalizedSteps=_normalizeTmplSteps(mt.steps);
     var existingByName={};
@@ -13964,7 +14011,7 @@ async function admSyncNewMasterSteps(){
     var newStepNames=normalizedSteps.filter(function(st){
       return !existingByName[String(st.name||st.label||'').trim()];
     }).map(function(st){return st.name||st.label;});
-    if(!newStepNames.length)continue; // 新規項目なし→対象外
+    if(!newStepNames.length){noNewStepCount++;continue;} // 新規項目なし→対応不要
 
     // ★マスター全体をこの物件の確認完了日・土地決済日で再計算し、新規項目の初期配置日を算出する
     //   （造成/地盤の起点ロジックはcomputeMasterSegs内部に統一済み。2026/8/21）
@@ -13998,8 +14045,20 @@ async function admSyncNewMasterSteps(){
   saveLS('jack_custom_gantt',customGantt);
   renderBody(); if(typeof renderMyPage==='function')renderMyPage();
 
+  // ★2026/9/5追加：内訳を必ず表示する（「何件中どこに何件振り分けられたか」を毎回可視化し、
+  //   件数が想定と違う場合にすぐ原因を特定できるようにする）
+  var summaryLines=[
+    '対象物件（データ不整合行除く）：'+props.length+'件',
+    '　├ 手動編集なし＝マスター変更は自動反映済み（対応不要）：'+alreadyLiveCount+'件',
+    '　├ 確認申請完了日が未設定のため計算不可：'+noConfirmDoneCount+'件',
+    '　├ 紐付けマスターが見つからない：'+noMasterCount+'件',
+    '　├ 新規工程なし（既に追加済み）：'+noNewStepCount+'件',
+    '　└ ✅ 今回新規工程を追加：'+updated.length+'件'
+  ].join('\n');
+  console.log('[新規工程反映・内訳]\n'+summaryLines+(noMasterNames.length?('\n\nマスター未紐付けの物件:\n'+noMasterNames.join('\n')):''));
+
   if(!updated.length){
-    showToast('新しく追加された工程は見つかりませんでした','');
+    alert('新しく追加された工程は見つかりませんでした。\n\n'+summaryLines+'\n\n（詳細はブラウザのコンソールにも出力しています）');
     return;
   }
 
@@ -14018,7 +14077,7 @@ async function admSyncNewMasterSteps(){
 
   var detail=updated.map(function(u){return '・'+(u.p.name||u.p.fix_no)+'：'+u.addedNames.join('、');}).join('\n');
   console.log('[新規工程反映]\n'+detail);
-  alert('以下の物件に新規工程を追加しました（'+updated.length+'件）:\n\n'+detail);
+  alert('以下の物件に新規工程を追加しました（'+updated.length+'件）:\n\n'+detail+'\n\n--- 内訳 ---\n'+summaryLines);
 }
 window.admSyncNewMasterSteps=admSyncNewMasterSteps;
 
