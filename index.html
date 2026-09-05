@@ -238,8 +238,9 @@ input,textarea,select{font-family:var(--font)}
 /* ★工程表×納品書 分割表示モード（PC専用）：カスタム工程と納品書を画面左右半分ずつ同時表示する */
 #detail-gantt-sec.gantt-split-on #gantt-panes-wrap{display:flex!important;flex-direction:row;flex:1;min-height:0}
 #detail-gantt-sec.gantt-split-on #gantt-pane-excel{display:none!important}
-#detail-gantt-sec.gantt-split-on #gantt-pane-custom{display:flex!important;flex-direction:column;flex:1 1 50%;min-width:0;border-right:2px solid #cbd5e1;overflow-y:hidden}
-#detail-gantt-sec.gantt-split-on #gantt-pane-delivery{display:block!important;flex:1 1 50%;min-width:0;overflow-y:auto;-webkit-overflow-scrolling:touch}
+#detail-gantt-sec.gantt-split-on #gantt-pane-custom{display:flex!important;flex-direction:column;flex:1 1 33%;min-width:0;border-right:2px solid #cbd5e1;overflow-y:hidden}
+#detail-gantt-sec.gantt-split-on #gantt-pane-delivery{display:block!important;flex:1 1 33%;min-width:0;overflow-y:auto;-webkit-overflow-scrolling:touch;border-right:2px solid #cbd5e1}
+#detail-gantt-sec.gantt-split-on #gantt-pane-kensa{display:block!important;flex:1 1 33%;min-width:0;overflow-y:auto;-webkit-overflow-scrolling:touch}
 #detail-gantt-sec.gantt-split-on #gantt-tab-custom,
 #detail-gantt-sec.gantt-split-on #gantt-tab-excel,
 #detail-gantt-sec.gantt-split-on #gantt-tab-delivery{opacity:.4;pointer-events:none}
@@ -1162,8 +1163,10 @@ var POST_COLS = [
   { key:'movein_date',     label:'実入居\n発生日',  w:58, cls:'hcell-post', movein:true },
   { key:'haikin_date',     label:'配筋\n検査',      w:54, cls:'hcell-post', kensa:'配筋検査', statusKey:'haikin_status' },
   { key:'kutai_date',      label:'躯体\n検査',      w:54, cls:'hcell-post', kensa:'躯体検査', statusKey:'kutai_status' },
+  { key:'chukan_date',     label:'中間\n検査',      w:54, cls:'hcell-post', kensa:'中間検査', statusKey:'chukan_status' }, // ★関東限定（2026/9/5追加）。東海物件は値が無いため空欄表示になる
   { key:'dannetsu_date',   label:'断熱\n検査',      w:54, cls:'hcell-post', kensa:'断熱検査', statusKey:'dannetsu_status' },
-  { key:'inspection_date', label:'完了\n検査',      w:54, cls:'hcell-post', kensa:'完了検査', statusKey:'inspection_status' }
+  { key:'inspection_date', label:'完了\n検査',      w:54, cls:'hcell-post', kensa:'完了検査', statusKey:'inspection_status' },
+  { key:'kansei_date',     label:'完成\n検査',      w:54, cls:'hcell-post', kensa:'完成検査', statusKey:'kansei_status' } // ★関東限定（2026/9/5追加）。東海物件は値が無いため空欄表示になる
 ];
 var POST_W = POST_COLS.reduce(function(a,c){return a+c.w;},0);
 var POST_END_PAD = 120; // ★スクロール終端の余白：完了検査列の右にゆとりを持たせ、最後までしっかり表示・スクロールできるようにする（2026/8/2）
@@ -1171,7 +1174,7 @@ var POST_END_PAD = 120; // ★スクロール終端の余白：完了検査列�
 // ===== 納品書機能：休工日カレンダー・稼働日計算 =====
 // ★日本の祝日（政府発表・国立天文台暦要項ベース、2025〜2028年分）
 // ★アプリバージョン（不具合問い合わせ対応用。リリースごとに更新すること。2026/8/23追加）
-var APP_VERSION = '2026.09.04.4';
+var APP_VERSION = '2026.09.05.2';
 window.APP_VERSION=APP_VERSION;
 console.log('[JACK] version', APP_VERSION);
 var JP_HOLIDAYS = [
@@ -2585,8 +2588,10 @@ function _applyKensaOverrides(p,segs){
   var defs=[
     {rowName:'配筋検査',dateKey:'haikin_date',statusKey:'haikin_status'},
     {rowName:'躯体検査',dateKey:'kutai_date',statusKey:'kutai_status'},
+    {rowName:'中間検査',dateKey:'chukan_date',statusKey:'chukan_status'}, // ★関東限定（2026/9/5追加）。マスター側に同名行が無ければ自動的に無視される
     {rowName:'断熱検査',dateKey:'dannetsu_date',statusKey:'dannetsu_status'},
-    {rowName:'完了検査',dateKey:'inspection_date',statusKey:'inspection_status'}
+    {rowName:'完了検査',dateKey:'inspection_date',statusKey:'inspection_status'},
+    {rowName:'完成検査',dateKey:'kansei_date',statusKey:'kansei_status'} // ★関東限定（2026/9/5追加）。マスター側に同名行が無ければ自動的に無視される
   ];
   var overrideMap={};
   var found=false;
@@ -2896,6 +2901,7 @@ function getAllProps(){
        'inspection_date','complete_date','haikin_date','haikin_status',
        'kutai_date','kutai_status','dannetsu_date','dannetsu_status',
        'inspection_status','parkings','updated_at',
+       'chukan_date','chukan_status','kansei_date','kansei_status', // ★中間検査・完成検査（関東限定、2026/9/5追加）
        // ★2026/8/30追加：Excel再取込で土地決済日・確認完了日が更新されても、埋め込み静的データ(DATA)側の
        //   古い値が使われ続けていた不具合の修正。DB_PROPS側の最新値で確実に上書きされるよう対象に追加する。
        //   ★master_segsは同日中に撤回：properties テーブルに実在しない列だったため対象から外す
@@ -4374,8 +4380,10 @@ function buildKensaBars(p,segs,gDateIdx,GCW,totalH){
   var defs=[
     {n:'配筋検査',dateKey:'haikin_date',statusKey:'haikin_status'},
     {n:'躯体検査',dateKey:'kutai_date',statusKey:'kutai_status'},
+    {n:'中間検査',dateKey:'chukan_date',statusKey:'chukan_status'},
     {n:'断熱検査',dateKey:'dannetsu_date',statusKey:'dannetsu_status'},
-    {n:'完了検査',dateKey:'inspection_date',statusKey:'inspection_status'}
+    {n:'完了検査',dateKey:'inspection_date',statusKey:'inspection_status'},
+    {n:'完成検査',dateKey:'kansei_date',statusKey:'kansei_status'}
   ];
   var out='';
   defs.forEach(function(k){
@@ -4506,6 +4514,105 @@ function _refreshDetailGanttBadges(p){
   }
 }
 window._refreshDetailGanttBadges=_refreshDetailGanttBadges;
+
+// ★検査予約（配筋/躯体/断熱/完了）の日付・予約ステータス変更を、工程表側（編集モード中のgeSegs、
+//   または表示専用のcompact/multi）に即時反映する（2026/9/5追加、_refreshDetailGanttBadgesと同じ設計）
+function _refreshDetailGanttForKensaChange(p){
+  if(typeof buildGanttTab!=='function')return;
+  if(ganttEditMode&&currentProp&&String(currentProp.fix_no||'')===String(p.fix_no||'')&&typeof getActiveSegs==='function'){
+    var freshSegs=getActiveSegs(p)||[];
+    var kensaNames=(typeof _KENSA_ROW_NAMES!=='undefined')?_KENSA_ROW_NAMES:['配筋検査','躯体検査','中間検査','断熱検査','完了検査','完成検査'];
+    geSegs=geSegs.map(function(s){
+      var nm=String(s.label||s.name||'').trim();
+      if(kensaNames.indexOf(nm)<0)return s;
+      var match=freshSegs.find(function(fs){return String(fs.label||fs.name||'').trim()===nm;});
+      return match?Object.assign({},s,{start_date:match.start_date,date:match.date,end_date:match.end_date}):s;
+    });
+    if(typeof geRenderBars==='function')geRenderBars();
+    return;
+  }
+  // 非編集モード：buildGanttTab(p)は内部でgetActiveSegs(p)を呼ぶため検査予約変更も自動的に反映される
+  if(typeof _refreshDetailGanttBadges==='function')_refreshDetailGanttBadges(p);
+}
+window._refreshDetailGanttForKensaChange=_refreshDetailGanttForKensaChange;
+
+// ★分割表示「検査予約」ペインの描画（2026/9/5追加）：配筋/躯体/断熱/完了の日付＋予約ステータスを
+//   その場で編集でき、保存すると左側の工程表（分割表示中の工程表ペイン）にも即時反映される
+var _kensaSplitActiveContainerId='kensa-split-content';
+var _KENSA_SPLIT_DEFS=[
+  {n:'配筋検査',dateKey:'haikin_date',statusKey:'haikin_status'},
+  {n:'躯体検査',dateKey:'kutai_date',statusKey:'kutai_status'},
+  {n:'中間検査',dateKey:'chukan_date',statusKey:'chukan_status',areaOnly:'KANTO'}, // ★関東限定（2026/9/5追加）
+  {n:'断熱検査',dateKey:'dannetsu_date',statusKey:'dannetsu_status'},
+  {n:'完了検査',dateKey:'inspection_date',statusKey:'inspection_status'},
+  {n:'完成検査',dateKey:'kansei_date',statusKey:'kansei_status',areaOnly:'KANTO'} // ★関東限定（2026/9/5追加）
+];
+function renderKensaSplitSection(p,containerId){
+  if(containerId)_kensaSplitActiveContainerId=containerId;
+  var el=document.getElementById(_kensaSplitActiveContainerId);
+  if(!el)return;
+  p=currentProp||p;
+  if(!p){el.innerHTML='';return;}
+  var isKanto=(typeof KANTO_AREAS!=='undefined'&&typeof normalizeArea==='function')?KANTO_AREAS.indexOf(normalizeArea(p))>=0:false;
+  var defsToShow=_KENSA_SPLIT_DEFS.filter(function(k){return k.areaOnly!=='KANTO'||isKanto;});
+  var html='<div style="font-size:13px;font-weight:800;color:#1e293b;margin-bottom:12px">🔍 検査予約</div>'
+    +'<div style="font-size:10px;color:#94a3b8;margin-bottom:10px">ここで入力した予約日・ステータスは工程表（左側）にも即時反映されます。</div>';
+  html+=defsToShow.map(function(k){
+    var raw=p[k.dateKey]||'';
+    var dv=raw?raw.replace(/\//g,'-'):'';
+    var isReserved=(p[k.statusKey]||'before')==='reserved';
+    return '<div style="display:flex;align-items:center;gap:8px;padding:9px 0;border-bottom:1px solid #e2e8f0">'
+      +'<div style="width:64px;flex-shrink:0;font-size:11px;font-weight:700;color:#334155">'+k.n+'</div>'
+      +'<input type="date" value="'+dv+'" onchange="kensaSplitDateChange(\''+k.dateKey+'\',this.value)" style="flex:1;padding:5px 6px;border:1px solid #cbd5e1;border-radius:5px;font-size:11px;min-width:0">'
+      +'<button onclick="kensaSplitToggleStatus(\''+k.statusKey+'\')" style="flex-shrink:0;font-size:9px;font-weight:800;color:white;background:'+(isReserved?'#3b82f6':'#f97316')+';border:none;border-radius:12px;padding:4px 10px;cursor:pointer;white-space:nowrap">'+(isReserved?'🔵 予約済み':'🟠 予約前')+'</button>'
+      +'</div>';
+  }).join('');
+  el.innerHTML=html;
+}
+window.renderKensaSplitSection=renderKensaSplitSection;
+
+function kensaSplitDateChange(dateKey,val){
+  if(!currentProp)return;
+  _saveKensaFieldForCurrentProp(dateKey, val?val.replace(/-/g,'/'):null);
+}
+window.kensaSplitDateChange=kensaSplitDateChange;
+
+function kensaSplitToggleStatus(statusKey){
+  if(!currentProp)return;
+  var cur=currentProp[statusKey]||'before';
+  _saveKensaFieldForCurrentProp(statusKey, cur==='reserved'?'before':'reserved');
+}
+window.kensaSplitToggleStatus=kensaSplitToggleStatus;
+
+// ★検査予約1フィールドをSupabaseへ直接保存し、currentProp・DB_PROPS・キャッシュ・工程表・検査パネル自身に即時反映する
+function _saveKensaFieldForCurrentProp(field,value){
+  var p=currentProp; if(!p)return;
+  var dbUpdates={}; dbUpdates[field]=value;
+  function applyLocallyK(){
+    p[field]=value;
+    if(typeof DB_PROPS!=='undefined'&&DB_PROPS){
+      var idx=DB_PROPS.findIndex(function(dp){return String(dp.fix_no)===String(p.fix_no)&&dp.name===p.name;});
+      if(idx>=0)DB_PROPS[idx][field]=value;
+      try{localStorage.setItem('jack_props_cache',JSON.stringify(DB_PROPS));}catch(e){}
+    }
+    var ov=loadLS('jack_prop_overrides',{});
+    ov[custKey(p)]=Object.assign(ov[custKey(p)]||{},dbUpdates);
+    saveLS('jack_prop_overrides',ov);
+    renderKensaSplitSection(p);
+    _refreshDetailGanttForKensaChange(p);
+    if(typeof renderBody==='function')renderBody(); // ★ホーム画面・検査取りまとめ等にも即時反映
+  }
+  var sb=getSB();
+  if(!sb){applyLocallyK();showToast('⚠️ オフライン: ローカルに保存（他端末未反映）','');return;}
+  sb.from('properties').update(dbUpdates).eq('fix_no',String(p.fix_no))
+    .then(function(res){
+      if(res.error){showToast('保存エラー: '+res.error.message,'error');return;}
+      applyLocallyK();
+      showToast('✅ 保存しました','success');
+    })
+    .catch(function(e){showToast('保存エラー: '+e.message,'error');});
+}
+window._saveKensaFieldForCurrentProp=_saveKensaFieldForCurrentProp;
 
 // ===== DETAIL PANEL =====
 function buildGanttTab(p){
@@ -4771,6 +4878,7 @@ function buildGanttTab(p){
       +'<div id="gantt-pane-custom" class="gantt-pane gantt-pane-active">'+ganttHtml+'</div>'
       +'<div id="gantt-pane-excel" class="gantt-pane" style="display:none"><div id="gantt-excel-content" style="padding:8px"><div style="color:#94a3b8;font-size:11px;padding:12px;text-align:center">読み込み中...</div></div></div>'
       +'<div id="gantt-pane-delivery" class="gantt-pane" style="display:none"><div id="delivery-note-content" style="padding:8px"></div></div>'
+      +'<div id="gantt-pane-kensa" class="gantt-pane" style="display:none"><div id="kensa-split-content" style="padding:8px"></div></div>'
     +'</div>'
     +'</div>';
 }
@@ -4788,8 +4896,9 @@ function renderGanttHeaderBtns(){
   var html='<button id="detail-gantt-expand-btn" onclick="toggleDetailGanttExpand()" style="background:white;color:var(--primary);padding:4px 12px;border-radius:16px;font-size:10px;font-weight:800;white-space:nowrap;border:none;box-shadow:0 1px 3px rgba(0,0,0,.25)">'
     +(expanded?'🗜️ 工程表縮小':'🔍 工程表拡大')+'</button>';
   if(isPcMode){
-    html+='<button id="detail-gantt-split-btn" onclick="toggleGanttSplitMode()" title="工程表と納品書を左右に並べて同時編集" style="background:'+(split?'#7c3aed':'#e2e8f0')+';color:'+(split?'white':'#475569')+';padding:4px 12px;border-radius:16px;font-size:10px;font-weight:800;white-space:nowrap;border:none;box-shadow:0 1px 3px rgba(0,0,0,.15)">'
-      +(split?'⬛ 分割表示ON':'◧ 工程表+納品書 分割表示')+'</button>';
+    // ★2026/9/5：工程表＋納品書＋検査予約の3画面同時表示に変更（ピッカーは廃止し単純トグルに戻す）
+    html+='<button id="detail-gantt-split-btn" onclick="toggleGanttSplitMode()" title="工程表・納品書・検査予約を並べて同時編集" style="background:'+(split?'#7c3aed':'#e2e8f0')+';color:'+(split?'white':'#475569')+';padding:4px 12px;border-radius:16px;font-size:10px;font-weight:800;white-space:nowrap;border:none;box-shadow:0 1px 3px rgba(0,0,0,.15)">'
+      +(split?'⬛ 3画面表示ON':'◧ 工程表+納品書+検査予約 分割表示')+'</button>';
   }
   if(expanded){
     html+='<button id="detail-gantt-edit-btn" onclick="toggleGanttEditMode()" style="background:'+(editing?'#ef4444':'#f59e0b')+';color:white;padding:3px 10px;border-radius:5px;font-size:10px;font-weight:700;white-space:nowrap">'
@@ -4800,7 +4909,8 @@ function renderGanttHeaderBtns(){
 }
 window.renderGanttHeaderBtns=renderGanttHeaderBtns;
 
-// ★工程表×納品書 分割表示の切替（2026/8/8）：PC専用。工程表を見ながら納品書を微修正できるようにする
+// ★工程表×納品書×検査予約 3画面同時分割表示の切替（2026/8/8作成、2026/9/5に検査予約を追加し3画面化）
+//   PC専用。工程表を見ながら納品書・検査予約の両方を同時に微修正できるようにする
 var ganttSplitMode=false;
 function toggleGanttSplitMode(){
   if(!currentProp)return;
@@ -4810,13 +4920,19 @@ function toggleGanttSplitMode(){
   if(ganttSplitMode){
     sec.classList.add('gantt-split-on');
     setGanttFullscreen(true); // ★画面を広く使えるよう全画面表示も合わせてONにする
-    // ★カスタム工程・納品書の両方を表示状態にする（タブの排他表示を一時的に解除）
-    var cp=document.getElementById('gantt-pane-custom'), dp=document.getElementById('gantt-pane-delivery');
+    // ★カスタム工程・納品書・検査予約の3つとも表示状態にする（タブの排他表示を一時的に解除）
+    var cp=document.getElementById('gantt-pane-custom'), dp=document.getElementById('gantt-pane-delivery'), kp=document.getElementById('gantt-pane-kensa');
     if(cp){cp.style.display='';cp.classList.add('gantt-pane-active');}
     if(dp){dp.style.display='';dp.classList.add('gantt-pane-active');}
+    if(kp){kp.style.display='';kp.classList.add('gantt-pane-active');}
     renderDeliveryNoteSection(currentProp,'delivery-note-content');
+    renderKensaSplitSection(currentProp,'kensa-split-content');
   }else{
     sec.classList.remove('gantt-split-on');
+    // ★分割で使っていたペイン（納品書／検査予約）を明示的に隠しておく（switchGanttTabの対象外のため）
+    var dp2=document.getElementById('gantt-pane-delivery'), kp2=document.getElementById('gantt-pane-kensa');
+    if(dp2){dp2.style.display='none';dp2.classList.remove('gantt-pane-active');}
+    if(kp2){kp2.style.display='none';kp2.classList.remove('gantt-pane-active');}
     switchGanttTab('custom'); // ★通常のタブ表示（カスタム工程のみ）に戻す
   }
   renderGanttHeaderBtns();
@@ -5032,7 +5148,7 @@ function geInitColorPicker(){
 // ★配筋検査・躯体検査・断熱検査・完了検査の4行は、予約日の正データが物件編集画面（haikin_date等）に
 //   一元化されているため、工程表編集サイドバー側では常に編集不可にする（予約日が未設定の物件だけ
 //   ドラッグ・保存できてしまい、後から予約日を入れても位置がズレる不具合の対策）
-var _KENSA_ROW_NAMES=['配筋検査','躯体検査','断熱検査','完了検査'];
+var _KENSA_ROW_NAMES=['配筋検査','躯体検査','中間検査','断熱検査','完了検査','完成検査'];
 function _geIsKensaRow(seg){
   if(!seg)return false;
   var nm=String(seg._kensaDef||seg.label||seg.name||'').trim().replace(/\s*[\(（][^)）]*[\)）]\s*$/,'');
@@ -6526,8 +6642,10 @@ function openDetail(p){
   var KENSA_DEFS=[
     {n:'配筋検査',dateKey:'haikin_date',statusKey:'haikin_status'},
     {n:'躯体検査',dateKey:'kutai_date',statusKey:'kutai_status'},
+    {n:'中間検査',dateKey:'chukan_date',statusKey:'chukan_status'}, // ★関東限定（2026/9/5追加）。東海は値が無いため下のfilterで自動的にチップ非表示になる
     {n:'断熱検査',dateKey:'dannetsu_date',statusKey:'dannetsu_status'},
-    {n:'完了検査',dateKey:'inspection_date',statusKey:'inspection_status'}
+    {n:'完了検査',dateKey:'inspection_date',statusKey:'inspection_status'},
+    {n:'完成検査',dateKey:'kansei_date',statusKey:'kansei_status'} // ★関東限定（2026/9/5追加）。東海は値が無いため下のfilterで自動的にチップ非表示になる
   ];
   var steps=[
     {n:'土地契約',d:p.land_contract},{n:'土地決済',d:p.land_payment},
@@ -7509,8 +7627,11 @@ function openPropEditModal(){
       }).join('')
       +[{n:'配筋検査',dateKey:'haikin_date',statusKey:'haikin_status'},
         {n:'躯体検査',dateKey:'kutai_date',statusKey:'kutai_status'},
+        {n:'中間検査',dateKey:'chukan_date',statusKey:'chukan_status',areaOnly:'KANTO'}, // ★関東限定（2026/9/5追加）
         {n:'断熱検査',dateKey:'dannetsu_date',statusKey:'dannetsu_status'},
-        {n:'完了検査',dateKey:'inspection_date',statusKey:'inspection_status'}].map(function(k){
+        {n:'完了検査',dateKey:'inspection_date',statusKey:'inspection_status'},
+        {n:'完成検査',dateKey:'kansei_date',statusKey:'kansei_status',areaOnly:'KANTO'} // ★関東限定（2026/9/5追加）
+       ].filter(function(k){return k.areaOnly!=='KANTO'||(typeof KANTO_AREAS!=='undefined'&&typeof normalizeArea==='function'&&KANTO_AREAS.indexOf(normalizeArea(cur))>=0);}).map(function(k){
         var val=(cur[k.dateKey]||'').replace(/\//g,'-');
         var st=cur[k.statusKey]||'before';
         var isRes=st==='reserved';
@@ -7638,11 +7759,11 @@ function savePropEdit(){
   // 実入居発生日（手入力で変更した場合は取込元を「manual」に切替）
   var moveinVal=getDateVal('pe-movein_date');
   if(moveinVal){dbUpdates.movein_date=moveinVal;dbUpdates.movein_date_source='manual';}
-  // ★配筋検査・躯体検査・断熱検査の日付＋4検査の予約ステータス
-  ['haikin_date','kutai_date','dannetsu_date'].forEach(function(k){
+  // ★配筋検査・躯体検査・中間検査・断熱検査の日付＋6検査の予約ステータス（中間・完成は関東限定でDOMに無ければ自動的にスキップされる）
+  ['haikin_date','kutai_date','chukan_date','dannetsu_date','kansei_date'].forEach(function(k){
     var v=getDateVal('pe-'+k); if(v)dbUpdates[k]=v;
   });
-  ['haikin_status','kutai_status','dannetsu_status','inspection_status'].forEach(function(k){
+  ['haikin_status','kutai_status','chukan_status','dannetsu_status','inspection_status','kansei_status'].forEach(function(k){
     var btn=document.getElementById('pe-'+k+'-btn');
     if(btn)dbUpdates[k]=btn.getAttribute('data-status')||'before';
   });
@@ -10126,7 +10247,7 @@ async function loadPropertiesFromCacheOrDB(forceRefresh){
   //   実際には存在しない列だったため大量の書き込みエラーが発生した。properties テーブルに
   //   master_segs列は存在しない（埋め込み静的データ内にのみ存在するフィールド）。このSELECTからは除外し、
   //   代わりにland_payment/confirm_done等のマージ（getAllProps側）だけで正しく直る設計に一本化する。
-  var pr=await sb.from('properties').select('id,fix_no,seq_no,name,area,status,hand_kumi,tantou,delivery_date,delivery_month,land_contract,land_payment,confirm_submit,confirm_done,inspection_date,complete_date,haikin_date,haikin_status,kutai_date,kutai_status,dannetsu_date,dannetsu_status,inspection_status,shinsa_kikan,address,parkings,prop_master,gantt_is_manual,movein_date,movein_date_source,updated_at').order('fix_no');
+  var pr=await sb.from('properties').select('id,fix_no,seq_no,name,area,status,hand_kumi,tantou,delivery_date,delivery_month,land_contract,land_payment,confirm_submit,confirm_done,inspection_date,complete_date,haikin_date,haikin_status,kutai_date,kutai_status,chukan_date,chukan_status,dannetsu_date,dannetsu_status,inspection_status,kansei_date,kansei_status,shinsa_kikan,address,parkings,prop_master,gantt_is_manual,movein_date,movein_date_source,updated_at').order('fix_no');
   if(!pr.error&&pr.data&&pr.data.length>0){
     DB_PROPS=pr.data;
     // ★新機能【最終更新バッジ】：以前は「前回キャッシュとの差分」で判定していたが、DB側の何らかの
@@ -13408,7 +13529,7 @@ async function loadAdmSec(sec){
 
   } else if(sec==='dbsetup'){
     var rlsDisableSql='-- ① まず緊急解除（ログインできない場合はこれだけ実行）\nALTER TABLE profiles DISABLE ROW LEVEL SECURITY;\nALTER TABLE properties DISABLE ROW LEVEL SECURITY;';
-    var rlsFixSql='-- テーブル・カラム追加（何度実行しても安全）\nALTER TABLE properties ADD COLUMN IF NOT EXISTS custom_gantt jsonb;\nALTER TABLE properties ADD COLUMN IF NOT EXISTS prop_master text;\nALTER TABLE properties ADD COLUMN IF NOT EXISTS address text;\nALTER TABLE properties ADD COLUMN IF NOT EXISTS parkings jsonb;\nALTER TABLE properties ADD COLUMN IF NOT EXISTS inspection_date text;\nALTER TABLE properties ADD COLUMN IF NOT EXISTS complete_date text;\nALTER TABLE properties ADD COLUMN IF NOT EXISTS haikin_date text;\nALTER TABLE properties ADD COLUMN IF NOT EXISTS haikin_status text;\nALTER TABLE properties ADD COLUMN IF NOT EXISTS kutai_date text;\nALTER TABLE properties ADD COLUMN IF NOT EXISTS kutai_status text;\nALTER TABLE properties ADD COLUMN IF NOT EXISTS dannetsu_date text;\nALTER TABLE properties ADD COLUMN IF NOT EXISTS dannetsu_status text;\nALTER TABLE properties ADD COLUMN IF NOT EXISTS inspection_status text;\nALTER TABLE properties ADD COLUMN IF NOT EXISTS shinsa_kikan text;\n\n-- vendorsテーブル\nCREATE TABLE IF NOT EXISTS vendors (\n  id bigint generated by default as identity primary key,\n  area text,\n  data jsonb,\n  col_order text,\n  created_at timestamptz default now()\n);\n\n-- mastersテーブル\nCREATE TABLE IF NOT EXISTS masters (\n  id bigint generated by default as identity primary key,\n  name text not null,\n  steps jsonb,\n  created_at timestamptz default now(),\n  updated_at timestamptz default now()\n);\n\n-- RLSポリシー（DROP→CREATEで何度実行しても安全）\nDROP POLICY IF EXISTS \"profiles_all\" ON profiles;\nDROP POLICY IF EXISTS \"properties_all\" ON properties;\nDROP POLICY IF EXISTS \"vendors_all\" ON vendors;\nDROP POLICY IF EXISTS \"masters_all\" ON masters;\n\nALTER TABLE profiles ENABLE ROW LEVEL SECURITY;\nALTER TABLE properties ENABLE ROW LEVEL SECURITY;\nALTER TABLE vendors ENABLE ROW LEVEL SECURITY;\nALTER TABLE masters ENABLE ROW LEVEL SECURITY;\n\nCREATE POLICY \"profiles_all\" ON profiles FOR ALL TO authenticated USING (true) WITH CHECK (true);\nCREATE POLICY \"properties_all\" ON properties FOR ALL TO authenticated USING (true) WITH CHECK (true);\nCREATE POLICY \"vendors_all\" ON vendors FOR ALL TO authenticated USING (true) WITH CHECK (true);\nCREATE POLICY \"masters_all\" ON masters FOR ALL TO authenticated USING (true) WITH CHECK (true);\n\n-- 協力業者向け：閲覧のみ公開（書き込みは認証必須のまま）\nDROP POLICY IF EXISTS \"vendors_public_read\" ON vendors;\nDROP POLICY IF EXISTS \"properties_public_read\" ON properties;\nCREATE POLICY \"vendors_public_read\" ON vendors FOR SELECT USING (true);\nCREATE POLICY \"properties_public_read\" ON properties FOR SELECT USING (true);\n\n-- app_settingsテーブル（メンテナンスモード等の設定値）\nCREATE TABLE IF NOT EXISTS app_settings (\n  key text primary key,\n  value text\n);\nALTER TABLE app_settings ENABLE ROW LEVEL SECURITY;\nDROP POLICY IF EXISTS \"app_settings_all\" ON app_settings;\nDROP POLICY IF EXISTS \"app_settings_public_read\" ON app_settings;\nCREATE POLICY \"app_settings_all\" ON app_settings FOR ALL TO authenticated USING (true) WITH CHECK (true);\nCREATE POLICY \"app_settings_public_read\" ON app_settings FOR SELECT USING (true);\n\n-- gantt_sheetsテーブル\nCREATE TABLE IF NOT EXISTS gantt_sheets (\n  id bigint generated always as identity primary key,\n  fix_no text not null,\n  sheet_data jsonb,\n  updated_at timestamptz default now()\n);\nALTER TABLE gantt_sheets ENABLE ROW LEVEL SECURITY;\nDROP POLICY IF EXISTS \"gantt_sheets_all\" ON gantt_sheets;\nDROP POLICY IF EXISTS \"gantt_sheets_public_read\" ON gantt_sheets;\nCREATE POLICY \"gantt_sheets_all\" ON gantt_sheets FOR ALL TO authenticated USING (true) WITH CHECK (true);\nCREATE POLICY \"gantt_sheets_public_read\" ON gantt_sheets FOR SELECT USING (true);';
+    var rlsFixSql='-- テーブル・カラム追加（何度実行しても安全）\nALTER TABLE properties ADD COLUMN IF NOT EXISTS custom_gantt jsonb;\nALTER TABLE properties ADD COLUMN IF NOT EXISTS prop_master text;\nALTER TABLE properties ADD COLUMN IF NOT EXISTS address text;\nALTER TABLE properties ADD COLUMN IF NOT EXISTS parkings jsonb;\nALTER TABLE properties ADD COLUMN IF NOT EXISTS inspection_date text;\nALTER TABLE properties ADD COLUMN IF NOT EXISTS complete_date text;\nALTER TABLE properties ADD COLUMN IF NOT EXISTS haikin_date text;\nALTER TABLE properties ADD COLUMN IF NOT EXISTS haikin_status text;\nALTER TABLE properties ADD COLUMN IF NOT EXISTS kutai_date text;\nALTER TABLE properties ADD COLUMN IF NOT EXISTS kutai_status text;\nALTER TABLE properties ADD COLUMN IF NOT EXISTS dannetsu_date text;\nALTER TABLE properties ADD COLUMN IF NOT EXISTS dannetsu_status text;\nALTER TABLE properties ADD COLUMN IF NOT EXISTS inspection_status text;\nALTER TABLE properties ADD COLUMN IF NOT EXISTS chukan_date text;\nALTER TABLE properties ADD COLUMN IF NOT EXISTS chukan_status text;\nALTER TABLE properties ADD COLUMN IF NOT EXISTS kansei_date text;\nALTER TABLE properties ADD COLUMN IF NOT EXISTS kansei_status text;\nALTER TABLE properties ADD COLUMN IF NOT EXISTS shinsa_kikan text;\n\n-- vendorsテーブル\nCREATE TABLE IF NOT EXISTS vendors (\n  id bigint generated by default as identity primary key,\n  area text,\n  data jsonb,\n  col_order text,\n  created_at timestamptz default now()\n);\n\n-- mastersテーブル\nCREATE TABLE IF NOT EXISTS masters (\n  id bigint generated by default as identity primary key,\n  name text not null,\n  steps jsonb,\n  created_at timestamptz default now(),\n  updated_at timestamptz default now()\n);\n\n-- RLSポリシー（DROP→CREATEで何度実行しても安全）\nDROP POLICY IF EXISTS \"profiles_all\" ON profiles;\nDROP POLICY IF EXISTS \"properties_all\" ON properties;\nDROP POLICY IF EXISTS \"vendors_all\" ON vendors;\nDROP POLICY IF EXISTS \"masters_all\" ON masters;\n\nALTER TABLE profiles ENABLE ROW LEVEL SECURITY;\nALTER TABLE properties ENABLE ROW LEVEL SECURITY;\nALTER TABLE vendors ENABLE ROW LEVEL SECURITY;\nALTER TABLE masters ENABLE ROW LEVEL SECURITY;\n\nCREATE POLICY \"profiles_all\" ON profiles FOR ALL TO authenticated USING (true) WITH CHECK (true);\nCREATE POLICY \"properties_all\" ON properties FOR ALL TO authenticated USING (true) WITH CHECK (true);\nCREATE POLICY \"vendors_all\" ON vendors FOR ALL TO authenticated USING (true) WITH CHECK (true);\nCREATE POLICY \"masters_all\" ON masters FOR ALL TO authenticated USING (true) WITH CHECK (true);\n\n-- 協力業者向け：閲覧のみ公開（書き込みは認証必須のまま）\nDROP POLICY IF EXISTS \"vendors_public_read\" ON vendors;\nDROP POLICY IF EXISTS \"properties_public_read\" ON properties;\nCREATE POLICY \"vendors_public_read\" ON vendors FOR SELECT USING (true);\nCREATE POLICY \"properties_public_read\" ON properties FOR SELECT USING (true);\n\n-- app_settingsテーブル（メンテナンスモード等の設定値）\nCREATE TABLE IF NOT EXISTS app_settings (\n  key text primary key,\n  value text\n);\nALTER TABLE app_settings ENABLE ROW LEVEL SECURITY;\nDROP POLICY IF EXISTS \"app_settings_all\" ON app_settings;\nDROP POLICY IF EXISTS \"app_settings_public_read\" ON app_settings;\nCREATE POLICY \"app_settings_all\" ON app_settings FOR ALL TO authenticated USING (true) WITH CHECK (true);\nCREATE POLICY \"app_settings_public_read\" ON app_settings FOR SELECT USING (true);\n\n-- gantt_sheetsテーブル\nCREATE TABLE IF NOT EXISTS gantt_sheets (\n  id bigint generated always as identity primary key,\n  fix_no text not null,\n  sheet_data jsonb,\n  updated_at timestamptz default now()\n);\nALTER TABLE gantt_sheets ENABLE ROW LEVEL SECURITY;\nDROP POLICY IF EXISTS \"gantt_sheets_all\" ON gantt_sheets;\nDROP POLICY IF EXISTS \"gantt_sheets_public_read\" ON gantt_sheets;\nCREATE POLICY \"gantt_sheets_all\" ON gantt_sheets FOR ALL TO authenticated USING (true) WITH CHECK (true);\nCREATE POLICY \"gantt_sheets_public_read\" ON gantt_sheets FOR SELECT USING (true);';
     right.innerHTML='<div style="padding:14px">'
       +'<div style="font-size:16px;font-weight:800;color:#ef4444;margin-bottom:4px">🚨 緊急：ログインできない場合</div>'
       +'<div style="background:#fef2f2;border:2px solid #ef4444;border-radius:8px;padding:12px;margin-bottom:14px">'
@@ -13613,8 +13734,10 @@ function admRenderKensaTable(){
   var defs=[
     {key:'haikin',label:'配筋検査',dateKey:'haikin_date',statusKey:'haikin_status'},
     {key:'kutai',label:'躯体検査',dateKey:'kutai_date',statusKey:'kutai_status'},
+    {key:'chukan',label:'中間検査',dateKey:'chukan_date',statusKey:'chukan_status'}, // ★関東限定（2026/9/5追加）。東海物件は列自体は出るが値は常に空欄
     {key:'dannetsu',label:'断熱検査',dateKey:'dannetsu_date',statusKey:'dannetsu_status'},
-    {key:'inspection',label:'完了検査',dateKey:'inspection_date',statusKey:'inspection_status'}
+    {key:'inspection',label:'完了検査',dateKey:'inspection_date',statusKey:'inspection_status'},
+    {key:'kansei',label:'完成検査',dateKey:'kansei_date',statusKey:'kansei_status'} // ★関東限定（2026/9/5追加）。東海物件は列自体は出るが値は常に空欄
   ];
   var rows=all.filter(function(p){
     if(q&&!((p.name||'').toLowerCase().indexOf(q)>=0||String(p.fix_no||'').indexOf(q)>=0))return false;
@@ -13661,7 +13784,7 @@ function admRenderKensaTable(){
   });
   if(!rows.length){wrap.innerHTML='<div style="text-align:center;padding:32px;color:#94a3b8;font-size:12px">該当する物件がありません</div>';return;}
   var html='<table style="width:100%;border-collapse:collapse;font-size:11px;table-layout:fixed">'
-    +'<colgroup><col style="width:16%"><col style="width:10%"><col style="width:13%"><col style="width:13%"><col style="width:13%"><col style="width:13%"><col style="width:11%"><col style="width:11%"></colgroup>'
+    +'<colgroup><col style="width:14%"><col style="width:8%"><col style="width:9%"><col style="width:9%"><col style="width:9%"><col style="width:9%"><col style="width:9%"><col style="width:9%"><col style="width:12%"><col style="width:12%"></colgroup>'
     +'<thead><tr style="background:#f8fafc">'
       +'<th style="text-align:left;padding:10px 12px;border-bottom:2px solid #e2e8f0;font-size:10px;color:#64748b">物件名</th>'
       +'<th style="text-align:left;padding:10px 12px;border-bottom:2px solid #e2e8f0;font-size:10px;color:#64748b">審査機関</th>'
