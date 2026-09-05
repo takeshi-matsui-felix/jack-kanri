@@ -8,6 +8,9 @@
 <meta name="theme-color" content="#1a3a7c">
 <link rel="manifest" href="data:application/json;base64,eyJuYW1lIjogIkpBQ0sg54++5aC0566h55CGIiwgInNob3J0X25hbWUiOiAiSkFDSyIsICJkZXNjcmlwdGlvbiI6ICLmlrDnr4lBUCDnj77loLTnrqHnkIbjgqLjg5fjg6oiLCAic3RhcnRfdXJsIjogIi4iLCAiZGlzcGxheSI6ICJzdGFuZGFsb25lIiwgImJhY2tncm91bmRfY29sb3IiOiAiIzFhM2E3YyIsICJ0aGVtZV9jb2xvciI6ICIjMWEzYTdjIiwgIm9yaWVudGF0aW9uIjogInBvcnRyYWl0IiwgImljb25zIjogW3sic3JjIjogImRhdGE6aW1hZ2Uvc3ZnK3htbDtiYXNlNjQsUEhOMlp5QjRiV3h1Y3owaWFIUjBjRG92TDNkM2R5NTNNeTV2Y21jdk1qQXdNQzl6ZG1jaUlIWnBaWGRDYjNnOUlqQWdNQ0F4T1RJZ01Ua3lJajQ4Y21WamRDQjNhV1IwYUQwaU1Ua3lJaUJvWldsbmFIUTlJakU1TWlJZ2NuZzlJak15SWlCbWFXeHNQU0lqTVdFellUZGpJaTgrUEhSbGVIUWdlRDBpT1RZaUlIazlJakV4TWlJZ1ptOXVkQzFtWVcxcGJIazlJa0Z5YVdGc0lFSnNZV05yTEhOaGJuTXRjMlZ5YVdZaUlHWnZiblF0YzJsNlpUMGlOeklpSUdadmJuUXRkMlZwWjJoMFBTSTVNREFpSUdacGJHdzlJbmRvYVhSbElpQjBaWGgwTFdGdVkyaHZjajBpYldsa1pHeGxJajVLUVVOTFBDOTBaWGgwUGp3dmMzWm5QZz09IiwgInNpemVzIjogIjE5MngxOTIiLCAidHlwZSI6ICJpbWFnZS9zdmcreG1sIn0sIHsic3JjIjogImRhdGE6aW1hZ2Uvc3ZnK3htbDtiYXNlNjQsUEhOMlp5QjRiV3h1Y3owaWFIUjBjRG92TDNkM2R5NTNNeTV2Y21jdk1qQXdNQzl6ZG1jaUlIWnBaWGRDYjNnOUlqQWdNQ0ExTVRJZ05URXlJajQ4Y21WamRDQjNhV1IwYUQwaU5URXlJaUJvWldsbmFIUTlJalV4TWlJZ2NuZzlJamd3SWlCbWFXeHNQU0lqTVdFellUZGpJaTgrUEhSbGVIUWdlRDBpTWpVMklpQjVQU0l6TURBaUlHWnZiblF0Wm1GdGFXeDVQU0pCY21saGJDQkNiR0ZqYXl4ellXNXpMWE5sY21sbUlpQm1iMjUwTFhOcGVtVTlJakU1TWlJZ1ptOXVkQzEzWldsbmFIUTlJamt3TUNJZ1ptbHNiRDBpZDJocGRHVWlJSFJsZUhRdFlXNWphRzl5UFNKdGFXUmtiR1VpUGtwQlEwczhMM1JsZUhRK1BDOXpkbWMrIiwgInNpemVzIjogIjUxMng1MTIiLCAidHlwZSI6ICJpbWFnZS9zdmcreG1sIn1dfQ==">
 <link rel="apple-touch-icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 192 192'><rect width='192' height='192' rx='32' fill='%231a3a7c'/><text x='50%25' y='58%25' font-family='Arial Black,sans-serif' font-size='72' font-weight='900' fill='white' text-anchor='middle' dominant-baseline='middle' letter-spacing='-2'>JACK</text></svg>">
+<!-- ★PCブラウザのタブ用favicon（2026/9/6追加）。未設定だったため、ブラウザが自動的に/favicon.icoを探しにいき
+     404エラーが出ていた。既存のスマホ用アイコン（apple-touch-icon）と同じ紺地に白文字のJACKロゴを流用。 -->
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 192 192'><rect width='192' height='192' rx='32' fill='%231a3a7c'/><text x='50%25' y='58%25' font-family='Arial Black,sans-serif' font-size='72' font-weight='900' fill='white' text-anchor='middle' dominant-baseline='middle' letter-spacing='-2'>JACK</text></svg>">
 <meta name="theme-color" content="#1a56db">
 <script>
 // ★ピンチズームで「デフォルト画面サイズ」より縮小する方向だけをブロック（2026/8/2）
@@ -1174,7 +1177,7 @@ var POST_END_PAD = 120; // ★スクロール終端の余白：完了検査列�
 // ===== 納品書機能：休工日カレンダー・稼働日計算 =====
 // ★日本の祝日（政府発表・国立天文台暦要項ベース、2025〜2028年分）
 // ★アプリバージョン（不具合問い合わせ対応用。リリースごとに更新すること。2026/8/23追加）
-var APP_VERSION = '2026.09.05.5';
+var APP_VERSION = '2026.09.06.1';
 window.APP_VERSION=APP_VERSION;
 console.log('[JACK] version', APP_VERSION);
 var JP_HOLIDAYS = [
