@@ -1177,7 +1177,7 @@ var POST_END_PAD = 120; // ★スクロール終端の余白：完了検査列�
 // ===== 納品書機能：休工日カレンダー・稼働日計算 =====
 // ★日本の祝日（政府発表・国立天文台暦要項ベース、2025〜2028年分）
 // ★アプリバージョン（不具合問い合わせ対応用。リリースごとに更新すること。2026/8/23追加）
-var APP_VERSION = '2026.09.06.1';
+var APP_VERSION = '2026.09.07.4';
 window.APP_VERSION=APP_VERSION;
 console.log('[JACK] version', APP_VERSION);
 var JP_HOLIDAYS = [
@@ -2295,7 +2295,20 @@ function computeSiteProgressSummary(){
       areaNoDelivery:{tokai:0,kanto:0}
     }
   };
-  var props=(typeof DB_PROPS!=='undefined'&&DB_PROPS)?DB_PROPS:[];
+  // ★2026/9/7修正：以前は生のDB_PROPS（Supabaseの生テーブル行）を直接使っていたため、
+  //   Excel再取込前の古い行や重複行が残っていると実際の物件数より多くカウントされてしまっていた
+  //   （東海/関東の来期件数が実数を大きく超えるバグ）。アプリの他の一覧（物件選択タブ等）と同じ
+  //   getAllProps()（埋め込み静的データ+DB_PROPSのマージ・重複排除済み）を使うよう統一し、
+  //   さらにadmSyncNewMasterSteps()と同じ「データ不整合行（集計行・エリア名行等）」除外フィルタを適用する。
+  var props=getAllProps().filter(function(p){
+    var name=String(p.name||'').trim();
+    var fixNo=String(p.fix_no||'').trim();
+    if(!name)return false;
+    if(/^\d{4,}$/.test(fixNo)&&name.length<=4)return false;
+    if(/^(エリア|月度|計|来期|前期|愛知|東京|神奈川|長野|埼玉|静岡|三重|岐阜|千葉|茨城|栃木|群馬)$/.test(name))return false;
+    if(/^[~〜]?\d{4}\/?\d*$/.test(name))return false;
+    return true;
+  });
   result.diagnostics.totalProps=props.length;
   props.forEach(function(p){
     var areaKey=isTokaiProp(p)?'tokai':(isKantoProp(p)?'kanto':null);
@@ -2316,15 +2329,14 @@ function computeSiteProgressSummary(){
     if(areaKey)result.diagnostics.areaWithSegs[areaKey]++;
     var term=result[termKey];
     // ①着工中判定：着工基準日 ≦ 本日 ≦ 引渡し日
-    //   ★2026/8/25修正：「造成」という名前のセグメントに依存すると、マスターによって最初の工程名が
-    //   異なる場合（関東マスター等）に着工基準日が取得できず件数が0になってしまうため、
-    //   名前に関係なく「開始日が最も早いセグメント」を着工基準として使うよう変更（より頑健な方式）
-    var zousei=segs.reduce(function(min,s){
-      var sd=String(s.start_date||s.date||'');
-      if(!sd)return min;
-      if(!min)return s;
-      return sd<String(min.start_date||min.date||'')?s:min;
-    },null);
+    //   ★2026/9/7修正（今回の根本原因）：「造成」「地盤」等、開始日が最も早いセグメントを着工基準にしていたが、
+    //   造成工事・地盤は実際の着工よりかなり前倒しで工程表に入力される運用実態があり、
+    //   まだ実着工していない物件まで「着工中」に誤カウントされていた（来期・関東で特に顕著）。
+    //   着工基準トリガーを「基礎」の開始日に変更（松井さん指示）。基礎が見つからない物件は着工中扱いにしない。
+    var zousei=segs.find(function(s){
+      var nm=String(s.name||s.label||'').trim();
+      return nm==='基礎';
+    })||null;
     if(zousei&&areaKey)result.diagnostics.areaWithZousei[areaKey]++;
     var startKey=zousei?String(zousei.start_date||zousei.date||'').replace(/\//g,'-'):'';
     var deliveryKey=(normDate(p.delivery_date||'')||'').replace(/\//g,'-');
@@ -2333,6 +2345,9 @@ function computeSiteProgressSummary(){
     if(underConstruction){
       term.all.underConstruction++;
       if(areaKey)term[areaKey].underConstruction++;
+      // ★2026/9/7追加：件数だけでなく「実際にどの物件が対象になったか」を突き合わせられるよう記録する
+      term.all.list=term.all.list||[];term.all.list.push({name:p.name||p.fix_no,fixNo:p.fix_no,area:areaKey,start:startKey,delivery:deliveryKey,zouseiName:zousei.name||zousei.label||''});
+      if(areaKey){term[areaKey].list=term[areaKey].list||[];term[areaKey].list.push({name:p.name||p.fix_no,fixNo:p.fix_no,start:startKey,delivery:deliveryKey,zouseiName:zousei.name||zousei.label||''});}
     }
     // ②工種別・検査別：本日がstart_date〜end_dateに含まれるセグメントを集計
     //   （着工中判定と独立。検査等は引渡し後にずれ込むケースもあるため）
@@ -2374,6 +2389,15 @@ function _siteProgressSortedTypes(byTypeAll){
 function admRenderSiteProgress(container){
   var s=computeSiteProgressSummary();
   var d=s.diagnostics;
+  // ★2026/9/7追加：件数だけでは「どの物件が誤って含まれているか」が分からないため、
+  //   着工中と判定された物件の一覧（着工基準日の根拠工程名も含む）を毎回コンソールに出力する。
+  //   実際とズレている場合は、ここに載っている物件名から「なぜ着工中扱いになったか」を特定できる。
+  console.log('[全現場進捗管理・着工中の内訳] 今期(全'+s.thisTerm.all.underConstruction+'/東海'+s.thisTerm.tokai.underConstruction+'/関東'+s.thisTerm.kanto.underConstruction+')',
+    {東海:(s.thisTerm.tokai.list||[]).map(function(x){return x.name+'（着工基準:'+x.zouseiName+' '+x.start+'／引渡:'+x.delivery+'）';}),
+     関東:(s.thisTerm.kanto.list||[]).map(function(x){return x.name+'（着工基準:'+x.zouseiName+' '+x.start+'／引渡:'+x.delivery+'）';})});
+  console.log('[全現場進捗管理・着工中の内訳] 来期(全'+s.nextTerm.all.underConstruction+'/東海'+s.nextTerm.tokai.underConstruction+'/関東'+s.nextTerm.kanto.underConstruction+')',
+    {東海:(s.nextTerm.tokai.list||[]).map(function(x){return x.name+'（着工基準:'+x.zouseiName+' '+x.start+'／引渡:'+x.delivery+'）';}),
+     関東:(s.nextTerm.kanto.list||[]).map(function(x){return x.name+'（着工基準:'+x.zouseiName+' '+x.start+'／引渡:'+x.delivery+'）';})});
   var card=function(label,val){
     return '<div style="flex:1;background:white;border:1px solid #e2e8f0;border-radius:10px;padding:14px;text-align:center">'
       +'<div style="font-size:11px;color:#64748b;font-weight:700;margin-bottom:4px">'+label+'</div>'
