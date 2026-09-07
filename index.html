@@ -1177,7 +1177,7 @@ var POST_END_PAD = 120; // ★スクロール終端の余白：完了検査列�
 // ===== 納品書機能：休工日カレンダー・稼働日計算 =====
 // ★日本の祝日（政府発表・国立天文台暦要項ベース、2025〜2028年分）
 // ★アプリバージョン（不具合問い合わせ対応用。リリースごとに更新すること。2026/8/23追加）
-var APP_VERSION = '2026.09.07.4';
+var APP_VERSION = '2026.09.07.6';
 window.APP_VERSION=APP_VERSION;
 console.log('[JACK] version', APP_VERSION);
 var JP_HOLIDAYS = [
@@ -1798,6 +1798,14 @@ function _isSoseiLabel(lbl){
   var t=String(lbl||'').trim();
   return t==='造成'||t.indexOf('造成')===0;
 }
+// ★大親（基礎）カスケードの対象外にすべき「基礎より前に来る準備工程」の判定（2026/9/7追加）
+//   造成・地盤（地盤改良/地盤調査等）・仮設設置は、基礎より前に単独で日付が決まる工程のため、
+//   基礎を動かしても連動させてはいけない。これらを漏れなく1箇所で判定できるよう共通化した。
+//   ※新たに同種の「基礎より前の工程」が増えた場合はここに追記すれば全箇所に反映される。
+function _isPreKisoStep(nm){
+  nm=String(nm||'').trim();
+  return nm==='造成'||nm.indexOf('地盤')>=0||nm.indexOf('仮設')>=0;
+}
 function countWorkdays(fromStr, toStr){
   var d=new Date(fromStr.replace(/[/]/g,'-'));
   var end=new Date(toStr.replace(/[/]/g,'-'));
@@ -1891,7 +1899,7 @@ function _normalizeTmplSteps(steps){
     var allOk=true;
     for(var ci=kisoIdx+1;ci<steps.length;ci++){
       var sn=steps[ci].name||steps[ci].label||'';
-      if(sn==='造成'||sn==='地盤')continue;
+      if(_isPreKisoStep(sn))continue;
       if(steps[ci].offsetFrom==='基礎完了'&&steps[ci].offsetDays!=null){
         // OK: 既に正しく設定済み
       } else {
@@ -1913,7 +1921,7 @@ function _normalizeTmplSteps(steps){
     if(step.offsetFrom==='基礎完了'&&kisoEnd&&step.offsetDays!=null){
       // 既存のoffsetDaysをそのまま使う
       startDate=step.offsetDays>0?addWorkdays(kisoEnd,step.offsetDays):kisoEnd;
-    } else if(kisoEnd&&nm!=='造成'&&nm!=='地盤'){
+    } else if(kisoEnd&&!_isPreKisoStep(nm)){
       // offsetFromが未設定で基礎より後ろ → prevEndから連鎖して補正
       startDate=addWorkdays(prevEnd,1);
       var sd0=new Date(startDate.replace(/[/]/g,'-'));
@@ -5104,7 +5112,7 @@ function toggleGanttEditMode(){
               if(gi===nIdx)continue; // 内装自身は起点として上で処理済み
               var gs=geSegs[gi];
               var gn=gs.name||gs.label||'';
-              if(gn==='造成'||gn==='地盤')continue;
+              if(_isPreKisoStep(gn))continue;
               if(!gs.start_date)continue;
               if(_naisouOk&&gi>nIdx){
                 // 内装より後ろ → C群（内装完了基準）
@@ -5136,11 +5144,11 @@ function toggleGanttEditMode(){
       } else {
         _diagLines.push('（関東マスター／関東手組マスターに該当しないため3段階大親ロジックは対象外）');
       }
-      // ★2段階大親ロジック（東海マスターのみ、2026/9/4追加）
-      //   A=基礎〜防蟻未満：基礎完了基準のまま（既存動作。配筋検査・土台・先行足場・①〜④レッカー等）
-      //   B=防蟻以降（防蟻自身含む）：防蟻完了基準に変換し、基礎の移動から完全に独立させる
-      //   ※以前あった「防蟻＝③レッカー納品連動」は廃止し、施工（本ロジック）と納品書を完全に切り離した
-      var _isTargetTokai=(_mn.indexOf('東海')>=0);
+      // ★2026/9/7：東海マスターの「防蟻を第2の大親にする」2段階ロジックを解除（松井さん指示）。
+      //   9/4に導入したが、地盤改良など「造成/地盤」以外の前工程が誤って防蟻グループに巻き込まれる
+      //   不具合が出たため一旦廃止。基礎のみが唯一の大親となる、9/4より前の挙動に戻す。
+      //   ロジック本体（geApplyBougiAnchor）は将来の再検討に備えて残置し、ここでの自動変換だけを止める。
+      var _isTargetTokai=false;
       if(_isTargetTokai){
         var gIdx=geSegs.findIndex(function(s){return _stripWs(s.name||s.label)==='防蟻';});
         if(gIdx>=0){
@@ -5151,7 +5159,7 @@ function toggleGanttEditMode(){
             for(var gi2=gIdx+1; gi2<geSegs.length; gi2++){
               var gs2=geSegs[gi2];
               var gn2=gs2.name||gs2.label||'';
-              if(gn2==='造成'||gn2==='地盤')continue;
+              if(_isPreKisoStep(gn2))continue;
               if(!gs2.start_date)continue;
               gs2.offsetFrom='防蟻完了';
               gs2.offsetDays=countWorkdays(gSeg.end_date, gs2.start_date);
@@ -5494,7 +5502,7 @@ function geApplyKisoAnchor(movedIdx){
     if(i===movedIdx)continue;
     var s=geSegs[i];
     var sn=s.name||s.label||'';
-    if(sn==='造成'||sn==='地盤')continue;
+    if(_isPreKisoStep(sn))continue;
     var offsetFrom=s.offsetFrom||'';
     var offsetDays=s.offsetDays!=null?s.offsetDays:0;
     if(offsetFrom==='基礎完了'){
@@ -5641,13 +5649,11 @@ function geStopDrag(){
     } else if(dragName==='内装'){
       // 内装を動かした → C群（内装以降・内装自身含む）のみ追随。A群・B群には一切影響しない
       geApplyNaisouAnchor(dragIdx);
-    } else if(dragName==='防蟻'){
-      // ★東海専用：防蟻を動かした → B群（防蟻以降・防蟻自身含む）のみ追随。A群（基礎〜防蟻未満）には一切影響しない
-      geApplyBougiAnchor(dragIdx);
     } else {
-      // 基礎・防水・内装・防蟻以外を動かした → 単体移動確定。元々属していた群（offsetFrom）を維持したまま基準日を再計算
+      // 基礎・防水・内装以外を動かした → 単体移動確定。元々属していた群（offsetFrom）を維持したまま基準日を再計算
+      // ★2026/9/7：東海「防蟻」2段階ロジックは解除済みのため、防蟻もここ（基礎完了群）で扱われる
       var sn=dragSeg.name||dragSeg.label||'';
-      if(sn!=='造成'&&sn!=='地盤'){
+      if(!_isPreKisoStep(sn)){
         if(dragSeg.offsetFrom==='内装完了'){
           var naisouSeg=geSegs.find(function(s){return (s.name||s.label||'')==='内装';});
           if(naisouSeg&&naisouSeg.end_date&&dragSeg.start_date){
@@ -5739,17 +5745,9 @@ function geStopResize(){
         rsC.calendar_dur=calendarDur(rsC.start_date,rsC.end_date);
       }
       geApplyNaisouAnchor(resIdx);
-    } else if(resName==='防蟻'){
-      // ★東海専用：防蟻自身をリサイズ → B群（防蟻完了基準）を再計算。A群には一切影響しない
-      var rsG=geSegs[resIdx];
-      if(rsG&&rsG.start_date){
-        rsG.duration=rsG.calendar_dur;
-        rsG.end_date=addCalendarDays(rsG.start_date, rsG.calendar_dur);
-        rsG.calendar_dur=calendarDur(rsG.start_date,rsG.end_date);
-      }
-      geApplyBougiAnchor(resIdx);
     } else {
-      // 基礎・防水・内装・防蟻以外リサイズ → end_date再計算 + 元々属していた群（offsetFrom）を維持したままoffsetDays更新
+      // 基礎・防水・内装以外リサイズ → end_date再計算 + 元々属していた群（offsetFrom）を維持したままoffsetDays更新
+      // ★2026/9/7：東海「防蟻」2段階ロジックは解除済みのため、防蟻もここ（基礎完了群）で扱われる
       var rs2=geSegs[resIdx];
       if(rs2&&rs2.start_date){
         // ★ calendar_durはカレンダー日数なのでaddCalendarDaysを使う
@@ -5778,7 +5776,7 @@ function geStopResize(){
         var kisoSeg2=geSegs.find(function(s){return (s.name||s.label||'')==='基礎';});
         if(kisoSeg2&&kisoSeg2.end_date&&rs2&&rs2.start_date){
           var sn2=rs2.name||rs2.label||'';
-          if(sn2!=='造成'&&sn2!=='地盤'){
+          if(!_isPreKisoStep(sn2)){
             rs2.offsetDays=countWorkdays(kisoSeg2.end_date, rs2.start_date);
             rs2.offsetFrom='基礎完了';
           }
@@ -5889,7 +5887,7 @@ function geUpdateSegDate(input){
       s.duration=s.calendar_dur;
     }
   }
-  // ★基礎・防水・内装・防蟻の日付変更時は、それぞれの群（A/B/C）を追随させる
+  // ★基礎・防水・内装の日付変更時は、それぞれの群（A/B/C）を追随させる
   var sname=s.name||s.label||'';
   if(sname==='基礎'){
     // ★ calendar_durをdurationにも同期してからアンカー適用
@@ -5901,12 +5899,9 @@ function geUpdateSegDate(input){
   } else if(sname==='内装'){
     s.duration=s.calendar_dur;
     geApplyNaisouAnchor(idx);
-  } else if(sname==='防蟻'){
-    // ★東海専用：防蟻の日付変更 → B群（防蟻完了基準）のみ追随
-    s.duration=s.calendar_dur;
-    geApplyBougiAnchor(idx);
-  } else if(sname!=='造成'&&sname!=='地盤'){
-    // ★単体項目の日付変更 → 元々属していた群（内装完了／防水完了／防蟻完了／基礎完了）を維持したまま基準日を再計算
+  } else if(!_isPreKisoStep(sname)){
+    // ★単体項目の日付変更 → 元々属していた群（内装完了／防水完了／基礎完了）を維持したまま基準日を再計算
+    // ★2026/9/7：東海「防蟻」2段階ロジックは解除済みのため、防蟻もここ（基礎完了群）で扱われる
     if(s.offsetFrom==='内装完了'){
       var naisouSeg3=geSegs.find(function(seg){return (seg.name||seg.label||'')==='内装';});
       if(naisouSeg3&&naisouSeg3.end_date&&s.start_date){
@@ -6339,7 +6334,7 @@ function _buildPrintGanttHtml(p,pageWmm,pageHmm,includeHeader){
   //   ★地盤（地盤改良）行は印刷対象から除外する
   var segs=allSegs.filter(function(seg){
     var lbl=seg.label||seg.name||'';
-    if(lbl==='地盤')return false;
+    if(_isPreKisoStep(lbl)&&lbl!=='造成')return false;
     return !!(seg.start_date||seg.date);
   });
   if(!segs.length)return '';
@@ -8502,7 +8497,7 @@ function edApplyKisoAnchor(movedIdx){
     if(i===movedIdx)continue;
     var s=edSegs[i];
     var sn=s.name||s.label||'';
-    if(sn==='造成'||sn==='地盤')continue;
+    if(_isPreKisoStep(sn))continue;
     var stepDef=tmpl.find(function(t){return t.name===sn;});
     var dur=s.dur||s.duration||1;
     var startDate;
@@ -9603,7 +9598,7 @@ function stopMasterBarDrag(){
       var computedSegs=masterGanttSegs||[];
       var seg=computedSegs.find(function(s){return s.stepIdx===stepIdx;});
 
-      if(step.name==='基礎'||step.name==='造成'||step.name==='地盤'){
+      if(step.name==='基礎'||_isPreKisoStep(step.name)){
         // 基礎・造成・地盤：前工程連鎖のままstart_dateで位置固定
         // ★masterEdDatesの「インデックス」をそのままdayShift分ずらす（日曜を含まないので実日付加算は使わない＝ズレの原因だった）
         if(seg&&seg.start_date){
