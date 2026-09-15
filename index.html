@@ -1177,7 +1177,7 @@ var POST_END_PAD = 120; // ★スクロール終端の余白：完了検査列�
 // ===== 納品書機能：休工日カレンダー・稼働日計算 =====
 // ★日本の祝日（政府発表・国立天文台暦要項ベース、2025〜2028年分）
 // ★アプリバージョン（不具合問い合わせ対応用。リリースごとに更新すること。2026/8/23追加）
-var APP_VERSION = '2026.09.10.3';
+var APP_VERSION = '2026.09.10.4';
 window.APP_VERSION=APP_VERSION;
 console.log('[JACK] version', APP_VERSION);
 var JP_HOLIDAYS = [
@@ -7274,7 +7274,21 @@ function _saveDeliveryNote(p){
   clearTimeout(_deliverySaveTimer);
   _deliverySaveTimer=setTimeout(async function(){
     var sb=getSB();if(!sb)return;
-    try{await sb.from('properties').update({delivery_note:deliveryNotes[fixNo],updated_at:new Date().toISOString()}).eq('fix_no',fixNo);}catch(e){}
+    // ★2026/9/10修正【重大】：以前はエラーを一切確認せず握りつぶしていたため、保存に失敗しても
+    //   画面上は何も表示されず（本人にも他ユーザーにも）気付く手段が無かった。
+    //   結果（res.error）を確認し、失敗時は明確に警告表示する。
+    try{
+      var res=await sb.from('properties').update({delivery_note:deliveryNotes[fixNo],updated_at:new Date().toISOString()}).eq('fix_no',fixNo);
+      if(res.error){
+        console.error('[JACK] 納品書の保存に失敗',res.error);
+        showToast('⚠️ 納品書の保存に失敗しました：'+res.error.message,'error');
+        return;
+      }
+    }catch(e){
+      console.error('[JACK] 納品書の保存で例外',e);
+      showToast('⚠️ 納品書の保存に失敗しました：'+e.message,'error');
+      return;
+    }
     if(typeof renderBody==='function')renderBody(); // ★ガント「納品」行に即時反映
     // ★物件詳細のガント本体（コンパクト行・複数行）だけを最新の納品バッジに更新する
     //   （タブ構造ごと入れ替えると、編集中の納品書フォームや現在のタブ表示が壊れるため使わない）
@@ -8935,14 +8949,22 @@ async function applyMasterToAll(){
     if(sb&&currentProfile&&currentProfile.role==='admin'){
       var batch=allProps.map(function(p){return {fix_no:p.fix_no,name:p.name,prop_master:masterName};});
       // Supabaseに一括upsert（50件ずつ）
+      // ★2026/9/10修正：個々の失敗を確認せず常に「✅DB保存済み」と表示していたため、
+      //   一部の物件だけ保存に失敗していても気付けなかった。失敗件数を集計し正確に表示する。
+      var failCount=0, failNames=[];
       for(var i=0;i<batch.length;i+=50){
         var chunk=batch.slice(i,i+50);
         for(var j=0;j<chunk.length;j++){
           var pp=chunk[j];
-          await sb.from('properties').update({prop_master:masterName}).eq('fix_no',pp.fix_no).eq('name',pp.name);
+          var r9=await sb.from('properties').update({prop_master:masterName}).eq('fix_no',pp.fix_no).eq('name',pp.name);
+          if(r9.error){failCount++;failNames.push(pp.name||pp.fix_no);console.error('[JACK] マスター紐付け保存失敗:',pp.name,r9.error);}
         }
       }
-      showToast('✅ 全'+allProps.length+'件に「'+masterName+'」を紐付けました（DB保存済み）','success');
+      if(failCount>0){
+        showToast('⚠️ '+(allProps.length-failCount)+'件は保存できましたが、'+failCount+'件は保存に失敗しました（'+failNames.slice(0,5).join('、')+(failNames.length>5?'他':'')+'）。詳細はコンソールを確認してください。','error');
+      } else {
+        showToast('✅ 全'+allProps.length+'件に「'+masterName+'」を紐付けました（DB保存済み）','success');
+      }
     } else {
       showToast('✅ 全'+allProps.length+'件に「'+masterName+'」を紐付けました（ローカル保存）','success');
     }
@@ -14293,11 +14315,22 @@ async function admMergeMaster(sourceName, targetName){
     // ②Supabase側 properties.prop_master を一括更新
     var sb=getSB();
     var isAdm=(currentProfile&&(currentProfile.role==='admin'||currentProfile.is_admin===true));
+    // ★2026/9/10修正【重大】：以前は個々の更新の失敗を確認せず、常に統合元マスターを削除していた。
+    //   一部の物件だけ付け替えに失敗した場合、その物件は「存在しないマスター名」を参照したまま
+    //   マスターごと消えてしまい、工程表が計算できなくなる恐れがあった。
+    //   失敗があれば削除処理（③）を中止し、どの物件が失敗したか明示する。
+    var mergeFailNames=[];
     if(sb&&isAdm){
       for(var i=0;i<targets.length;i++){
         var pp=targets[i];
-        await sb.from('properties').update({prop_master:targetName}).eq('fix_no',pp.fix_no).eq('name',pp.name);
+        var r14=await sb.from('properties').update({prop_master:targetName}).eq('fix_no',pp.fix_no).eq('name',pp.name);
+        if(r14.error){mergeFailNames.push(pp.name||pp.fix_no);console.error('[JACK] マスター統合の付け替え失敗:',pp.name,r14.error);}
       }
+    }
+    if(mergeFailNames.length>0){
+      showToast('⚠️ '+mergeFailNames.length+'件の付け替えに失敗したため、「'+sourceName+'」の削除を中止しました（'+mergeFailNames.slice(0,5).join('、')+(mergeFailNames.length>5?'他':'')+'）。再度お試しください。','error');
+      renderBody(); if(typeof renderMyPage==='function')renderMyPage();
+      return;
     }
 
     // ③統合元マスターを削除（ローカル＋Supabase）
