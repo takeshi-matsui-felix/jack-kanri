@@ -1177,7 +1177,7 @@ var POST_END_PAD = 120; // ★スクロール終端の余白：完了検査列�
 // ===== 納品書機能：休工日カレンダー・稼働日計算 =====
 // ★日本の祝日（政府発表・国立天文台暦要項ベース、2025〜2028年分）
 // ★アプリバージョン（不具合問い合わせ対応用。リリースごとに更新すること。2026/8/23追加）
-var APP_VERSION = '2026.09.07.6';
+var APP_VERSION = '2026.09.10.1';
 window.APP_VERSION=APP_VERSION;
 console.log('[JACK] version', APP_VERSION);
 var JP_HOLIDAYS = [
@@ -1736,10 +1736,14 @@ var RECENTLY_UPDATED_FIXNOS = loadLS('jack_recent_updates', {});
 var confirmedUntilMap = loadLS('jack_confirmed_until', {});
 // segs（getActiveSegs結果、テンプレ順）のうち、confirmedUntilMapの区切りより後ろの工程名をSetで返す。
 // 区切り未設定 or 区切り工程が見つからない場合は空Set（＝全て確定表示のまま、既存の見た目を変えない）
+// ★2026/9/10修正【重大】：以前はこの区切り設定をlocalStorageにしか保存していなかったため、
+//   「この工程までを確定にする」を押した本人の端末以外には絶対に反映されない（他ユーザー報告の「一部の
+//   ユーザーだけ斜線のまま」の直接原因）という不具合があった。p.confirmed_until（Supabase properties
+//   テーブルの列、DB_PROPS経由で全ユーザーに共有される）を優先し、無ければローカル値にフォールバックする。
 function _tentativeStepSet(p, segs){
   var res=new Set();
   var ck=custKey(p);
-  var markLabel=confirmedUntilMap[ck];
+  var markLabel=(p&&p.confirmed_until)||confirmedUntilMap[ck]||'';
   if(!markLabel||!segs||!segs.length)return res;
   var idx=segs.findIndex(function(s){return String(s.label||s.name||'').trim()===markLabel;});
   if(idx<0)return res;
@@ -2967,6 +2971,7 @@ function getAllProps(){
        'kutai_date','kutai_status','dannetsu_date','dannetsu_status',
        'inspection_status','parkings','updated_at',
        'chukan_date','chukan_status','kansei_date','kansei_status', // ★中間検査・完成検査（関東限定、2026/9/5追加）
+       'confirmed_until', // ★仮工程／確定工程の区切り（2026/9/10追加、全ユーザー共有バグ修正）
        // ★2026/8/30追加：Excel再取込で土地決済日・確認完了日が更新されても、埋め込み静的データ(DATA)側の
        //   古い値が使われ続けていた不具合の修正。DB_PROPS側の最新値で確実に上書きされるよう対象に追加する。
        //   ★master_segsは同日中に撤回：properties テーブルに実在しない列だったため対象から外す
@@ -4653,6 +4658,10 @@ window.kensaSplitToggleStatus=kensaSplitToggleStatus;
 function _saveKensaFieldForCurrentProp(field,value){
   var p=currentProp; if(!p)return;
   var dbUpdates={}; dbUpdates[field]=value;
+  // ★2026/9/10修正：updated_atを明示的に更新しないと、他ユーザーの端末側の
+  //   タイムスタンプ差分チェック（_loadCustomGanttIfNeeded）が変更を検知できず、
+  //   同期ボタンを押すまで永遠に反映されない不具合があった（confirmed_untilと同根の問題）。
+  dbUpdates.updated_at=new Date().toISOString();
   function applyLocallyK(){
     p[field]=value;
     if(typeof DB_PROPS!=='undefined'&&DB_PROPS){
@@ -5818,7 +5827,7 @@ function geRenderSegList(){
   var selEl=document.getElementById('geConfirmedUntilSel');
   if(selEl&&currentProp){
     var ck=custKey(currentProp);
-    var curMark=confirmedUntilMap[ck]||'';
+    var curMark=(currentProp.confirmed_until)||confirmedUntilMap[ck]||'';
     selEl.innerHTML='<option value="">（未設定＝全て確定）</option>'
       +geSegs.map(function(s){var lbl=s.label||'';return '<option value="'+lbl.replace(/"/g,'&quot;')+'"'+(lbl===curMark?' selected':'')+'>'+lbl+'</option>';}).join('');
   }
@@ -6198,6 +6207,36 @@ function applyConfirmedUntil(){
   var v=selEl.value;
   if(v){confirmedUntilMap[ck]=v;} else {delete confirmedUntilMap[ck];}
   saveLS('jack_confirmed_until',confirmedUntilMap);
+  // ★2026/9/10追加【重大バグ修正】：以前はローカル保存のみで、Supabaseに一切書き込んでいなかったため
+  //   他ユーザー・他端末には絶対に反映されなかった。properties.confirmed_until列へも保存し、
+  //   全ユーザー共有にする（他の検査予約等と同じ「即時反映」パターンを踏襲）。
+  var fixNo=String(currentProp.fix_no||'');
+  var sb=getSB();
+  function applyLocallyCU(){
+    currentProp.confirmed_until=v||null;
+    if(typeof DB_PROPS!=='undefined'&&DB_PROPS){
+      var idx=DB_PROPS.findIndex(function(dp){return String(dp.fix_no)===fixNo;});
+      if(idx>=0)DB_PROPS[idx].confirmed_until=v||null;
+      try{localStorage.setItem('jack_props_cache',JSON.stringify(DB_PROPS));}catch(e){}
+    }
+  }
+  if(!sb||!fixNo){
+    applyLocallyCU();
+  } else {
+    sb.from('properties').update({confirmed_until:v||null,updated_at:new Date().toISOString()}).eq('fix_no',fixNo)
+      .then(function(res){
+        if(res.error){
+          console.error('[JACK] confirmed_until Supabase保存失敗',res.error);
+          showToast('⚠️ ローカルには保存しましたが、Supabaseへの保存に失敗しました（他ユーザーには反映されません）：'+res.error.message,'error');
+          return;
+        }
+        applyLocallyCU();
+      })
+      .catch(function(e){
+        console.error('[JACK] confirmed_until Supabase保存失敗',e);
+        showToast('⚠️ ローカルには保存しましたが、Supabaseへの保存に失敗しました（他ユーザーには反映されません）：'+e.message,'error');
+      });
+  }
   // ★2026/8/25：renderBody()で例外が起きても保存自体は完了しているのに画面が無反応に見える不具合を防ぐため、
   //   try/catchでエラーを可視化する（原因特定用）
   try{
@@ -6207,7 +6246,7 @@ function applyConfirmedUntil(){
     showToast('保存はできましたが、表示の更新でエラーが発生しました：'+e.message,'error');
     return;
   }
-  showToast(v?('「'+v+'」まで確定・それ以降は仮工程表示にしました'):'確定区切りを解除しました（全て確定表示）','success');
+  showToast(v?('「'+v+'」まで確定・それ以降は仮工程表示にしました（全ユーザーに反映されます）'):'確定区切りを解除しました（全て確定表示）','success');
 }
 window.applyConfirmedUntil=applyConfirmedUntil;
 
@@ -9680,8 +9719,14 @@ function saveMasterEditorChanges(){
   renderBody(); renderMyPage(); renderMasterPanel();
   closePanel('masterEditorPanel');
   // Supabaseにも保存（全ユーザーに共有）
+  // ★2026/9/10修正：Supabase保存に失敗した場合も✅の成功トーストが出ていたため、ローカルのみ保存された
+  //   （＝他ユーザーには一切反映されない）ことに気付けなかった。失敗時は⚠️の警告表示に変更する。
   _saveMasterToSupabase(saved, function(ok){
-    showToast(ok?'✅ マスター工程「'+saved.name+'」を保存しました（全共有）':'✅ マスター工程「'+saved.name+'」を保存しました（ローカル）','success');
+    if(ok){
+      showToast('✅ マスター工程「'+saved.name+'」を保存しました（全ユーザーに共有）','success');
+    } else {
+      showToast('⚠️ マスター工程「'+saved.name+'」はこの端末にのみ保存されました。Supabaseへの保存に失敗したため、他ユーザーには反映されていません。通信状況を確認して再度保存してください。','error');
+    }
   });
 }
 
@@ -9698,8 +9743,11 @@ function _saveMasterToSupabase(master, cb){
         return sb.from('masters').insert(payload);
       }
     })
-    .then(function(r){if(cb)cb(!r.error);})
-    .catch(function(){if(cb)cb(false);});
+    .then(function(r){
+      if(r.error)console.error('[JACK] マスター工程「'+master.name+'」のSupabase保存に失敗',r.error);
+      if(cb)cb(!r.error);
+    })
+    .catch(function(e){console.error('[JACK] マスター工程「'+master.name+'」のSupabase保存で例外',e);if(cb)cb(false);});
 }
 window._saveMasterToSupabase=_saveMasterToSupabase;
 
@@ -10299,7 +10347,7 @@ async function loadPropertiesFromCacheOrDB(forceRefresh){
   //   実際には存在しない列だったため大量の書き込みエラーが発生した。properties テーブルに
   //   master_segs列は存在しない（埋め込み静的データ内にのみ存在するフィールド）。このSELECTからは除外し、
   //   代わりにland_payment/confirm_done等のマージ（getAllProps側）だけで正しく直る設計に一本化する。
-  var pr=await sb.from('properties').select('id,fix_no,seq_no,name,area,status,hand_kumi,tantou,delivery_date,delivery_month,land_contract,land_payment,confirm_submit,confirm_done,inspection_date,complete_date,haikin_date,haikin_status,kutai_date,kutai_status,chukan_date,chukan_status,dannetsu_date,dannetsu_status,inspection_status,kansei_date,kansei_status,shinsa_kikan,address,parkings,prop_master,gantt_is_manual,movein_date,movein_date_source,updated_at').order('fix_no');
+  var pr=await sb.from('properties').select('id,fix_no,seq_no,name,area,status,hand_kumi,tantou,delivery_date,delivery_month,land_contract,land_payment,confirm_submit,confirm_done,inspection_date,complete_date,haikin_date,haikin_status,kutai_date,kutai_status,chukan_date,chukan_status,dannetsu_date,dannetsu_status,inspection_status,kansei_date,kansei_status,confirmed_until,shinsa_kikan,address,parkings,prop_master,gantt_is_manual,movein_date,movein_date_source,updated_at').order('fix_no');
   if(!pr.error&&pr.data&&pr.data.length>0){
     DB_PROPS=pr.data;
     // ★新機能【最終更新バッジ】：以前は「前回キャッシュとの差分」で判定していたが、DB側の何らかの
@@ -10367,10 +10415,20 @@ async function _loadCustomGanttIfNeeded(p){
   // 更新あり or キャッシュなし → Supabaseから取得
   if(!sb)return;
   try{
-    var r0=await sb.from('properties').select('fix_no,custom_gantt,updated_at').eq('fix_no',fixNo).limit(1);
+    // ★2026/9/10拡張：custom_ganttと同じタイムスタンプチェックの仕組みで、confirmed_until
+    //   （仮工程／確定工程の区切り）もあわせて最新化する。これにより「同期」ボタンを押さなくても、
+    //   物件詳細を開くたびに他ユーザーが設定した確定区切りが自動的に反映されるようになる。
+    var r0=await sb.from('properties').select('fix_no,custom_gantt,confirmed_until,updated_at').eq('fix_no',fixNo).limit(1);
     var r={error:r0.error,data:r0.data&&r0.data[0]};
     if(!r.error&&r.data){
       if(r.data.updated_at)localStorage.setItem(tsKey,r.data.updated_at);
+      if(Object.prototype.hasOwnProperty.call(r.data,'confirmed_until')){
+        p.confirmed_until=r.data.confirmed_until||null;
+        if(DB_PROPS){
+          var idxCU=DB_PROPS.findIndex(function(d){return String(d.fix_no)===String(p.fix_no);});
+          if(idxCU>=0)DB_PROPS[idxCU].confirmed_until=r.data.confirmed_until||null;
+        }
+      }
       if(r.data.custom_gantt){
         var rawCg=typeof r.data.custom_gantt==='string'?JSON.parse(r.data.custom_gantt):r.data.custom_gantt;
         // ★{__manual__:true,segs:[...]}形式のオブジェクトと、配列そのままの旧形式の両方に対応
@@ -13669,6 +13727,9 @@ document.addEventListener('click',async function(e){
 async function admSaveField(input,field){
   var pid=input.getAttribute('data-pid'),val=input.value.trim(),sb=getSB();
   var obj={};obj[field]=val;
+  // ★2026/9/10修正：updated_atを更新しないと、他ユーザー側のタイムスタンプ差分チェックが
+  //   変更を検知できず、同期ボタンを押すまで反映されない（confirmed_untilと同根の不具合）。
+  obj.updated_at=new Date().toISOString();
   var r=await sb.from('properties').update(obj).eq('id',pid);
   if(!r.error){
     input.style.borderColor='#10b981';
@@ -13906,6 +13967,9 @@ function admSaveKensaField(fixNo,field,value){
   var p=all.find(function(x){return String(x.fix_no)===String(fixNo);});
   if(!p)return;
   var dbUpdates={}; dbUpdates[field]=value;
+  // ★2026/9/10修正：updated_atを更新しないと、他ユーザー側のタイムスタンプ差分チェックが
+  //   変更を検知できず、同期ボタンを押すまで反映されない（confirmed_untilと同根の不具合）。
+  dbUpdates.updated_at=new Date().toISOString();
   function applyLocallyKensa(){
     p[field]=value;
     if(typeof DB_PROPS!=='undefined'&&DB_PROPS){
