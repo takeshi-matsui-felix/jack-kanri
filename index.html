@@ -1177,7 +1177,7 @@ var POST_END_PAD = 120; // ★スクロール終端の余白：完了検査列�
 // ===== 納品書機能：休工日カレンダー・稼働日計算 =====
 // ★日本の祝日（政府発表・国立天文台暦要項ベース、2025〜2028年分）
 // ★アプリバージョン（不具合問い合わせ対応用。リリースごとに更新すること。2026/8/23追加）
-var APP_VERSION = '2026.09.10.1';
+var APP_VERSION = '2026.09.10.3';
 window.APP_VERSION=APP_VERSION;
 console.log('[JACK] version', APP_VERSION);
 var JP_HOLIDAYS = [
@@ -6910,18 +6910,36 @@ function buildMasterLinkSection(p){
 // ===== 納品書機能（物件詳細内） =====
 var deliveryNotes={}; // {fix_no: {base_date, items:[{id,date,manual,vendor,note}], breakdown_text, approved_at}}
 var _deliveryFetched={};
+// ★2026/9/10修正：以前はセッション中に一度取得したら二度と再確認しない作りだったため、
+//   他ユーザーが納品書を更新しても、ページを開き直すまで反映されなかった（confirmed_until等と同根の不具合）。
+//   custom_gantt/confirmed_untilと同じ「updated_atのタイムスタンプ確認」方式に統一する。
+//   ※納品書タブを開いた時だけ呼ばれる関数なので、確認クエリが増えるのはその操作をした時だけ。
 async function _loadDeliveryNoteIfNeeded(p){
   var fixNo=String(p.fix_no||'');
   if(!fixNo)return;
-  if(_deliveryFetched[fixNo])return;
   var sb=getSB();
   if(!sb){_deliveryFetched[fixNo]=true;return;}
+  var tsKey='jack_dn_ts_'+fixNo;
+  var localTs=localStorage.getItem(tsKey)||'';
+  var needFetch=false;
   try{
-    var r=await sb.from('properties').select('fix_no,delivery_note').eq('fix_no',fixNo).limit(1);
+    var tsRes=await sb.from('properties').select('updated_at').eq('fix_no',fixNo).limit(1);
+    var tsRow=tsRes.data&&tsRes.data[0];
+    if(!tsRes.error&&tsRow){
+      var remoteTs=tsRow.updated_at||'';
+      if(remoteTs&&remoteTs!==localTs)needFetch=true;
+    }
+  }catch(e){}
+  if(!needFetch&&_deliveryFetched[fixNo])return; // TS一致かつ取得済み → 追加通信なし
+  try{
+    var r=await sb.from('properties').select('fix_no,delivery_note,updated_at').eq('fix_no',fixNo).limit(1);
     var rd=r.data&&r.data[0];
-    if(!r.error&&rd&&rd.delivery_note){
-      var dn=typeof rd.delivery_note==='string'?JSON.parse(rd.delivery_note):rd.delivery_note;
-      if(dn)deliveryNotes[fixNo]=dn;
+    if(!r.error&&rd){
+      if(rd.updated_at)localStorage.setItem(tsKey,rd.updated_at);
+      if(rd.delivery_note){
+        var dn=typeof rd.delivery_note==='string'?JSON.parse(rd.delivery_note):rd.delivery_note;
+        if(dn)deliveryNotes[fixNo]=dn;
+      }
     }
   }catch(e){}
   _deliveryFetched[fixNo]=true;
@@ -7256,7 +7274,7 @@ function _saveDeliveryNote(p){
   clearTimeout(_deliverySaveTimer);
   _deliverySaveTimer=setTimeout(async function(){
     var sb=getSB();if(!sb)return;
-    try{await sb.from('properties').update({delivery_note:deliveryNotes[fixNo]}).eq('fix_no',fixNo);}catch(e){}
+    try{await sb.from('properties').update({delivery_note:deliveryNotes[fixNo],updated_at:new Date().toISOString()}).eq('fix_no',fixNo);}catch(e){}
     if(typeof renderBody==='function')renderBody(); // ★ガント「納品」行に即時反映
     // ★物件詳細のガント本体（コンパクト行・複数行）だけを最新の納品バッジに更新する
     //   （タブ構造ごと入れ替えると、編集中の納品書フォームや現在のタブ表示が壊れるため使わない）
@@ -10535,12 +10553,15 @@ function doSyncFull(){
     if(typeof _loadMastersFromDB==='function')_loadMastersFromDB(true);
     // 同期後はTSキャッシュ・_ganttFetchedPropsをリセットして再確認を強制
     if(typeof window._ganttFetchedProps!=='undefined')window._ganttFetchedProps={};
-    // jack_gantt_ts_*をLocalStorageから全削除
+    // ★2026/9/10追加：納品書のTSキャッシュ・取得済みフラグも同様にリセットする
+    //   （工程表・確定区切りと同じ「同期ボタンで一発リセット」にするため）
+    if(typeof _deliveryFetched!=='undefined')_deliveryFetched={};
+    // jack_gantt_ts_*・jack_dn_ts_*をLocalStorageから全削除
     try{
-      Object.keys(localStorage).filter(function(k){return k.indexOf('jack_gantt_ts_')===0;})
+      Object.keys(localStorage).filter(function(k){return k.indexOf('jack_gantt_ts_')===0||k.indexOf('jack_dn_ts_')===0;})
         .forEach(function(k){localStorage.removeItem(k);});
     }catch(e){}
-    showToast('✅ データを同期しました（工程・マスター）','success');
+    showToast('✅ データを同期しました（工程・マスター・納品書）','success');
   });
 }
 window.doSyncFull=doSyncFull;
