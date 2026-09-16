@@ -1177,7 +1177,7 @@ var POST_END_PAD = 120; // ★スクロール終端の余白：完了検査列�
 // ===== 納品書機能：休工日カレンダー・稼働日計算 =====
 // ★日本の祝日（政府発表・国立天文台暦要項ベース、2025〜2028年分）
 // ★アプリバージョン（不具合問い合わせ対応用。リリースごとに更新すること。2026/8/23追加）
-var APP_VERSION = '2026.09.10.4';
+var APP_VERSION = '2026.09.15.1';
 window.APP_VERSION=APP_VERSION;
 console.log('[JACK] version', APP_VERSION);
 var JP_HOLIDAYS = [
@@ -4075,9 +4075,10 @@ function renderBody(){
   }
 
   // ★ バックグラウンドでTS確認（更新があれば自動再描画される）
-  if(typeof _loadCustomGanttIfNeeded==='function'){
+  //   ★2026/9/15修正：物件1件ずつの個別リクエストから、1回のバッチクエリに変更（通信量対策）
+  if(typeof _batchCheckGanttUpdates==='function'){
     setTimeout(function(){
-      props.forEach(function(p){_loadCustomGanttIfNeeded(p);});
+      _batchCheckGanttUpdates(props);
     },300);
   }
 
@@ -10513,6 +10514,103 @@ async function _loadCustomGanttIfNeeded(p){
   }catch(e){}
 }
 window._loadCustomGanttIfNeeded=_loadCustomGanttIfNeeded;
+
+// ★2026/9/15追加【重大な通信量対策】：ホーム画面（大工程表）を開くたびに、表示中の全物件について
+//   _loadCustomGanttIfNeeded()が1件ずつ個別にSupabaseへ問い合わせていたため、
+//   「全物件」タブ等で表示件数が多いとその件数分のリクエストが毎回発生し、Egress使用量を
+//   大きく押し上げていた（ユーザー増加でこの回数が積算され、5GB上限に迫った主因と考えられる）。
+//   ①複数物件のタイムスタンプ確認を1回のバッチクエリ（.in()）にまとめる
+//   ②実際に更新があった物件だけ、まとめて本体データを取得する
+//   ③さらに、同じ一覧を短時間に何度も開いても再チェックしないよう間引く（スロットル）
+var _lastGanttBatchCheckAt=0;
+var _GANTT_BATCH_THROTTLE_MS=60000; // 同一物件セットは60秒に1回まで
+var _lastGanttBatchFixNos='';
+async function _batchCheckGanttUpdates(props){
+  var sb=getSB(); if(!sb||!props||!props.length)return;
+  var fixNos=props.map(function(p){return String(p.fix_no||'');}).filter(Boolean);
+  if(!fixNos.length)return;
+  var setKey=fixNos.slice().sort().join(',');
+  var now=Date.now();
+  if(setKey===_lastGanttBatchFixNos&&(now-_lastGanttBatchCheckAt)<_GANTT_BATCH_THROTTLE_MS)return; // ★間引き
+  _lastGanttBatchCheckAt=now; _lastGanttBatchFixNos=setKey;
+  var byFixNo={};
+  props.forEach(function(p){byFixNo[String(p.fix_no||'')]=p;});
+  try{
+    // ①タイムスタンプだけを1回のバッチクエリで確認
+    var tsRes=await sb.from('properties').select('fix_no,updated_at').in('fix_no',fixNos);
+    if(tsRes.error||!tsRes.data)return;
+    var needFixNos=[];
+    tsRes.data.forEach(function(row){
+      var fixNo=String(row.fix_no||'');
+      var tsKey='jack_gantt_ts_'+fixNo;
+      var localTs=localStorage.getItem(tsKey)||'';
+      var remoteTs=row.updated_at||'';
+      var ck=fixNo+'__'+((byFixNo[fixNo]||{}).name||'');
+      if(remoteTs&&remoteTs!==localTs)needFixNos.push(fixNo);
+      else if(!_ganttFetchedProps[ck])_ganttFetchedProps[ck]=true; // TS一致なら以後の個別チェックも省略
+    });
+    if(!needFixNos.length)return; // 全物件、変更なし → ここで終了（追加通信ゼロ）
+    // ②更新があった物件だけ、まとめて本体データを取得
+    var r0=await sb.from('properties').select('fix_no,custom_gantt,confirmed_until,updated_at').in('fix_no',needFixNos);
+    if(r0.error||!r0.data)return;
+    var anyChanged=false;
+    r0.data.forEach(function(rd){
+      var p=byFixNo[String(rd.fix_no||'')]; if(!p)return;
+      if(_applyGanttFetchResult(p,rd))anyChanged=true;
+    });
+    if(anyChanged){
+      if(typeof renderBody==='function')renderBody();
+      if(typeof renderMyPage==='function')renderMyPage();
+    }
+  }catch(e){console.error('[JACK] 工程表バッチ確認に失敗',e);}
+}
+window._batchCheckGanttUpdates=_batchCheckGanttUpdates;
+
+// ①②で共通の「取得結果を反映する」処理（変更があったかを返す）
+function _applyGanttFetchResult(p,r){
+  var ck=String(p.fix_no||'')+'__'+(p.name||'');
+  var fixNo=String(p.fix_no||'');
+  var changed=false;
+  if(r.updated_at)localStorage.setItem('jack_gantt_ts_'+fixNo,r.updated_at);
+  if(Object.prototype.hasOwnProperty.call(r,'confirmed_until')){
+    p.confirmed_until=r.confirmed_until||null;
+    if(DB_PROPS){
+      var idxCU=DB_PROPS.findIndex(function(d){return String(d.fix_no)===String(p.fix_no);});
+      if(idxCU>=0)DB_PROPS[idxCU].confirmed_until=r.confirmed_until||null;
+    }
+  }
+  if(r.custom_gantt){
+    var rawCg=typeof r.custom_gantt==='string'?JSON.parse(r.custom_gantt):r.custom_gantt;
+    var cg=null, wasManual=false;
+    if(rawCg){
+      if(rawCg.__manual__&&rawCg.segs&&rawCg.segs.length){cg=rawCg.segs;wasManual=true;}
+      else if(Array.isArray(rawCg)&&rawCg.length){cg=rawCg;}
+    }
+    if(cg&&cg.length){
+      cg=cg.map(function(s){
+        var dk=toDateKey(s.start_date||s.date||'');
+        var ek=toDateKey(s.end_date||'');
+        var col=FULL_DATE_IDX[dk]||0;
+        return Object.assign({},s,{start_date:dk,date:dk,end_date:ek,col:col});
+      });
+      var cgToStore=wasManual?{__manual__:true,segs:cg}:cg;
+      changed=JSON.stringify(customGantt[ck])!==JSON.stringify(cgToStore);
+      customGantt[ck]=cgToStore;
+      saveLS('jack_custom_gantt',customGantt);
+      if(DB_PROPS){
+        var idx=DB_PROPS.findIndex(function(d){return String(d.fix_no)===String(p.fix_no);});
+        if(idx>=0)DB_PROPS[idx].custom_gantt=r.custom_gantt;
+      }
+    }
+  } else if(customGantt[ck]){
+    delete customGantt[ck];
+    saveLS('jack_custom_gantt',customGantt);
+    changed=true;
+  }
+  _ganttFetchedProps[ck]=true;
+  return changed;
+}
+window._applyGanttFetchResult=_applyGanttFetchResult;
 
 // vendorsキャッシュ
 var VENDORS_CACHE_KEY='jack_vendors_cache';
