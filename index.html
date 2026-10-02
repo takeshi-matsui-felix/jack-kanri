@@ -1177,7 +1177,7 @@ var POST_END_PAD = 120; // ★スクロール終端の余白：完了検査列�
 // ===== 納品書機能：休工日カレンダー・稼働日計算 =====
 // ★日本の祝日（政府発表・国立天文台暦要項ベース、2025〜2028年分）
 // ★アプリバージョン（不具合問い合わせ対応用。リリースごとに更新すること。2026/8/23追加）
-var APP_VERSION = '2026.09.15.1';
+var APP_VERSION = '2026.10.02.1';
 window.APP_VERSION=APP_VERSION;
 console.log('[JACK] version', APP_VERSION);
 var JP_HOLIDAYS = [
@@ -7070,12 +7070,27 @@ function _deliveryFieldChanged(diffs,itemId,field){
   return diffs.some(function(d){return d.id===itemId&&d.field===field;});
 }
 var _deliveryActiveContainerId='delivery-note-content';
-function renderDeliveryNoteSection(p,containerId){
+function renderDeliveryNoteSection(p,containerId,skipFetch){
   if(containerId)_deliveryActiveContainerId=containerId;
   var el=document.getElementById(_deliveryActiveContainerId);
   if(!el)return;
+  // ★2026/10修正【重大】：以前はこの関数が呼ばれるたび（=1項目編集するたび）毎回Supabaseへ
+  //   「更新日時が変わっていないか」の問い合わせを行い、その応答が返るまでテーブル全体を
+  //   「読み込み中...」に置き換えていた。結果、1項目編集→他の項目の入力欄が一瞬（通信が遅いと
+  //   数秒）消滅し、「次の項目が編集できない／業者欄が選べない」という不具合に見えていた。
+  //   自分自身の編集直後の再描画（skipFetch=true）は、他ユーザーの更新を再確認する必要が無いため、
+  //   既にメモリ上にある最新のdnからその場で（通信なし・DOM全消去なし）再描画する。
+  if(skipFetch){
+    _renderDeliveryNoteBody(p,el);
+    return;
+  }
   el.innerHTML='<div style="color:#94a3b8;font-size:11px;padding:12px;text-align:center">読み込み中...</div>';
   _loadDeliveryNoteIfNeeded(p).then(function(){
+    _renderDeliveryNoteBody(p,el);
+  });
+}
+window.renderDeliveryNoteSection=renderDeliveryNoteSection;
+function _renderDeliveryNoteBody(p,el){
     var dn=_getOrInitDeliveryNote(p);
     var isAdmin=(typeof currentProfile!=='undefined'&&currentProfile&&currentProfile.role==='admin');
     var diffs=dn.approved_at?[]:_deliveryDiff(dn); // ★承認済みの間は差分なし。承認後に編集され未承認へ戻った場合のみ差分が出る
@@ -7162,9 +7177,7 @@ function renderDeliveryNoteSection(p,containerId){
         +'<div style="font-size:11px;font-weight:700;margin-bottom:4px">納品内訳（自由記述）</div>'
         +'<textarea id="deliveryBreakdownInput" onchange="deliverySetBreakdown(this.value)" style="width:100%;min-height:140px;font-size:11px;padding:8px;border:1.5px solid #e2e8f0;border-radius:8px;font-family:inherit;box-sizing:border-box;white-space:pre">'+(dn.breakdown_text||'')+'</textarea>'
       +'</div>';
-  });
 }
-window.renderDeliveryNoteSection=renderDeliveryNoteSection;
 
 function _touchDeliveryUnapproved(dn){
   if(dn.approved_at){dn.approved_at=null;} // ★内容変更で未承認に戻す（承認印＝その時点の内容の正、を担保）
@@ -7174,7 +7187,7 @@ function deliverySetBaseDate(v){
   var p=currentProp;if(!p)return;
   var dn=_getOrInitDeliveryNote(p);
   dn.base_date=v;_touchDeliveryUnapproved(dn);
-  _saveDeliveryNote(p);renderDeliveryNoteSection(p);
+  _saveDeliveryNote(p);renderDeliveryNoteSection(p,null,true);
 }
 window.deliverySetBaseDate=deliverySetBaseDate;
 function deliverySetItemDate(id,v){
@@ -7183,7 +7196,7 @@ function deliverySetItemDate(id,v){
   var it=dn.items.find(function(i){return i.id===id;});
   if(it){it.manual=true;it.date=v;}
   _touchDeliveryUnapproved(dn);
-  _saveDeliveryNote(p);renderDeliveryNoteSection(p);
+  _saveDeliveryNote(p);renderDeliveryNoteSection(p,null,true);
 }
 window.deliverySetItemDate=deliverySetItemDate;
 function deliveryResetItemDate(id){
@@ -7192,7 +7205,7 @@ function deliveryResetItemDate(id){
   var it=dn.items.find(function(i){return i.id===id;});
   if(it){it.manual=false;it.date='';}
   _touchDeliveryUnapproved(dn);
-  _saveDeliveryNote(p);renderDeliveryNoteSection(p);
+  _saveDeliveryNote(p);renderDeliveryNoteSection(p,null,true);
 }
 window.deliveryResetItemDate=deliveryResetItemDate;
 function deliverySetItemField(id,field,v){
@@ -7202,7 +7215,7 @@ function deliverySetItemField(id,field,v){
   if(it)it[field]=v;
   if(field==='vendor')_deliveryCascadeVendor(dn,id,v);
   _saveDeliveryNote(p); // 業者名・備考の変更は承認状態を崩さない
-  if(field==='vendor'&&typeof renderDeliveryNoteSection==='function')renderDeliveryNoteSection(p);
+  if(field==='vendor'&&typeof renderDeliveryNoteSection==='function')renderDeliveryNoteSection(p,null,true);
 }
 window.deliverySetItemField=deliverySetItemField;
 // ★業者の連動反映：mirrorFrom指定の項目へ自動コピー／項目15(サッシ搬入)は16・25・26への特殊ルールで反映
@@ -7247,7 +7260,7 @@ function approveDeliveryNote(){
   dn.approved_snapshot=snap;
   dn.approved_at=nowIso;
   dn.approved_by=by;
-  _saveDeliveryNote(p);renderDeliveryNoteSection(p);
+  _saveDeliveryNote(p);renderDeliveryNoteSection(p,null,true);
   showToast(isReapprove?'✅ 再承認しました':'✅ 納品書を確定しました','success');
 }
 window.approveDeliveryNote=approveDeliveryNote;
@@ -7264,7 +7277,7 @@ function tentativeConfirmDeliveryNote(){
   dn.offset_snapshot=_deliveryOffsetSnapshot(dn); // ★仮確定時点のオフセットを凍結（2026/8/23追加）
   dn.tentative_at=nowIso;
   dn.tentative_by=by;
-  _saveDeliveryNote(p);renderDeliveryNoteSection(p);
+  _saveDeliveryNote(p);renderDeliveryNoteSection(p,null,true);
   showToast('🔖 仮確定にしました（正式な承認ではありません）','success');
 }
 window.tentativeConfirmDeliveryNote=tentativeConfirmDeliveryNote;
