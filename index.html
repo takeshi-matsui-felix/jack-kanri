@@ -690,7 +690,11 @@ body.sp-mode #areaTabsBtns{ display:none !important; }
         <div style="margin-bottom:8px"><label style="font-size:10px;font-weight:700;color:#475569;display:block;margin-bottom:3px">メール *</label><input type="email" id="jackRegEmail" placeholder="email@example.com" style="width:100%;padding:8px 10px;border:1.5px solid #e2e8f0;border-radius:7px;font-size:12px;box-sizing:border-box"></div>
         <div style="margin-bottom:8px"><label style="font-size:10px;font-weight:700;color:#475569;display:block;margin-bottom:3px">パスワード * (8文字以上)</label><input type="password" id="jackRegPw" placeholder="パスワード" style="width:100%;padding:8px 10px;border:1.5px solid #e2e8f0;border-radius:7px;font-size:12px;box-sizing:border-box"></div>
         <div style="margin-bottom:14px"><label style="font-size:10px;font-weight:700;color:#475569;display:block;margin-bottom:3px">役割 *</label>
-          <select id="jackRegRole" style="width:100%;padding:8px 10px;border:1.5px solid #e2e8f0;border-radius:7px;font-size:12px;box-sizing:border-box"><option value="worker">協力業者</option><option value="admin">管理者（要承認）</option></select></div>
+          <select id="jackRegRole" onchange="jackRegRoleChanged()" style="width:100%;padding:8px 10px;border:1.5px solid #e2e8f0;border-radius:7px;font-size:12px;box-sizing:border-box"><option value="worker">協力業者</option><option value="admin">管理者（要承認）</option></select></div>
+        <div id="jackRegKoushuWrap" style="margin-bottom:14px">
+          <label style="font-size:10px;font-weight:700;color:#475569;display:block;margin-bottom:3px">担当工種（複数選択可・あとで変更できます）</label>
+          <div id="jackRegKoushuList" style="max-height:140px;overflow-y:auto;border:1.5px solid #e2e8f0;border-radius:7px;padding:4px 8px;font-size:11px;color:#94a3b8">読み込み中...</div>
+        </div>
         <div id="jackRegErr" style="display:none;background:#fee2e2;color:#dc2626;padding:8px 11px;border-radius:7px;font-size:12px;margin-bottom:10px"></div>
         <button onclick="doRegister()" id="jackRegBtn" style="width:100%;padding:12px;background:#1a56db;color:white;border-radius:9px;font-size:14px;font-weight:700;cursor:pointer">登録申請</button>
         <div style="background:#fefce8;border:1px solid #fde68a;border-radius:7px;padding:9px 11px;margin-top:10px;font-size:11px;color:#92400e">⚠️ 登録後、管理者（松井）の承認後にご利用いただけます</div>
@@ -1177,7 +1181,7 @@ var POST_END_PAD = 120; // ★スクロール終端の余白：完了検査列�
 // ===== 納品書機能：休工日カレンダー・稼働日計算 =====
 // ★日本の祝日（政府発表・国立天文台暦要項ベース、2025〜2028年分）
 // ★アプリバージョン（不具合問い合わせ対応用。リリースごとに更新すること。2026/8/23追加）
-var APP_VERSION = '2026.10.03.3';
+var APP_VERSION = '2026.10.03.4';
 window.APP_VERSION=APP_VERSION;
 console.log('[JACK] version', APP_VERSION);
 var JP_HOLIDAYS = [
@@ -12272,8 +12276,61 @@ function showAuthTab(tab){
       off='flex:1;padding:11px;font-size:13px;font-weight:600;color:#64748b';
   if(tl)tl.style.cssText=tab==='login'?on:off;
   if(tr)tr.style.cssText=tab==='register'?on:off;
+  if(tab==='register')_loadRegKoushuOptions();
 }
 window.showAuthTab=showAuthTab;
+
+// ★新規登録時に業者自身が担当工種を選択できるようにする（2026/10追加）。
+//   ログイン前（未認証）のため、mastersテーブルは公開読取り（masters_public_read）経由で取得する。
+//   取得できない場合（ポリシー未設定・通信不可等）は、項目自体を隠して登録を妨げない。
+var _regKoushuOptions=null;
+var _regKoushuLoading=false;
+async function _loadRegKoushuOptions(){
+  var wrap=document.getElementById('jackRegKoushuList');
+  if(!wrap)return;
+  if(_regKoushuOptions){_renderRegKoushuList();return;}
+  if(_regKoushuLoading)return;
+  _regKoushuLoading=true;
+  try{
+    var sb=getSB();
+    if(!sb){_regKoushuOptions=[];wrap.parentElement.style.display='none';return;}
+    var r=await sb.from('masters').select('name,steps');
+    var set={};
+    (r.data||[]).forEach(function(row){
+      if(!row||!row.name||row.name.indexOf('__')===0)return; // __staff_master__等の特殊設定行は除外
+      var steps=row.steps;
+      if(typeof steps==='string'){try{steps=JSON.parse(steps);}catch(e){steps=[];}}
+      if(!Array.isArray(steps))return;
+      steps.forEach(function(s){
+        var nm=String((s&&(s.name||s.label))||'').trim();
+        if(nm)set[nm]=true;
+      });
+    });
+    _regKoushuOptions=Object.keys(set).sort(function(a,b){return a.localeCompare(b,'ja');});
+  }catch(e){
+    _regKoushuOptions=[];
+  }
+  _regKoushuLoading=false;
+  if(!_regKoushuOptions.length){
+    if(wrap.parentElement)wrap.parentElement.style.display='none'; // 取得できなければ項目自体を隠す（登録自体は妨げない）
+    return;
+  }
+  _renderRegKoushuList();
+}
+function _renderRegKoushuList(){
+  var wrap=document.getElementById('jackRegKoushuList');
+  if(!wrap||!_regKoushuOptions)return;
+  wrap.innerHTML=_regKoushuOptions.map(function(nm){
+    return '<label style="display:flex;align-items:center;gap:6px;padding:2px 0;cursor:pointer;color:#1e293b"><input type="checkbox" class="jack-reg-koushu" value="'+nm+'">'+nm+'</label>';
+  }).join('');
+  jackRegRoleChanged();
+}
+function jackRegRoleChanged(){
+  var role=(document.getElementById('jackRegRole')||{}).value||'worker';
+  var sec=document.getElementById('jackRegKoushuWrap');
+  if(sec)sec.style.display=(role==='worker'&&_regKoushuOptions&&_regKoushuOptions.length)?'':'none';
+}
+window.jackRegRoleChanged=jackRegRoleChanged;
 
 async function doLogin(){
   var email=(document.getElementById('jackLoginEmail')||{}).value||'',
@@ -12305,14 +12362,25 @@ async function doRegister(){
       role=(document.getElementById('jackRegRole')||{}).value||'worker',
       errEl=document.getElementById('jackRegErr'),
       btn=document.getElementById('jackRegBtn');
+  // ★業者が新規登録時に自分で担当工種を選べるように（2026/10追加）。役割が協力業者の時のみ収集。
+  var koushu=[];
+  if(role==='worker'){
+    document.querySelectorAll('.jack-reg-koushu:checked').forEach(function(c){koushu.push(c.value);});
+  }
   if(!name||!company||!phone||!email||!pw){if(errEl){errEl.textContent='全ての項目を入力してください';errEl.style.display='';}return;}
   if(pw.length<8){if(errEl){errEl.textContent='パスワードは8文字以上';errEl.style.display='';}return;}
   if(btn){btn.textContent='登録中...';btn.disabled=true;}
   if(errEl)errEl.style.display='none';
   var sb=getSB();
-  var r=await sb.auth.signUp({email,password:pw,options:{data:{name,company,phone,role}}});
+  var r=await sb.auth.signUp({email,password:pw,options:{data:{name,company,phone,role,koushu}}});
   if(r.error){if(errEl){errEl.textContent=r.error.message;errEl.style.display='';}if(btn){btn.textContent='登録申請';btn.disabled=false;}return;}
   currentUser=r.data.user;
+  // ★profilesへのkoushu反映はDBトリガー側の対応状況に依存するため、セッションが取れていれば
+  //   保険としてクライアント側からも直接書き込む（失敗しても登録自体は継続。あとで管理者が
+  //   「✏️ マスター編集」から設定できるため致命的ではない）。
+  if(koushu.length&&r.data&&r.data.user&&r.data.user.id){
+    try{await sb.from('profiles').update({koushu:koushu}).eq('id',r.data.user.id);}catch(e){}
+  }
   showPendingScreen();
   if(btn){btn.textContent='登録申請';btn.disabled=false;}
 }
@@ -13880,7 +13948,11 @@ function admUserCard(u,approved){
     +'<div style="flex:1;min-width:0">'
       +'<div style="font-size:13px;font-weight:700;color:#1e293b">'+(u.name||'')+' <span style="font-size:10px;color:'+(u.role==='admin'?'#f59e0b':'#64748b')+'">'+( u.role==='admin'?'👑管理者':'協力業者')+'</span></div>'
       +'<div style="font-size:11px;color:#94a3b8">'+(u.email||'')+'</div>'
-      +'<div style="font-size:10px;color:#94a3b8">'+(u.company||'<span style=\'color:#f59e0b\'>会社名未登録</span>')+' / '+(u.phone||'')+'</div>'
+      // ★一覧（カード）上で直接編集できるように、会社名・電話番号をinput化（2026/10追加・モーダルを開かなくても直せる）
+      +'<div style="display:flex;gap:4px;align-items:center;margin-top:2px;flex-wrap:wrap">'
+        +'<input type="text" value="'+(u.company||'')+'" placeholder="会社名未登録" data-pid="'+u.id+'" onchange="admSaveProfileField(this,\'company\')" style="font-size:10px;padding:2px 6px;border:1.5px solid '+(u.company?'#e2e8f0':'#fca5a5')+';border-radius:5px;width:120px">'
+        +'<input type="text" value="'+(u.phone||'')+'" placeholder="電話番号" data-pid="'+u.id+'" onchange="admSaveProfileField(this,\'phone\')" style="font-size:10px;padding:2px 6px;border:1.5px solid #e2e8f0;border-radius:5px;width:100px">'
+      +'</div>'
       +koushuHtml
     +'</div>'
     +'<div style="display:flex;gap:4px;align-items:center;flex-wrap:wrap">'
@@ -13964,7 +14036,20 @@ async function saveUserMasterEdit(uid){
   var r=await sb.from('profiles').update(obj).eq('id',uid);
   if(r.error){
     console.error('[JACK] 業者マスターの保存に失敗',r.error);
-    showToast('⚠️ 保存に失敗しました：'+r.error.message,'error');
+    // ★2026/10修正：profilesテーブルにkoushu列がまだ追加されていない環境（ALTER TABLE未実行）では
+    //   このまま失敗すると会社名の修正まで一緒に失われてしまう。koushu列が無いことが原因の場合は
+    //   会社名だけでも保存し、何が原因でどう直せば良いかを具体的に案内する。
+    var msg=String((r.error&&r.error.message)||'');
+    if(msg.indexOf('koushu')>=0||msg.toLowerCase().indexOf('schema cache')>=0){
+      var r2=await sb.from('profiles').update({company:company,updated_at:new Date().toISOString()}).eq('id',uid);
+      if(!r2.error){
+        showToast('⚠️ 会社名は保存しました。担当工種を保存するには、Supabase側で列の追加（koushu）がまだ必要です。管理者（松井）にご連絡ください。','error');
+        closeUserMasterEditModal();
+        loadAdmSec('users');
+        return;
+      }
+    }
+    showToast('⚠️ 保存に失敗しました：'+msg,'error');
     return;
   }
   showToast('✅ 保存しました','success');
@@ -14011,9 +14096,30 @@ async function admSaveField(input,field){
     showToast('✅ 保存しました','success');
     // Refresh DB_PROPS if loaded
     if(DB_PROPS){var idx=DB_PROPS.findIndex(function(p){return String(p.id)===String(pid);});if(idx>=0)DB_PROPS[idx][field]=val;}
+  }else{
+    input.style.borderColor='#ef4444';
+    showToast('⚠️ 保存に失敗しました：'+r.error.message,'error');
   }
 }
 window.admSaveField=admSaveField;
+
+// ★一覧（ユーザー管理カード）上での会社名・電話番号の直接編集用（2026/10追加・profilesテーブル対象）
+async function admSaveProfileField(input,field){
+  var pid=input.getAttribute('data-pid'),val=input.value.trim()||null,sb=getSB();
+  if(!sb)return;
+  var obj={};obj[field]=val;obj.updated_at=new Date().toISOString();
+  var r=await sb.from('profiles').update(obj).eq('id',pid);
+  if(r.error){
+    input.style.borderColor='#ef4444';
+    showToast('⚠️ 保存に失敗しました：'+r.error.message,'error');
+    return;
+  }
+  input.style.borderColor=val?'#10b981':'#fca5a5';
+  setTimeout(function(){input.style.borderColor=val?'#e2e8f0':'#fca5a5';},1500);
+  showToast('✅ 保存しました','success');
+  if(window._admUsersList){var idx=window._admUsersList.findIndex(function(u){return String(u.id)===String(pid);});if(idx>=0)window._admUsersList[idx][field]=val;}
+}
+window.admSaveProfileField=admSaveProfileField;
 
 // 物件リストフィルタ＆描画（エリアタブ付き）
 var _admCurTab='東海'; // '東海' | '関東' | '東海来期' | '関東来期'
