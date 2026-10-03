@@ -1181,7 +1181,7 @@ var POST_END_PAD = 120; // ★スクロール終端の余白：完了検査列�
 // ===== 納品書機能：休工日カレンダー・稼働日計算 =====
 // ★日本の祝日（政府発表・国立天文台暦要項ベース、2025〜2028年分）
 // ★アプリバージョン（不具合問い合わせ対応用。リリースごとに更新すること。2026/8/23追加）
-var APP_VERSION = '2026.10.03.4';
+var APP_VERSION = '2026.10.03.5';
 window.APP_VERSION=APP_VERSION;
 console.log('[JACK] version', APP_VERSION);
 var JP_HOLIDAYS = [
@@ -14032,7 +14032,8 @@ async function saveUserMasterEdit(uid){
   var checks=document.querySelectorAll('.umk-step:checked');
   var koushu=[];
   checks.forEach(function(c){koushu.push(c.value);});
-  var obj={company:company,koushu:koushu,updated_at:new Date().toISOString()};
+  // ★profilesテーブルにはupdated_at列が存在しない（properties等とは異なるテーブル）ため付与しない
+  var obj={company:company,koushu:koushu};
   var r=await sb.from('profiles').update(obj).eq('id',uid);
   if(r.error){
     console.error('[JACK] 業者マスターの保存に失敗',r.error);
@@ -14041,7 +14042,7 @@ async function saveUserMasterEdit(uid){
     //   会社名だけでも保存し、何が原因でどう直せば良いかを具体的に案内する。
     var msg=String((r.error&&r.error.message)||'');
     if(msg.indexOf('koushu')>=0||msg.toLowerCase().indexOf('schema cache')>=0){
-      var r2=await sb.from('profiles').update({company:company,updated_at:new Date().toISOString()}).eq('id',uid);
+      var r2=await sb.from('profiles').update({company:company}).eq('id',uid);
       if(!r2.error){
         showToast('⚠️ 会社名は保存しました。担当工種を保存するには、Supabase側で列の追加（koushu）がまだ必要です。管理者（松井）にご連絡ください。','error');
         closeUserMasterEditModal();
@@ -14107,7 +14108,8 @@ window.admSaveField=admSaveField;
 async function admSaveProfileField(input,field){
   var pid=input.getAttribute('data-pid'),val=input.value.trim()||null,sb=getSB();
   if(!sb)return;
-  var obj={};obj[field]=val;obj.updated_at=new Date().toISOString();
+  // ★profilesテーブルにはupdated_at列が存在しない（properties等とは異なるテーブル）ため付与しない
+  var obj={};obj[field]=val;
   var r=await sb.from('profiles').update(obj).eq('id',pid);
   if(r.error){
     input.style.borderColor='#ef4444';
