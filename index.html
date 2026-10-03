@@ -1181,7 +1181,7 @@ var POST_END_PAD = 120; // ★スクロール終端の余白：完了検査列�
 // ===== 納品書機能：休工日カレンダー・稼働日計算 =====
 // ★日本の祝日（政府発表・国立天文台暦要項ベース、2025〜2028年分）
 // ★アプリバージョン（不具合問い合わせ対応用。リリースごとに更新すること。2026/8/23追加）
-var APP_VERSION = '2026.10.03.7';
+var APP_VERSION = '2026.10.04.2';
 window.APP_VERSION=APP_VERSION;
 console.log('[JACK] version', APP_VERSION);
 var JP_HOLIDAYS = [
@@ -1759,6 +1759,16 @@ function _tentativeStepSet(p, segs){
 }
 
 function isFav(p){return myFavProps.some(function(f){return f.fix_no===p.fix_no&&f.name===p.name;});}
+// ★myFavProps（マイ物件）に保存されているのは{fix_no,name,area}だけの軽量レコードで、
+//   confirm_done・land_payment・custom_gantt等を持たない。これをそのままgetActiveSegs()に
+//   渡すと工程を正しく計算できず、工種が1件も見つからない（2026/10発覚・工事カレンダーの
+//   「MY工種を一括選択」が常に0件になるバグの真因）。getAllProps()からfix_no一致の完全な
+//   物件データを引き直してから渡すためのヘルパー。
+function _resolveFavProp(fav){
+  if(!fav||typeof getAllProps!=='function')return fav;
+  var full=getAllProps().find(function(p){return p.fix_no===fav.fix_no&&p.name===fav.name;});
+  return full||fav;
+}
 function addFav(p){if(!isFav(p)){myFavProps.push({fix_no:p.fix_no,name:p.name,area:p.area});saveLS('jack_myfavs',myFavProps);}}
 function removeFav(p){myFavProps=myFavProps.filter(function(f){return!(f.fix_no===p.fix_no&&f.name===p.name);});saveLS('jack_myfavs',myFavProps);}
 function custKey(p){return String(p.fix_no||'')+'__'+(p.name||'');}
@@ -12339,35 +12349,19 @@ window.showAuthTab=showAuthTab;
 // ★新規登録時に業者自身が担当工種を選択できるようにする（2026/10追加）。
 //   ログイン前（未認証）のため、mastersテーブルは公開読取り（masters_public_read）経由で取得する。
 //   取得できない場合（ポリシー未設定・通信不可等）は、項目自体を隠して登録を妨げない。
-var _regKoushuOptions=null;
+// ★2026/10修正：単純な工種名の全マージ（旧_regKoushuOptions）は東海/関東の表記揺れで同義の
+//   工種が別項目に見えてしまうため、①エリア→②マスター工程→③工種 の3段階ピッカー（_amk系）に統一。
+var _regMasterGroups=null;
 var _regKoushuLoading=false;
 async function _loadRegKoushuOptions(){
   var wrap=document.getElementById('jackRegKoushuList');
   if(!wrap)return;
-  if(_regKoushuOptions){_renderRegKoushuList();return;}
+  if(_regMasterGroups){_renderRegKoushuList();return;}
   if(_regKoushuLoading)return;
   _regKoushuLoading=true;
-  try{
-    var sb=getSB();
-    if(!sb){_regKoushuOptions=[];wrap.parentElement.style.display='none';return;}
-    var r=await sb.from('masters').select('name,steps');
-    var set={};
-    (r.data||[]).forEach(function(row){
-      if(!row||!row.name||row.name.indexOf('__')===0)return; // __staff_master__等の特殊設定行は除外
-      var steps=row.steps;
-      if(typeof steps==='string'){try{steps=JSON.parse(steps);}catch(e){steps=[];}}
-      if(!Array.isArray(steps))return;
-      steps.forEach(function(s){
-        var nm=String((s&&(s.name||s.label))||'').trim();
-        if(nm)set[nm]=true;
-      });
-    });
-    _regKoushuOptions=Object.keys(set).sort(function(a,b){return a.localeCompare(b,'ja');});
-  }catch(e){
-    _regKoushuOptions=[];
-  }
+  _regMasterGroups=await _fetchMasterGroupsForPicker();
   _regKoushuLoading=false;
-  if(!_regKoushuOptions.length){
+  if(!Object.keys(_regMasterGroups).length){
     if(wrap.parentElement)wrap.parentElement.style.display='none'; // 取得できなければ項目自体を隠す（登録自体は妨げない）
     return;
   }
@@ -12375,16 +12369,16 @@ async function _loadRegKoushuOptions(){
 }
 function _renderRegKoushuList(){
   var wrap=document.getElementById('jackRegKoushuList');
-  if(!wrap||!_regKoushuOptions)return;
-  wrap.innerHTML=_regKoushuOptions.map(function(nm){
-    return '<label style="display:flex;align-items:center;gap:6px;padding:2px 0;cursor:pointer;color:#1e293b"><input type="checkbox" class="jack-reg-koushu" value="'+nm+'">'+nm+'</label>';
-  }).join('');
+  if(!wrap||!_regMasterGroups)return;
+  wrap.innerHTML='<div id="jackReg-amkroot"></div>';
+  _amkInit('jackReg',_regMasterGroups,[],[]);
+  _amkRender('jackReg');
   jackRegRoleChanged();
 }
 function jackRegRoleChanged(){
   var role=(document.getElementById('jackRegRole')||{}).value||'worker';
   var sec=document.getElementById('jackRegKoushuWrap');
-  if(sec)sec.style.display=(role==='worker'&&_regKoushuOptions&&_regKoushuOptions.length)?'':'none';
+  if(sec)sec.style.display=(role==='worker'&&_regMasterGroups&&Object.keys(_regMasterGroups).length)?'':'none';
 }
 window.jackRegRoleChanged=jackRegRoleChanged;
 
@@ -12418,24 +12412,26 @@ async function doRegister(){
       role=(document.getElementById('jackRegRole')||{}).value||'worker',
       errEl=document.getElementById('jackRegErr'),
       btn=document.getElementById('jackRegBtn');
-  // ★業者が新規登録時に自分で担当工種を選べるように（2026/10追加）。役割が協力業者の時のみ収集。
-  var koushu=[];
+  // ★業者が新規登録時に自分で担当エリア・担当工種を選べるように（2026/10追加）。役割が協力業者の時のみ収集。
+  //   エリア→マスター工程→工種の3段階ピッカー（_amk系）の選択結果を使う。
+  var area=[], koushu=[];
   if(role==='worker'){
-    document.querySelectorAll('.jack-reg-koushu:checked').forEach(function(c){koushu.push(c.value);});
+    var amkRes=_amkGetResult('jackReg');
+    area=amkRes.area; koushu=amkRes.koushu;
   }
   if(!name||!company||!phone||!email||!pw){if(errEl){errEl.textContent='全ての項目を入力してください';errEl.style.display='';}return;}
   if(pw.length<8){if(errEl){errEl.textContent='パスワードは8文字以上';errEl.style.display='';}return;}
   if(btn){btn.textContent='登録中...';btn.disabled=true;}
   if(errEl)errEl.style.display='none';
   var sb=getSB();
-  var r=await sb.auth.signUp({email,password:pw,options:{data:{name,company,phone,role,koushu}}});
+  var r=await sb.auth.signUp({email,password:pw,options:{data:{name,company,phone,role,area,koushu}}});
   if(r.error){if(errEl){errEl.textContent=r.error.message;errEl.style.display='';}if(btn){btn.textContent='登録申請';btn.disabled=false;}return;}
   currentUser=r.data.user;
-  // ★profilesへのkoushu反映はDBトリガー側の対応状況に依存するため、セッションが取れていれば
+  // ★profilesへのarea/koushu反映はDBトリガー側の対応状況に依存するため、セッションが取れていれば
   //   保険としてクライアント側からも直接書き込む（失敗しても登録自体は継続。あとで管理者が
   //   「✏️ マスター編集」から設定できるため致命的ではない）。
-  if(koushu.length&&r.data&&r.data.user&&r.data.user.id){
-    try{await sb.from('profiles').update({koushu:koushu}).eq('id',r.data.user.id);}catch(e){}
+  if((koushu.length||area.length)&&r.data&&r.data.user&&r.data.user.id){
+    try{await sb.from('profiles').update({area:area,koushu:koushu}).eq('id',r.data.user.id);}catch(e){}
   }
   showPendingScreen();
   if(btn){btn.textContent='登録申請';btn.disabled=false;}
@@ -12556,6 +12552,20 @@ async function onAuthSuccess(isNewLogin){
   updateSidebarUser();
   var adminBtn=document.getElementById('sbAdminBtn');
   if(adminBtn&&currentProfile.role==='admin'&&isPcMode)adminBtn.style.display='';
+  // ★既存業者（約200名）の担当エリア・工種が未登録の場合、次回ログイン時に再登録を必須にする（2026/10追加）
+  //   フルの再認証（ログアウト→ログイン）は不要で、ログイン直後に必須モーダルを表示するだけで済ませる。
+  if(currentProfile.role==='worker'&&(!currentProfile.area||!Array.isArray(currentProfile.area)||!currentProfile.area.length)){
+    var _fakGroups=await _fetchMasterGroupsForPicker();
+    if(_fakGroups&&Object.keys(_fakGroups).length){
+      openForcedAreaKoushuModal(_fakGroups);
+      return; // 保存が完了するまでメイン画面の読み込みはモーダル側（saveForcedAreaKoushu）から継続する
+    }
+    // ★マスター取得に失敗した場合（通信不可・一時的なエラー等）はゲート自体をスキップし、通常起動を継続する
+    //   （全業者がロックされてしまう事態を避ける安全策）
+  }
+  _finishLoginFlow(isNewLogin);
+}
+function _finishLoginFlow(isNewLogin){
   loadPropertiesFromCacheOrDB(false);
   if(isNewLogin)showToast('✅ ログインしました','success');
   // 新規業者: tutorial_doneがfalseなら自動起動
@@ -12565,6 +12575,60 @@ async function onAuthSuccess(isNewLogin){
     else checkAnnouncements(); // チュートリアル不要なら通常通りお知らせ確認
   }, 1500);
 }
+
+// ★既存業者への「担当エリア・工種」再登録必須モーダル（2026/10追加）
+//   ログイン直後、プロフィールにarea情報が無い場合にのみ表示。✕ボタンは設けず、登録完了まで閉じられない。
+function openForcedAreaKoushuModal(groups){
+  var modal=document.getElementById('_forcedAreaKoushuModal');
+  if(!modal){
+    modal=document.createElement('div');
+    modal.id='_forcedAreaKoushuModal';
+    modal.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.65);z-index:10000;display:flex;align-items:flex-start;justify-content:center;overflow-y:auto;padding:20px 10px;';
+    document.body.appendChild(modal);
+  }
+  var curKoushu=(currentProfile&&currentProfile.koushu)||[];
+  if(typeof curKoushu==='string'){try{curKoushu=JSON.parse(curKoushu);}catch(e){curKoushu=[];}}
+  if(!Array.isArray(curKoushu))curKoushu=[];
+  var pickerId='fak';
+  _amkInit(pickerId,groups,[],curKoushu);
+  modal.innerHTML='<div style="background:white;border-radius:14px;width:100%;max-width:440px;box-shadow:0 20px 60px rgba(0,0,0,.3);display:flex;flex-direction:column;max-height:92vh;">'
+    +'<div style="padding:18px 20px 12px;border-bottom:1px solid #e2e8f0;flex-shrink:0">'
+    +'<div style="font-size:14px;font-weight:800;color:#1e293b">📋 担当エリア・工種のご登録</div>'
+    +'<div style="font-size:11px;color:#64748b;margin-top:6px;line-height:1.6">工事カレンダー機能のため、担当エリアと工種のご登録をお願いします。一度登録いただければ、次回以降は表示されません。</div>'
+    +'</div>'
+    +'<div style="overflow-y:auto;flex:1;padding:14px 20px">'
+    +'<div id="'+pickerId+'-amkroot"></div>'
+    +'</div>'
+    +'<div style="padding:12px 20px;border-top:1px solid #e2e8f0;flex-shrink:0;background:white;border-radius:0 0 14px 14px">'
+    +'<button id="fakSaveBtn" onclick="saveForcedAreaKoushu()" style="width:100%;padding:12px;background:#1a56db;color:white;border:none;border-radius:9px;font-size:13px;font-weight:800;cursor:pointer">💾 登録して続ける</button>'
+    +'</div>'
+    +'</div>';
+  modal.style.display='flex';
+  _amkRender(pickerId);
+}
+window.openForcedAreaKoushuModal=openForcedAreaKoushuModal;
+
+async function saveForcedAreaKoushu(){
+  var sb=getSB(); if(!sb)return;
+  var res=_amkGetResult('fak');
+  if(!res.area.length){showToast('⚠️ エリアを1つ以上選択してください','error');return;}
+  var btn=document.getElementById('fakSaveBtn');
+  if(btn){btn.disabled=true;btn.textContent='保存中...';}
+  var r=await sb.from('profiles').update({area:res.area,koushu:res.koushu}).eq('id',currentUser.id);
+  if(r.error){
+    showToast('⚠️ 保存に失敗しました：'+((r.error&&r.error.message)||''),'error');
+    if(btn){btn.disabled=false;btn.textContent='💾 登録して続ける';}
+    return;
+  }
+  currentProfile.area=res.area; currentProfile.koushu=res.koushu;
+  try{localStorage.setItem('jack_profile_cache',JSON.stringify(currentProfile));}catch(e){}
+  var modal=document.getElementById('_forcedAreaKoushuModal');
+  if(modal)modal.style.display='none';
+  delete window._amkPickers['fak'];
+  showToast('✅ 登録しました。ありがとうございます！','success');
+  _finishLoginFlow(true);
+}
+window.saveForcedAreaKoushu=saveForcedAreaKoushu;
 
 // ===== お知らせ機能 =====
 async function checkAnnouncements(){
@@ -13200,7 +13264,7 @@ function openMyCalendar(){
   var favs=(typeof myFavProps!=='undefined')?myFavProps:[];
   var validIds=new Set();
   favs.forEach(function(fav){
-    var segs=(typeof getActiveSegs==='function')?getActiveSegs(fav):[];
+    var segs=(typeof getActiveSegs==='function')?getActiveSegs(_resolveFavProp(fav)):[];
     if(!segs)segs=fav.segments||[];
     segs.filter(function(s){return !s.layer&&(s.start_date||s.date)&&s.end_date;}).forEach(function(s){
       var lbl=s.label||s.name||'';
@@ -13238,7 +13302,7 @@ function showSegPopup(favEnc){
   // なければmyFavPropsから
   if(!fav)fav=myFavProps.find(function(f){return f.name===favName;})||{name:favName};
 
-  var segs=(typeof getActiveSegs==='function')?getActiveSegs(fav):[];
+  var segs=(typeof getActiveSegs==='function')?getActiveSegs(_resolveFavProp(fav)):[];
   if(!segs||!segs.length)segs=fav.segments||fav.master_segs||[];
   var validSegs=segs.filter(function(s){return !s.layer&&(s.start_date||s.date)&&s.end_date;});
 
@@ -13334,7 +13398,7 @@ function _syncCalTasksWithGantt(){
   var favs=(typeof myFavProps!=='undefined')?myFavProps:[];
   var changed=[];
   favs.forEach(function(fav){
-    var segs=(typeof getActiveSegs==='function')?getActiveSegs(fav):[];
+    var segs=(typeof getActiveSegs==='function')?getActiveSegs(_resolveFavProp(fav)):[];
     if(!segs)segs=fav.segments||[];
     var validSegs=segs.filter(function(s){return !s.layer&&(s.start_date||s.date)&&s.end_date;});
     validSegs.forEach(function(s){
@@ -13400,7 +13464,7 @@ async function selectMyKoushuAllFavs(){
   if(!favs.length){showToast('マイ物件が未登録です','error');return;}
   var added=0;
   favs.forEach(function(fav){
-    var segs=(typeof getActiveSegs==='function')?getActiveSegs(fav):[];
+    var segs=(typeof getActiveSegs==='function')?getActiveSegs(_resolveFavProp(fav)):[];
     if(!segs)segs=fav.segments||[];
     var validSegs=segs.filter(function(s){return !s.layer&&(s.start_date||s.date)&&s.end_date;});
     validSegs.forEach(function(s){
@@ -13440,7 +13504,7 @@ function renderCalendar(){
     leftHtml+='<div style="padding:10px;font-size:11px;color:rgba(255,255,255,.4)">マイ物件を登録してください</div>';
   } else {
     favs.forEach(function(fav){
-      var segs=(typeof getActiveSegs==='function')?getActiveSegs(fav):[];
+      var segs=(typeof getActiveSegs==='function')?getActiveSegs(_resolveFavProp(fav)):[];
       if(!segs)segs=fav.segments||[];
       var validSegs=segs.filter(function(s){return !s.layer&&(s.start_date||s.date)&&s.end_date;});
       var sn=(fav.name||'').replace(/^(Jack|Walter)\s*/i,'');
@@ -13460,15 +13524,19 @@ function renderCalendar(){
 
   // 右エリア：縦スクロール13ヶ月（前月〜12ヶ月後）
   // ツールバー
-  var toolBar='<div style="display:flex;align-items:center;justify-content:space-between;padding:8px 12px;border-bottom:1px solid #e2e8f0;flex-shrink:0;background:white;position:sticky;top:0;z-index:10;">'
-
-    +'<div style="font-size:13px;font-weight:800;color:#1e293b">📅 工事カレンダー</div>'
-    +'<div style="display:flex;gap:6px;">'
-      +'<button onclick="selectMyKoushuAllFavs()" title="自分の担当工種に一致する工種をマイ物件全件からまとめて選択" style="padding:5px 10px;border-radius:7px;background:#059669;color:white;font-size:11px;cursor:pointer;font-weight:700">⭐ MY工種を一括選択</button>'
-      +'<button onclick="scrollToToday()" style="padding:5px 12px;border-radius:7px;background:#1a56db;color:white;font-size:11px;cursor:pointer;font-weight:700">今月</button>'
-      +'<button onclick="printCalendar()" style="padding:5px 10px;border-radius:7px;background:#475569;color:white;font-size:11px;cursor:pointer;font-weight:700">🖨️</button>'
-      +'<button onclick="clearCalTasks()" style="padding:5px 10px;border-radius:7px;background:#fee2e2;color:#dc2626;font-size:11px;cursor:pointer;font-weight:700">🗑</button>'
+  // ★2026/10修正：「MY工種を一括選択」ボタンを追加した際、既存の今月/印刷/クリアボタンが
+  //   横幅不足で右端から見切れてしまっていた（特にスマホ幅）。1行目は従来のボタンだけに戻し、
+  //   新ボタンは2行目に分けて、既存ボタンが隠れないようにする。
+  var toolBar='<div style="padding:8px 12px;border-bottom:1px solid #e2e8f0;flex-shrink:0;background:white;position:sticky;top:0;z-index:10;">'
+    +'<div style="display:flex;align-items:center;justify-content:space-between;gap:6px;margin-bottom:6px;">'
+      +'<div style="font-size:13px;font-weight:800;color:#1e293b;white-space:nowrap">📅 工事カレンダー</div>'
+      +'<div style="display:flex;gap:6px;flex-shrink:0;">'
+        +'<button onclick="scrollToToday()" style="padding:5px 12px;border-radius:7px;background:#1a56db;color:white;font-size:11px;cursor:pointer;font-weight:700">今月</button>'
+        +'<button onclick="printCalendar()" style="padding:5px 10px;border-radius:7px;background:#475569;color:white;font-size:11px;cursor:pointer;font-weight:700">🖨️</button>'
+        +'<button onclick="clearCalTasks()" style="padding:5px 10px;border-radius:7px;background:#fee2e2;color:#dc2626;font-size:11px;cursor:pointer;font-weight:700">🗑 クリア</button>'
+      +'</div>'
     +'</div>'
+    +'<button onclick="selectMyKoushuAllFavs()" title="自分の担当工種に一致する工種をマイ物件全件からまとめて選択" style="width:100%;padding:6px 10px;border-radius:7px;background:#059669;color:white;font-size:11px;cursor:pointer;font-weight:700;border:none">⭐ MY工種を一括選択</button>'
   +'</div>';
   // ★物件詳細のガント変更が反映された最新の「最終更新」情報を薄く表示（2026/10追加）
   var lastChangeHtml='';
@@ -13514,11 +13582,16 @@ function renderCalendar(){
       var dow=new Date(yr,mn,day).getDay();
       var isHol=_isLongHolidayStr(ds);
       var dayTasks=calTasks.filter(function(t){return t.startDate<=ds&&t.endDate>=ds;});
+      // ★2026/10修正：以前は1日あたり最大3件までしか表示せず、超過分は「+N」のテキストに畳んで
+      //   隠していたため、件数が多い日はカレンダー上で内容を確認できなかった。
+      //   min-height固定はそのまま（最低限の大きさは確保しつつ）、中身の件数が多い日は
+      //   セル自体が下に伸びて全件表示されるようにする（grid側は行の高さをauto計算するため、
+      //   同じ週の他の曜日のセルも自動的に高さが揃う）。
       months+='<div class="cal-day" data-date="'+ds+'" style="min-height:60px;border:1px solid '+(isToday?'#1a56db':'#e2e8f0')+';border-radius:5px;padding:2px;background:'+(isToday?'#eff6ff':isHol?'#fef9e7':'white')+'">'
         +'<div style="font-size:10px;font-weight:700;text-align:right;margin-bottom:1px;color:'+(isToday?'#1a56db':dow===0?'#ef4444':dow===6?'#3b82f6':isHol?'#b45309':'#475569')+'">'+day+'</div>';
       // 同色バーが重なる場合に色を自動調整するユーティリティ
       var colorUsedInDay={};
-      dayTasks.slice(0,3).forEach(function(t){
+      dayTasks.forEach(function(t){
         var propShort=(t.prop||'').replace(/^(Jack|Walter)\s*/i,'');
         var barLabel=propShort?propShort+' '+t.title:t.title;
         var baseColor=t.color||'#1a56db';
@@ -13551,7 +13624,6 @@ function renderCalendar(){
         }
         colorUsedInDay[colorKey]=(colorUsedInDay[colorKey]||0)+1;
       });
-      if(dayTasks.length>3)months+='<div style="font-size:8px;color:#94a3b8">+'+(dayTasks.length-3)+'</div>';
       months+='</div>';
     }
     months+='</div></div>';
@@ -13619,7 +13691,88 @@ function calNav(dir){/* 縦スクロール方式のため非推奨 */}
 window.calNav=calNav;
 function clearCalTasks(){if(!confirm('カレンダーを全クリアしますか？'))return;calTasks=[];calSelections={};try{saveLS('jack_cal_tasks',calTasks);saveLS('jack_cal_sel',calSelections);}catch(e){}renderCalendar();showToast('クリアしました','');}
 window.clearCalTasks=clearCalTasks;
-function printCalendar(){window.print();}
+// ★2026/10修正：以前はwindow.print()でアプリ画面全体をそのまま印刷していたため、
+//   アプリ共通の印刷用CSS（物件一覧工程表(ガント)を強制的に展開して表示するルール等）が
+//   一緒に効いてしまい、工事カレンダーの印刷に無関係なガント表などが紙面に混入するバグがあった。
+//   物件ごとの工程表印刷（printDetailGantt等）と同じ方式＝「印刷専用の別ウィンドウに、
+//   カレンダーだけの自己完結したHTMLを書き出して印刷する」方式に統一し、完全に分離する。
+function _buildCalendarPrintHtml(){
+  var today=new Date();
+  var todayStr=today.getFullYear()+'-'+('0'+(today.getMonth()+1)).slice(-2)+'-'+('0'+today.getDate()).slice(-2);
+  var favs=(typeof myFavProps!=='undefined')?myFavProps:[];
+  var dowNames=['日','月','火','水','木','金','土'];
+  var monthsHtml='';
+  var baseYear=today.getFullYear(), baseMonth=today.getMonth();
+  for(var mo=-1;mo<=12;mo++){
+    var yr=baseYear, mn=baseMonth+mo;
+    while(mn<0){mn+=12;yr--;}
+    while(mn>11){mn-=12;yr++;}
+    var first=new Date(yr,mn,1);
+    var last=new Date(yr,mn+1,0);
+    var isCurrentMonth=(yr===today.getFullYear()&&mn===today.getMonth());
+    monthsHtml+='<div class="cal-print-month'+(mo>-1?' cal-print-pagebreak':'')+'">';
+    monthsHtml+='<div class="cal-print-mtitle'+(isCurrentMonth?' cal-print-mtitle-cur':'')+'">'+yr+'年'+(mn+1)+'月'+(isCurrentMonth?'（今月）':'')+'</div>';
+    monthsHtml+='<div class="cal-print-dow">'+dowNames.map(function(d,i){
+      return '<div class="'+(i===0?'sun':i===6?'sat':'')+'">'+d+'</div>';
+    }).join('')+'</div>';
+    monthsHtml+='<div class="cal-print-grid">';
+    for(var i=0;i<first.getDay();i++)monthsHtml+='<div class="cal-print-cell blank"></div>';
+    for(var day=1;day<=last.getDate();day++){
+      var ds=yr+'-'+('0'+(mn+1)).slice(-2)+'-'+('0'+day).slice(-2);
+      var isToday=ds===todayStr;
+      var dow=new Date(yr,mn,day).getDay();
+      var isHol=(typeof _isLongHolidayStr==='function')&&_isLongHolidayStr(ds);
+      var dayTasks=(typeof calTasks!=='undefined'?calTasks:[]).filter(function(t){return t.startDate<=ds&&t.endDate>=ds;});
+      var barsHtml=dayTasks.map(function(t){
+        var propShort=(t.prop||'').replace(/^(Jack|Walter)\s*/i,'');
+        var barLabel=propShort?propShort+' '+t.title:t.title;
+        return '<div class="cal-print-bar" style="background:'+(t.color||'#1a56db')+'">'+_escHtml(barLabel)+'</div>';
+      }).join('');
+      monthsHtml+='<div class="cal-print-cell'+(isToday?' today':'')+(isHol?' holiday':'')+'">'
+        +'<div class="cal-print-daynum '+(isToday?'today':dow===0?'sun':dow===6?'sat':isHol?'holiday':'')+'">'+day+'</div>'
+        +barsHtml
+        +'</div>';
+    }
+    monthsHtml+='</div></div>';
+  }
+  return monthsHtml;
+}
+function printCalendar(){
+  if(window._printBusy)return; // ★連打で印刷ウィンドウが何枚も開いてしまうのを防ぐ
+  window._printBusy=true;
+  setTimeout(function(){window._printBusy=false;},2000);
+  var monthsHtml=_buildCalendarPrintHtml();
+  var html='<!DOCTYPE html><html><head><meta charset="UTF-8">'
+    +'<title>工事カレンダー</title>'
+    +'<style>'
+    +'*{box-sizing:border-box;margin:0;padding:0;-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important}'
+    +'body{font-family:"Hiragino Sans","Meiryo",sans-serif;background:white;padding:8mm;color:#1e293b}'
+    +'.cal-print-month{margin-bottom:10mm}'
+    +'.cal-print-pagebreak{page-break-before:always}'
+    +'.cal-print-mtitle{font-size:16px;font-weight:800;padding:4px 0 6px;border-bottom:2px solid #1a56db;margin-bottom:4px}'
+    +'.cal-print-mtitle-cur{color:#1a56db}'
+    +'.cal-print-dow{display:grid;grid-template-columns:repeat(7,1fr);gap:1px;margin-bottom:2px}'
+    +'.cal-print-dow>div{text-align:center;font-size:10px;font-weight:700;color:#64748b;padding:2px}'
+    +'.cal-print-dow>div.sun{color:#ef4444}.cal-print-dow>div.sat{color:#3b82f6}'
+    +'.cal-print-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:2px}'
+    +'.cal-print-cell{min-height:18mm;border:1px solid #cbd5e1;border-radius:3px;padding:2px;page-break-inside:avoid}'
+    +'.cal-print-cell.blank{border:none}'
+    +'.cal-print-cell.today{border-color:#1a56db;background:#eff6ff}'
+    +'.cal-print-cell.holiday{background:#fef9e7}'
+    +'.cal-print-daynum{font-size:9px;font-weight:700;text-align:right;color:#475569;margin-bottom:1px}'
+    +'.cal-print-daynum.today{color:#1a56db}.cal-print-daynum.sun,.cal-print-daynum.holiday{color:#b45309}.cal-print-daynum.sat{color:#3b82f6}'
+    +'.cal-print-bar{font-size:8px;color:white;padding:1px 3px;border-radius:2px;margin-top:1px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}'
+    +'@media print{@page{size:A4 portrait;margin:6mm}body{padding:0}}'
+    +'</style></head><body>'
+    +'<h2 style="font-size:14px;margin-bottom:6mm">📅 工事カレンダー</h2>'
+    +monthsHtml
+    // ★印刷ダイアログを閉じたら（印刷してもキャンセルしても）このタブ/ウィンドウを自動で閉じる
+    +'<scr'+'ipt>window.onafterprint=function(){window.close();};setTimeout(function(){window.print();},500);<\/sc'+'ript>'
+    +'</body></html>';
+  var w=window.open('','_blank','width=1000,height=900');
+  if(w){w.document.write(html);w.document.close();}
+  else showToast('ポップアップを許可してください','error');
+}
 window.printCalendar=printCalendar;
 
 // ================================================================
@@ -13886,8 +14039,17 @@ async function loadAdmSec(sec){
     });
     _kensaTantouOpts.sort(function(a,b){return a.localeCompare(b,'ja');});
     right.innerHTML='<div style="padding:16px">'
-      +'<div style="font-size:16px;font-weight:800;color:#1e293b;margin-bottom:4px">🔍 検査取りまとめ</div>'
-      +'<div style="font-size:11px;color:#64748b;margin-bottom:14px">配筋・躯体・断熱・完了の4検査の予約状況を一覧で確認・編集できます（引渡日順）。ここで入力した予約日は物件詳細・ガントにも即時反映されます</div>'
+      +'<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:4px;flex-wrap:wrap">'
+        +'<div style="font-size:16px;font-weight:800;color:#1e293b">🔍 検査取りまとめ</div>'
+        +'<div style="display:flex;gap:4px;align-items:center">'
+          +'<div style="display:flex;border:1.5px solid #e2e8f0;border-radius:8px;overflow:hidden">'
+            +'<button id="admKensaViewTableBtn" onclick="admKensaSetView(\'table\')" style="padding:6px 12px;font-size:11px;font-weight:700;border:none;cursor:pointer">📋 一覧</button>'
+            +'<button id="admKensaViewCalBtn" onclick="admKensaSetView(\'calendar\')" style="padding:6px 12px;font-size:11px;font-weight:700;border:none;cursor:pointer">📅 カレンダー</button>'
+          +'</div>'
+          +'<button id="admKensaPrintBtn" onclick="admPrintKensaCalendar()" style="display:none;padding:6px 10px;border-radius:7px;background:#475569;color:white;font-size:11px;cursor:pointer;font-weight:700;border:none">🖨️</button>'
+        +'</div>'
+      +'</div>'
+      +'<div style="font-size:11px;color:#64748b;margin-bottom:14px">配筋・躯体・中間・断熱・完了・完成、各検査の予約状況を一覧またはカレンダーで確認・編集できます。ここで入力した予約日は物件詳細・ガントにも即時反映されます</div>'
       +'<div style="display:flex;gap:8px;margin-bottom:10px;flex-wrap:wrap;align-items:center">'
         +'<input id="admKensaSearch" placeholder="🔎 物件名・FIX No検索" oninput="admRenderKensaTable()" style="flex:1;min-width:180px;padding:8px 12px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:12px;outline:none">'
         +'<select id="admKensaDelivery" onchange="admRenderKensaTable()" style="padding:8px 12px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:12px;font-weight:700;color:#1e293b;background:white">'
@@ -13915,6 +14077,7 @@ async function loadAdmSec(sec){
       +'<div id="admKensaTableWrap" style="overflow-x:auto;background:white;border-radius:12px;border:1px solid #e2e8f0;box-shadow:0 1px 3px rgba(0,0,0,.04)"></div>'
     +'</div>';
     window._admKensaShinsa='';
+    window._admKensaView='table';
     admRenderKensaTable();
 
   } else if(sec==='delivery'){
@@ -14150,11 +14313,149 @@ function _allMasterStepNames(){
 }
 window._allMasterStepNames=_allMasterStepNames;
 
-function openUserMasterEditModal(u){
-  var allSteps=_allMasterStepNames();
-  var curKoushu=u.koushu;
-  if(typeof curKoushu==='string'){try{curKoushu=JSON.parse(curKoushu);}catch(e){curKoushu=[];}}
-  if(!Array.isArray(curKoushu))curKoushu=[];
+// ============================================================
+// ★3段階（①エリア選択→②マスター工程選択→③担当工種選択）ピッカー（2026/10追加）
+//   背景：_allMasterStepNames()は全エリアのマスター工程の工種名を単純にマージしていたため、
+//   東海・関東で表記が揺れている同義の工種（例：壁PB／壁ＰＢ、防蟻／防蟻工事）が別項目として
+//   混在し、どちらのエリアの工種か判別できなかった。
+//   対策：マスター名に含まれる「東海」「関東」の文字列でエリアを判定し（_autoAreaMasterNameと
+//   同じ判定ロジック）、①エリア→②そのエリアのマスター工程→③そのマスターの工種、という順で
+//   段階的に選ばせることで曖昧さを排除する。業者マスター編集モーダル・新規登録フォーム・
+//   再登録必須モーダルの3箇所で共通利用する。
+// ============================================================
+var JACK_AREA_LABELS=['東海','関東'];
+function _detectMasterAreas(masterName){
+  var nm=String(masterName||'');
+  var areas=JACK_AREA_LABELS.filter(function(a){return nm.indexOf(a)>=0;});
+  return areas.length?areas:['共通']; // 東海/関東のどちらも含まない名前は「共通」扱い
+}
+// masters行の配列（[{name,steps}]）からエリアごとのマスター一覧 {area:[{name,steps:[stepName,...]}]} を作る
+function _groupMastersByArea(masters){
+  var groups={};
+  (masters||[]).forEach(function(m){
+    if(!m||!m.name||String(m.name).indexOf('__')===0)return; // __staff_master__等の内部設定行は除外
+    var steps=m.steps;
+    if(typeof steps==='string'){try{steps=JSON.parse(steps);}catch(e){steps=[];}}
+    if(!Array.isArray(steps))steps=[];
+    var stepNames=[];
+    steps.forEach(function(s){var nm=String((s&&(s.name||s.label))||'').trim();if(nm&&stepNames.indexOf(nm)<0)stepNames.push(nm);});
+    _detectMasterAreas(m.name).forEach(function(a){
+      if(!groups[a])groups[a]=[];
+      groups[a].push({name:m.name,steps:stepNames});
+    });
+  });
+  return groups;
+}
+// mastersテーブルから最新のエリア別マスター一覧を取得（認証あり/なし両方で使える。失敗時は空オブジェクト）
+async function _fetchMasterGroupsForPicker(){
+  try{
+    var sb=getSB(); if(!sb)return {};
+    var r=await sb.from('masters').select('name,steps');
+    if(r.error||!r.data)return {};
+    return _groupMastersByArea(r.data);
+  }catch(e){ return {}; }
+}
+window._amkPickers=window._amkPickers||{};
+function _amkAreaSort(areaKeys){
+  var order=['東海','関東'];
+  return areaKeys.sort(function(a,b){
+    var ia=order.indexOf(a), ib=order.indexOf(b);
+    if(ia<0&&ib<0)return a.localeCompare(b,'ja');
+    if(ia<0)return 1; if(ib<0)return -1; return ia-ib;
+  });
+}
+function _amkInit(pickerId,groups,initialAreas,initialKoushu){
+  var masterByArea={};
+  var areas=(initialAreas||[]).slice();
+  // ★そのエリアのマスターが1件だけなら自動選択（現状はほぼ全てこのケース）
+  areas.forEach(function(a){
+    var ms=groups[a]||[];
+    if(ms.length===1)masterByArea[a]=ms[0].name;
+  });
+  window._amkPickers[pickerId]={groups:groups||{},areas:areas,masterByArea:masterByArea,koushu:(initialKoushu||[]).slice()};
+}
+function _amkRender(pickerId){
+  var st=window._amkPickers[pickerId];
+  var root=document.getElementById(pickerId+'-amkroot');
+  if(!st||!root)return;
+  var areaKeys=_amkAreaSort(Object.keys(st.groups));
+  var lbl='font-size:11px;font-weight:800;color:#475569;margin:14px 0 6px;padding-bottom:4px;border-bottom:2px solid #e2e8f0';
+  var stage1=areaKeys.length
+    ? areaKeys.map(function(a){
+        var checked=st.areas.indexOf(a)>=0?' checked':'';
+        return '<label style="display:inline-flex;align-items:center;gap:5px;font-size:12px;padding:5px 10px;margin:0 6px 6px 0;background:#f8fafc;border:1.5px solid #e2e8f0;border-radius:7px;cursor:pointer"><input type="checkbox" class="amk-area" data-picker="'+pickerId+'" value="'+a+'"'+checked+'>'+a+'</label>';
+      }).join('')
+    : '<div style="font-size:11px;color:#94a3b8;padding:6px">マスター工程がまだ登録されていません</div>';
+  var stage2html='';
+  st.areas.forEach(function(a){
+    var masters=st.groups[a]||[];
+    if(!masters.length)return;
+    stage2html+='<div style="margin-bottom:8px"><div style="font-size:11px;color:#64748b;font-weight:700;margin-bottom:3px">'+a+'</div>'
+      +masters.map(function(m){
+          var checked=st.masterByArea[a]===m.name?' checked':'';
+          return '<label style="display:flex;align-items:center;gap:6px;font-size:12px;padding:3px 2px;cursor:pointer"><input type="radio" name="amk-master-'+pickerId+'-'+a+'" class="amk-master" data-picker="'+pickerId+'" data-area="'+a+'" value="'+m.name+'"'+checked+'>'+m.name+'</label>';
+        }).join('')
+      +'</div>';
+  });
+  var stepSet={};
+  st.areas.forEach(function(a){
+    var chosen=st.masterByArea[a];
+    var masters=st.groups[a]||[];
+    var m=masters.find(function(x){return x.name===chosen;});
+    if(m)m.steps.forEach(function(s){stepSet[s]=true;});
+  });
+  var stepNames=Object.keys(stepSet).sort(function(a,b){return a.localeCompare(b,'ja');});
+  var stage3html=stepNames.length
+    ? stepNames.map(function(nm){
+        var checked=st.koushu.indexOf(nm)>=0?' checked':'';
+        return '<label style="display:flex;align-items:center;gap:6px;font-size:12px;padding:4px 2px;border-bottom:1px solid #f1f5f9;cursor:pointer"><input type="checkbox" class="amk-step" data-picker="'+pickerId+'" value="'+nm+'"'+checked+'>'+nm+'</label>';
+      }).join('')
+    : '<div style="font-size:11px;color:#94a3b8;padding:8px">①エリアと②マスター工程を選択すると、③担当工種が表示されます</div>';
+  root.innerHTML=
+    '<div style="'+lbl+'">① エリア選択（複数可）</div><div>'+stage1+'</div>'
+    +(stage2html?'<div style="'+lbl+'">② マスター工程選択</div>'+stage2html:'')
+    +'<div style="'+lbl+'">③ 担当工種選択</div>'
+    +'<div style="max-height:240px;overflow-y:auto;border:1px solid #e2e8f0;border-radius:8px;padding:4px 8px">'+stage3html+'</div>';
+}
+// 保存用の結果を返す。koushuは「現在①②で選択されている範囲の工種名」のみに絞って返す
+// （③でチェック済みの工種が、後からエリア選択を変更して見えなくなっても、ここで自動的に除外されるだけで
+//   st.koushu自体は保持されるため、再度同じエリアを選べば元の選択状態に戻る）
+function _amkGetResult(pickerId){
+  var st=window._amkPickers[pickerId];
+  if(!st)return {area:[],koushu:[]};
+  var stepSet={};
+  st.areas.forEach(function(a){
+    var chosen=st.masterByArea[a];
+    var masters=st.groups[a]||[];
+    var m=masters.find(function(x){return x.name===chosen;});
+    if(m)m.steps.forEach(function(s){stepSet[s]=true;});
+  });
+  var visible=Object.keys(stepSet);
+  var koushu=st.koushu.filter(function(k){return visible.indexOf(k)>=0;});
+  return {area:st.areas.slice(),koushu:koushu};
+}
+document.addEventListener('change',function(e){
+  var t=e.target; if(!t||!t.classList)return;
+  if(t.classList.contains('amk-area')){
+    var pid=t.getAttribute('data-picker'); var st=window._amkPickers[pid]; if(!st)return;
+    var v=t.value;
+    if(t.checked){ if(st.areas.indexOf(v)<0)st.areas.push(v); var ms=st.groups[v]||[]; if(ms.length===1)st.masterByArea[v]=ms[0].name; }
+    else { st.areas=st.areas.filter(function(a){return a!==v;}); delete st.masterByArea[v]; }
+    _amkRender(pid);
+  } else if(t.classList.contains('amk-master')){
+    var pid2=t.getAttribute('data-picker'), area2=t.getAttribute('data-area');
+    var st2=window._amkPickers[pid2]; if(!st2)return;
+    st2.masterByArea[area2]=t.value;
+    _amkRender(pid2);
+  } else if(t.classList.contains('amk-step')){
+    var pid3=t.getAttribute('data-picker'); var st3=window._amkPickers[pid3]; if(!st3)return;
+    var v3=t.value;
+    if(t.checked){ if(st3.koushu.indexOf(v3)<0)st3.koushu.push(v3); }
+    else { st3.koushu=st3.koushu.filter(function(x){return x!==v3;}); }
+  }
+});
+
+async function openUserMasterEditModal(u){
   var modal=document.getElementById('_userMasterEditModal');
   if(!modal){
     modal=document.createElement('div');
@@ -14162,13 +14463,18 @@ function openUserMasterEditModal(u){
     modal.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:9999;display:flex;align-items:flex-start;justify-content:center;overflow-y:auto;padding:20px 10px;';
     document.body.appendChild(modal);
   }
+  modal.innerHTML='<div style="background:white;border-radius:14px;padding:30px 40px;font-size:12px;color:#64748b">読み込み中...</div>';
+  modal.style.display='flex';
+  var groups=await _fetchMasterGroupsForPicker();
+  var curKoushu=u.koushu;
+  if(typeof curKoushu==='string'){try{curKoushu=JSON.parse(curKoushu);}catch(e){curKoushu=[];}}
+  if(!Array.isArray(curKoushu))curKoushu=[];
+  var curArea=u.area;
+  if(typeof curArea==='string'){try{curArea=JSON.parse(curArea);}catch(e){curArea=[];}}
+  if(!Array.isArray(curArea))curArea=[];
+  var pickerId='umk-'+u.id;
+  _amkInit(pickerId,groups,curArea,curKoushu);
   var iStyle='padding:7px 10px;border:1.5px solid #e2e8f0;border-radius:7px;font-size:12px;width:100%;box-sizing:border-box;';
-  var stepsHtml=allSteps.length
-    ? allSteps.map(function(nm){
-        var checked=curKoushu.indexOf(nm)>=0?' checked':'';
-        return '<label style="display:flex;align-items:center;gap:6px;font-size:12px;padding:4px 2px;border-bottom:1px solid #f1f5f9;cursor:pointer"><input type="checkbox" class="umk-step" value="'+nm+'"'+checked+'>'+nm+'</label>';
-      }).join('')
-    : '<div style="font-size:11px;color:#94a3b8;padding:8px">マスター工程がまだ読み込まれていません（工程表マスター画面を一度開いてから、再度お試しください）</div>';
   modal.innerHTML='<div style="background:white;border-radius:14px;width:100%;max-width:420px;box-shadow:0 20px 60px rgba(0,0,0,.25);display:flex;flex-direction:column;max-height:90vh;">'
     +'<div style="padding:16px 20px 12px;border-bottom:1px solid #e2e8f0;flex-shrink:0;display:flex;align-items:center">'
     +'<div style="font-size:14px;font-weight:800;color:#1e293b">✏️ 業者マスター編集</div>'
@@ -14178,14 +14484,13 @@ function openUserMasterEditModal(u){
     +'<div style="font-size:11px;color:#94a3b8;margin-bottom:10px">'+(u.name||'')+'　'+(u.email||'')+'</div>'
     +'<div><label style="font-size:10px;color:#64748b;display:block;margin-bottom:3px">会社名</label>'
     +'<input id="umk-company" type="text" value="'+(u.company||'')+'" placeholder="例：株式会社〇〇" style="'+iStyle+'"></div>'
-    +'<div style="font-size:11px;font-weight:800;color:#475569;margin:14px 0 6px;padding-bottom:4px;border-bottom:2px solid #e2e8f0">🔧 担当工種（マスター工程より）</div>'
-    +'<div style="max-height:260px;overflow-y:auto;border:1px solid #e2e8f0;border-radius:8px;padding:4px 8px">'+stepsHtml+'</div>'
+    +'<div id="'+pickerId+'-amkroot"></div>'
     +'</div>'
     +'<div style="padding:12px 20px;border-top:1px solid #e2e8f0;flex-shrink:0;background:white;border-radius:0 0 14px 14px">'
     +'<button onclick="saveUserMasterEdit(\''+u.id+'\')" style="width:100%;padding:12px;background:#1a56db;color:white;border:none;border-radius:9px;font-size:13px;font-weight:800;cursor:pointer">💾 保存する</button>'
     +'</div>'
     +'</div>';
-  modal.style.display='flex';
+  _amkRender(pickerId);
 }
 window.openUserMasterEditModal=openUserMasterEditModal;
 
@@ -14199,25 +14504,26 @@ async function saveUserMasterEdit(uid){
   var sb=getSB();if(!sb)return;
   var companyEl=document.getElementById('umk-company');
   var company=(companyEl&&companyEl.value.trim())||null;
-  var checks=document.querySelectorAll('.umk-step:checked');
-  var koushu=[];
-  checks.forEach(function(c){koushu.push(c.value);});
+  var pickerId='umk-'+uid;
+  var res=_amkGetResult(pickerId);
   // ★profilesテーブルにはupdated_at列が存在しない（properties等とは異なるテーブル）ため付与しない
-  var obj={company:company,koushu:koushu};
+  var obj={company:company,area:res.area,koushu:res.koushu};
   var r=await sb.from('profiles').update(obj).eq('id',uid);
   if(r.error){
     console.error('[JACK] 業者マスターの保存に失敗',r.error);
-    // ★2026/10修正：profilesテーブルにkoushu列がまだ追加されていない環境（ALTER TABLE未実行）では
-    //   このまま失敗すると会社名の修正まで一緒に失われてしまう。koushu列が無いことが原因の場合は
-    //   会社名だけでも保存し、何が原因でどう直せば良いかを具体的に案内する。
+    // ★2026/10修正：profilesテーブルにarea/koushu列がまだ追加されていない環境（ALTER TABLE未実行）では
+    //   このまま失敗すると会社名の修正まで一緒に失われてしまう。段階的にフォールバックして保存する。
     var msg=String((r.error&&r.error.message)||'');
-    if(msg.indexOf('koushu')>=0||msg.toLowerCase().indexOf('schema cache')>=0){
-      var r2=await sb.from('profiles').update({company:company}).eq('id',uid);
+    if(msg.indexOf('area')>=0||msg.indexOf('koushu')>=0||msg.toLowerCase().indexOf('schema cache')>=0){
+      var r2=await sb.from('profiles').update({company:company,koushu:res.koushu}).eq('id',uid);
       if(!r2.error){
-        showToast('⚠️ 会社名は保存しました。担当工種を保存するには、Supabase側で列の追加（koushu）がまだ必要です。管理者（松井）にご連絡ください。','error');
-        closeUserMasterEditModal();
-        loadAdmSec('users');
-        return;
+        showToast('⚠️ 会社名・担当工種は保存しました。エリア情報を保存するには、Supabase側で列の追加（area）がまだ必要です。管理者（松井）にご連絡ください。','error');
+        closeUserMasterEditModal(); loadAdmSec('users'); return;
+      }
+      var r3=await sb.from('profiles').update({company:company}).eq('id',uid);
+      if(!r3.error){
+        showToast('⚠️ 会社名は保存しました。担当工種・エリアを保存するには、Supabase側で列の追加がまだ必要です。管理者（松井）にご連絡ください。','error');
+        closeUserMasterEditModal(); loadAdmSec('users'); return;
       }
     }
     showToast('⚠️ 保存に失敗しました：'+msg,'error');
@@ -14226,6 +14532,7 @@ async function saveUserMasterEdit(uid){
   showToast('✅ 保存しました','success');
   closeUserMasterEditModal();
   loadAdmSec('users');
+  delete window._amkPickers[pickerId];
 }
 window.saveUserMasterEdit=saveUserMasterEdit;
 
@@ -14376,6 +14683,175 @@ function _shinsaBadgeAbbr(v){
 }
 function admSetKensaShinsa(v){window._admKensaShinsa=v;admRenderKensaTable();}
 window.admSetKensaShinsa=admSetKensaShinsa;
+
+// ★検査カレンダー（2026/10追加）：検査取りまとめの絞り込み結果(rows)を、物件一覧表の代わりに
+//   カレンダー形式（配筋・躯体・中間・断熱・完了・完成の6検査×予約日）で表示する。
+//   工事カレンダー（業者向け）と同じ「印刷は専用ウィンドウに分離する」方式を踏襲し、
+//   アプリ共通の印刷CSSに巻き込まれないようにする。
+function admKensaSetView(v){
+  window._admKensaView=v;
+  admRenderKensaTable();
+}
+window.admKensaSetView=admKensaSetView;
+
+// rows（絞り込み済み物件）とdefs（検査種別定義）から、各日付ごとの検査タスク配列を作る
+// 戻り値: {'YYYY-MM-DD':[{fixNo,name,label,status,shinsa}, ...], ...}
+function _buildKensaCalTasksByDate(rows,defs){
+  var byDate={};
+  rows.forEach(function(p){
+    defs.forEach(function(d){
+      var raw=p[d.dateKey];
+      if(!raw)return;
+      var ds=normDate(raw);
+      if(!ds)return;
+      ds=ds.replace(/\//g,'-');
+      if(!byDate[ds])byDate[ds]=[];
+      byDate[ds].push({fixNo:p.fix_no,name:p.name||'',label:d.label,status:p[d.statusKey]||'before',shinsa:p.shinsa_kikan||''});
+    });
+  });
+  return byDate;
+}
+var _admKensaCalBaseMonthOffset=0; // 将来の月送りボタン用（現状は-1〜+6固定範囲なので未使用）
+function _buildKensaCalendarHtml(rows,defs){
+  var today=new Date();
+  var todayStr=today.getFullYear()+'-'+('0'+(today.getMonth()+1)).slice(-2)+'-'+('0'+today.getDate()).slice(-2);
+  var byDate=_buildKensaCalTasksByDate(rows,defs);
+  var dowHeader='<div style="display:grid;grid-template-columns:repeat(7,1fr);gap:1px;padding:2px 8px;background:white;position:sticky;top:0;z-index:9;border-bottom:1px solid #e2e8f0;">'
+    +['日','月','火','水','木','金','土'].map(function(d,i){
+      return '<div style="text-align:center;font-size:10px;font-weight:700;padding:3px;color:'+(i===0?'#ef4444':i===6?'#3b82f6':'#64748b')+'">'+d+'</div>';
+    }).join('')
+  +'</div>';
+  var months='';
+  var baseYear=today.getFullYear(), baseMonth=today.getMonth();
+  for(var mo=-1;mo<=6;mo++){ // ★検査は工事期間中心（概ね半年以内）のため工事カレンダーより狭い範囲で十分
+    var yr=baseYear, mn=baseMonth+mo;
+    while(mn<0){mn+=12;yr--;}
+    while(mn>11){mn-=12;yr++;}
+    var first=new Date(yr,mn,1);
+    var last=new Date(yr,mn+1,0);
+    var isCurrentMonth=(yr===today.getFullYear()&&mn===today.getMonth());
+    var monthId='kcal-month-'+yr+'-'+mn;
+    months+='<div id="'+monthId+'" style="margin-bottom:16px;">';
+    months+='<div style="padding:6px 8px;font-size:14px;font-weight:800;color:'+(isCurrentMonth?'#1a56db':'#1e293b')+';background:'+(isCurrentMonth?'#eff6ff':'#f8fafc')+';border-left:3px solid '+(isCurrentMonth?'#1a56db':'#e2e8f0')+';margin:0 8px 4px;">'
+      +yr+'年'+(mn+1)+'月'+(isCurrentMonth?' ← 今月':'')+'</div>';
+    months+='<div style="display:grid;grid-template-columns:repeat(7,1fr);gap:2px;padding:0 8px;">';
+    for(var i=0;i<first.getDay();i++)months+='<div style="min-height:50px;"></div>';
+    for(var day=1;day<=last.getDate();day++){
+      var ds=yr+'-'+('0'+(mn+1)).slice(-2)+'-'+('0'+day).slice(-2);
+      var isToday=ds===todayStr;
+      var dow=new Date(yr,mn,day).getDay();
+      var isHol=(typeof _isLongHolidayStr==='function')&&_isLongHolidayStr(ds);
+      var dayTasks=byDate[ds]||[];
+      months+='<div style="min-height:50px;border:1px solid '+(isToday?'#1a56db':'#e2e8f0')+';border-radius:5px;padding:2px;background:'+(isToday?'#eff6ff':isHol?'#fef9e7':'white')+'">'
+        +'<div style="font-size:10px;font-weight:700;text-align:right;margin-bottom:1px;color:'+(isToday?'#1a56db':dow===0?'#ef4444':dow===6?'#3b82f6':isHol?'#b45309':'#475569')+'">'+day+'</div>';
+      dayTasks.forEach(function(t){
+        var isRes=t.status==='reserved';
+        var bg=isRes?'#3b82f6':'#f97316';
+        var nm=(t.name||'').replace(/^(Jack|Walter)\s*/i,'');
+        var barLabel=nm+' '+t.label;
+        months+='<div onclick="admOpenPropEdit(\''+t.fixNo+'\',\''+encodeURIComponent(t.name)+'\')" '
+          +'style="font-size:8px;padding:1px 4px;border-radius:2px;background:'+bg+';color:white;margin-top:1px;cursor:pointer;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" '
+          +'title="'+_escHtml(barLabel)+'（'+(isRes?'予約済み':'予約前')+'）">'+_escHtml(barLabel)+'</div>';
+      });
+      months+='</div>';
+    }
+    months+='</div></div>';
+  }
+  var legend='<div style="display:flex;gap:14px;align-items:center;padding:6px 12px;font-size:10px;color:#64748b;background:#f8fafc;border-bottom:1px solid #e2e8f0">'
+    +'<span><span style="display:inline-block;width:9px;height:9px;background:#f97316;border-radius:2px;vertical-align:middle;margin-right:3px"></span>予約前</span>'
+    +'<span><span style="display:inline-block;width:9px;height:9px;background:#3b82f6;border-radius:2px;vertical-align:middle;margin-right:3px"></span>予約済み</span>'
+    +'<span style="margin-left:auto">該当件数：'+rows.length+'件</span>'
+  +'</div>';
+  return '<div style="display:flex;flex-direction:column;max-height:70vh">'
+    +legend+dowHeader
+    +'<div id="admKensaCalScrollArea" style="flex:1;overflow-y:auto;padding-top:6px">'+months+'</div>'
+  +'</div>';
+}
+function _admKensaCalScrollToday(){
+  var today=new Date();
+  var id='kcal-month-'+today.getFullYear()+'-'+today.getMonth();
+  var el=document.getElementById(id);
+  var area=document.getElementById('admKensaCalScrollArea');
+  if(el&&area)area.scrollTop=el.offsetTop-10;
+}
+// ★印刷は工事カレンダーと同じ「専用ウィンドウに分離」方式。アプリ共通の印刷CSS
+//   （物件一覧の工程表を強制展開するルール等）に巻き込まれて無関係な内容が混ざるのを防ぐ。
+function admPrintKensaCalendar(){
+  if(window._printBusy)return;
+  window._printBusy=true;
+  setTimeout(function(){window._printBusy=false;},2000);
+  var rows=window._admKensaCalRows||[], defs=window._admKensaCalDefs||[];
+  if(!rows.length){showToast('表示中のデータがありません','error');return;}
+  var byDate=_buildKensaCalTasksByDate(rows,defs);
+  var today=new Date();
+  var todayStr=today.getFullYear()+'-'+('0'+(today.getMonth()+1)).slice(-2)+'-'+('0'+today.getDate()).slice(-2);
+  var dowNames=['日','月','火','水','木','金','土'];
+  var monthsHtml='';
+  var baseYear=today.getFullYear(), baseMonth=today.getMonth();
+  for(var mo=-1;mo<=6;mo++){
+    var yr=baseYear, mn=baseMonth+mo;
+    while(mn<0){mn+=12;yr--;}
+    while(mn>11){mn-=12;yr++;}
+    var first=new Date(yr,mn,1);
+    var last=new Date(yr,mn+1,0);
+    var isCurrentMonth=(yr===today.getFullYear()&&mn===today.getMonth());
+    monthsHtml+='<div class="cal-print-month'+(mo>-1?' cal-print-pagebreak':'')+'">';
+    monthsHtml+='<div class="cal-print-mtitle'+(isCurrentMonth?' cal-print-mtitle-cur':'')+'">'+yr+'年'+(mn+1)+'月'+(isCurrentMonth?'（今月）':'')+'</div>';
+    monthsHtml+='<div class="cal-print-dow">'+dowNames.map(function(d,i){
+      return '<div class="'+(i===0?'sun':i===6?'sat':'')+'">'+d+'</div>';
+    }).join('')+'</div>';
+    monthsHtml+='<div class="cal-print-grid">';
+    for(var i=0;i<first.getDay();i++)monthsHtml+='<div class="cal-print-cell blank"></div>';
+    for(var day=1;day<=last.getDate();day++){
+      var ds=yr+'-'+('0'+(mn+1)).slice(-2)+'-'+('0'+day).slice(-2);
+      var isToday=ds===todayStr;
+      var dow=new Date(yr,mn,day).getDay();
+      var isHol=(typeof _isLongHolidayStr==='function')&&_isLongHolidayStr(ds);
+      var dayTasks=byDate[ds]||[];
+      var barsHtml=dayTasks.map(function(t){
+        var nm=(t.name||'').replace(/^(Jack|Walter)\s*/i,'');
+        var barLabel=nm+' '+t.label;
+        var bg=t.status==='reserved'?'#3b82f6':'#f97316';
+        return '<div class="cal-print-bar" style="background:'+bg+'">'+_escHtml(barLabel)+'</div>';
+      }).join('');
+      monthsHtml+='<div class="cal-print-cell'+(isToday?' today':'')+(isHol?' holiday':'')+'">'
+        +'<div class="cal-print-daynum '+(isToday?'today':dow===0?'sun':dow===6?'sat':isHol?'holiday':'')+'">'+day+'</div>'
+        +barsHtml
+        +'</div>';
+    }
+    monthsHtml+='</div></div>';
+  }
+  var html='<!DOCTYPE html><html><head><meta charset="UTF-8">'
+    +'<title>検査カレンダー</title>'
+    +'<style>'
+    +'*{box-sizing:border-box;margin:0;padding:0;-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important}'
+    +'body{font-family:"Hiragino Sans","Meiryo",sans-serif;background:white;padding:8mm;color:#1e293b}'
+    +'.cal-print-month{margin-bottom:10mm}'
+    +'.cal-print-pagebreak{page-break-before:always}'
+    +'.cal-print-mtitle{font-size:16px;font-weight:800;padding:4px 0 6px;border-bottom:2px solid #1a56db;margin-bottom:4px}'
+    +'.cal-print-mtitle-cur{color:#1a56db}'
+    +'.cal-print-dow{display:grid;grid-template-columns:repeat(7,1fr);gap:1px;margin-bottom:2px}'
+    +'.cal-print-dow>div{text-align:center;font-size:10px;font-weight:700;color:#64748b;padding:2px}'
+    +'.cal-print-dow>div.sun{color:#ef4444}.cal-print-dow>div.sat{color:#3b82f6}'
+    +'.cal-print-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:2px}'
+    +'.cal-print-cell{min-height:18mm;border:1px solid #cbd5e1;border-radius:3px;padding:2px;page-break-inside:avoid}'
+    +'.cal-print-cell.blank{border:none}'
+    +'.cal-print-cell.today{border-color:#1a56db;background:#eff6ff}'
+    +'.cal-print-cell.holiday{background:#fef9e7}'
+    +'.cal-print-daynum{font-size:9px;font-weight:700;text-align:right;color:#475569;margin-bottom:1px}'
+    +'.cal-print-daynum.today{color:#1a56db}.cal-print-daynum.sun,.cal-print-daynum.holiday{color:#b45309}.cal-print-daynum.sat{color:#3b82f6}'
+    +'.cal-print-bar{font-size:8px;color:white;padding:1px 3px;border-radius:2px;margin-top:1px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}'
+    +'@media print{@page{size:A4 portrait;margin:6mm}body{padding:0}}'
+    +'</style></head><body>'
+    +'<h2 style="font-size:14px;margin-bottom:6mm">🔍 検査カレンダー（該当'+rows.length+'件）</h2>'
+    +monthsHtml
+    +'<scr'+'ipt>window.onafterprint=function(){window.close();};setTimeout(function(){window.print();},500);<\/sc'+'ript>'
+    +'</body></html>';
+  var w=window.open('','_blank','width=1000,height=900');
+  if(w){w.document.write(html);w.document.close();}
+  else showToast('ポップアップを許可してください','error');
+}
+window.admPrintKensaCalendar=admPrintKensaCalendar;
 function admRenderKensaTable(){
   var wrap=document.getElementById('admKensaTableWrap');if(!wrap)return;
   var all=window._admKensaAll||[];
@@ -14385,6 +14861,13 @@ function admRenderKensaTable(){
   var deliveryMode=(document.getElementById('admKensaDelivery')||{}).value||'before';
   var shinsaMode=window._admKensaShinsa||'';
   var tantouFilter=(document.getElementById('admKensaTantouFilter')||{}).value||'';
+
+  // ★一覧／カレンダーの表示切替ボタンの見た目を現在の選択状態に合わせる（2026/10追加）
+  var kensaView=window._admKensaView||'table';
+  var vtBtn=document.getElementById('admKensaViewTableBtn'), vcBtn=document.getElementById('admKensaViewCalBtn'), vpBtn=document.getElementById('admKensaPrintBtn');
+  if(vtBtn)vtBtn.style.cssText='padding:6px 12px;font-size:11px;font-weight:700;border:none;cursor:pointer;background:'+(kensaView==='table'?'#1a56db':'white')+';color:'+(kensaView==='table'?'white':'#64748b');
+  if(vcBtn)vcBtn.style.cssText='padding:6px 12px;font-size:11px;font-weight:700;border:none;cursor:pointer;background:'+(kensaView==='calendar'?'#1a56db':'white')+';color:'+(kensaView==='calendar'?'white':'#64748b');
+  if(vpBtn)vpBtn.style.display=kensaView==='calendar'?'':'none';
 
   // 審査機関タブの描画
   var shinsaTabsEl=document.getElementById('admKensaShinsaTabs');
@@ -14447,6 +14930,14 @@ function admRenderKensaTable(){
     if(!db)return -1;
     return da<db?-1:(da>db?1:0);
   });
+  // ★カレンダー表示（2026/10追加）：一覧と全く同じ絞り込み・並び替え結果(rows/defs)をそのまま使い、
+  //   検査取りまとめの全プルダウン（審査機関・エリア・担当者・引渡し状況・検索）をカレンダーにも引き継ぐ
+  if(kensaView==='calendar'){
+    window._admKensaCalRows=rows; window._admKensaCalDefs=defs; // 印刷時に再利用
+    wrap.innerHTML=_buildKensaCalendarHtml(rows,defs);
+    setTimeout(function(){_admKensaCalScrollToday();},50);
+    return;
+  }
   if(!rows.length){wrap.innerHTML='<div style="text-align:center;padding:32px;color:#94a3b8;font-size:12px">該当する物件がありません</div>';return;}
   var html='<table style="width:100%;border-collapse:collapse;font-size:11px;table-layout:fixed">'
     +'<colgroup><col style="width:14%"><col style="width:8%"><col style="width:9%"><col style="width:9%"><col style="width:9%"><col style="width:9%"><col style="width:9%"><col style="width:9%"><col style="width:12%"><col style="width:12%"></colgroup>'
