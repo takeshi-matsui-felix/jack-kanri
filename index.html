@@ -1177,7 +1177,7 @@ var POST_END_PAD = 120; // ★スクロール終端の余白：完了検査列�
 // ===== 納品書機能：休工日カレンダー・稼働日計算 =====
 // ★日本の祝日（政府発表・国立天文台暦要項ベース、2025〜2028年分）
 // ★アプリバージョン（不具合問い合わせ対応用。リリースごとに更新すること。2026/8/23追加）
-var APP_VERSION = '2026.10.02.1';
+var APP_VERSION = '2026.10.03.1';
 window.APP_VERSION=APP_VERSION;
 console.log('[JACK] version', APP_VERSION);
 var JP_HOLIDAYS = [
@@ -6804,6 +6804,7 @@ function openDetail(p){
           +'<div style="font-size:10px;font-weight:700;color:var(--g700)">【'+(i+1)+'】 '+(pk.name||'駐車場'+(i+1))+'</div>'
           +(pk.address?'<div style="font-size:10px;color:var(--g500);margin-top:2px">📍 '+pk.address+'</div>':'')
           +(pk.carno?'<div style="font-size:10px;color:var(--g500)">🚘 '+pk.carno+'</div>':'')
+          +(pk.detail?'<div style="font-size:10px;color:var(--g400)">'+pk.detail+'</div>':'')
           +'</div>';
       }).join('')
       +'</div>';
@@ -7151,7 +7152,7 @@ function _renderDeliveryNoteBody(p,el){
         +'<td style="padding:5px 8px;font-size:11px;font-weight:700">'+m.name+' '+excl+'</td>'
         +'<td style="padding:5px 8px'+(dateChg?';'+hi:'')+'"><input type="date" value="'+date+'" onchange="deliverySetItemDate('+m.id+',this.value)" style="font-size:11px;padding:3px 5px;border:1.5px solid '+(dateChg?'#f59e0b':'#e2e8f0')+';border-radius:5px;width:130px'+(dateChg?';background:#fef3c7':'')+'">'
           +(it.manual?'<button onclick="deliveryResetItemDate('+m.id+')" title="自動計算に戻す" style="margin-left:4px;background:none;border:none;color:#94a3b8;cursor:pointer;font-size:10px">↺</button>':'')+'</td>'
-        +'<td style="padding:5px 8px'+(vendorChg?';'+hi:'')+'">'+dlHtml+'<input type="text" list="'+dlId+'" placeholder="業者名（一覧から選択 or 自由入力）" value="'+vendorVal+'" onchange="deliverySetItemField('+m.id+',\'vendor\',this.value)" style="font-size:11px;padding:3px 6px;border:1.5px solid '+(vendorChg?'#f59e0b':'#e2e8f0')+';border-radius:5px;width:150px'+(vendorChg?';background:#fef3c7':'')+'">'+mirrorHint+'</td>'
+        +'<td style="padding:5px 8px'+(vendorChg?';'+hi:'')+'">'+dlHtml+'<input type="text" id="dlv-vendor-'+m.id+'" list="'+dlId+'" placeholder="業者名（一覧から選択 or 自由入力）" value="'+vendorVal+'" onchange="deliverySetItemField('+m.id+',\'vendor\',this.value)" style="font-size:11px;padding:3px 6px;border:1.5px solid '+(vendorChg?'#f59e0b':'#e2e8f0')+';border-radius:5px;width:150px'+(vendorChg?';background:#fef3c7':'')+'">'+mirrorHint+'</td>'
         +'<td style="padding:5px 8px'+(noteChg?';'+hi:'')+'"><input type="text" placeholder="備考" value="'+(it.note||'')+'" onchange="deliverySetItemField('+m.id+',\'note\',this.value)" style="font-size:11px;padding:3px 6px;border:1.5px solid '+(noteChg?'#f59e0b':'#e2e8f0')+';border-radius:5px;width:150px'+(noteChg?';background:#fef3c7':'')+'"></td>'
         +'</tr>';
     }).join('');
@@ -7213,11 +7214,30 @@ function deliverySetItemField(id,field,v){
   var dn=_getOrInitDeliveryNote(p);
   var it=dn.items.find(function(i){return i.id===id;});
   if(it)it[field]=v;
-  if(field==='vendor')_deliveryCascadeVendor(dn,id,v);
+  if(field==='vendor'){
+    _deliveryCascadeVendor(dn,id,v);
+    // ★2026/10修正【重大・業者選択不可バグ】：以前はここで毎回テーブル全体を再描画（innerHTML入れ替え）
+    //   していたため、ネイティブの<datalist>選択処理の最中にDOM要素が全部破棄→再生成され、
+    //   「業者を1つ選ぶと次のプルダウンが選択できなくなる」不具合になっていた（ブラウザが古いDOM要素への
+    //   フォーカス・ドロップダウン表示を引き継いだまま要素だけ消えるため）。
+    //   連動先（mirrorFrom）の業者名表示は、既存<input>のvalueへ直接書き込むだけにし、
+    //   テーブル自体は再構築しない。
+    _syncDeliveryVendorInputsDOM(dn);
+  }
   _saveDeliveryNote(p); // 業者名・備考の変更は承認状態を崩さない
-  if(field==='vendor'&&typeof renderDeliveryNoteSection==='function')renderDeliveryNoteSection(p,null,true);
 }
 window.deliverySetItemField=deliverySetItemField;
+// ★業者入力欄のvalueだけをDOM上で直接同期（テーブル再構築なし）。編集中（フォーカス中）の欄は上書きしない。
+function _syncDeliveryVendorInputsDOM(dn){
+  DELIVERY_MASTER.forEach(function(m){
+    var inp=document.getElementById('dlv-vendor-'+m.id);
+    if(!inp)return;
+    if(document.activeElement===inp)return;
+    var it=dn.items.find(function(i){return i.id===m.id;})||{};
+    var val=it.vendor||_deliveryVendorValue(dn,m);
+    if(inp.value!==val)inp.value=val;
+  });
+}
 // ★業者の連動反映：mirrorFrom指定の項目へ自動コピー／項目15(サッシ搬入)は16・25・26への特殊ルールで反映
 //   すでに手入力(マスター既定値と異なる値が入っている)先には上書きしない
 function _deliveryCascadeVendor(dn,srcId,val){
@@ -7724,6 +7744,9 @@ function openPropEditModal(){
       +'<label style="font-size:10px;color:#64748b">契約終了日</label>'
       +'<input id="pk-end-'+i+'" type="date" value="'+(pk.contract_end||'')+'" style="'+iStyle+'"></div>'
       +'</div>'
+      +'<div style="display:flex;flex-direction:column;gap:4px">'
+      +'<label style="font-size:10px;color:#64748b">詳細（任意）</label>'
+      +'<input id="pk-detail-'+i+'" type="text" value="'+(pk.detail||'')+'" placeholder="例：ハイエース限定" style="'+iStyle+'"></div>'
       +'</div>';
   }
 
@@ -7824,7 +7847,7 @@ function addParkRow(){
   if(!window._editParkings)window._editParkings=[];
   // 現在のDOMから値を読み取って保存
   _syncParkingsFromDOM();
-  window._editParkings.push({name:'',carno:'',address:''});
+  window._editParkings.push({name:'',carno:'',address:'',detail:''});
   window._rerenderPropModal&&window._rerenderPropModal();
 }
 window.addParkRow=addParkRow;
@@ -7844,11 +7867,13 @@ function _syncParkingsFromDOM(){
     var a=document.getElementById('pk-addr-'+i);
     var s=document.getElementById('pk-start-'+i);
     var e=document.getElementById('pk-end-'+i);
+    var d=document.getElementById('pk-detail-'+i);
     if(n)pks[i].name=n.value;
     if(c)pks[i].carno=c.value;
     if(a)pks[i].address=a.value;
     if(s)pks[i].contract_start=s.value;
     if(e)pks[i].contract_end=e.value;
+    if(d)pks[i].detail=d.value;
   });
 }
 
@@ -12953,6 +12978,7 @@ function showMapTab(type){
           +'<div style="font-size:16px;font-weight:900;color:#0c4a6e;letter-spacing:1px;">'+pk.carno+'</div>'
           +'</div>':'<div style="font-size:10px;color:#94a3b8;">車番未登録</div>')
         +periodStr
+        +(pk.detail?'<div style="font-size:9px;color:#94a3b8;margin-top:2px;">'+pk.detail+'</div>':'')
         +(hasAddr?'<div style="font-size:9px;color:#64748b;margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">📍'+pkA+'</div>'
           +'<div style="font-size:9px;color:#10b981;margin-top:2px;font-weight:700;">タップで地図表示 →</div>'
           :'<div style="font-size:9px;color:#f59e0b;margin-top:2px;">住所未登録</div>')
