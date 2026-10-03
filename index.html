@@ -1177,7 +1177,7 @@ var POST_END_PAD = 120; // ★スクロール終端の余白：完了検査列�
 // ===== 納品書機能：休工日カレンダー・稼働日計算 =====
 // ★日本の祝日（政府発表・国立天文台暦要項ベース、2025〜2028年分）
 // ★アプリバージョン（不具合問い合わせ対応用。リリースごとに更新すること。2026/8/23追加）
-var APP_VERSION = '2026.10.03.1';
+var APP_VERSION = '2026.10.03.3';
 window.APP_VERSION=APP_VERSION;
 console.log('[JACK] version', APP_VERSION);
 var JP_HOLIDAYS = [
@@ -7152,7 +7152,7 @@ function _renderDeliveryNoteBody(p,el){
         +'<td style="padding:5px 8px;font-size:11px;font-weight:700">'+m.name+' '+excl+'</td>'
         +'<td style="padding:5px 8px'+(dateChg?';'+hi:'')+'"><input type="date" value="'+date+'" onchange="deliverySetItemDate('+m.id+',this.value)" style="font-size:11px;padding:3px 5px;border:1.5px solid '+(dateChg?'#f59e0b':'#e2e8f0')+';border-radius:5px;width:130px'+(dateChg?';background:#fef3c7':'')+'">'
           +(it.manual?'<button onclick="deliveryResetItemDate('+m.id+')" title="自動計算に戻す" style="margin-left:4px;background:none;border:none;color:#94a3b8;cursor:pointer;font-size:10px">↺</button>':'')+'</td>'
-        +'<td style="padding:5px 8px'+(vendorChg?';'+hi:'')+'">'+dlHtml+'<input type="text" id="dlv-vendor-'+m.id+'" list="'+dlId+'" placeholder="業者名（一覧から選択 or 自由入力）" value="'+vendorVal+'" onchange="deliverySetItemField('+m.id+',\'vendor\',this.value)" style="font-size:11px;padding:3px 6px;border:1.5px solid '+(vendorChg?'#f59e0b':'#e2e8f0')+';border-radius:5px;width:150px'+(vendorChg?';background:#fef3c7':'')+'">'+mirrorHint+'</td>'
+        +'<td style="padding:5px 8px'+(vendorChg?';'+hi:'')+'">'+dlHtml+'<input type="text" id="dlv-vendor-'+m.id+'" list="'+dlId+'" placeholder="業者名（一覧から選択 or 自由入力）" value="'+vendorVal+'" onmousedown="this.dataset.pv=this.value;this.value=\'\';" onfocus="this.dataset.pv=this.value;this.value=\'\';" onblur="if(!this.value)this.value=this.dataset.pv||\'\';" onchange="deliverySetItemField('+m.id+',\'vendor\',this.value)" style="font-size:11px;padding:3px 6px;border:1.5px solid '+(vendorChg?'#f59e0b':'#e2e8f0')+';border-radius:5px;width:150px'+(vendorChg?';background:#fef3c7':'')+'">'+mirrorHint+'</td>'
         +'<td style="padding:5px 8px'+(noteChg?';'+hi:'')+'"><input type="text" placeholder="備考" value="'+(it.note||'')+'" onchange="deliverySetItemField('+m.id+',\'note\',this.value)" style="font-size:11px;padding:3px 6px;border:1.5px solid '+(noteChg?'#f59e0b':'#e2e8f0')+';border-radius:5px;width:150px'+(noteChg?';background:#fef3c7':'')+'"></td>'
         +'</tr>';
     }).join('');
@@ -13572,6 +13572,7 @@ async function loadAdmSec(sec){
   if(sec==='users'){
     var r=await sb.from('profiles').select('*').order('created_at',{ascending:false});
     var users=r.data||[];
+    window._admUsersList=users; // ★マスター編集モーダルから参照するためキャッシュ（2026/10追加）
     var pending=users.filter(function(u){return !u.approved;});
     var approved=users.filter(function(u){return u.approved;});
     right.innerHTML='<div style="padding:14px">'
@@ -13867,14 +13868,23 @@ function admUserCard(u,approved){
   var deleteBtn=isSuperAdmin
     ?'<button class="adm-delete-user" data-uid="'+u.id+'" data-email="'+(u.email||'')+'" style="font-size:10px;background:#7f1d1d;color:#fca5a5;padding:4px 10px;border-radius:6px;cursor:pointer;margin-left:4px">🗑 削除</button>'
     :'';
+  // ★担当工種タグ表示（koushu：jsonb配列。文字列で来た場合の保険あり）（2026/10追加）
+  var koushuArr=u.koushu;
+  if(typeof koushuArr==='string'){try{koushuArr=JSON.parse(koushuArr);}catch(e){koushuArr=[];}}
+  if(!Array.isArray(koushuArr))koushuArr=[];
+  var koushuHtml=koushuArr.length
+    ?('<div style="margin-top:3px">'+koushuArr.map(function(k){return '<span style="display:inline-block;background:#eef2ff;color:#4338ca;font-size:9px;font-weight:700;padding:1px 7px;border-radius:9px;margin-right:3px;margin-bottom:2px">'+k+'</span>';}).join('')+'</div>')
+    :'';
   return '<div style="background:white;border-radius:9px;padding:10px 12px;margin-bottom:8px;border:1px solid #e2e8f0;display:flex;align-items:center;gap:10px">'
     +'<div style="width:36px;height:36px;border-radius:50%;background:#3b82f6;color:white;font-size:14px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0">'+(u.name||'?').charAt(0)+'</div>'
     +'<div style="flex:1;min-width:0">'
       +'<div style="font-size:13px;font-weight:700;color:#1e293b">'+(u.name||'')+' <span style="font-size:10px;color:'+(u.role==='admin'?'#f59e0b':'#64748b')+'">'+( u.role==='admin'?'👑管理者':'協力業者')+'</span></div>'
       +'<div style="font-size:11px;color:#94a3b8">'+(u.email||'')+'</div>'
-      +'<div style="font-size:10px;color:#94a3b8">'+(u.company||'')+' / '+(u.phone||'')+'</div>'
+      +'<div style="font-size:10px;color:#94a3b8">'+(u.company||'<span style=\'color:#f59e0b\'>会社名未登録</span>')+' / '+(u.phone||'')+'</div>'
+      +koushuHtml
     +'</div>'
-    +'<div style="display:flex;gap:4px;align-items:center">'
+    +'<div style="display:flex;gap:4px;align-items:center;flex-wrap:wrap">'
+    +'<button class="adm-master-edit" data-uid="'+u.id+'" style="font-size:10px;background:#eef2ff;color:#4338ca;padding:4px 10px;border-radius:6px;cursor:pointer">✏️ マスター編集</button>'
     +(approved
       ?'<button class="adm-revoke" data-uid="'+u.id+'" style="font-size:10px;background:#fee2e2;color:#dc2626;padding:4px 10px;border-radius:6px;cursor:pointer">取消</button>'
       :'<button class="adm-approve" data-uid="'+u.id+'" style="font-size:11px;background:#1a56db;color:white;padding:5px 12px;border-radius:7px;font-weight:700;cursor:pointer">✓ 承認</button>')
@@ -13883,12 +13893,96 @@ function admUserCard(u,approved){
     +'</div>';
 }
 
+// ★業者マスター編集（会社名の修正・担当工種の選択）（2026/10追加）
+//   「どの業者がどの工種か」を把握し、将来の工事カレンダー連動のために使う。
+//   担当工種の選択肢は、マスター工程エディタ（myMasters）に実際に登場する工種名の一覧から動的に作る。
+function _allMasterStepNames(){
+  var set={};
+  (typeof myMasters!=='undefined'&&myMasters?myMasters:[]).forEach(function(m){
+    (m.steps||[]).forEach(function(s){
+      var nm=String((s&&(s.name||s.label))||'').trim();
+      if(nm)set[nm]=true;
+    });
+  });
+  return Object.keys(set).sort(function(a,b){return a.localeCompare(b,'ja');});
+}
+window._allMasterStepNames=_allMasterStepNames;
+
+function openUserMasterEditModal(u){
+  var allSteps=_allMasterStepNames();
+  var curKoushu=u.koushu;
+  if(typeof curKoushu==='string'){try{curKoushu=JSON.parse(curKoushu);}catch(e){curKoushu=[];}}
+  if(!Array.isArray(curKoushu))curKoushu=[];
+  var modal=document.getElementById('_userMasterEditModal');
+  if(!modal){
+    modal=document.createElement('div');
+    modal.id='_userMasterEditModal';
+    modal.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:9999;display:flex;align-items:flex-start;justify-content:center;overflow-y:auto;padding:20px 10px;';
+    document.body.appendChild(modal);
+  }
+  var iStyle='padding:7px 10px;border:1.5px solid #e2e8f0;border-radius:7px;font-size:12px;width:100%;box-sizing:border-box;';
+  var stepsHtml=allSteps.length
+    ? allSteps.map(function(nm){
+        var checked=curKoushu.indexOf(nm)>=0?' checked':'';
+        return '<label style="display:flex;align-items:center;gap:6px;font-size:12px;padding:4px 2px;border-bottom:1px solid #f1f5f9;cursor:pointer"><input type="checkbox" class="umk-step" value="'+nm+'"'+checked+'>'+nm+'</label>';
+      }).join('')
+    : '<div style="font-size:11px;color:#94a3b8;padding:8px">マスター工程がまだ読み込まれていません（工程表マスター画面を一度開いてから、再度お試しください）</div>';
+  modal.innerHTML='<div style="background:white;border-radius:14px;width:100%;max-width:420px;box-shadow:0 20px 60px rgba(0,0,0,.25);display:flex;flex-direction:column;max-height:90vh;">'
+    +'<div style="padding:16px 20px 12px;border-bottom:1px solid #e2e8f0;flex-shrink:0;display:flex;align-items:center">'
+    +'<div style="font-size:14px;font-weight:800;color:#1e293b">✏️ 業者マスター編集</div>'
+    +'<button onclick="closeUserMasterEditModal()" style="margin-left:auto;background:#f1f5f9;border:none;border-radius:7px;padding:5px 12px;font-size:12px;cursor:pointer">✕ 閉じる</button>'
+    +'</div>'
+    +'<div style="overflow-y:auto;flex:1;padding:16px 20px">'
+    +'<div style="font-size:11px;color:#94a3b8;margin-bottom:10px">'+(u.name||'')+'　'+(u.email||'')+'</div>'
+    +'<div><label style="font-size:10px;color:#64748b;display:block;margin-bottom:3px">会社名</label>'
+    +'<input id="umk-company" type="text" value="'+(u.company||'')+'" placeholder="例：株式会社〇〇" style="'+iStyle+'"></div>'
+    +'<div style="font-size:11px;font-weight:800;color:#475569;margin:14px 0 6px;padding-bottom:4px;border-bottom:2px solid #e2e8f0">🔧 担当工種（マスター工程より）</div>'
+    +'<div style="max-height:260px;overflow-y:auto;border:1px solid #e2e8f0;border-radius:8px;padding:4px 8px">'+stepsHtml+'</div>'
+    +'</div>'
+    +'<div style="padding:12px 20px;border-top:1px solid #e2e8f0;flex-shrink:0;background:white;border-radius:0 0 14px 14px">'
+    +'<button onclick="saveUserMasterEdit(\''+u.id+'\')" style="width:100%;padding:12px;background:#1a56db;color:white;border:none;border-radius:9px;font-size:13px;font-weight:800;cursor:pointer">💾 保存する</button>'
+    +'</div>'
+    +'</div>';
+  modal.style.display='flex';
+}
+window.openUserMasterEditModal=openUserMasterEditModal;
+
+function closeUserMasterEditModal(){
+  var modal=document.getElementById('_userMasterEditModal');
+  if(modal)modal.style.display='none';
+}
+window.closeUserMasterEditModal=closeUserMasterEditModal;
+
+async function saveUserMasterEdit(uid){
+  var sb=getSB();if(!sb)return;
+  var companyEl=document.getElementById('umk-company');
+  var company=(companyEl&&companyEl.value.trim())||null;
+  var checks=document.querySelectorAll('.umk-step:checked');
+  var koushu=[];
+  checks.forEach(function(c){koushu.push(c.value);});
+  var obj={company:company,koushu:koushu,updated_at:new Date().toISOString()};
+  var r=await sb.from('profiles').update(obj).eq('id',uid);
+  if(r.error){
+    console.error('[JACK] 業者マスターの保存に失敗',r.error);
+    showToast('⚠️ 保存に失敗しました：'+r.error.message,'error');
+    return;
+  }
+  showToast('✅ 保存しました','success');
+  closeUserMasterEditModal();
+  loadAdmSec('users');
+}
+window.saveUserMasterEdit=saveUserMasterEdit;
 
 // Event delegation (ユーザー管理ボタン)
 document.addEventListener('click',async function(e){
   var t=e.target;var sb=getSB();if(!sb)return;
   if(t.classList.contains('adm-approve')){await sb.from('profiles').update({approved:true}).eq('id',t.getAttribute('data-uid'));showToast('✅ 承認しました','success');loadAdmSec('users');}
   else if(t.classList.contains('adm-revoke')){if(!confirm('取り消しますか？'))return;await sb.from('profiles').update({approved:false}).eq('id',t.getAttribute('data-uid'));showToast('取り消しました','');loadAdmSec('users');}
+  else if(t.classList.contains('adm-master-edit')){
+    var umUid=t.getAttribute('data-uid');
+    var umU=(window._admUsersList||[]).find(function(x){return String(x.id)===String(umUid);});
+    if(umU&&typeof openUserMasterEditModal==='function')openUserMasterEditModal(umU);
+  }
   else if(t.classList.contains('adm-delete-user')){
     // 削除権限: takeshi_matsui@felix-japan.co.jp のみ
     if(!currentProfile||currentProfile.email!=='takeshi_matsui@felix-japan.co.jp'){showToast('削除権限がありません','error');return;}
