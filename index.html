@@ -1181,7 +1181,7 @@ var POST_END_PAD = 120; // ★スクロール終端の余白：完了検査列�
 // ===== 納品書機能：休工日カレンダー・稼働日計算 =====
 // ★日本の祝日（政府発表・国立天文台暦要項ベース、2025〜2028年分）
 // ★アプリバージョン（不具合問い合わせ対応用。リリースごとに更新すること。2026/8/23追加）
-var APP_VERSION = '2026.10.03.5';
+var APP_VERSION = '2026.10.03.7';
 window.APP_VERSION=APP_VERSION;
 console.log('[JACK] version', APP_VERSION);
 var JP_HOLIDAYS = [
@@ -8091,6 +8091,12 @@ function openSelectProp(){
         var act=t.id===selTab;
         return '<button data-stab="'+t.id+'" style="flex:1;padding:8px 4px;font-size:11px;font-weight:700;border:none;cursor:pointer;border-bottom:2px solid '+(act?'#1a56db':'transparent')+';color:'+(act?'#1a56db':'#94a3b8')+';background:white;margin-bottom:-2px">'+t.label+'</button>';
       }).join('')+'</div>'
+      // ★全物件まとめて登録／一括解除ボタン（2026/10追加）：1現場担当の業者だけでなく、全現場を担当する
+      //   業者（大工等）が毎回チェックを入れる手間を省くため、現在表示中の全件を一括登録・解除できるようにする
+      +'<div style="padding:8px;border-bottom:1px solid #e2e8f0;background:#f8fafc;display:flex;gap:6px">'
+        +'<button onclick="bulkAddAllFavs()" style="flex:1;padding:8px;background:#1a56db;color:white;border:none;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer">📥 全て登録</button>'
+        +'<button onclick="bulkRemoveAllFavs()" style="flex:1;padding:8px;background:#fee2e2;color:#dc2626;border:none;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer">🗑 全て解除</button>'
+      +'</div>'
       +'<div style="padding:8px;border-bottom:1px solid #e2e8f0;background:white">'
         +'<div style="display:flex;align-items:center;gap:6px;background:#f1f5f9;border-radius:8px;padding:6px 10px">'
           +'<span style="font-size:13px">🔍</span>'
@@ -8210,6 +8216,22 @@ function openSelectProp(){
     else searchQuery=window.selectPropSearchQuery||'';
     renderSelectContent();
   };
+  // ★「表示中の物件を全てマイ物件に登録」ボタン用：現在のタブ・検索・担当者フィルターを
+  //   反映した一覧をいつでも取得できるようにする（2026/10追加）
+  window._spGetFilteredList=function(){
+    var q=(searchQuery||'').toLowerCase();
+    return active.filter(function(p){
+      if(FIXED_AREA==='tokai'){var a=normalizeArea(p);if(TOKAI_AREAS.indexOf(a)<0)return false;}
+      if(FIXED_AREA==='kanto'){var a=normalizeArea(p);if(KANTO_AREAS.indexOf(a)<0)return false;}
+      var td=tabDefs.find(function(t){return t.id===selTab;});
+      if(!td||td.id==='all'){if(isRaikin(p)||isKankou(p))return false;}
+      else if(td.raikin){if(!isRaikin(p)||isKankou(p))return false;}
+      else{if(!td.areas||td.areas.indexOf(normalizeArea(p))<0||isRaikin(p)||isKankou(p))return false;}
+      if(selTantou&&tantouOf(p)!==selTantou)return false;
+      if(!q)return true;
+      return (p.name||'').toLowerCase().indexOf(q)>=0||(p.fix_no||'').toLowerCase().indexOf(q)>=0;
+    });
+  };
   renderSelectContent();
   closeMenu();openPanel('selectPropPanel');
   // パネルを開いた後に検索バーにフォーカス（PCのみ）
@@ -8224,6 +8246,40 @@ function toggleFavItem(fixNo,enc,eid){
   else{addFav(p);if(check){check.className='spi-check checked';check.textContent='✓';}}
   renderBody();
 }
+// ★表示中の物件を一括でマイ物件に登録（2026/10追加）。全現場を担当する業者（大工等）が
+//   毎回1件ずつチェックする手間を省く。タブ・検索・担当者フィルターを反映した一覧が対象。
+function bulkAddAllFavs(){
+  if(typeof window._spGetFilteredList!=='function')return;
+  var list=window._spGetFilteredList();
+  if(!list.length){showToast('対象の物件がありません','error');return;}
+  if(!confirm('表示中の'+list.length+'件をまとめてマイ物件に登録します。\nよろしいですか？'))return;
+  var added=0;
+  list.forEach(function(p){
+    if(!isFav(p)){myFavProps.push({fix_no:p.fix_no,name:p.name,area:p.area});added++;}
+  });
+  saveLS('jack_myfavs',myFavProps);
+  renderBody();
+  if(typeof renderMyPage==='function')renderMyPage();
+  if(typeof window.renderSelectPropContent==='function')window.renderSelectPropContent();
+  showToast('⭐ '+added+'件をマイ物件に追加しました（既に登録済み：'+(list.length-added)+'件）','success');
+}
+window.bulkAddAllFavs=bulkAddAllFavs;
+// ★表示中の物件を一括でマイ物件から解除（2026/10追加）。全件登録の取り消し用。
+function bulkRemoveAllFavs(){
+  if(typeof window._spGetFilteredList!=='function')return;
+  var list=window._spGetFilteredList();
+  if(!list.length){showToast('対象の物件がありません','error');return;}
+  if(!confirm('表示中の'+list.length+'件をまとめてマイ物件から解除します。\nよろしいですか？'))return;
+  var removed=0;
+  list.forEach(function(p){
+    if(isFav(p)){removeFav(p);removed++;}
+  });
+  renderBody();
+  if(typeof renderMyPage==='function')renderMyPage();
+  if(typeof window.renderSelectPropContent==='function')window.renderSelectPropContent();
+  showToast('🗑 '+removed+'件をマイ物件から解除しました','success');
+}
+window.bulkRemoveAllFavs=bulkRemoveAllFavs;
 
 // ===== MY PAGE =====
 function renderMyPage(){
@@ -13269,9 +13325,111 @@ function calDeselectAll(favEnc){
 }
 window.calDeselectAll=calDeselectAll;
 
+// ★物件詳細の工程表（ガント）と工事カレンダーを連動させる（2026/10追加）。
+//   選択済み（calSelections=true）の工種について、現在の実際のガント開始/終了日と
+//   カレンダー側のキャッシュ（calTasks）を比較し、ズレていた分だけ更新する。
+//   通信は発生させず、すでにクライアント側にあるデータ（getActiveSegs）だけで判定する
+//   「変更のみバッチ化」設計 - Supabase等への追加リクエストは一切発生しない。
+function _syncCalTasksWithGantt(){
+  var favs=(typeof myFavProps!=='undefined')?myFavProps:[];
+  var changed=[];
+  favs.forEach(function(fav){
+    var segs=(typeof getActiveSegs==='function')?getActiveSegs(fav):[];
+    if(!segs)segs=fav.segments||[];
+    var validSegs=segs.filter(function(s){return !s.layer&&(s.start_date||s.date)&&s.end_date;});
+    validSegs.forEach(function(s){
+      var lbl=s.label||s.name||'';
+      var key=(fav.fix_no||fav.name)+'__'+encodeURIComponent(fav.name||'')+'__'+encodeURIComponent(lbl);
+      if(!calSelections[key])return; // 選択されていない工種は追わない（対象を絞って軽量化）
+      var id='auto_'+key;
+      var t=calTasks.find(function(x){return x.id===id;});
+      if(!t)return;
+      var newSd=(s.start_date||s.date||'').replace(/\//g,'-');
+      var newEd=(s.end_date||'').replace(/\//g,'-');
+      if(t.startDate!==newSd||t.endDate!==newEd){
+        t.startDate=newSd;t.endDate=newEd;
+        changed.push({time:new Date().toISOString(),prop:fav.name||'',title:lbl});
+      }
+    });
+  });
+  if(changed.length){
+    try{saveLS('jack_cal_tasks',calTasks);}catch(e){}
+    var log=[];
+    try{log=loadLS('jack_cal_changelog',[]);}catch(e){log=[];}
+    changed.forEach(function(c){log.unshift(c);});
+    log=log.slice(0,20);
+    try{saveLS('jack_cal_changelog',log);}catch(e){}
+  }
+  return changed;
+}
+// ★ログイン中の担当者自身の「担当工種」（ユーザー管理→マスター編集で設定）に一致する工種を、
+//   マイ物件全件からまとめてカレンダーに選択する（2026/10追加）。20現場担当の大工等が
+//   1件ずつポップアップを開いてチェックする手間を省く。
+async function selectMyKoushuAllFavs(){
+  // ★2026/10修正：currentProfileはログイン時にキャッシュされたもので、管理者が自分の
+  //   担当工種を直前に設定しても（再ログインするまで）反映されず「未設定」と誤判定されていた。
+  //   そのため毎回Supabaseから最新のkoushuだけを軽量に取得し直す（失敗時はキャッシュ値にフォールバック）。
+  var koushu=[];
+  try{
+    var sb=getSB();
+    if(sb&&currentUser&&currentUser.id){
+      var pr=await sb.from('profiles').select('koushu').eq('id',currentUser.id).single();
+      if(!pr.error&&pr.data){
+        koushu=pr.data.koushu;
+        if(typeof koushu==='string'){try{koushu=JSON.parse(koushu);}catch(e){koushu=[];}}
+        if(!Array.isArray(koushu))koushu=[];
+        if(currentProfile)currentProfile.koushu=koushu; // キャッシュも更新しておく
+        try{
+          var cp=JSON.parse(localStorage.getItem('jack_profile_cache')||'{}');
+          cp.koushu=koushu;
+          localStorage.setItem('jack_profile_cache',JSON.stringify(cp));
+        }catch(e2){}
+      }
+    }
+  }catch(e){}
+  if(!koushu.length){
+    var fallback=currentProfile&&currentProfile.koushu;
+    if(typeof fallback==='string'){try{fallback=JSON.parse(fallback);}catch(e){fallback=[];}}
+    if(Array.isArray(fallback)&&fallback.length)koushu=fallback;
+  }
+  if(!koushu.length){
+    showToast('担当工種が未設定です。管理者（ユーザー管理→マスター編集）に設定を依頼してください','error');
+    return;
+  }
+  var favs=(typeof myFavProps!=='undefined')?myFavProps:[];
+  if(!favs.length){showToast('マイ物件が未登録です','error');return;}
+  var added=0;
+  favs.forEach(function(fav){
+    var segs=(typeof getActiveSegs==='function')?getActiveSegs(fav):[];
+    if(!segs)segs=fav.segments||[];
+    var validSegs=segs.filter(function(s){return !s.layer&&(s.start_date||s.date)&&s.end_date;});
+    validSegs.forEach(function(s){
+      var lbl=s.label||s.name||'';
+      if(koushu.indexOf(lbl)<0)return; // 自分の担当工種に一致するものだけ
+      var key=(fav.fix_no||fav.name)+'__'+encodeURIComponent(fav.name||'')+'__'+encodeURIComponent(lbl);
+      if(calSelections[key])return; // 既に選択済み
+      calSelections[key]=true;
+      var id='auto_'+key;
+      if(!calTasks.find(function(t){return t.id===id;})){
+        calTasks.push({id:id,title:lbl,prop:fav.name||'',
+          startDate:(s.start_date||s.date||'').replace(/\//g,'-'),
+          endDate:(s.end_date||'').replace(/\//g,'-'),
+          color:s.color||'#1a56db'});
+        added++;
+      }
+    });
+  });
+  try{saveLS('jack_cal_tasks',calTasks);}catch(e){}
+  try{saveLS('jack_cal_sel',calSelections);}catch(e){}
+  renderCalendar();
+  showToast('⭐ MY工種を'+added+'件まとめて選択しました','success');
+}
+window.selectMyKoushuAllFavs=selectMyKoushuAllFavs;
+
 function renderCalendar(){
   var el=document.getElementById('jackCalContent');
   if(!el)return;
+  _syncCalTasksWithGantt();
   var today=new Date();
   var todayStr=today.getFullYear()+'-'+('0'+(today.getMonth()+1)).slice(-2)+'-'+('0'+today.getDate()).slice(-2);
   var favs=(typeof myFavProps!=='undefined')?myFavProps:[];
@@ -13303,14 +13461,26 @@ function renderCalendar(){
   // 右エリア：縦スクロール13ヶ月（前月〜12ヶ月後）
   // ツールバー
   var toolBar='<div style="display:flex;align-items:center;justify-content:space-between;padding:8px 12px;border-bottom:1px solid #e2e8f0;flex-shrink:0;background:white;position:sticky;top:0;z-index:10;">'
-    
+
     +'<div style="font-size:13px;font-weight:800;color:#1e293b">📅 工事カレンダー</div>'
     +'<div style="display:flex;gap:6px;">'
+      +'<button onclick="selectMyKoushuAllFavs()" title="自分の担当工種に一致する工種をマイ物件全件からまとめて選択" style="padding:5px 10px;border-radius:7px;background:#059669;color:white;font-size:11px;cursor:pointer;font-weight:700">⭐ MY工種を一括選択</button>'
       +'<button onclick="scrollToToday()" style="padding:5px 12px;border-radius:7px;background:#1a56db;color:white;font-size:11px;cursor:pointer;font-weight:700">今月</button>'
       +'<button onclick="printCalendar()" style="padding:5px 10px;border-radius:7px;background:#475569;color:white;font-size:11px;cursor:pointer;font-weight:700">🖨️</button>'
       +'<button onclick="clearCalTasks()" style="padding:5px 10px;border-radius:7px;background:#fee2e2;color:#dc2626;font-size:11px;cursor:pointer;font-weight:700">🗑</button>'
     +'</div>'
   +'</div>';
+  // ★物件詳細のガント変更が反映された最新の「最終更新」情報を薄く表示（2026/10追加）
+  var lastChangeHtml='';
+  try{
+    var _clog=loadLS('jack_cal_changelog',[]);
+    if(_clog.length){
+      var _c0=_clog[0];
+      var _tStr=_c0.time?_c0.time.slice(0,16).replace('T',' '):'';
+      var _propShort=(_c0.prop||'').replace(/^(Jack|Walter)\s*/i,'');
+      lastChangeHtml='<div style="font-size:9px;color:#94a3b8;padding:3px 12px;background:#f8fafc;border-bottom:1px solid #e2e8f0;flex-shrink:0">🔄 最終更新：'+_tStr+'　'+_propShort+'（'+(_c0.title||'')+'）</div>';
+    }
+  }catch(e){}
 
   // 曜日ヘッダー
   var dowHeader='<div style="display:grid;grid-template-columns:repeat(7,1fr);gap:1px;padding:2px 8px;background:white;position:sticky;top:45px;z-index:9;border-bottom:1px solid #e2e8f0;flex-shrink:0;">'
@@ -13388,7 +13558,7 @@ function renderCalendar(){
   }
 
   var rightHtml='<div style="flex:1;display:flex;flex-direction:column;overflow:hidden;position:relative;">'
-    +toolBar+dowHeader
+    +toolBar+lastChangeHtml+dowHeader
     +'<div id="calScrollArea" onclick="spCalExpandRight(event)" style="flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;">'+months+'</div>'
     +'<button id="calOpenListBtn" onclick="spCalOpenList(event)" style="display:none;position:absolute;top:50px;left:8px;z-index:100;padding:8px 16px;border-radius:8px;background:rgba(26,45,90,.9);color:white;font-size:13px;font-weight:600;border:1px solid rgba(255,255,255,.25);cursor:pointer;box-shadow:0 4px 16px rgba(0,0,0,.3);letter-spacing:.4px;backdrop-filter:blur(4px)">☰ 物件一覧</button>'
   +'</div>';
