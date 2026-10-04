@@ -690,10 +690,17 @@ body.sp-mode #areaTabsBtns{ display:none !important; }
         <div style="margin-bottom:8px"><label style="font-size:10px;font-weight:700;color:#475569;display:block;margin-bottom:3px">メール *</label><input type="email" id="jackRegEmail" placeholder="email@example.com" style="width:100%;padding:8px 10px;border:1.5px solid #e2e8f0;border-radius:7px;font-size:12px;box-sizing:border-box"></div>
         <div style="margin-bottom:8px"><label style="font-size:10px;font-weight:700;color:#475569;display:block;margin-bottom:3px">パスワード * (8文字以上)</label><input type="password" id="jackRegPw" placeholder="パスワード" style="width:100%;padding:8px 10px;border:1.5px solid #e2e8f0;border-radius:7px;font-size:12px;box-sizing:border-box"></div>
         <div style="margin-bottom:14px"><label style="font-size:10px;font-weight:700;color:#475569;display:block;margin-bottom:3px">役割 *</label>
-          <select id="jackRegRole" onchange="jackRegRoleChanged()" style="width:100%;padding:8px 10px;border:1.5px solid #e2e8f0;border-radius:7px;font-size:12px;box-sizing:border-box"><option value="worker">協力業者</option><option value="admin">管理者（要承認）</option></select></div>
+          <select id="jackRegRole" onchange="jackRegRoleChanged()" style="width:100%;padding:8px 10px;border:1.5px solid #e2e8f0;border-radius:7px;font-size:12px;box-sizing:border-box"><option value="worker">協力業者</option><option value="inspector">検査機関（要承認）</option><option value="admin">管理者（要承認）</option></select></div>
         <div id="jackRegKoushuWrap" style="margin-bottom:14px">
           <label style="font-size:10px;font-weight:700;color:#475569;display:block;margin-bottom:3px">担当工種（複数選択可・あとで変更できます）</label>
           <div id="jackRegKoushuList" style="max-height:140px;overflow-y:auto;border:1.5px solid #e2e8f0;border-radius:7px;padding:4px 8px;font-size:11px;color:#94a3b8">読み込み中...</div>
+        </div>
+        <div id="jackRegShinsaWrap" style="margin-bottom:14px;display:none">
+          <label style="font-size:10px;font-weight:700;color:#475569;display:block;margin-bottom:3px">所属審査機関</label>
+          <select id="jackRegShinsa" style="width:100%;padding:8px 10px;border:1.5px solid #e2e8f0;border-radius:7px;font-size:12px;box-sizing:border-box">
+            <option value="住宅センター">住宅センター</option>
+            <option value="ハウスプラス">ハウスプラス</option>
+          </select>
         </div>
         <div id="jackRegErr" style="display:none;background:#fee2e2;color:#dc2626;padding:8px 11px;border-radius:7px;font-size:12px;margin-bottom:10px"></div>
         <button onclick="doRegister()" id="jackRegBtn" style="width:100%;padding:12px;background:#1a56db;color:white;border-radius:9px;font-size:14px;font-weight:700;cursor:pointer">登録申請</button>
@@ -740,6 +747,7 @@ body.sp-mode #areaTabsBtns{ display:none !important; }
     <div class="sb-item" onclick="doSyncFull()"><span class="sb-icon">🔄</span><span class="sb-label">今すぐ同期</span></div>
     <div class="sb-item" onclick="openSettings()"><span class="sb-icon">⚙️</span><span class="sb-label">設定</span></div>
     <div class="sb-item" onclick="printPage()"><span class="sb-icon">🖨️</span><span class="sb-label">印刷</span></div>
+    <div class="sb-item sp-hide" id="sbKensaBtn" style="display:none" onclick="openKensaViewer()"><span class="sb-icon">🔍</span><span class="sb-label">検査取りまとめ</span></div>
     <div class="sb-item sp-hide" id="sbAdminBtn" style="display:none" onclick="openAdminCP()"><span class="sb-icon">🏢</span><span class="sb-label">管理者CP</span></div>
   </div>
   <div class="sb-foot">
@@ -751,17 +759,18 @@ body.sp-mode #areaTabsBtns{ display:none !important; }
 <div id="jackMainWrap">
 <div id="loading"><div class="ld-logo">JACK</div><div class="ld-sub">現場管理システム</div><div class="ld-dots"><span></span><span></span><span></span></div></div>
 <div id="app" class="mobile-mode">
-  <div class="top-header"><div class="th-left"><div><div class="th-logo">JACK<span id="areaBadge"></span></div><div class="th-sub">新築AP 現場管理</div></div></div><div class="th-right"><button class="vendor-toggle-btn" onclick="togglePropSearch()" title="物件検索" id="propSearchBtn">検索</button><button class="vendor-toggle-btn" id="vendorColToggleBtnSp" onclick="_setVendorColOn(!_vendorColOn())" title="業者選定の表示切替">業者選択</button><button class="vendor-toggle-btn" id="weatherToggleBtnSp" onclick="_setWeatherBarOn(!_weatherBarOn())" title="天気予報の表示切替">天気</button><button class="vendor-toggle-btn" id="calMonthsBtnSp" onclick="openCalMonthsPicker()" title="カレンダー表示月数の選択">📅</button><button class="vendor-toggle-btn" id="sortModeBtnSp" onclick="openSortModePicker()" title="並び替え">⇅</button><button class="vendor-toggle-btn" id="tempSelectBtnSp" onclick="toggleTempSelectMode()" title="一時選択表示">☐選択</button><button class="vendor-toggle-btn" onclick="scrollGanttToEnd()" title="検査日程列まで一気に移動">検査へ</button><div class="th-today" id="todayBadge"></div><button class="print-btn" onclick="printPage()">🖨️</button><button class="th-icon-btn" onclick="openMenu()">☰</button></div></div>
+  <div class="top-header"><div class="th-left"><div><div class="th-logo">JACK<span id="areaBadge"></span></div><div class="th-sub">新築AP 現場管理</div></div></div><div class="th-right"><button class="vendor-toggle-btn" onclick="togglePropSearch()" title="物件検索" id="propSearchBtn">検索</button><button class="vendor-toggle-btn" id="vendorColToggleBtnSp" onclick="_setVendorColOn(!_vendorColOn())" title="業者選定の表示切替">業者選択</button><button class="vendor-toggle-btn" id="weatherToggleBtnSp" onclick="_setWeatherBarOn(!_weatherBarOn())" title="天気予報の表示切替">天気</button><button class="vendor-toggle-btn" id="calMonthsBtnSp" onclick="openCalMonthsPicker()" title="カレンダー表示月数の選択">📅</button><button class="vendor-toggle-btn" id="sortModeBtnSp" onclick="openSortModePicker()" title="並び替え">⇅</button><button class="vendor-toggle-btn" id="homeKousyuBtnSp" onclick="openHomeKousyuPicker()" title="工程で絞り込み">🔧</button><button class="vendor-toggle-btn" id="tempSelectBtnSp" onclick="toggleTempSelectMode()" title="一時選択表示">☐選択</button><button class="vendor-toggle-btn" onclick="scrollGanttToEnd()" title="検査日程列まで一気に移動">検査へ</button><div class="th-today" id="todayBadge"></div><button class="print-btn" onclick="printPage()">🖨️</button><button class="th-icon-btn" onclick="openMenu()">☰</button></div></div>
   <div class="sync-banner" id="syncBanner"><div style="display:flex;align-items:center;gap:6px"><div class="sync-dot"></div><span class="sync-msg">起動中...</span></div><button onclick="doSyncFull()" style="color:rgba(255,255,255,.6);font-size:10px;font-weight:600;background:rgba(255,255,255,.1);padding:2px 7px;border-radius:4px">同期</button></div>
   <div style="display:flex;align-items:center;background:#1e293b;border-bottom:1px solid rgba(255,255,255,.1);flex-shrink:0">
     <div class="area-tabs" id="areaTabs" style="flex:1;min-width:0;border-bottom:none"></div>
-    <div id="lastExcelImportInfo" style="font-size:10px;color:rgba(255,255,255,.55);white-space:nowrap;padding:0 6px;flex-shrink:0"></div>
+    <div id="lastExcelImportInfo" style="display:none"></div>
     <div id="areaTabsBtns" style="display:flex;align-items:center;gap:5px;padding:0 8px;flex-shrink:0">
       <button class="vendor-toggle-btn" onclick="togglePropSearch()" title="物件検索" id="propSearchBtn2">検索</button>
       <button class="vendor-toggle-btn" id="vendorColToggleBtn" onclick="_setVendorColOn(!_vendorColOn())" title="業者選定の表示切替">業者選択</button>
       <button class="vendor-toggle-btn" id="weatherToggleBtn" onclick="_setWeatherBarOn(!_weatherBarOn())" title="天気予報の表示切替">天気</button>
       <button class="vendor-toggle-btn" id="calMonthsBtn" onclick="openCalMonthsPicker()" title="カレンダー表示月数の選択">📅表示月数</button>
       <button class="vendor-toggle-btn" id="sortModeBtn" onclick="openSortModePicker()" title="並び替え">⇅ 並び替え</button>
+      <button class="vendor-toggle-btn" id="homeKousyuBtn" onclick="openHomeKousyuPicker()" title="工程で絞り込み">🔧 工程表示</button>
       <button class="vendor-toggle-btn" id="tempSelectBtn" onclick="toggleTempSelectMode()" title="一時選択表示">☐ 一時選択</button>
       <button class="vendor-toggle-btn" onclick="scrollGanttToEnd()" title="検査日程列まで一気に移動">検査へ</button>
     </div>
@@ -929,6 +938,10 @@ body.sp-mode #areaTabsBtns{ display:none !important; }
 <div class="slide-panel" id="jackCalendarPanel">
   <div class="panel-header"><button class="panel-back" onclick="closePanel('jackCalendarPanel')">← 戻る</button><div style="flex:1"><div class="panel-title">📅 工事カレンダー</div></div></div>
   <div class="panel-scroll" id="jackCalContent"></div>
+</div>
+<div class="slide-panel" id="jackKensaPanel">
+  <div class="panel-header"><button class="panel-back" onclick="closePanel('jackKensaPanel')">← 戻る</button><div style="flex:1"><div class="panel-title">🔍 検査取りまとめ</div></div></div>
+  <div class="panel-scroll" style="padding:0" id="jackKensaContent"></div>
 </div>
 <div class="slide-panel" id="jackAdminCPPanel">
   <div class="panel-header"><button class="panel-back" onclick="closePanel('jackAdminCPPanel')">← 戻る</button><div style="flex:1"><div class="panel-title">🏢 管理者コントロールパネル</div></div></div>
@@ -1104,6 +1117,124 @@ function setSortMode(v){
 window.openSortModePicker=openSortModePicker;
 window.setSortMode=setSortMode;
 
+// ★大工程表：工程選択パネル（2026/10追加）
+//   最上部に「⭐MY物件のみ表示」（既存のマイ物件タブへの切替ショートカット）、
+//   その下に工程一覧（選ぶとその工程の帯だけを全物件のガントに表示。物件の行は全て残る）
+function openHomeKousyuPicker(){
+  var existing=document.getElementById('_homeKousyuModal');
+  if(existing){existing.remove();return;}
+  var modal=document.createElement('div');
+  modal.id='_homeKousyuModal';
+  modal.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:9999;display:flex;align-items:center;justify-content:center;';
+  modal.addEventListener('click',function(e){if(e.target===modal)modal.remove();});
+  var kousyuList=(typeof HOME_GANTT_ALLOW!=='undefined'?HOME_GANTT_ALLOW:[]).slice().sort(function(a,b){return a.localeCompare(b,'ja');});
+  var html='<div style="background:white;border-radius:16px;width:88%;max-width:360px;max-height:80vh;display:flex;flex-direction:column;box-shadow:0 20px 60px rgba(0,0,0,.35);overflow:hidden">'
+    +'<div style="padding:14px 16px;background:linear-gradient(135deg,#1a56db,#1044b5);display:flex;align-items:center;flex-shrink:0">'
+      +'<div style="flex:1;font-size:14px;font-weight:800;color:white">🔧 工程で絞り込み</div>'
+      +'<button onclick="document.getElementById(\'_homeKousyuModal\').remove()" style="background:rgba(255,255,255,.2);color:white;border:none;border-radius:8px;padding:5px 10px;font-size:11px;cursor:pointer;font-weight:700">✕</button>'
+    +'</div>'
+    +'<div style="padding:10px 16px;font-size:11px;color:#64748b;line-height:1.6;flex-shrink:0">選んだ工程の帯だけを全物件のガントに表示します（物件の行は全て残ります）。表示だけの変更でデータは書き換わりません。</div>'
+    +'<div style="overflow-y:auto;padding:0 16px 16px;flex:1">'
+    +'<button onclick="setHomeKousyuMyOnly(!HOME_KOUSYU_MYONLY)" style="width:100%;padding:11px;background:'+(HOME_KOUSYU_MYONLY?'#fff7ed':'#f1f5f9')+';color:'+(HOME_KOUSYU_MYONLY?'#b45309':'#334155')+';border:2px solid '+(HOME_KOUSYU_MYONLY?'#f59e0b':'#e2e8f0')+';border-radius:10px;font-size:13px;font-weight:800;cursor:pointer;text-align:left;margin-bottom:10px">⭐ MY工種のみ表示'+(HOME_KOUSYU_MYONLY?' ✓':'')+'</button>'
+    +'<button onclick="setHomeKousyuFilter(null)" style="width:100%;padding:9px;background:'+(!HOME_KOUSYU_FILTER&&!HOME_KOUSYU_MYONLY?'#1a56db':'#f1f5f9')+';color:'+(!HOME_KOUSYU_FILTER&&!HOME_KOUSYU_MYONLY?'white':'#334155')+';border:2px solid '+(!HOME_KOUSYU_FILTER&&!HOME_KOUSYU_MYONLY?'#1a56db':'#e2e8f0')+';border-radius:10px;font-size:12px;font-weight:800;cursor:pointer;text-align:left;margin-bottom:6px">全工程を表示'+(!HOME_KOUSYU_FILTER&&!HOME_KOUSYU_MYONLY?' ✓':'')+'</button>'
+    +kousyuList.map(function(nm){
+      var active=(nm===HOME_KOUSYU_FILTER);
+      // ★選択中の工種をもう一度押すと解除できるようにする（2026/10/5修正：①選択した工種が解除できない）
+      var clickFn=active?'setHomeKousyuFilter(null)':('setHomeKousyuFilter(\''+nm.replace(/'/g,"&#39;")+'\')');
+      return '<button onclick="'+clickFn+'" style="width:100%;padding:9px;background:'+(active?'#1a56db':'white')+';color:'+(active?'white':'#334155')+';border:1.5px solid '+(active?'#1a56db':'#e2e8f0')+';border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;text-align:left;margin-bottom:4px">'+nm+(active?' ✓（タップで解除）':'')+'</button>';
+    }).join('')
+    +'</div>'
+  +'</div>';
+  modal.innerHTML=html;
+  document.body.appendChild(modal);
+}
+function setHomeKousyuFilter(v){
+  HOME_KOUSYU_FILTER=v;
+  HOME_KOUSYU_MYONLY=false; // ★個別工種選択とMY工種表示は排他（2026/10/5追加）
+  try{saveLS('jack_home_kousyu_filter',v);}catch(e){}
+  try{saveLS('jack_home_kousyu_myonly',false);}catch(e){}
+  var m=document.getElementById('_homeKousyuModal');if(m)m.remove();
+  _updateHomeKousyuBtn();
+  renderBody();
+  showToast(v?('🔧 「'+v+'」のみ表示中'):'絞り込みを解除しました','success');
+}
+// ★大工程表のMY工種のみ表示（2026/10/5追加）：②「MY物件のみ表示」ボタンがMY工種の意味と取り違えていたため修正。
+//   工事カレンダーの「⭐ MY工種を一括選択」と同じく、クリック時にSupabaseから最新のkoushuを取得し直す
+//   （currentProfile.koushuはログイン時キャッシュのため古い場合がある）。物件の行は絞り込まず、
+//   表示される工程の帯だけを自分の担当工種に限定する。
+var HOME_KOUSYU_MYONLY=(typeof loadLS==='function')?loadLS('jack_home_kousyu_myonly',false):false;
+window._homeMyKoushuList=[];
+async function setHomeKousyuMyOnly(on){
+  var m=document.getElementById('_homeKousyuModal');if(m)m.remove();
+  if(!on){
+    HOME_KOUSYU_MYONLY=false;
+    try{saveLS('jack_home_kousyu_myonly',false);}catch(e){}
+    _updateHomeKousyuBtn();
+    renderBody();
+    showToast('絞り込みを解除しました','success');
+    return;
+  }
+  var koushu=[];
+  try{
+    var sb=getSB();
+    if(sb&&currentUser&&currentUser.id){
+      var pr=await sb.from('profiles').select('koushu').eq('id',currentUser.id).single();
+      if(!pr.error&&pr.data){
+        koushu=pr.data.koushu;
+        if(typeof koushu==='string'){try{koushu=JSON.parse(koushu);}catch(e){koushu=[];}}
+        if(!Array.isArray(koushu))koushu=[];
+        if(currentProfile)currentProfile.koushu=koushu;
+      }
+    }
+  }catch(e){}
+  if(!koushu.length){
+    var fallback=currentProfile&&currentProfile.koushu;
+    if(typeof fallback==='string'){try{fallback=JSON.parse(fallback);}catch(e){fallback=[];}}
+    if(Array.isArray(fallback)&&fallback.length)koushu=fallback;
+  }
+  if(!koushu.length){
+    showToast('担当工種が未設定です（ユーザー管理で設定してください）','error');
+    return;
+  }
+  window._homeMyKoushuList=koushu;
+  HOME_KOUSYU_MYONLY=true;
+  HOME_KOUSYU_FILTER=null; // ★個別工種選択とMY工種表示は排他
+  try{saveLS('jack_home_kousyu_myonly',true);}catch(e){}
+  try{saveLS('jack_home_kousyu_filter',null);}catch(e){}
+  _updateHomeKousyuBtn();
+  renderBody();
+  showToast('⭐ MY工種（'+koushu.length+'件）のみ表示中','success');
+}
+window.setHomeKousyuMyOnly=setHomeKousyuMyOnly;
+async function _restoreHomeKousyuMyOnlyQuiet(){
+  var koushu=[];
+  try{
+    var sb=getSB();
+    if(sb&&currentUser&&currentUser.id){
+      var pr=await sb.from('profiles').select('koushu').eq('id',currentUser.id).single();
+      if(!pr.error&&pr.data){
+        koushu=pr.data.koushu;
+        if(typeof koushu==='string'){try{koushu=JSON.parse(koushu);}catch(e){koushu=[];}}
+        if(!Array.isArray(koushu))koushu=[];
+      }
+    }
+  }catch(e){}
+  window._homeMyKoushuList=koushu;
+  if(typeof renderBody==='function')renderBody();
+}
+function _updateHomeKousyuBtn(){
+  ['homeKousyuBtn','homeKousyuBtnSp'].forEach(function(id){
+    var btn=document.getElementById(id);
+    if(!btn)return;
+    var on=!!HOME_KOUSYU_FILTER||!!HOME_KOUSYU_MYONLY;
+    btn.style.background=on?'#dbeafe':'';
+    btn.style.color=on?'#1a56db':'';
+    if(id==='homeKousyuBtn')btn.textContent=HOME_KOUSYU_MYONLY?'🔧 MY工種':(HOME_KOUSYU_FILTER?('🔧 '+HOME_KOUSYU_FILTER):'🔧 工程表示');
+  });
+}
+window.openHomeKousyuPicker=openHomeKousyuPicker;
+window.setHomeKousyuFilter=setHomeKousyuFilter;
+
 // ★新機能【一時選択表示】：チェックした物件だけに一時的に絞り込む
 function _tempSelectBtnLabel(){
   var n=Object.keys(TEMP_SELECTED).filter(function(k){return TEMP_SELECTED[k];}).length;
@@ -1181,7 +1312,7 @@ var POST_END_PAD = 120; // ★スクロール終端の余白：完了検査列�
 // ===== 納品書機能：休工日カレンダー・稼働日計算 =====
 // ★日本の祝日（政府発表・国立天文台暦要項ベース、2025〜2028年分）
 // ★アプリバージョン（不具合問い合わせ対応用。リリースごとに更新すること。2026/8/23追加）
-var APP_VERSION = '2026.10.04.2';
+var APP_VERSION = '2026.10.05.1';
 window.APP_VERSION=APP_VERSION;
 console.log('[JACK] version', APP_VERSION);
 var JP_HOLIDAYS = [
@@ -2222,8 +2353,28 @@ var HOME_GANTT_FORCE_CHIP={
 };
 function isTokaiProp(p){return TOKAI_AREAS.indexOf(normalizeArea(p))>=0;}
 function isKantoProp(p){return KANTO_AREAS.indexOf(normalizeArea(p))>=0;}
+// ★大工程表：工程選択フィルター（2026/10追加）
+//   HOME_KOUSYU_FILTERに工種名が入っていれば、その工程の帯だけを残す（物件の行自体は絞り込まない＝相談時の回答どおり）
+var HOME_KOUSYU_FILTER=(typeof loadLS==='function')?loadLS('jack_home_kousyu_filter',null):null;
+function _applyHomeKousyuFilter(segs){
+  if(HOME_KOUSYU_MYONLY){
+    var mine=window._homeMyKoushuList||[];
+    if(!mine.length)return segs;
+    return segs.filter(function(s){
+      var nm=s.label||s.name||'';
+      var nmBase=(s._kensaDef||nm).replace(/\s*[\(（][^)）]*[\)）]\s*$/,'');
+      return mine.indexOf(nm)>=0||mine.indexOf(nmBase)>=0;
+    });
+  }
+  if(!HOME_KOUSYU_FILTER)return segs;
+  return segs.filter(function(s){
+    var nm=s.label||s.name||'';
+    var nmBase=(s._kensaDef||nm).replace(/\s*[\(（][^)）]*[\)）]\s*$/,'');
+    return nm===HOME_KOUSYU_FILTER||nmBase===HOME_KOUSYU_FILTER;
+  });
+}
 function _filterHomeGanttSegs(p, segs){
-  if(!isTokaiProp(p)&&!isKantoProp(p))return segs; // 東海・関東以外の物件は従来通り全表示
+  if(!isTokaiProp(p)&&!isKantoProp(p))return _applyHomeKousyuFilter(segs); // 東海・関東以外の物件は従来通り全表示（工程絞り込みのみ適用）
   var out=[];
   segs.forEach(function(s){
     var nm=s.label||s.name||'';
@@ -2262,7 +2413,7 @@ function _filterHomeGanttSegs(p, segs){
     if(!norm)return;
     out.push({label:ms.l,name:ms.l,start_date:norm,date:norm,end_date:norm,calendar_dur:1,duration:1,color:ms.c,layer:0});
   });
-  return out;
+  return _applyHomeKousyuFilter(out);
 }
 
 // ★手動での紐付けが無い物件に対し、エリア（東海/関東）に応じてマスター工程を自動選択する
@@ -3526,6 +3677,7 @@ function setMode(pc){
   _updateCalMonthsBtns();
   _updateSortBtns();
   _updateTempSelectBtns();
+  if(typeof _updateHomeKousyuBtn==='function')_updateHomeKousyuBtn();
 
   // body.sp-modeクラスで全CSS制御
   if(pc){ document.body.classList.remove('sp-mode'); }
@@ -3557,6 +3709,15 @@ function setMode(pc){
   if(adminBtn){
     adminBtn.style.display=(pc&&_isAdminNow)?'':'none';
   }
+  // ★検査取りまとめボタン：PCモード＆検査機関ロールの時だけ表示（2026/10追加）
+  //   管理者は管理者CP内「🔍検査取りまとめ」（全件・審査機関タブ・担当者絞込つきのフル機能版）を使うため、
+  //   こちらの簡易ビューアは検査機関ロール専用（管理者にも出すと簡易版に誘導されてしまい、
+  //   管理者CP側のフル機能が見えなくなる不具合の原因になっていたため、2026/10/5に検査機関専用に修正）
+  var kensaBtn=document.getElementById('sbKensaBtn');
+  var _isKensaViewerNow=typeof currentProfile!=='undefined'&&currentProfile&&currentProfile.role==='inspector';
+  if(kensaBtn){
+    kensaBtn.style.display=(pc&&_isKensaViewerNow)?'':'none';
+  }
 
   renderBody();
   if(!pc) spSetupAccordion();
@@ -3567,7 +3728,7 @@ function spTabHome(){
   spSetActiveTab('sp-tab-home');
   // メインリスト画面に戻る（全パネルを閉じる）
   var panels=['detailPanel','myPagePanel','selectPropPanel','masterPanel',
-    'masterEditorPanel','settingsPanel','vendorPanel','jackCalendarPanel','jackAdminCPPanel'];
+    'masterEditorPanel','settingsPanel','vendorPanel','jackCalendarPanel','jackKensaPanel','jackAdminCPPanel'];
   panels.forEach(function(id){
     var el=document.getElementById(id);
     if(el)el.classList.remove('open');
@@ -3581,7 +3742,7 @@ function spTabAll(){
   spSetActiveTab('sp-tab-all');
   // 全物件一覧タブ
   var panels=['detailPanel','myPagePanel','selectPropPanel','masterPanel',
-    'masterEditorPanel','settingsPanel','vendorPanel','jackCalendarPanel','jackAdminCPPanel'];
+    'masterEditorPanel','settingsPanel','vendorPanel','jackCalendarPanel','jackKensaPanel','jackAdminCPPanel'];
   panels.forEach(function(id){
     var el=document.getElementById(id);
     if(el)el.classList.remove('open');
@@ -10871,7 +11032,7 @@ function openSettings(){
           +'<span style="font-size:11px;color:#64748b">最終同期</span><span style="font-size:11.5px;font-weight:700;color:#1e293b;font-family:var(--mono)">'+last+'</span>'
         +'</div>'
         +'<div style="padding:10px 14px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid #f1f5f9">'
-          +'<span style="font-size:11px;color:#64748b">📥 エクセル最終更新</span><span style="font-size:11.5px;font-weight:700;color:#1e293b;font-family:var(--mono)">'+((LAST_EXCEL_IMPORT_META&&LAST_EXCEL_IMPORT_META.at)||'記録なし')+'</span>'
+          +'<span style="font-size:11px;color:#64748b">📥 エクセル最終更新</span><span style="font-size:11.5px;font-weight:700;color:#1e293b;font-family:var(--mono);text-align:right">'+((LAST_EXCEL_IMPORT_META&&LAST_EXCEL_IMPORT_META.at)?(LAST_EXCEL_IMPORT_META.at+(LAST_EXCEL_IMPORT_META.by?'（'+LAST_EXCEL_IMPORT_META.by+'）':'')):'記録なし')+'</span>'
         +'</div>'
         +'<div style="padding:10px 14px"><button class="btn-primary" style="width:100%" onclick="doSyncFull();document.getElementById(\'_settingsModal\').remove()">🔄 今すぐ同期</button></div>'
       +'</div>'
@@ -12379,6 +12540,9 @@ function jackRegRoleChanged(){
   var role=(document.getElementById('jackRegRole')||{}).value||'worker';
   var sec=document.getElementById('jackRegKoushuWrap');
   if(sec)sec.style.display=(role==='worker'&&_regMasterGroups&&Object.keys(_regMasterGroups).length)?'':'none';
+  // ★検査機関ロール（2026/10追加）：担当工種の代わりに所属審査機関を選ばせる
+  var shinsaSec=document.getElementById('jackRegShinsaWrap');
+  if(shinsaSec)shinsaSec.style.display=(role==='inspector')?'':'none';
 }
 window.jackRegRoleChanged=jackRegRoleChanged;
 
@@ -12419,19 +12583,28 @@ async function doRegister(){
     var amkRes=_amkGetResult('jackReg');
     area=amkRes.area; koushu=amkRes.koushu;
   }
+  // ★検査機関ロール（2026/10追加）：所属審査機関を収集
+  var shinsaKikan=null;
+  if(role==='inspector'){
+    shinsaKikan=(document.getElementById('jackRegShinsa')||{}).value||'住宅センター';
+  }
   if(!name||!company||!phone||!email||!pw){if(errEl){errEl.textContent='全ての項目を入力してください';errEl.style.display='';}return;}
   if(pw.length<8){if(errEl){errEl.textContent='パスワードは8文字以上';errEl.style.display='';}return;}
   if(btn){btn.textContent='登録中...';btn.disabled=true;}
   if(errEl)errEl.style.display='none';
   var sb=getSB();
-  var r=await sb.auth.signUp({email,password:pw,options:{data:{name,company,phone,role,area,koushu}}});
+  var r=await sb.auth.signUp({email,password:pw,options:{data:{name,company,phone,role,area,koushu,shinsa_kikan:shinsaKikan}}});
   if(r.error){if(errEl){errEl.textContent=r.error.message;errEl.style.display='';}if(btn){btn.textContent='登録申請';btn.disabled=false;}return;}
   currentUser=r.data.user;
-  // ★profilesへのarea/koushu反映はDBトリガー側の対応状況に依存するため、セッションが取れていれば
+  // ★profilesへのarea/koushu/shinsa_kikan反映はDBトリガー側の対応状況に依存するため、セッションが取れていれば
   //   保険としてクライアント側からも直接書き込む（失敗しても登録自体は継続。あとで管理者が
-  //   「✏️ マスター編集」から設定できるため致命的ではない）。
-  if((koushu.length||area.length)&&r.data&&r.data.user&&r.data.user.id){
-    try{await sb.from('profiles').update({area:area,koushu:koushu}).eq('id',r.data.user.id);}catch(e){}
+  //   ユーザー管理から設定できるため致命的ではない）。
+  if((koushu.length||area.length||shinsaKikan)&&r.data&&r.data.user&&r.data.user.id){
+    try{
+      var _regUp={area:area,koushu:koushu};
+      if(shinsaKikan)_regUp.shinsa_kikan=shinsaKikan;
+      await sb.from('profiles').update(_regUp).eq('id',r.data.user.id);
+    }catch(e){}
   }
   showPendingScreen();
   if(btn){btn.textContent='登録申請';btn.disabled=false;}
@@ -12552,6 +12725,10 @@ async function onAuthSuccess(isNewLogin){
   updateSidebarUser();
   var adminBtn=document.getElementById('sbAdminBtn');
   if(adminBtn&&currentProfile.role==='admin'&&isPcMode)adminBtn.style.display='';
+  // ★検査機関ロール（2026/10追加）：管理者CPは使わせず、トップ画面の「検査取りまとめ」ボタンのみ表示する
+  //   管理者はこのボタンを使わず、管理者CP内のフル機能版「🔍検査取りまとめ」を使う（2026/10/5修正）
+  var kensaBtn=document.getElementById('sbKensaBtn');
+  if(kensaBtn&&currentProfile.role==='inspector'&&isPcMode)kensaBtn.style.display='';
   // ★既存業者（約200名）の担当エリア・工種が未登録の場合、次回ログイン時に再登録を必須にする（2026/10追加）
   //   フルの再認証（ログアウト→ログイン）は不要で、ログイン直後に必須モーダルを表示するだけで済ませる。
   if(currentProfile.role==='worker'&&(!currentProfile.area||!Array.isArray(currentProfile.area)||!currentProfile.area.length)){
@@ -12567,6 +12744,9 @@ async function onAuthSuccess(isNewLogin){
 }
 function _finishLoginFlow(isNewLogin){
   loadPropertiesFromCacheOrDB(false);
+  // ★MY工種のみ表示がONのまま前回終了していた場合、再読込直後はwindow._homeMyKoushuListが
+  //   空のままなので、ログイン直後に静かに最新のkoushuを取り直しておく（2026/10/5追加）
+  if(HOME_KOUSYU_MYONLY)_restoreHomeKousyuMyOnlyQuiet();
   if(isNewLogin)showToast('✅ ログインしました','success');
   // 新規業者: tutorial_doneがfalseなら自動起動
   setTimeout(function(){
@@ -12887,7 +13067,7 @@ function updateSidebarUser(){
   }
   if(avatar)avatar.textContent=(currentProfile.name||'U').charAt(0).toUpperCase();
   if(name)name.textContent=currentProfile.name||'ユーザー';
-  if(role)role.textContent=currentProfile.role==='admin'?'👑 管理者':'協力業者';
+  if(role)role.textContent=currentProfile.role==='admin'?'👑 管理者':(currentProfile.role==='inspector'?'🔍 検査機関':'協力業者');
 }
 window.updateSidebarUser=updateSidebarUser;
 
@@ -14021,37 +14201,40 @@ async function loadAdmSec(sec){
     admFilterProps();
 
   } else if(sec==='kensa'){
-    var kprops=[];
+    // ★2026/10：検査機関ロール向けに独立ビューア（openKensaViewer）を新設したが、
+    //   管理者CP内の検査取りまとめ（審査機関タブ・担当者絞込・並び替え・一覧/カレンダー切替つきの全件管理画面）は
+    //   引き続きこちらに残す（独立ビューアは検査機関ロール本人が自分の担当分だけ見る簡易版、こちらは管理者用の全件管理）
+    var props=[];
     if(typeof DB_PROPS!=='undefined'&&DB_PROPS&&DB_PROPS.length>0){
-      kprops=DB_PROPS;
+      props=DB_PROPS;
     } else {
-      var sbk=getSB();
-      var prk=await sbk.from('properties').select('*').order('fix_no',{ascending:true});
-      kprops=prk.data||[];
+      var sb3=getSB();
+      var pr3=await sb3.from('properties').select('*').order('fix_no',{ascending:true});
+      props=pr3.data||[];
+      if(props.length>0){DB_PROPS=props;try{localStorage.setItem('jack_props_cache',JSON.stringify(props));}catch(e){}}
     }
-    window._admKensaAll=kprops;
-    // ★担当者フィルターの選択肢は担当者マスター＋実データに実在する値の和集合にする（2026/8/26追加）
-    //   マスター未整備の担当者名でも絞り込めるようにするため
-    var _kensaTantouOpts=STAFF_MASTER.slice();
-    kprops.forEach(function(p){
+    window._admKensaAll=props;
+    // 担当者フィルターの選択肢（実在する担当者名から生成）
+    var kTantouOpts=[];
+    props.forEach(function(p){
       var t=tantouOf(p);
-      if(t&&_kensaTantouOpts.indexOf(t)<0)_kensaTantouOpts.push(t);
+      if(t&&kTantouOpts.indexOf(t)<0)kTantouOpts.push(t);
     });
-    _kensaTantouOpts.sort(function(a,b){return a.localeCompare(b,'ja');});
-    right.innerHTML='<div style="padding:16px">'
-      +'<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:4px;flex-wrap:wrap">'
+    kTantouOpts.sort(function(a,b){return a.localeCompare(b,'ja');});
+    var kensaViewInit=window._admKensaView||'table';
+    right.innerHTML='<div style="padding:14px">'
+      +'<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px;flex-wrap:wrap;gap:8px">'
         +'<div style="font-size:16px;font-weight:800;color:#1e293b">🔍 検査取りまとめ</div>'
-        +'<div style="display:flex;gap:4px;align-items:center">'
-          +'<div style="display:flex;border:1.5px solid #e2e8f0;border-radius:8px;overflow:hidden">'
-            +'<button id="admKensaViewTableBtn" onclick="admKensaSetView(\'table\')" style="padding:6px 12px;font-size:11px;font-weight:700;border:none;cursor:pointer">📋 一覧</button>'
-            +'<button id="admKensaViewCalBtn" onclick="admKensaSetView(\'calendar\')" style="padding:6px 12px;font-size:11px;font-weight:700;border:none;cursor:pointer">📅 カレンダー</button>'
-          +'</div>'
-          +'<button id="admKensaPrintBtn" onclick="admPrintKensaCalendar()" style="display:none;padding:6px 10px;border-radius:7px;background:#475569;color:white;font-size:11px;cursor:pointer;font-weight:700;border:none">🖨️</button>'
+        +'<div style="display:flex;border:1.5px solid #e2e8f0;border-radius:8px;overflow:hidden">'
+          +'<button id="admKensaViewTableBtn" onclick="admKensaSetView(\'table\')" style="padding:6px 12px;font-size:11px;font-weight:700;border:none;cursor:pointer;background:'+(kensaViewInit==='table'?'#1a56db':'white')+';color:'+(kensaViewInit==='table'?'white':'#64748b')+'">📋 一覧</button>'
+          +'<button id="admKensaViewCalBtn" onclick="admKensaSetView(\'calendar\')" style="padding:6px 12px;font-size:11px;font-weight:700;border:none;cursor:pointer;background:'+(kensaViewInit==='calendar'?'#1a56db':'white')+';color:'+(kensaViewInit==='calendar'?'white':'#64748b')+'">📅 カレンダー</button>'
+          +'<button id="admKensaPrintBtn" onclick="admPrintKensaCalendar()" style="display:'+(kensaViewInit==='calendar'?'':'none')+';padding:6px 12px;font-size:11px;font-weight:700;border:none;cursor:pointer;background:#f1f5f9;color:#475569">🖨️ 印刷</button>'
         +'</div>'
       +'</div>'
-      +'<div style="font-size:11px;color:#64748b;margin-bottom:14px">配筋・躯体・中間・断熱・完了・完成、各検査の予約状況を一覧またはカレンダーで確認・編集できます。ここで入力した予約日は物件詳細・ガントにも即時反映されます</div>'
-      +'<div style="display:flex;gap:8px;margin-bottom:10px;flex-wrap:wrap;align-items:center">'
-        +'<input id="admKensaSearch" placeholder="🔎 物件名・FIX No検索" oninput="admRenderKensaTable()" style="flex:1;min-width:180px;padding:8px 12px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:12px;outline:none">'
+      +'<div style="font-size:11px;color:#64748b;margin-bottom:10px">配筋・躯体・中間・断熱・完了・完成、各検査の予約日・予約状況を確認・編集できます。ここで入力した内容は物件詳細・ガントにも即時反映されます</div>'
+      +'<div id="admKensaShinsaTabs" style="display:flex;gap:6px;margin-bottom:8px;flex-wrap:wrap"></div>'
+      +'<div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap;align-items:center">'
+        +'<input id="admKensaSearch" type="text" placeholder="🔎 物件名・FiX No.で絞込..." oninput="admRenderKensaTable()" style="flex:1;min-width:160px;padding:8px 12px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:12px;outline:none">'
         +'<select id="admKensaDelivery" onchange="admRenderKensaTable()" style="padding:8px 12px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:12px;font-weight:700;color:#1e293b;background:white">'
           +'<option value="before">引渡し前</option>'
           +'<option value="done">引渡し済み</option>'
@@ -14064,20 +14247,17 @@ async function loadAdmSec(sec){
           +'<option value="tokai_raikin">東海来期</option>'
           +'<option value="kanto_raikin">関東来期</option>'
         +'</select>'
+        +(kTantouOpts.length?('<select id="admKensaTantouFilter" onchange="admRenderKensaTable()" style="padding:8px 12px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:12px;font-weight:700;color:#1e293b;background:white">'
+          +'<option value="">担当者：全員</option>'
+          +kTantouOpts.map(function(n){return '<option value="'+n.replace(/"/g,'&quot;')+'">'+n+'</option>';}).join('')
+        +'</select>'):'')
         +'<select id="admKensaSort" onchange="admRenderKensaTable()" style="padding:8px 12px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:12px;font-weight:700;color:#1e293b;background:white">'
           +'<option value="delivery">並び替え：引渡日順</option>'
           +'<option value="tantou">並び替え：担当者順</option>'
         +'</select>'
-        +'<select id="admKensaTantouFilter" onchange="admRenderKensaTable()" style="padding:8px 12px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:12px;font-weight:700;color:#1e293b;background:white">'
-          +'<option value="">担当者：全員</option>'
-          +_kensaTantouOpts.map(function(n){return '<option value="'+n.replace(/"/g,'&quot;')+'">'+n+'</option>';}).join('')
-        +'</select>'
       +'</div>'
-      +'<div style="display:flex;gap:6px;margin-bottom:14px;flex-wrap:wrap" id="admKensaShinsaTabs"></div>'
       +'<div id="admKensaTableWrap" style="overflow-x:auto;background:white;border-radius:12px;border:1px solid #e2e8f0;box-shadow:0 1px 3px rgba(0,0,0,.04)"></div>'
     +'</div>';
-    window._admKensaShinsa='';
-    window._admKensaView='table';
     admRenderKensaTable();
 
   } else if(sec==='delivery'){
@@ -14276,15 +14456,32 @@ function admUserCard(u,approved){
   var koushuHtml=koushuArr.length
     ?('<div style="margin-top:3px">'+koushuArr.map(function(k){return '<span style="display:inline-block;background:#eef2ff;color:#4338ca;font-size:9px;font-weight:700;padding:1px 7px;border-radius:9px;margin-right:3px;margin-bottom:2px">'+k+'</span>';}).join('')+'</div>')
     :'';
+  // ★ロール表示（2026/10追加）：検査機関ロールにも対応
+  var roleLabel=u.role==='admin'?'👑管理者':(u.role==='inspector'?'🔍検査機関':'協力業者');
+  var roleColor=u.role==='admin'?'#f59e0b':(u.role==='inspector'?'#0891b2':'#64748b');
+  // ★検査機関ロールのユーザーのみ、所属審査機関（住宅センター／ハウスプラス）を選ばせる
+  var shinsaSelectHtml=(u.role==='inspector')
+    ?('<select data-pid="'+u.id+'" onchange="admSaveProfileField(this,\'shinsa_kikan\')" style="font-size:10px;padding:2px 6px;border:1.5px solid '+(u.shinsa_kikan?'#e2e8f0':'#fca5a5')+';border-radius:5px">'
+        +'<option value=""'+(!u.shinsa_kikan?' selected':'')+'>所属未選択</option>'
+        +'<option value="住宅センター"'+(u.shinsa_kikan==='住宅センター'?' selected':'')+'>住宅センター</option>'
+        +'<option value="ハウスプラス"'+(u.shinsa_kikan==='ハウスプラス'?' selected':'')+'>ハウスプラス</option>'
+      +'</select>')
+    :'';
   return '<div style="background:white;border-radius:9px;padding:10px 12px;margin-bottom:8px;border:1px solid #e2e8f0;display:flex;align-items:center;gap:10px">'
     +'<div style="width:36px;height:36px;border-radius:50%;background:#3b82f6;color:white;font-size:14px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0">'+(u.name||'?').charAt(0)+'</div>'
     +'<div style="flex:1;min-width:0">'
-      +'<div style="font-size:13px;font-weight:700;color:#1e293b">'+(u.name||'')+' <span style="font-size:10px;color:'+(u.role==='admin'?'#f59e0b':'#64748b')+'">'+( u.role==='admin'?'👑管理者':'協力業者')+'</span></div>'
+      +'<div style="font-size:13px;font-weight:700;color:#1e293b">'+(u.name||'')+' <span style="font-size:10px;color:'+roleColor+'">'+roleLabel+'</span></div>'
       +'<div style="font-size:11px;color:#94a3b8">'+(u.email||'')+'</div>'
-      // ★一覧（カード）上で直接編集できるように、会社名・電話番号をinput化（2026/10追加・モーダルを開かなくても直せる）
+      // ★一覧（カード）上で直接編集できるように、会社名・電話番号・ロールをinput/select化（2026/10追加・モーダルを開かなくても直せる）
       +'<div style="display:flex;gap:4px;align-items:center;margin-top:2px;flex-wrap:wrap">'
         +'<input type="text" value="'+(u.company||'')+'" placeholder="会社名未登録" data-pid="'+u.id+'" onchange="admSaveProfileField(this,\'company\')" style="font-size:10px;padding:2px 6px;border:1.5px solid '+(u.company?'#e2e8f0':'#fca5a5')+';border-radius:5px;width:120px">'
         +'<input type="text" value="'+(u.phone||'')+'" placeholder="電話番号" data-pid="'+u.id+'" onchange="admSaveProfileField(this,\'phone\')" style="font-size:10px;padding:2px 6px;border:1.5px solid #e2e8f0;border-radius:5px;width:100px">'
+        +'<select data-pid="'+u.id+'" onchange="admSaveUserRole(this)" style="font-size:10px;padding:2px 6px;border:1.5px solid #e2e8f0;border-radius:5px">'
+          +'<option value="worker"'+(u.role!=='admin'&&u.role!=='inspector'?' selected':'')+'>協力業者</option>'
+          +'<option value="inspector"'+(u.role==='inspector'?' selected':'')+'>検査機関</option>'
+          +'<option value="admin"'+(u.role==='admin'?' selected':'')+'>管理者</option>'
+        +'</select>'
+        +shinsaSelectHtml
       +'</div>'
       +koushuHtml
     +'</div>'
@@ -14297,6 +14494,18 @@ function admUserCard(u,approved){
     +'</div>'
     +'</div>';
 }
+// ★ユーザーのロール変更（2026/10追加）：検査機関⇔協力業者⇔管理者の切替。
+//   見た目（バッジ・所属審査機関欄の表示）を正しく反映するため、保存後は一覧を再描画する。
+async function admSaveUserRole(sel){
+  var pid=sel.getAttribute('data-pid'), val=sel.value, sb=getSB();
+  if(!sb)return;
+  var r=await sb.from('profiles').update({role:val}).eq('id',pid);
+  if(r.error){showToast('⚠️ 保存に失敗しました：'+r.error.message,'error');return;}
+  if(window._admUsersList){var idx=window._admUsersList.findIndex(function(u){return String(u.id)===String(pid);});if(idx>=0)window._admUsersList[idx].role=val;}
+  showToast('✅ ロールを変更しました','success');
+  loadAdmSec('users');
+}
+window.admSaveUserRole=admSaveUserRole;
 
 // ★業者マスター編集（会社名の修正・担当工種の選択）（2026/10追加）
 //   「どの業者がどの工種か」を把握し、将来の工事カレンダー連動のために使う。
@@ -14852,6 +15061,165 @@ function admPrintKensaCalendar(){
   else showToast('ポップアップを許可してください','error');
 }
 window.admPrintKensaCalendar=admPrintKensaCalendar;
+
+// ============================================================
+// ★検査機関ロール専用：検査取りまとめビューア（2026/10追加）
+//   トップ画面の「🔍検査取りまとめ」ボタン（sbKensaBtn）から開く。管理者CPには入れず、
+//   自分の所属審査機関（住宅センター／ハウスプラス）が担当する物件のみに絞って表示・編集できる。
+//   管理者用のadmRenderKensaTableと見た目・列構成は揃えつつ、データ(window._kvAll)と
+//   保存関数(kvSaveKensaField)は別に持つことで、管理者側の既存コードに影響を与えないようにしている。
+// ============================================================
+async function openKensaViewer(){
+  // ★管理者は管理者CP内のフル機能版「🔍検査取りまとめ」を使うため、この簡易ビューアは検査機関ロール専用（2026/10/5修正）
+  if(!currentProfile||currentProfile.role!=='inspector'){showToast('権限がありません','error');return;}
+  var content=document.getElementById('jackKensaContent');
+  if(!content)return;
+  content.innerHTML='<div style="padding:30px;text-align:center;color:#94a3b8;font-size:12px">読み込み中...</div>';
+  openPanel('jackKensaPanel');
+  var myShinsa=currentProfile.shinsa_kikan||'';
+  var sb=getSB();
+  var kprops=[];
+  if(typeof DB_PROPS!=='undefined'&&DB_PROPS&&DB_PROPS.length>0){
+    kprops=DB_PROPS;
+  } else if(sb){
+    var prk=await sb.from('properties').select('*').order('fix_no',{ascending:true});
+    kprops=prk.data||[];
+  }
+  // ★検査機関ロールは自分の審査機関が担当する物件のみ（相談時の回答どおり）。管理者が確認用に開いた場合は全件。
+  window._kvAll=(currentProfile.role==='inspector'&&myShinsa)?kprops.filter(function(p){return p.shinsa_kikan===myShinsa;}):kprops;
+  content.innerHTML='<div style="padding:16px">'
+    +'<div style="font-size:16px;font-weight:800;color:#1e293b;margin-bottom:4px">🔍 検査取りまとめ'+(myShinsa?'（'+myShinsa+'）':'')+'</div>'
+    +'<div style="font-size:11px;color:#64748b;margin-bottom:14px">配筋・躯体・中間・断熱・完了・完成、各検査の予約日・予約状況を確認・編集できます。ここで入力した内容は物件詳細・ガントにも即時反映されます</div>'
+    +'<div style="display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap;align-items:center">'
+      +'<input id="kvSearch" placeholder="🔎 物件名・FIX No検索" oninput="kvRenderTable()" style="flex:1;min-width:180px;padding:8px 12px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:12px;outline:none">'
+      +'<select id="kvDelivery" onchange="kvRenderTable()" style="padding:8px 12px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:12px;font-weight:700;color:#1e293b;background:white">'
+        +'<option value="before">引渡し前</option>'
+        +'<option value="done">引渡し済み</option>'
+        +'<option value="all">全て</option>'
+      +'</select>'
+      +'<select id="kvArea" onchange="kvRenderTable()" style="padding:8px 12px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:12px;font-weight:700;color:#1e293b;background:white">'
+        +'<option value="all">全物件</option>'
+        +'<option value="tokai">東海</option>'
+        +'<option value="kanto">関東</option>'
+        +'<option value="tokai_raikin">東海来期</option>'
+        +'<option value="kanto_raikin">関東来期</option>'
+      +'</select>'
+    +'</div>'
+    +'<div id="kvTableWrap" style="overflow-x:auto;background:white;border-radius:12px;border:1px solid #e2e8f0;box-shadow:0 1px 3px rgba(0,0,0,.04)"></div>'
+  +'</div>';
+  kvRenderTable();
+}
+window.openKensaViewer=openKensaViewer;
+
+function kvRenderTable(){
+  var wrap=document.getElementById('kvTableWrap');if(!wrap)return;
+  var all=window._kvAll||[];
+  var q=(document.getElementById('kvSearch')||{}).value||'';
+  q=q.trim().toLowerCase();
+  var areaMode=(document.getElementById('kvArea')||{}).value||'all';
+  var deliveryMode=(document.getElementById('kvDelivery')||{}).value||'before';
+  var defs=[
+    {key:'haikin',label:'配筋検査',dateKey:'haikin_date',statusKey:'haikin_status'},
+    {key:'kutai',label:'躯体検査',dateKey:'kutai_date',statusKey:'kutai_status'},
+    {key:'chukan',label:'中間検査',dateKey:'chukan_date',statusKey:'chukan_status'},
+    {key:'dannetsu',label:'断熱検査',dateKey:'dannetsu_date',statusKey:'dannetsu_status'},
+    {key:'inspection',label:'完了検査',dateKey:'inspection_date',statusKey:'inspection_status'},
+    {key:'kansei',label:'完成検査',dateKey:'kansei_date',statusKey:'kansei_status'}
+  ];
+  var rows=all.filter(function(p){
+    if(q&&!((p.name||'').toLowerCase().indexOf(q)>=0||String(p.fix_no||'').indexOf(q)>=0))return false;
+    var area=normalizeArea(p);
+    if(areaMode==='tokai'){if(!(TOKAI_AREAS.indexOf(area)>=0&&!isRaikin(p)&&!isKankou(p)))return false;}
+    else if(areaMode==='kanto'){if(!(KANTO_AREAS.indexOf(area)>=0&&!isRaikin(p)&&!isKankou(p)))return false;}
+    else if(areaMode==='tokai_raikin'){if(!(TOKAI_AREAS.indexOf(area)>=0&&isRaikin(p)))return false;}
+    else if(areaMode==='kanto_raikin'){if(!(KANTO_AREAS.indexOf(area)>=0&&isRaikin(p)))return false;}
+    if(deliveryMode!=='all'){
+      var nd=normDate(p.delivery_date);
+      var ndKey=nd?nd.replace(/\//g,'-'):'';
+      var isDone=!!ndKey&&ndKey<TODAY;
+      if(deliveryMode==='before'&&isDone)return false;
+      if(deliveryMode==='done'&&!isDone)return false;
+    }
+    return true;
+  });
+  rows.sort(function(a,b){
+    var da=normDate(a.delivery_date)||'', db=normDate(b.delivery_date)||'';
+    if(!da&&!db)return 0; if(!da)return 1; if(!db)return -1;
+    return da<db?-1:(da>db?1:0);
+  });
+  if(!rows.length){wrap.innerHTML='<div style="text-align:center;padding:32px;color:#94a3b8;font-size:12px">該当する物件がありません</div>';return;}
+  var html='<table style="width:100%;border-collapse:collapse;font-size:11px;table-layout:fixed">'
+    +'<colgroup><col style="width:20%"><col style="width:12%"><col style="width:12%"><col style="width:12%"><col style="width:12%"><col style="width:12%"><col style="width:12%"><col style="width:8%"></colgroup>'
+    +'<thead><tr style="background:#f8fafc">'
+      +'<th style="text-align:left;padding:10px 12px;border-bottom:2px solid #e2e8f0;font-size:10px;color:#64748b">物件名</th>'
+      +defs.map(function(d){return '<th style="text-align:left;padding:10px 12px;border-bottom:2px solid #e2e8f0;font-size:10px;color:#64748b">'+d.label+'</th>';}).join('')
+      +'<th style="text-align:left;padding:10px 12px;border-bottom:2px solid #e2e8f0;font-size:10px;color:#64748b">引渡日</th>'
+    +'</tr></thead><tbody>';
+  rows.forEach(function(p,i){
+    var fixNoAttr=String(p.fix_no||'');
+    html+='<tr style="background:'+(i%2===0?'white':'#f8fafc')+'">'
+      +'<td style="padding:9px 12px;font-weight:700;color:#1e293b;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'
+        +'<span style="color:#94a3b8;font-weight:400">'+(p.fix_no||'')+'</span> '+(p.name||'')
+      +'</td>'
+      +defs.map(function(d){
+        var dv=(p[d.dateKey]||'').replace(/\//g,'-');
+        var st=p[d.statusKey]||'before';
+        var isRes=st==='reserved';
+        return '<td style="padding:6px 8px">'
+          +'<div style="display:flex;align-items:center;gap:3px;flex-wrap:wrap">'
+          +'<input type="date" value="'+dv+'" onchange="kvDateChange(\''+fixNoAttr+'\',\''+d.dateKey+'\',this.value)" style="width:112px;padding:4px 5px;border:1.5px solid #e2e8f0;border-radius:6px;font-size:10px;outline:none">'
+          +'<button type="button" onclick="kvToggleStatus(\''+fixNoAttr+'\',\''+d.statusKey+'\')" style="font-size:9px;font-weight:800;color:white;background:'+(isRes?'#3b82f6':'#f97316')+';border:none;border-radius:10px;padding:4px 8px;cursor:pointer;white-space:nowrap">'+(isRes?'予約済み':'予約前')+'</button>'
+          +'</div>'
+        +'</td>';
+      }).join('')
+      +'<td style="padding:9px 12px;color:#475569;white-space:nowrap">'+(normDate(p.delivery_date)||'')+'</td>'
+    +'</tr>';
+  });
+  html+='</tbody></table>';
+  wrap.innerHTML=html;
+}
+window.kvRenderTable=kvRenderTable;
+function kvDateChange(fixNo,dateKey,val){
+  var newVal=val?val.replace(/-/g,'/'):null;
+  kvSaveKensaField(fixNo,dateKey,newVal);
+}
+window.kvDateChange=kvDateChange;
+function kvToggleStatus(fixNo,statusKey){
+  var all=window._kvAll||[];
+  var p=all.find(function(x){return String(x.fix_no)===String(fixNo);});
+  if(!p)return;
+  var cur=p[statusKey]||'before';
+  kvSaveKensaField(fixNo,statusKey,cur==='reserved'?'before':'reserved');
+}
+window.kvToggleStatus=kvToggleStatus;
+function kvSaveKensaField(fixNo,field,value){
+  var all=window._kvAll||[];
+  var p=all.find(function(x){return String(x.fix_no)===String(fixNo);});
+  if(!p)return;
+  var dbUpdates={}; dbUpdates[field]=value;
+  dbUpdates.updated_at=new Date().toISOString(); // ★他ユーザー側のタイムスタンプ差分チェックに検知させるため（検査取りまとめと同じ対応）
+  function applyLocallyKv(){
+    p[field]=value;
+    if(typeof DB_PROPS!=='undefined'&&DB_PROPS){
+      var idx=DB_PROPS.findIndex(function(dp){return String(dp.fix_no)===String(fixNo);});
+      if(idx>=0)DB_PROPS[idx][field]=value;
+      try{localStorage.setItem('jack_props_cache',JSON.stringify(DB_PROPS));}catch(e){}
+    }
+    kvRenderTable();
+    if(typeof renderBody==='function')renderBody();
+  }
+  var sb=getSB();
+  if(!sb){applyLocallyKv();showToast('⚠️ オフライン: ローカルに保存（他端末未反映）','');return;}
+  sb.from('properties').update(dbUpdates).eq('fix_no',String(fixNo))
+    .then(function(res){
+      if(res.error){showToast('保存エラー: '+res.error.message,'error');return;}
+      applyLocallyKv();
+      showToast('✅ 保存しました','success');
+    })
+    .catch(function(e){showToast('保存エラー: '+e.message,'error');});
+}
+window.kvSaveKensaField=kvSaveKensaField;
+
 function admRenderKensaTable(){
   var wrap=document.getElementById('admKensaTableWrap');if(!wrap)return;
   var all=window._admKensaAll||[];
