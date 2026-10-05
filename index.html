@@ -1312,7 +1312,7 @@ var POST_END_PAD = 120; // ★スクロール終端の余白：完了検査列�
 // ===== 納品書機能：休工日カレンダー・稼働日計算 =====
 // ★日本の祝日（政府発表・国立天文台暦要項ベース、2025〜2028年分）
 // ★アプリバージョン（不具合問い合わせ対応用。リリースごとに更新すること。2026/8/23追加）
-var APP_VERSION = '2026.10.05.1';
+var APP_VERSION = '2026.10.05.2';
 window.APP_VERSION=APP_VERSION;
 console.log('[JACK] version', APP_VERSION);
 var JP_HOLIDAYS = [
@@ -14221,43 +14221,7 @@ async function loadAdmSec(sec){
       if(t&&kTantouOpts.indexOf(t)<0)kTantouOpts.push(t);
     });
     kTantouOpts.sort(function(a,b){return a.localeCompare(b,'ja');});
-    var kensaViewInit=window._admKensaView||'table';
-    right.innerHTML='<div style="padding:14px">'
-      +'<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px;flex-wrap:wrap;gap:8px">'
-        +'<div style="font-size:16px;font-weight:800;color:#1e293b">🔍 検査取りまとめ</div>'
-        +'<div style="display:flex;border:1.5px solid #e2e8f0;border-radius:8px;overflow:hidden">'
-          +'<button id="admKensaViewTableBtn" onclick="admKensaSetView(\'table\')" style="padding:6px 12px;font-size:11px;font-weight:700;border:none;cursor:pointer;background:'+(kensaViewInit==='table'?'#1a56db':'white')+';color:'+(kensaViewInit==='table'?'white':'#64748b')+'">📋 一覧</button>'
-          +'<button id="admKensaViewCalBtn" onclick="admKensaSetView(\'calendar\')" style="padding:6px 12px;font-size:11px;font-weight:700;border:none;cursor:pointer;background:'+(kensaViewInit==='calendar'?'#1a56db':'white')+';color:'+(kensaViewInit==='calendar'?'white':'#64748b')+'">📅 カレンダー</button>'
-          +'<button id="admKensaPrintBtn" onclick="admPrintKensaCalendar()" style="display:'+(kensaViewInit==='calendar'?'':'none')+';padding:6px 12px;font-size:11px;font-weight:700;border:none;cursor:pointer;background:#f1f5f9;color:#475569">🖨️ 印刷</button>'
-        +'</div>'
-      +'</div>'
-      +'<div style="font-size:11px;color:#64748b;margin-bottom:10px">配筋・躯体・中間・断熱・完了・完成、各検査の予約日・予約状況を確認・編集できます。ここで入力した内容は物件詳細・ガントにも即時反映されます</div>'
-      +'<div id="admKensaShinsaTabs" style="display:flex;gap:6px;margin-bottom:8px;flex-wrap:wrap"></div>'
-      +'<div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap;align-items:center">'
-        +'<input id="admKensaSearch" type="text" placeholder="🔎 物件名・FiX No.で絞込..." oninput="admRenderKensaTable()" style="flex:1;min-width:160px;padding:8px 12px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:12px;outline:none">'
-        +'<select id="admKensaDelivery" onchange="admRenderKensaTable()" style="padding:8px 12px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:12px;font-weight:700;color:#1e293b;background:white">'
-          +'<option value="before">引渡し前</option>'
-          +'<option value="done">引渡し済み</option>'
-          +'<option value="all">全て</option>'
-        +'</select>'
-        +'<select id="admKensaArea" onchange="admRenderKensaTable()" style="padding:8px 12px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:12px;font-weight:700;color:#1e293b;background:white">'
-          +'<option value="all">全物件</option>'
-          +'<option value="tokai">東海</option>'
-          +'<option value="kanto">関東</option>'
-          +'<option value="tokai_raikin">東海来期</option>'
-          +'<option value="kanto_raikin">関東来期</option>'
-        +'</select>'
-        +(kTantouOpts.length?('<select id="admKensaTantouFilter" onchange="admRenderKensaTable()" style="padding:8px 12px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:12px;font-weight:700;color:#1e293b;background:white">'
-          +'<option value="">担当者：全員</option>'
-          +kTantouOpts.map(function(n){return '<option value="'+n.replace(/"/g,'&quot;')+'">'+n+'</option>';}).join('')
-        +'</select>'):'')
-        +'<select id="admKensaSort" onchange="admRenderKensaTable()" style="padding:8px 12px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:12px;font-weight:700;color:#1e293b;background:white">'
-          +'<option value="delivery">並び替え：引渡日順</option>'
-          +'<option value="tantou">並び替え：担当者順</option>'
-        +'</select>'
-      +'</div>'
-      +'<div id="admKensaTableWrap" style="overflow-x:auto;background:white;border-radius:12px;border:1px solid #e2e8f0;box-shadow:0 1px 3px rgba(0,0,0,.04)"></div>'
-    +'</div>';
+    right.innerHTML=_buildKensaShellHtml({tantouOpts:kTantouOpts});
     admRenderKensaTable();
 
   } else if(sec==='delivery'){
@@ -14890,6 +14854,50 @@ function _shinsaBadgeAbbr(v){
   var col=v==='住宅センター'?'#4338ca':'#059669';
   return '<span style="font-size:8px;font-weight:700;background:'+bg+';color:'+col+';padding:1px 4px;border-radius:4px;white-space:nowrap;display:inline-block;vertical-align:middle">'+abbr+'</span>';
 }
+// ★検査取りまとめのUI枠（管理者CPと検査機関ロールのトップ画面で共通）。opts:{tantouOpts,inspector,titleSuffix}
+function _buildKensaShellHtml(opts){
+  opts=opts||{};
+  var kensaViewInit=window._admKensaView||'table';
+  var kTantouOpts=opts.tantouOpts||[];
+  var isInsp=!!opts.inspector;
+  return '<div style="padding:14px">'
+    +'<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px;flex-wrap:wrap;gap:8px">'
+      +'<div style="font-size:16px;font-weight:800;color:#1e293b">🔍 検査取りまとめ'+(opts.titleSuffix||'')+'</div>'
+      +'<div style="display:flex;border:1.5px solid #e2e8f0;border-radius:8px;overflow:hidden">'
+        +'<button id="admKensaViewTableBtn" onclick="admKensaSetView(\'table\')" style="padding:6px 12px;font-size:11px;font-weight:700;border:none;cursor:pointer;background:'+(kensaViewInit==='table'?'#1a56db':'white')+';color:'+(kensaViewInit==='table'?'white':'#64748b')+'">📋 一覧</button>'
+        +'<button id="admKensaViewCalBtn" onclick="admKensaSetView(\'calendar\')" style="padding:6px 12px;font-size:11px;font-weight:700;border:none;cursor:pointer;background:'+(kensaViewInit==='calendar'?'#1a56db':'white')+';color:'+(kensaViewInit==='calendar'?'white':'#64748b')+'">📅 カレンダー</button>'
+        +'<button id="admKensaPrintBtn" onclick="admPrintKensaCalendar()" style="display:'+(kensaViewInit==='calendar'?'':'none')+';padding:6px 12px;font-size:11px;font-weight:700;border:none;cursor:pointer;background:#f1f5f9;color:#475569">🖨️ 印刷</button>'
+      +'</div>'
+    +'</div>'
+    +'<div style="font-size:11px;color:#64748b;margin-bottom:10px">配筋・躯体・中間・断熱・完了・完成、各検査の予約日・予約状況を確認・編集できます。ここで入力した内容は物件詳細・ガントにも即時反映されます</div>'
+    +(isInsp?'':'<div id="admKensaShinsaTabs" style="display:flex;gap:6px;margin-bottom:8px;flex-wrap:wrap"></div>')
+    +'<div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap;align-items:center">'
+      +'<input id="admKensaSearch" type="text" placeholder="🔎 物件名・FiX No.で絞込..." oninput="admRenderKensaTable()" style="flex:1;min-width:160px;padding:8px 12px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:12px;outline:none">'
+      +'<select id="admKensaDelivery" onchange="admRenderKensaTable()" style="padding:8px 12px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:12px;font-weight:700;color:#1e293b;background:white">'
+        +'<option value="before">引渡し前</option>'
+        +'<option value="done">引渡し済み</option>'
+        +'<option value="all">全て</option>'
+      +'</select>'
+      +'<select id="admKensaArea" onchange="admRenderKensaTable()" style="padding:8px 12px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:12px;font-weight:700;color:#1e293b;background:white">'
+        +'<option value="all">全物件</option>'
+        +'<option value="tokai">東海</option>'
+        +'<option value="kanto">関東</option>'
+        +'<option value="tokai_raikin">東海来期</option>'
+        +'<option value="kanto_raikin">関東来期</option>'
+      +'</select>'
+      +(kTantouOpts.length?('<select id="admKensaTantouFilter" onchange="admRenderKensaTable()" style="padding:8px 12px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:12px;font-weight:700;color:#1e293b;background:white">'
+        +'<option value="">担当者：全員</option>'
+        +kTantouOpts.map(function(n){return '<option value="'+n.replace(/"/g,'&quot;')+'">'+n+'</option>';}).join('')
+      +'</select>'):'')
+      +'<select id="admKensaSort" onchange="admRenderKensaTable()" style="padding:8px 12px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:12px;font-weight:700;color:#1e293b;background:white">'
+        +'<option value="delivery">並び替え：引渡日順</option>'
+        +'<option value="tantou">並び替え：担当者順</option>'
+      +'</select>'
+    +'</div>'
+    +'<div id="admKensaTableWrap" style="overflow-x:auto;background:white;border-radius:12px;border:1px solid #e2e8f0;box-shadow:0 1px 3px rgba(0,0,0,.04)"></div>'
+  +'</div>';
+}
+
 function admSetKensaShinsa(v){window._admKensaShinsa=v;admRenderKensaTable();}
 window.admSetKensaShinsa=admSetKensaShinsa;
 
@@ -15063,14 +15071,12 @@ function admPrintKensaCalendar(){
 window.admPrintKensaCalendar=admPrintKensaCalendar;
 
 // ============================================================
-// ★検査機関ロール専用：検査取りまとめビューア（2026/10追加）
-//   トップ画面の「🔍検査取りまとめ」ボタン（sbKensaBtn）から開く。管理者CPには入れず、
-//   自分の所属審査機関（住宅センター／ハウスプラス）が担当する物件のみに絞って表示・編集できる。
-//   管理者用のadmRenderKensaTableと見た目・列構成は揃えつつ、データ(window._kvAll)と
-//   保存関数(kvSaveKensaField)は別に持つことで、管理者側の既存コードに影響を与えないようにしている。
+// ★検査機関ロール専用：検査取りまとめ（2026/10/5改修）
+//   トップ画面の「🔍検査取りまとめ」ボタン（sbKensaBtn）から開く。管理者CPと全く同じ画面
+//   （一覧／カレンダー・各種絞込・並び替え・印刷）を admRenderKensaTable で描画する。
+//   違いは①自分の審査機関の物件のみ ②審査機関タブ非表示 ③審査機関列は読み取り専用（日付・予約状況のみ編集可）
 // ============================================================
 async function openKensaViewer(){
-  // ★管理者は管理者CP内のフル機能版「🔍検査取りまとめ」を使うため、この簡易ビューアは検査機関ロール専用（2026/10/5修正）
   if(!currentProfile||currentProfile.role!=='inspector'){showToast('権限がありません','error');return;}
   var content=document.getElementById('jackKensaContent');
   if(!content)return;
@@ -15084,141 +15090,18 @@ async function openKensaViewer(){
   } else if(sb){
     var prk=await sb.from('properties').select('*').order('fix_no',{ascending:true});
     kprops=prk.data||[];
+    if(kprops.length>0){DB_PROPS=kprops;try{localStorage.setItem('jack_props_cache',JSON.stringify(kprops));}catch(e){}}
   }
-  // ★検査機関ロールは自分の審査機関が担当する物件のみ（相談時の回答どおり）。管理者が確認用に開いた場合は全件。
-  window._kvAll=(currentProfile.role==='inspector'&&myShinsa)?kprops.filter(function(p){return p.shinsa_kikan===myShinsa;}):kprops;
-  content.innerHTML='<div style="padding:16px">'
-    +'<div style="font-size:16px;font-weight:800;color:#1e293b;margin-bottom:4px">🔍 検査取りまとめ'+(myShinsa?'（'+myShinsa+'）':'')+'</div>'
-    +'<div style="font-size:11px;color:#64748b;margin-bottom:14px">配筋・躯体・中間・断熱・完了・完成、各検査の予約日・予約状況を確認・編集できます。ここで入力した内容は物件詳細・ガントにも即時反映されます</div>'
-    +'<div style="display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap;align-items:center">'
-      +'<input id="kvSearch" placeholder="🔎 物件名・FIX No検索" oninput="kvRenderTable()" style="flex:1;min-width:180px;padding:8px 12px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:12px;outline:none">'
-      +'<select id="kvDelivery" onchange="kvRenderTable()" style="padding:8px 12px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:12px;font-weight:700;color:#1e293b;background:white">'
-        +'<option value="before">引渡し前</option>'
-        +'<option value="done">引渡し済み</option>'
-        +'<option value="all">全て</option>'
-      +'</select>'
-      +'<select id="kvArea" onchange="kvRenderTable()" style="padding:8px 12px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:12px;font-weight:700;color:#1e293b;background:white">'
-        +'<option value="all">全物件</option>'
-        +'<option value="tokai">東海</option>'
-        +'<option value="kanto">関東</option>'
-        +'<option value="tokai_raikin">東海来期</option>'
-        +'<option value="kanto_raikin">関東来期</option>'
-      +'</select>'
-    +'</div>'
-    +'<div id="kvTableWrap" style="overflow-x:auto;background:white;border-radius:12px;border:1px solid #e2e8f0;box-shadow:0 1px 3px rgba(0,0,0,.04)"></div>'
-  +'</div>';
-  kvRenderTable();
+  // 自分の審査機関の物件のみ（審査機関未設定のアカウントは何も表示しない）
+  window._admKensaAll=myShinsa?kprops.filter(function(p){return p.shinsa_kikan===myShinsa;}):[];
+  window._admKensaShinsa='';
+  var tOpts=[];
+  window._admKensaAll.forEach(function(p){var t=tantouOf(p);if(t&&tOpts.indexOf(t)<0)tOpts.push(t);});
+  tOpts.sort(function(a,b){return a.localeCompare(b,'ja');});
+  content.innerHTML=_buildKensaShellHtml({inspector:true,tantouOpts:tOpts,titleSuffix:myShinsa?'（'+myShinsa+'）':''});
+  admRenderKensaTable();
 }
 window.openKensaViewer=openKensaViewer;
-
-function kvRenderTable(){
-  var wrap=document.getElementById('kvTableWrap');if(!wrap)return;
-  var all=window._kvAll||[];
-  var q=(document.getElementById('kvSearch')||{}).value||'';
-  q=q.trim().toLowerCase();
-  var areaMode=(document.getElementById('kvArea')||{}).value||'all';
-  var deliveryMode=(document.getElementById('kvDelivery')||{}).value||'before';
-  var defs=[
-    {key:'haikin',label:'配筋検査',dateKey:'haikin_date',statusKey:'haikin_status'},
-    {key:'kutai',label:'躯体検査',dateKey:'kutai_date',statusKey:'kutai_status'},
-    {key:'chukan',label:'中間検査',dateKey:'chukan_date',statusKey:'chukan_status'},
-    {key:'dannetsu',label:'断熱検査',dateKey:'dannetsu_date',statusKey:'dannetsu_status'},
-    {key:'inspection',label:'完了検査',dateKey:'inspection_date',statusKey:'inspection_status'},
-    {key:'kansei',label:'完成検査',dateKey:'kansei_date',statusKey:'kansei_status'}
-  ];
-  var rows=all.filter(function(p){
-    if(q&&!((p.name||'').toLowerCase().indexOf(q)>=0||String(p.fix_no||'').indexOf(q)>=0))return false;
-    var area=normalizeArea(p);
-    if(areaMode==='tokai'){if(!(TOKAI_AREAS.indexOf(area)>=0&&!isRaikin(p)&&!isKankou(p)))return false;}
-    else if(areaMode==='kanto'){if(!(KANTO_AREAS.indexOf(area)>=0&&!isRaikin(p)&&!isKankou(p)))return false;}
-    else if(areaMode==='tokai_raikin'){if(!(TOKAI_AREAS.indexOf(area)>=0&&isRaikin(p)))return false;}
-    else if(areaMode==='kanto_raikin'){if(!(KANTO_AREAS.indexOf(area)>=0&&isRaikin(p)))return false;}
-    if(deliveryMode!=='all'){
-      var nd=normDate(p.delivery_date);
-      var ndKey=nd?nd.replace(/\//g,'-'):'';
-      var isDone=!!ndKey&&ndKey<TODAY;
-      if(deliveryMode==='before'&&isDone)return false;
-      if(deliveryMode==='done'&&!isDone)return false;
-    }
-    return true;
-  });
-  rows.sort(function(a,b){
-    var da=normDate(a.delivery_date)||'', db=normDate(b.delivery_date)||'';
-    if(!da&&!db)return 0; if(!da)return 1; if(!db)return -1;
-    return da<db?-1:(da>db?1:0);
-  });
-  if(!rows.length){wrap.innerHTML='<div style="text-align:center;padding:32px;color:#94a3b8;font-size:12px">該当する物件がありません</div>';return;}
-  var html='<table style="width:100%;border-collapse:collapse;font-size:11px;table-layout:fixed">'
-    +'<colgroup><col style="width:20%"><col style="width:12%"><col style="width:12%"><col style="width:12%"><col style="width:12%"><col style="width:12%"><col style="width:12%"><col style="width:8%"></colgroup>'
-    +'<thead><tr style="background:#f8fafc">'
-      +'<th style="text-align:left;padding:10px 12px;border-bottom:2px solid #e2e8f0;font-size:10px;color:#64748b">物件名</th>'
-      +defs.map(function(d){return '<th style="text-align:left;padding:10px 12px;border-bottom:2px solid #e2e8f0;font-size:10px;color:#64748b">'+d.label+'</th>';}).join('')
-      +'<th style="text-align:left;padding:10px 12px;border-bottom:2px solid #e2e8f0;font-size:10px;color:#64748b">引渡日</th>'
-    +'</tr></thead><tbody>';
-  rows.forEach(function(p,i){
-    var fixNoAttr=String(p.fix_no||'');
-    html+='<tr style="background:'+(i%2===0?'white':'#f8fafc')+'">'
-      +'<td style="padding:9px 12px;font-weight:700;color:#1e293b;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'
-        +'<span style="color:#94a3b8;font-weight:400">'+(p.fix_no||'')+'</span> '+(p.name||'')
-      +'</td>'
-      +defs.map(function(d){
-        var dv=(p[d.dateKey]||'').replace(/\//g,'-');
-        var st=p[d.statusKey]||'before';
-        var isRes=st==='reserved';
-        return '<td style="padding:6px 8px">'
-          +'<div style="display:flex;align-items:center;gap:3px;flex-wrap:wrap">'
-          +'<input type="date" value="'+dv+'" onchange="kvDateChange(\''+fixNoAttr+'\',\''+d.dateKey+'\',this.value)" style="width:112px;padding:4px 5px;border:1.5px solid #e2e8f0;border-radius:6px;font-size:10px;outline:none">'
-          +'<button type="button" onclick="kvToggleStatus(\''+fixNoAttr+'\',\''+d.statusKey+'\')" style="font-size:9px;font-weight:800;color:white;background:'+(isRes?'#3b82f6':'#f97316')+';border:none;border-radius:10px;padding:4px 8px;cursor:pointer;white-space:nowrap">'+(isRes?'予約済み':'予約前')+'</button>'
-          +'</div>'
-        +'</td>';
-      }).join('')
-      +'<td style="padding:9px 12px;color:#475569;white-space:nowrap">'+(normDate(p.delivery_date)||'')+'</td>'
-    +'</tr>';
-  });
-  html+='</tbody></table>';
-  wrap.innerHTML=html;
-}
-window.kvRenderTable=kvRenderTable;
-function kvDateChange(fixNo,dateKey,val){
-  var newVal=val?val.replace(/-/g,'/'):null;
-  kvSaveKensaField(fixNo,dateKey,newVal);
-}
-window.kvDateChange=kvDateChange;
-function kvToggleStatus(fixNo,statusKey){
-  var all=window._kvAll||[];
-  var p=all.find(function(x){return String(x.fix_no)===String(fixNo);});
-  if(!p)return;
-  var cur=p[statusKey]||'before';
-  kvSaveKensaField(fixNo,statusKey,cur==='reserved'?'before':'reserved');
-}
-window.kvToggleStatus=kvToggleStatus;
-function kvSaveKensaField(fixNo,field,value){
-  var all=window._kvAll||[];
-  var p=all.find(function(x){return String(x.fix_no)===String(fixNo);});
-  if(!p)return;
-  var dbUpdates={}; dbUpdates[field]=value;
-  dbUpdates.updated_at=new Date().toISOString(); // ★他ユーザー側のタイムスタンプ差分チェックに検知させるため（検査取りまとめと同じ対応）
-  function applyLocallyKv(){
-    p[field]=value;
-    if(typeof DB_PROPS!=='undefined'&&DB_PROPS){
-      var idx=DB_PROPS.findIndex(function(dp){return String(dp.fix_no)===String(fixNo);});
-      if(idx>=0)DB_PROPS[idx][field]=value;
-      try{localStorage.setItem('jack_props_cache',JSON.stringify(DB_PROPS));}catch(e){}
-    }
-    kvRenderTable();
-    if(typeof renderBody==='function')renderBody();
-  }
-  var sb=getSB();
-  if(!sb){applyLocallyKv();showToast('⚠️ オフライン: ローカルに保存（他端末未反映）','');return;}
-  sb.from('properties').update(dbUpdates).eq('fix_no',String(fixNo))
-    .then(function(res){
-      if(res.error){showToast('保存エラー: '+res.error.message,'error');return;}
-      applyLocallyKv();
-      showToast('✅ 保存しました','success');
-    })
-    .catch(function(e){showToast('保存エラー: '+e.message,'error');});
-}
-window.kvSaveKensaField=kvSaveKensaField;
 
 function admRenderKensaTable(){
   var wrap=document.getElementById('admKensaTableWrap');if(!wrap)return;
@@ -15238,8 +15121,10 @@ function admRenderKensaTable(){
   if(vpBtn)vpBtn.style.display=kensaView==='calendar'?'':'none';
 
   // 審査機関タブの描画
+  var isInspector=!!(currentProfile&&currentProfile.role==='inspector');
+  if(isInspector)shinsaMode='';
   var shinsaTabsEl=document.getElementById('admKensaShinsaTabs');
-  if(shinsaTabsEl){
+  if(shinsaTabsEl&&!isInspector){
     var stabs=[{id:'',l:'審査機関: 全て'},{id:'住宅センター',l:'住宅センター'},{id:'ハウスプラス',l:'ハウスプラス'},{id:'__none__',l:'未選択'}];
     shinsaTabsEl.innerHTML=stabs.map(function(t){
       var act=t.id===shinsaMode;
@@ -15322,13 +15207,13 @@ function admRenderKensaTable(){
       +'<td style="padding:9px 12px;font-weight:700;color:#1e293b;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'
         +'<span style="color:#94a3b8;font-weight:400">'+(p.fix_no||'')+'</span> '+(p.name||'')
       +'</td>'
-      +'<td style="padding:6px 8px">'
+      +(isInspector?'<td style="padding:9px 12px;color:#475569;font-size:10px;font-weight:700;white-space:nowrap">'+(p.shinsa_kikan||'未選択')+'</td>':'<td style="padding:6px 8px">'
         +'<select onchange="admKensaShinsaChange(\''+fixNoAttr+'\',this.value)" style="padding:4px 6px;border:1.5px solid #e2e8f0;border-radius:6px;font-size:10px;font-weight:700;outline:none;background:white;max-width:100%">'
           +'<option value=""'+(!p.shinsa_kikan?' selected':'')+'>未選択</option>'
           +'<option value="住宅センター"'+(p.shinsa_kikan==='住宅センター'?' selected':'')+'>住宅センター</option>'
           +'<option value="ハウスプラス"'+(p.shinsa_kikan==='ハウスプラス'?' selected':'')+'>ハウスプラス</option>'
         +'</select>'
-      +'</td>'
+      +'</td>')
       +defs.map(function(d){
         var dv=(p[d.dateKey]||'').replace(/\//g,'-');
         var st=p[d.statusKey]||'before';
@@ -15368,6 +15253,7 @@ window.admKensaToggleStatus=admKensaToggleStatus;
 
 // ★検査取りまとめ表からの直接編集：審査機関（住宅センター／ハウスプラス／未選択）
 function admKensaShinsaChange(fixNo,val){
+  if(currentProfile&&currentProfile.role==='inspector'){showToast('審査機関は変更できません','error');return;}
   admSaveKensaField(fixNo,'shinsa_kikan',val||null);
 }
 window.admKensaShinsaChange=admKensaShinsaChange;
