@@ -1312,7 +1312,7 @@ var POST_END_PAD = 120; // ★スクロール終端の余白：完了検査列�
 // ===== 納品書機能：休工日カレンダー・稼働日計算 =====
 // ★日本の祝日（政府発表・国立天文台暦要項ベース、2025〜2028年分）
 // ★アプリバージョン（不具合問い合わせ対応用。リリースごとに更新すること。2026/8/23追加）
-var APP_VERSION = '2026.10.08.1';
+var APP_VERSION = '2026.10.08.2';
 window.APP_VERSION=APP_VERSION;
 console.log('[JACK] version', APP_VERSION);
 var JP_HOLIDAYS = [
@@ -1842,7 +1842,10 @@ var isPcMode = (function(){
 })();
 
 function loadLS(k,d){try{var v=localStorage.getItem(k);return v?JSON.parse(v):d;}catch(e){return d;}}
-function saveLS(k,v){try{localStorage.setItem(k,JSON.stringify(v));}catch(e){}}
+function saveLS(k,v){try{localStorage.setItem(k,JSON.stringify(v));return true;}catch(e){
+  // ★2026/10/8追加：容量超過などで保存に失敗しても無言で握りつぶすと「再起動で元に戻る」原因になるため記録する
+  try{console.warn('[JACK] localStorage保存失敗:',k,e&&e.name);window._lsSaveFailed=k;}catch(e2){}
+  return false;}}
 
 var myFavProps  = loadLS('jack_myfavs', []);
 var VENDOR_DATA = {};  // {エリア: {物件名: {工事: 業者}}} from GAS
@@ -10831,7 +10834,11 @@ async function _batchCheckGanttUpdates(props){
       var localTs=localStorage.getItem(tsKey)||'';
       var remoteTs=row.updated_at||'';
       var ck=fixNo+'__'+((byFixNo[fixNo]||{}).name||'');
-      if(remoteTs&&remoteTs!==localTs)needFixNos.push(fixNo);
+      // ★2026/10/8追加【再起動で戻る不具合の本対策】：TSが一致していても、手動工程フラグ(gantt_is_manual)があるのに
+      //   端末側に工程データが無い場合（保存失敗・消失）は再取得する。TSだけで「取得済み」とみなさない。
+      var dbRow=(DB_PROPS||[]).find(function(d){return String(d.fix_no)===fixNo;});
+      var missingLocal=!!(dbRow&&dbRow.gantt_is_manual&&!_cgSegsArr(customGantt[ck])&&!dbRow.custom_gantt);
+      if((remoteTs&&remoteTs!==localTs)||missingLocal)needFixNos.push(fixNo);
       else if(!_ganttFetchedProps[ck])_ganttFetchedProps[ck]=true; // TS一致なら以後の個別チェックも省略
     });
     if(!needFixNos.length)return; // 全物件、変更なし → ここで終了（追加通信ゼロ）
@@ -10856,7 +10863,7 @@ function _applyGanttFetchResult(p,r){
   var ck=String(p.fix_no||'')+'__'+(p.name||'');
   var fixNo=String(p.fix_no||'');
   var changed=false;
-  if(r.updated_at)localStorage.setItem('jack_gantt_ts_'+fixNo,r.updated_at);
+  var _tsToStore=r.updated_at||'';
   if(Object.prototype.hasOwnProperty.call(r,'confirmed_until')){
     p.confirmed_until=r.confirmed_until||null;
     if(DB_PROPS){
@@ -10882,7 +10889,7 @@ function _applyGanttFetchResult(p,r){
       var cgToStore=wasManual?{__manual__:true,segs:cg}:cg;
       changed=JSON.stringify(customGantt[ck])!==JSON.stringify(cgToStore);
       customGantt[ck]=cgToStore;
-      saveLS('jack_custom_gantt',customGantt);
+      if(!saveLS('jack_custom_gantt',customGantt))_tsToStore=''; // 保存失敗時はTSを記録しない（次回再取得させる）
       if(DB_PROPS){
         var idx=DB_PROPS.findIndex(function(d){return String(d.fix_no)===String(p.fix_no);});
         if(idx>=0)DB_PROPS[idx].custom_gantt=r.custom_gantt;
@@ -10893,6 +10900,7 @@ function _applyGanttFetchResult(p,r){
     saveLS('jack_custom_gantt',customGantt);
     changed=true;
   }
+  if(_tsToStore){try{localStorage.setItem('jack_gantt_ts_'+fixNo,_tsToStore);}catch(e){}}
   _ganttFetchedProps[ck]=true;
   return changed;
 }
