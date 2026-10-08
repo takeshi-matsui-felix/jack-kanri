@@ -1312,7 +1312,7 @@ var POST_END_PAD = 120; // ★スクロール終端の余白：完了検査列�
 // ===== 納品書機能：休工日カレンダー・稼働日計算 =====
 // ★日本の祝日（政府発表・国立天文台暦要項ベース、2025〜2028年分）
 // ★アプリバージョン（不具合問い合わせ対応用。リリースごとに更新すること。2026/8/23追加）
-var APP_VERSION = '2026.10.05.2';
+var APP_VERSION = '2026.10.08.1';
 window.APP_VERSION=APP_VERSION;
 console.log('[JACK] version', APP_VERSION);
 var JP_HOLIDAYS = [
@@ -1862,7 +1862,10 @@ if(loadLS('jack_gantt_logic_ver','')!==GANTT_LOGIC_VERSION){
   saveLS('jack_gantt_logic_ver',GANTT_LOGIC_VERSION);
   console.log('[JACK] 旧工程キャッシュをクリアしました（新ロジック: 基礎大親方式）');
 }
-var customGantt = {};  // キャッシュ使用せず常に空（getActiveSegsは直接計算）
+// ★2026/10/8修正【重大】：以前は「常に空」で起動していたが、工程表のタイムスタンプ(jack_gantt_ts_*)は
+//   端末に残るため、再起動後は「TS一致＝取得済み」と判定されて再取得されず、同期で取得した手動工程が
+//   消えて標準工程に戻る不具合があった。同期時に保存済みのjack_custom_gantt（ts と同時に保存）を復元する。
+var customGantt = (function(){var v=loadLS('jack_custom_gantt',{});return (v&&typeof v==='object'&&!Array.isArray(v))?v:{};})();
 var myMasters   = loadLS('jack_my_masters', []);
 var propMaster  = loadLS('jack_prop_master', {});
 // ★新機能【最終更新バッジ】：前回の同期以降に更新された物件（fix_no→updated_at）を保持（2026/8/21 追加）
@@ -10626,6 +10629,18 @@ function jsonpFetch(url, cbPrefix, onSuccess, onError){
 // ========== プロパティキャッシュ ==========
 var PROPS_CACHE_KEY='jack_props_cache';
 var PROPS_CACHE_TS_KEY='jack_props_cache_ts';
+// ★2026/10/8追加：メモリ上のDB_PROPSだけ更新してlocalStorageのキャッシュを更新し忘れると、再起動で古い値に戻る。
+//   物件1件の特定項目だけをキャッシュに反映する（custom_ganttなど重い列はキャッシュに入れない）
+function _patchPropsCacheField(fixNo,field,val){
+  try{
+    var raw=localStorage.getItem(PROPS_CACHE_KEY); if(!raw)return;
+    var arr=JSON.parse(raw); if(!Array.isArray(arr))return;
+    var i=arr.findIndex(function(d){return String(d.fix_no)===String(fixNo);});
+    if(i<0)return;
+    arr[i][field]=val;
+    localStorage.setItem(PROPS_CACHE_KEY,JSON.stringify(arr));
+  }catch(e){}
+}
 
 async function loadPropertiesFromCacheOrDB(forceRefresh){
   var sb=getSB(); if(!sb)return;
@@ -10738,6 +10753,7 @@ async function _loadCustomGanttIfNeeded(p){
           var idxCU=DB_PROPS.findIndex(function(d){return String(d.fix_no)===String(p.fix_no);});
           if(idxCU>=0)DB_PROPS[idxCU].confirmed_until=r.data.confirmed_until||null;
         }
+        _patchPropsCacheField(p.fix_no,'confirmed_until',r.data.confirmed_until||null);
       }
       if(r.data.custom_gantt){
         var rawCg=typeof r.data.custom_gantt==='string'?JSON.parse(r.data.custom_gantt):r.data.custom_gantt;
@@ -10847,6 +10863,7 @@ function _applyGanttFetchResult(p,r){
       var idxCU=DB_PROPS.findIndex(function(d){return String(d.fix_no)===String(p.fix_no);});
       if(idxCU>=0)DB_PROPS[idxCU].confirmed_until=r.confirmed_until||null;
     }
+    _patchPropsCacheField(p.fix_no,'confirmed_until',r.confirmed_until||null);
   }
   if(r.custom_gantt){
     var rawCg=typeof r.custom_gantt==='string'?JSON.parse(r.custom_gantt):r.custom_gantt;
