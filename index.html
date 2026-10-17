@@ -1312,7 +1312,7 @@ var POST_END_PAD = 120; // ★スクロール終端の余白：完了検査列�
 // ===== 納品書機能：休工日カレンダー・稼働日計算 =====
 // ★日本の祝日（政府発表・国立天文台暦要項ベース、2025〜2028年分）
 // ★アプリバージョン（不具合問い合わせ対応用。リリースごとに更新すること。2026/8/23追加）
-var APP_VERSION = '2026.10.08.2';
+var APP_VERSION = '2026.10.18.1';
 window.APP_VERSION=APP_VERSION;
 console.log('[JACK] version', APP_VERSION);
 var JP_HOLIDAYS = [
@@ -1864,6 +1864,12 @@ if(loadLS('jack_gantt_logic_ver','')!==GANTT_LOGIC_VERSION){
   try{localStorage.removeItem('jack_prop_overrides');}catch(e){}
   saveLS('jack_gantt_logic_ver',GANTT_LOGIC_VERSION);
   console.log('[JACK] 旧工程キャッシュをクリアしました（新ロジック: 基礎大親方式）');
+}
+// ★2026/10/18 A1修正：端末ローカルの物件上書き(jack_prop_overrides)は古い値でDBの最新値を隠す原因だったため廃止。
+//   一度だけこの端末のローカル分を削除する（サーバーのデータには一切影響しない）。
+if(loadLS('jack_ov_cleaned','')!=='2026.10.18.1'){
+  try{localStorage.removeItem('jack_prop_overrides');}catch(e){}
+  saveLS('jack_ov_cleaned','2026.10.18.1');
 }
 // ★2026/10/8修正【重大】：以前は「常に空」で起動していたが、工程表のタイムスタンプ(jack_gantt_ts_*)は
 //   端末に残るため、再起動後は「TS一致＝取得済み」と判定されて再取得されず、同期で取得した手動工程が
@@ -3928,9 +3934,7 @@ function renderStats(){
   var labels={'delayed':'🔴 遅延工程'};
   var hasPark=0,noPark=0;
   allList.forEach(function(p){
-    var ov=loadLS('jack_prop_overrides',{});
-    var ck=custKey(p);
-    var pks=(ov[ck]&&ov[ck].parkings&&ov[ck].parkings.length)?ov[ck].parkings:(p.parkings||[]);
+    var pks=p.parkings||[];
     var todayStr=TODAY;
     var active=pks.filter(function(pk){return !pk.contract_end||pk.contract_end>=todayStr;});
     if(active.length>0)hasPark++;else noPark++;
@@ -4358,8 +4362,7 @@ function renderBody(){
         nd.style.cssText='font-size:10px;font-weight:700;color:var(--g800);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:'+(c.w-6)+'px;font-family:var(--font)';
         nd.textContent=val;
         // 駐車場バッジ
-        var pOv=loadLS('jack_prop_overrides',{});var pCk=custKey(p);
-        var pks=(pOv[pCk]&&pOv[pCk].parkings&&pOv[pCk].parkings.length)?pOv[pCk].parkings:(p.parkings||[]);
+        var pks=p.parkings||[];
         var todayStr2=TODAY;
         var activePks2=pks.filter(function(pk){return !pk.contract_end||pk.contract_end>=todayStr2;});
         var parkBadge2=activePks2.length?'<span style="font-size:8px;background:#6366f1;color:white;padding:0 3px;border-radius:3px;margin-left:2px">🅿️</span>':'';
@@ -4849,11 +4852,9 @@ function _saveKensaFieldForCurrentProp(field,value){
     if(typeof DB_PROPS!=='undefined'&&DB_PROPS){
       var idx=DB_PROPS.findIndex(function(dp){return String(dp.fix_no)===String(p.fix_no)&&dp.name===p.name;});
       if(idx>=0)DB_PROPS[idx][field]=value;
+      else{var _np={fix_no:p.fix_no,name:p.name};_np[field]=value;DB_PROPS.push(_np);}
       try{localStorage.setItem('jack_props_cache',JSON.stringify(DB_PROPS));}catch(e){}
     }
-    var ov=loadLS('jack_prop_overrides',{});
-    ov[custKey(p)]=Object.assign(ov[custKey(p)]||{},dbUpdates);
-    saveLS('jack_prop_overrides',ov);
     renderKensaSplitSection(p);
     _refreshDetailGanttForKensaChange(p);
     if(typeof renderBody==='function')renderBody(); // ★ホーム画面・検査取りまとめ等にも即時反映
@@ -6904,10 +6905,8 @@ function openDetail(p){
       contentEl.innerHTML=data?buildGanttSheetSection(data):'<div style="color:#94a3b8;font-size:11px;padding:16px;text-align:center">📋 工程表データがありません</div>';
     });
   }
-  // LocalStorageのオーバーライドをマージ
-  var ov=loadLS('jack_prop_overrides',{});
+  // ★A1修正：ローカル上書きは廃止。渡されたp（DB/DATA由来の最新値）をそのまま使う
   var ck=custKey(p);
-  if(ov[ck])p=Object.assign({},p,ov[ck]);
   currentProp=p;
 
   var today=new Date(TODAY),days=daysUntil(p.delivery_date),isUrgent=days!==null&&days>=0&&days<=30;
@@ -7858,9 +7857,6 @@ function saveMasterLink(){
   var fresh=getAllProps().find(function(x){return x.fix_no===p.fix_no&&x.name===p.name;});
   if(fresh){
     currentProp=fresh;
-    // prop_overridesをマージ
-    var ov=loadLS('jack_prop_overrides',{});
-    if(ov[ck])currentProp=Object.assign({},fresh,ov[ck]);
   }
 
   // 管理者の場合はSupabaseにも保存（全ユーザーに共有）
@@ -7883,9 +7879,7 @@ window.closeMasterLinkModal=closeMasterLinkModal;
 // ===== 物件情報編集モーダル（管理者専用） =====
 function openPropEditModal(){
   var p=currentProp; if(!p)return;
-  var ov=loadLS('jack_prop_overrides',{});
-  var ck=custKey(p);
-  var cur=Object.assign({},p,ov[ck]||{});
+  var cur=Object.assign({},p);
   var parkings=cur.parkings||[];
   if(typeof parkings==='string'){try{parkings=JSON.parse(parkings);}catch(e){parkings=[];}}
   if(!Array.isArray(parkings))parkings=[];
@@ -8011,7 +8005,7 @@ function openPropEditModal(){
   }
 
   window._editParkings=JSON.parse(JSON.stringify(parkings));
-  window._editPropCk=ck;
+  window._editPropCk=custKey(p);
   renderModal();
   window._rerenderPropModal=renderModal;
 }
@@ -8127,10 +8121,6 @@ function savePropEdit(){
       }
       try{localStorage.setItem('jack_props_cache',JSON.stringify(DB_PROPS));}catch(e){}
     }
-    // LocalStorageにもフォールバック保存
-    var ov=loadLS('jack_prop_overrides',{});
-    ov[custKey(p)]=Object.assign(ov[custKey(p)]||{},allUpdates);
-    saveLS('jack_prop_overrides',ov);
   }
 
   if(!sb){
@@ -10220,11 +10210,7 @@ function showPropQR(){
   if(!currentProp)return;
   var p=currentProp;
   // 現場住所またはGoogle Maps URLをQR化
-  var ov=loadLS('jack_prop_overrides',{});
-  var ck=custKey(p);
-  var addr='';
-  if(ov[ck]&&ov[ck].address)addr=String(ov[ck].address).trim();
-  if(!addr){addr=p.address||'';if(typeof addr==='object')addr=addr.address||'';addr=String(addr).trim();}
+  var addr=p.address||'';if(typeof addr==='object')addr=addr.address||'';addr=String(addr).trim();
   var label=p.name||'物件';
   var qrContent=addr
     ?'https://maps.google.com/maps?q='+encodeURIComponent(addr)
@@ -12680,8 +12666,7 @@ function _saveMasterLinkToSupabase(p,masterName,cb){
 // ログイン時: DBのcustom_gantt/prop_masterをローカルに展開（全ユーザー向け）
 function _loadSharedGanttFromDB(){
   if(!DB_PROPS||!DB_PROPS.length)return;
-  var cgChanged=false, pmChanged=false, ovChanged=false;
-  var ov=loadLS('jack_prop_overrides',{});
+  var cgChanged=false, pmChanged=false;
   DB_PROPS.forEach(function(dbp){
     var ck=String(dbp.fix_no||'')+'__'+(dbp.name||'');
     // custom_gantt
@@ -12700,17 +12685,9 @@ function _loadSharedGanttFromDB(){
     if(dbp.prop_master){
       propMaster[ck]=dbp.prop_master;pmChanged=true;
     }
-    // address（DBに住所があればprop_overridesに展開）
-    if(dbp.address){
-      if(!ov[ck])ov[ck]={};
-      if(!ov[ck].address){  // ローカルに既に設定がある場合はローカル優先
-        ov[ck].address=dbp.address;ovChanged=true;
-      }
-    }
   });
   if(cgChanged)saveLS('jack_custom_gantt',customGantt);
   if(pmChanged)saveLS('jack_prop_master',propMaster);
-  if(ovChanged)saveLS('jack_prop_overrides',ov);
 }
 
 async function onAuthSuccess(isNewLogin){
@@ -13137,20 +13114,12 @@ function openJackMap(area){
   else{allAreas=Object.keys(areaGroups);}
 
   function getAddr(p){
-    // prop_overrides(LocalStorage)を優先
-    var ov=loadLS('jack_prop_overrides',{});
-    var ck=custKey(p);
-    if(ov[ck]&&ov[ck].address)return String(ov[ck].address).trim();
-    // DB_PROPS / p.address
+    // DB_PROPS / p.address（DB最新値）
     var a=p.address||'';
     if(typeof a==='object')a=a.address||'';
     return String(a).trim();
   }
   function getParkings(p){
-    // prop_overrides(LocalStorage)を優先
-    var ov=loadLS('jack_prop_overrides',{});
-    var ck=custKey(p);
-    if(ov[ck]&&ov[ck].parkings&&ov[ck].parkings.length)return ov[ck].parkings;
     return p.parkings||[];
   }
 
@@ -13314,21 +13283,13 @@ window.openNavigation=openNavigation;
 
 function showMapTab(type){
   if(!_mapProp)return;
-  var ov=loadLS('jack_prop_overrides',{});
-  var ck=custKey(_mapProp);
-  // 住所取得（prop_overrides優先 → DB/DATA）
-  var addr='';
-  if(ov[ck]&&ov[ck].address)addr=String(ov[ck].address).trim();
-  if(!addr){
-    addr=_mapProp.address||'';
-    if(typeof addr==='object')addr=addr.address||'';
-    addr=String(addr).trim();
-  }
+  // 住所取得（DB/DATAの最新値）
+  var addr=_mapProp.address||'';
+  if(typeof addr==='object')addr=addr.address||'';
+  addr=String(addr).trim();
   if(!addr)return;
 
-  var pks=[];
-  if(ov[ck]&&ov[ck].parkings&&ov[ck].parkings.length)pks=ov[ck].parkings;
-  else if(_mapProp.parkings&&_mapProp.parkings.length)pks=_mapProp.parkings;
+  var pks=(_mapProp.parkings&&_mapProp.parkings.length)?_mapProp.parkings:[];
 
   document.querySelectorAll('.map-tab-btn').forEach(function(b){b.classList.remove('active');});
   var btn=document.getElementById('mapTabBtn_'+type);
@@ -13434,9 +13395,7 @@ window.showMapTab=showMapTab;
 // 駐車場リストからの個別マップ表示
 window.showParkMap=function(idx){
   if(!_mapProp)return;
-  var ov=loadLS('jack_prop_overrides',{});
-  var ck=custKey(_mapProp);
-  var pks=(ov[ck]&&ov[ck].parkings&&ov[ck].parkings.length)?ov[ck].parkings:(_mapProp.parkings||[]);
+  var pks=_mapProp.parkings||[];
   var pk=pks[idx]; if(!pk)return;
   var addr=pk.address||'';
   if(!addr){showToast('この駐車場は住所が未登録です','error');return;}
@@ -15682,10 +15641,6 @@ function admOpenPropEdit(fixNo,encName){
   if(!found&&DB_PROPS){found=DB_PROPS.find(function(x){return String(x.fix_no)===String(fixNo)&&x.name===name;});}
   if(!found){showToast('物件データが見つかりません','error');return;}
   currentProp=found;
-  // prop_overridesをマージ
-  var ov=loadLS('jack_prop_overrides',{});
-  var ck=custKey(found);
-  if(ov[ck])currentProp=Object.assign({},found,ov[ck]);
   openPropEditModal();
 }
 window.admOpenPropEdit=admOpenPropEdit;
@@ -15787,15 +15742,6 @@ async function admSaveProp(id){
   }
   var result=id?await sb.from('properties').update(prop).eq('id',id):await sb.from('properties').insert(prop);
   if(result.error){showToast('保存エラー: '+result.error.message,'error');return;}
-  // address はローカルにも保存
-  if(addr){
-    var ov=loadLS('jack_prop_overrides',{});
-    // fix_noで物件を探してckを作る
-    var ck=(prop.fix_no||'')+'__'+(prop.name||'');
-    if(!ov[ck])ov[ck]={};
-    ov[ck].address=addr;
-    saveLS('jack_prop_overrides',ov);
-  }
   showToast('✅ 保存しました','success');
   if(DB_PROPS&&id){var idx=DB_PROPS.findIndex(function(p){return String(p.id)===String(id);});if(idx>=0)Object.assign(DB_PROPS[idx],prop);}
   admClosePropForm();
