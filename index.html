@@ -1312,7 +1312,7 @@ var POST_END_PAD = 120; // ★スクロール終端の余白：完了検査列�
 // ===== 納品書機能：休工日カレンダー・稼働日計算 =====
 // ★日本の祝日（政府発表・国立天文台暦要項ベース、2025〜2028年分）
 // ★アプリバージョン（不具合問い合わせ対応用。リリースごとに更新すること。2026/8/23追加）
-var APP_VERSION = '2026.10.18.1';
+var APP_VERSION = '2026.10.18.2';
 window.APP_VERSION=APP_VERSION;
 console.log('[JACK] version', APP_VERSION);
 var JP_HOLIDAYS = [
@@ -4861,9 +4861,10 @@ function _saveKensaFieldForCurrentProp(field,value){
   }
   var sb=getSB();
   if(!sb){applyLocallyK();showToast('⚠️ オフライン: ローカルに保存（他端末未反映）','');return;}
-  sb.from('properties').update(dbUpdates).eq('fix_no',String(p.fix_no))
+  sb.from('properties').update(dbUpdates).eq('fix_no',String(p.fix_no)).select('fix_no')
     .then(function(res){
       if(res.error){showToast('保存エラー: '+res.error.message,'error');return;}
+      if(!res.data||!res.data.length){showToast('保存エラー: 更新対象が見つかりません','error');return;}
       applyLocallyK();
       showToast('✅ 保存しました','success');
     })
@@ -7041,30 +7042,54 @@ function openDetail(p){
 
 // ===== 検査予約ステータス切替（配筋検査・躯体検査・断熱検査・完了検査） =====
 function toggleKensaStatus(statusKey){
-  if(!currentProp)return;
-  var cur=currentProp[statusKey]||'before';
-  var next=cur==='reserved'?'before':'reserved';
-  currentProp[statusKey]=next;
+  var p=currentProp; if(!p)return;
+  // ★A2修正：保存中の連打を無効化（連打すると巻き戻し先が不定になるため）
+  window._kensaBusy=window._kensaBusy||{};
+  var busyKey=String(p.fix_no)+'__'+statusKey;
+  if(window._kensaBusy[busyKey])return;
+  var prev=p[statusKey]||'before';
+  var next=prev==='reserved'?'before':'reserved';
+  // 画面・メモリ・端末キャッシュへ反映（成功時＝確定、失敗時＝prevで呼び直して巻き戻し）
+  function applyStatus(val){
+    p[statusKey]=val;
+    if(typeof DB_PROPS!=='undefined'&&DB_PROPS){
+      var idx=DB_PROPS.findIndex(function(dp){return String(dp.fix_no)===String(p.fix_no)&&dp.name===p.name;});
+      if(idx>=0)DB_PROPS[idx][statusKey]=val;
+      else{var np={fix_no:p.fix_no,name:p.name};np[statusKey]=val;DB_PROPS.push(np);}
+      try{localStorage.setItem('jack_props_cache',JSON.stringify(DB_PROPS));}catch(e){}
+    }
+    // 詳細画面を開いたままの物件だけ再描画（スクロール位置を保持）
+    if(currentProp===p){
+      var ps=document.getElementById('dpContent');
+      var savedScrollTop=ps?ps.scrollTop:0;
+      openDetail(p);
+      var ps2=document.getElementById('dpContent');
+      if(ps2)ps2.scrollTop=savedScrollTop;
+    }
+    // ★ホーム画面・検査取りまとめ等にも反映
+    if(typeof renderBody==='function'){try{renderBody();}catch(e){}}
+  }
   var payload={updated_at:new Date().toISOString()};
   payload[statusKey]=next;
   var sb=(typeof getSB==='function')?getSB():null;
-  if(sb){
-    sb.from('properties').update(payload).eq('fix_no',String(currentProp.fix_no))
-      .then(function(r){
-        if(!r.error&&typeof DB_PROPS!=='undefined'&&DB_PROPS){
-          var idx=DB_PROPS.findIndex(function(dp){return String(dp.fix_no)===String(currentProp.fix_no);});
-          if(idx>=0)DB_PROPS[idx][statusKey]=next;
-          try{localStorage.setItem('jack_props_cache',JSON.stringify(DB_PROPS));}catch(e){}
-        }
-        if(r.error&&typeof showToast==='function')showToast('保存に失敗しました','error');
-      }).catch(function(){if(typeof showToast==='function')showToast('保存に失敗しました','error');});
+  applyStatus(next);
+  if(!sb){
+    showToast('⚠️ オフライン: この端末のみ反映（他端末には未反映）。通信回復後にもう一度操作してください','');
+    return;
   }
-  // ★スクロール位置を保持したまま再描画（マイルストーン・ガント両方に反映）
-  var ps=document.getElementById('dpContent');
-  var savedScrollTop=ps?ps.scrollTop:0;
-  openDetail(currentProp);
-  var ps2=document.getElementById('dpContent');
-  if(ps2)ps2.scrollTop=savedScrollTop;
+  window._kensaBusy[busyKey]=true;
+  function fail(msg){
+    delete window._kensaBusy[busyKey];
+    applyStatus(prev); // ★保存失敗時は元の状態に戻す
+    showToast('❌ 保存に失敗したため元に戻しました'+(msg?'（'+msg+'）':''),'error');
+  }
+  sb.from('properties').update(payload).eq('fix_no',String(p.fix_no)).select('fix_no')
+    .then(function(r){
+      if(r.error){fail(r.error.message);return;}
+      // 権限等で0件更新だった場合もエラーとして扱う
+      if(!r.data||!r.data.length){fail('更新対象が見つかりません');return;}
+      delete window._kensaBusy[busyKey];
+    }).catch(function(e){fail(e&&e.message);});
 }
 window.toggleKensaStatus=toggleKensaStatus;
 
