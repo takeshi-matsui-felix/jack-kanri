@@ -1350,7 +1350,7 @@ var POST_END_PAD = 120; // ★スクロール終端の余白：完了検査列�
 // ===== 納品書機能：休工日カレンダー・稼働日計算 =====
 // ★日本の祝日（政府発表・国立天文台暦要項ベース、2025〜2028年分）
 // ★アプリバージョン（不具合問い合わせ対応用。リリースごとに更新すること。2026/8/23追加）
-var APP_VERSION = '2026.10.18.7';
+var APP_VERSION = '2026.10.18.8';
 window.APP_VERSION=APP_VERSION;
 console.log('[JACK] version', APP_VERSION);
 var JP_HOLIDAYS = [
@@ -15894,13 +15894,24 @@ window._VENDOR_LIST_TAB='';
 // Supabaseにvendors一括保存（全削除→再INSERT、data列にJSON保存、col_orderで列順保存）
 async function _saveVendorsToDB(allRows, colOrderMap){
   var sb=getSB();if(!sb)return false;
+  // ★B7修正：以前は「全削除→50件ずつ登録」だったため、途中で失敗すると既存データが消えたまま一部しか入らなかった。
+  //   今は「新しい行を先に登録 → 全部成功したら旧行を削除」の順にし、途中で失敗しても元のデータは残す
+  //   （失敗時は登録済みの新しい行を取り消して元に戻す）。
+  var newIds=[];
+  async function rollbackNew(){
+    for(var k=0;k<newIds.length;k+=100){
+      try{await sb.from('vendors').delete().in('id',newIds.slice(k,k+100));}catch(e){}
+    }
+  }
   try{
-    // 既存データ削除
-    var delR=await sb.from('vendors').delete().gte('id',0);
-    if(delR.error&&delR.error.message.indexOf('vendors')>=0){
-      showToast('vendorsテーブル未作成。DB設定のSQLを実行してください','error');
+    // ①旧データのidを控える（idのみ取得するので通信量は小さい）
+    var oldRes=await sb.from('vendors').select('id');
+    if(oldRes.error){
+      if(oldRes.error.message.indexOf('vendors')>=0)showToast('vendorsテーブル未作成。DB設定のSQLを実行してください','error');
+      else showToast('保存エラー: '+oldRes.error.message,'error');
       return false;
     }
+    var oldIds=(oldRes.data||[]).map(function(r){return r.id;});
     // data列にJSONとして保存（col_orderに列順も保存）
     var insertRows=allRows.map(function(row){
       var area=row.area||'';
@@ -15909,12 +15920,32 @@ async function _saveVendorsToDB(allRows, colOrderMap){
       var colOrder=(colOrderMap&&colOrderMap[area])?JSON.stringify(colOrderMap[area]):null;
       return {area:area, data:rowData, col_order:colOrder};
     });
+    // ②新しい行を先に登録
     for(var i=0;i<insertRows.length;i+=50){
-      var ins=await sb.from('vendors').insert(insertRows.slice(i,i+50));
-      if(ins.error){showToast('保存エラー: '+ins.error.message,'error');return false;}
+      var ins=await sb.from('vendors').insert(insertRows.slice(i,i+50)).select('id');
+      if(ins.error){
+        await rollbackNew();
+        showToast('保存エラー: '+ins.error.message+'（既存の業者一覧はそのまま残しています）','error');
+        return false;
+      }
+      (ins.data||[]).forEach(function(r){newIds.push(r.id);});
+    }
+    // ③全部登録できたら旧データを削除。失敗した場合は新しい行を取り消して元の状態に戻す
+    for(var j=0;j<oldIds.length;j+=100){
+      var del=await sb.from('vendors').delete().in('id',oldIds.slice(j,j+100));
+      if(del.error){
+        showToast('保存エラー: 旧データの置き換えに失敗しました: '+del.error.message,'error');
+        // 既に消えた旧行がある場合は元に戻せないため、新しい行は残す（データを失わないことを優先）
+        if(j===0)await rollbackNew();
+        return false;
+      }
     }
     return true;
-  }catch(e){showToast('保存エラー: '+e.message,'error');return false;}
+  }catch(e){
+    await rollbackNew();
+    showToast('保存エラー: '+e.message,'error');
+    return false;
+  }
 }
 
 // サイドバー：全業者選定一覧パネルを開く
@@ -16584,6 +16615,7 @@ function admHandleGanttSheetXlsx(input){
     _saveGanttSheetsToDB(toSave).then(function(ok){
       var msg='';
       if(ok)msg+='<div style="color:#10b981;font-size:12px;font-weight:700;margin-bottom:6px">✅ '+toSave.length+'件を保存しました</div>';
+      else msg+='<div style="color:#ef4444;font-size:12px;font-weight:700;margin-bottom:6px">❌ 保存に失敗した工程表があります（失敗したものは元のデータを残しています。もう一度お試しください）</div>';
       toSave.forEach(function(r){msg+='<div style="font-size:11px;color:#475569">・'+r.file+' → FIX ID: '+r.fixNo+'</div>';});
       if(failed.length)msg+='<div style="color:#ef4444;font-size:11px;margin-top:6px">⚠️ 失敗: '+failed.map(function(r){return r.file;}).join(', ')+'</div>';
       if(resultEl)resultEl.innerHTML='<div style="background:white;border-radius:8px;padding:10px;border:1px solid #e2e8f0">'+msg+'</div>';
@@ -17157,25 +17189,36 @@ function _parseGanttSheetXlsx(ws,jsonRows){
 
 async function _saveGanttSheetsToDB(items){
   var sb=getSB();if(!sb)return false;
+  // ★B7修正：以前は「削除→登録」の順で、登録に失敗してもエラー確認が無く、既存の工程表が消えたままになる恐れがあった。
+  //   今は「新しい行を先に登録 → 成功したら同じfix_noの旧行を削除」にし、失敗した物件は旧データを残して失敗として返す。
+  var okItems=[], failCount=0;
   try{
     for(var i=0;i<items.length;i++){
       var item=items[i];
       // canvasDataUrlはDB/キャッシュに保存しない（サイズ大・各端末で再生成）
       var dbData=Object.assign({},item.data);
       delete dbData.canvasDataUrl;
-      await sb.from('gantt_sheets').delete().eq('fix_no',item.fixNo);
-      await sb.from('gantt_sheets').insert({fix_no:item.fixNo,sheet_data:dbData,updated_at:new Date().toISOString()});
+      var ins=await sb.from('gantt_sheets').insert({fix_no:item.fixNo,sheet_data:dbData,updated_at:new Date().toISOString()}).select('id');
+      if(ins.error||!ins.data||!ins.data.length){
+        failCount++;
+        console.warn('gantt_sheets insert err:',ins.error&&ins.error.message);
+        continue; // 旧データは触らない
+      }
+      var newId=ins.data[0].id;
+      var del=await sb.from('gantt_sheets').delete().eq('fix_no',item.fixNo).neq('id',newId);
+      if(del.error)console.warn('gantt_sheets 旧行削除失敗（重複が残るが最新が優先される）:',del.error.message);
       window._GANTT_SHEET_DATA[item.fixNo]=dbData;
+      okItems.push(item);
     }
     try{
       var cache=JSON.parse(localStorage.getItem(GANTT_SHEET_CACHE_KEY)||'{}');
-      items.forEach(function(item){
+      okItems.forEach(function(item){
         var dbData2=Object.assign({},item.data);delete dbData2.canvasDataUrl;
         cache[item.fixNo]=dbData2;
       });
       localStorage.setItem(GANTT_SHEET_CACHE_KEY,JSON.stringify(cache));
     }catch(e){}
-    return true;
+    return failCount===0;
   }catch(e){console.warn('gantt_sheets err:',e);return false;}
 }
 
