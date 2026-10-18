@@ -1350,7 +1350,7 @@ var POST_END_PAD = 120; // ★スクロール終端の余白：完了検査列�
 // ===== 納品書機能：休工日カレンダー・稼働日計算 =====
 // ★日本の祝日（政府発表・国立天文台暦要項ベース、2025〜2028年分）
 // ★アプリバージョン（不具合問い合わせ対応用。リリースごとに更新すること。2026/8/23追加）
-var APP_VERSION = '2026.10.18.15';
+var APP_VERSION = '2026.10.19.1';
 window.APP_VERSION=APP_VERSION;
 console.log('[JACK] version', APP_VERSION);
 var JP_HOLIDAYS = [
@@ -2519,6 +2519,23 @@ function _dumpPropCalc(){
     L.push(''); L.push('--- 画面に出る工程（名前 / 開始 / 終了） ---');
     var segs=getActiveSegs(p)||[];
     segs.forEach(function(sg,i){L.push((i+1)+'. '+(sg.name||sg.label||'')+' / '+(sg.start_date||sg.date||'')+' / '+(sg.end_date||''));});
+    // ★納品書（作成済みの場合のみ）：各項目の日付・手入力の有無・使われているオフセット（確定時の凍結値／東海上書き／標準）
+    L.push(''); L.push('--- 納品書（No / 項目 / 表示日 / 手入力 / 使用offset / 標準offset / 実際の稼働日差） ---');
+    var dnx=(typeof deliveryNotes!=='undefined')?deliveryNotes[String(p.fix_no||'')]:null;
+    if(!dnx||!dnx.base_date){L.push('(納品書なし／基準日未設定)');}
+    else{
+      var _ar=(typeof normalizeArea==='function')?normalizeArea(p):(dnx.area||'');
+      L.push('基準日(土台): '+dnx.base_date+' / 状態: '+(dnx.approved_at?'承認済':dnx.tentative_at?'仮確定':'未確定')+' / エリア: '+_ar+' / offset凍結: '+(dnx.offset_snapshot?'あり':'なし'));
+      DELIVERY_MASTER.forEach(function(m){
+        var it=dnx.items.find(function(i){return i.id===m.id;})||{};
+        var d=_deliveryItemDate(dnx,m,_ar);
+        var frozen=(dnx.tentative_at||dnx.approved_at)&&dnx.offset_snapshot&&dnx.offset_snapshot[m.id]!==undefined;
+        var eff=frozen?dnx.offset_snapshot[m.id]:_deliveryEffectiveOffsetWd({area:_ar},m);
+        var real='';
+        try{real=d?(d>=dnx.base_date?countWorkdays(dnx.base_date,d):-countWorkdays(d,dnx.base_date)):'';}catch(e){}
+        L.push(m.id+'. '+m.name+' / '+(d||'')+' / '+(it.manual?'手入力':'自動')+' / '+eff+(frozen?'(凍結)':'')+' / '+m.offsetWd+' / '+real);
+      });
+    }
     var txt=L.join('\n');
     var ov=document.createElement('div');
     ov.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:99999;display:flex;align-items:center;justify-content:center;padding:12px';
