@@ -1350,7 +1350,7 @@ var POST_END_PAD = 120; // ★スクロール終端の余白：完了検査列�
 // ===== 納品書機能：休工日カレンダー・稼働日計算 =====
 // ★日本の祝日（政府発表・国立天文台暦要項ベース、2025〜2028年分）
 // ★アプリバージョン（不具合問い合わせ対応用。リリースごとに更新すること。2026/8/23追加）
-var APP_VERSION = '2026.10.18.9';
+var APP_VERSION = '2026.10.18.10';
 window.APP_VERSION=APP_VERSION;
 console.log('[JACK] version', APP_VERSION);
 var JP_HOLIDAYS = [
@@ -10836,6 +10836,7 @@ async function loadPropertiesFromCacheOrDB(forceRefresh){
     if(typeof _loadImportMetaFromDB==='function')_loadImportMetaFromDB();
     if(typeof renderAll==='function')renderAll();
     setMode(isPcMode);
+    if(typeof _refreshKensaAfterSync==='function')_refreshKensaAfterSync(); // ★B8：開いている検査取りまとめも最新化
   }
 }
 window.loadPropertiesFromCacheOrDB=loadPropertiesFromCacheOrDB;
@@ -15230,6 +15231,23 @@ async function openKensaViewer(){
 }
 window.openKensaViewer=openKensaViewer;
 
+// ★2026/10/18 B8修正：同期（DB_PROPSの置き換え）後も、開いている検査取りまとめが古い物件配列のまま残っていた。
+//   同期後に呼び出して、表示用の配列を最新のDB_PROPSから作り直して再描画する（通信は発生しない）。
+function _refreshKensaAfterSync(){
+  try{
+    if(!document.getElementById('admKensaTableWrap'))return; // 検査取りまとめを一度も開いていなければ何もしない
+    if(typeof DB_PROPS==='undefined'||!DB_PROPS||!DB_PROPS.length)return;
+    if(currentProfile&&currentProfile.role==='inspector'){
+      var my=currentProfile.shinsa_kikan||'';
+      window._admKensaAll=my?DB_PROPS.filter(function(p){return p.shinsa_kikan===my;}):[];
+    }else{
+      window._admKensaAll=DB_PROPS;
+    }
+    admRenderKensaTable();
+  }catch(e){console.warn('[JACK] 検査取りまとめの更新に失敗',e);}
+}
+window._refreshKensaAfterSync=_refreshKensaAfterSync;
+
 function admRenderKensaTable(){
   var wrap=document.getElementById('admKensaTableWrap');if(!wrap)return;
   var all=window._admKensaAll||[];
@@ -16530,6 +16548,7 @@ function admHandleXlsx(input){
       if(!pr.error&&pr.data){
         DB_PROPS=pr.data;
         if(typeof renderAll==='function')renderAll();
+        if(typeof _refreshKensaAfterSync==='function')_refreshKensaAfterSync(); // ★B8
         try{
           _savePropsCache(DB_PROPS);
           var _ts=new Date().toLocaleString('ja-JP',{year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'});
