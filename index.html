@@ -1350,7 +1350,7 @@ var POST_END_PAD = 120; // ★スクロール終端の余白：完了検査列�
 // ===== 納品書機能：休工日カレンダー・稼働日計算 =====
 // ★日本の祝日（政府発表・国立天文台暦要項ベース、2025〜2028年分）
 // ★アプリバージョン（不具合問い合わせ対応用。リリースごとに更新すること。2026/8/23追加）
-var APP_VERSION = '2026.10.18.12';
+var APP_VERSION = '2026.10.18.13';
 window.APP_VERSION=APP_VERSION;
 console.log('[JACK] version', APP_VERSION);
 var JP_HOLIDAYS = [
@@ -1369,8 +1369,24 @@ var JP_HOLIDAYS = [
   // 2028
   '2028-01-01','2028-01-10','2028-02-11','2028-02-23','2028-03-20','2028-04-29',
   '2028-05-03','2028-05-04','2028-05-05','2028-07-17','2028-08-11','2028-09-18',
-  '2028-09-22','2028-10-09','2028-11-03','2028-11-23'
+  '2028-09-22','2028-10-09','2028-11-03','2028-11-23',
+  // 2029・2030（★2026/10/18追加。春分・秋分の日は国立天文台の暦要項で正式発表されるまで暫定＝毎年2月に翌年分を確認すること）
+  '2029-01-01','2029-01-08','2029-02-11','2029-02-12','2029-02-23','2029-03-20','2029-04-29','2029-04-30',
+  '2029-05-03','2029-05-04','2029-05-05','2029-07-16','2029-08-11','2029-09-17',
+  '2029-09-23','2029-09-24','2029-10-08','2029-11-03','2029-11-23',
+  '2030-01-01','2030-01-14','2030-02-11','2030-02-23','2030-03-20','2030-04-29',
+  '2030-05-03','2030-05-04','2030-05-05','2030-05-06','2030-07-15','2030-08-11','2030-08-12','2030-09-16',
+  '2030-09-23','2030-10-14','2030-11-03','2030-11-04','2030-11-23'
 ];
+// ★祝日表の最終対応年。この年に入ったら管理者に「祝日表を追加してください」と知らせる（表が切れると祝日を稼働日扱いして納品日・工程がずれるため）
+var JP_HOLIDAYS_LAST_YEAR = 2030;
+setTimeout(function(){
+  try{
+    if(new Date().getFullYear()>=JP_HOLIDAYS_LAST_YEAR && currentProfile && currentProfile.role==='admin'){
+      showToast('祝日表が '+JP_HOLIDAYS_LAST_YEAR+' 年までです。祝日の追加が必要です（開発担当へ連絡してください）','warn');
+    }
+  }catch(e){}
+},8000);
 var JP_HOLIDAY_SET = (function(){var s={};JP_HOLIDAYS.forEach(function(d){s[d]=true;});return s;})();
 function _dkey(d){return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');}
 // 休工日判定：日曜／祝日／年末年始(12/29〜1/4)／盆(8/13〜8/16、暦通り)
@@ -2468,15 +2484,24 @@ function _filterHomeGanttSegs(p, segs){
 
 // ★手動での紐付けが無い物件に対し、エリア（東海/関東）に応じてマスター工程を自動選択する
 //   東海エリアの物件には名前に「東海」を含むマスター、関東エリアには「関東」を含むマスターを自動適用する
+// ★B4（2026/10/18）：キーワードを含むマスターが複数あっても、端末ごとの並び順に左右されないよう
+//   名前の昇順（同順なら短い名前）で必ず同じ1件を選ぶ。
+function _pickAreaMaster(keyword){
+  var c=myMasters.filter(function(m){return m&&(m.name||'').indexOf(keyword)>=0;}).map(function(m){return m.name;});
+  if(!c.length)return '';
+  c.sort(function(a,b){return a.length-b.length||(a<b?-1:a>b?1:0);});
+  if(c.length>1)console.warn('[JACK] 「'+keyword+'」を含むマスターが複数あります。自動選択は',c[0],'（候補:',c.join(' / '),'）');
+  return c[0];
+}
 function _autoAreaMasterName(p){
   if(!p||typeof myMasters==='undefined'||!myMasters||!myMasters.length)return '';
   var area=normalizeArea(p);
   if(TOKAI_AREAS.indexOf(area)>=0){
-    var mt=myMasters.find(function(m){return (m.name||'').indexOf('東海')>=0;});
-    if(mt)return mt.name;
+    var mt=_pickAreaMaster('東海');
+    if(mt)return mt;
   } else if(KANTO_AREAS.indexOf(area)>=0){
-    var mk=myMasters.find(function(m){return (m.name||'').indexOf('関東')>=0;});
-    if(mk)return mk.name;
+    var mk=_pickAreaMaster('関東');
+    if(mk)return mk;
   }
   return '';
 }
