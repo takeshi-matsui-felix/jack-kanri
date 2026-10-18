@@ -67,7 +67,9 @@
   document.addEventListener('visibilitychange',function(){if(!document.hidden)resetZoom();});
   window.addEventListener('pageshow',resetZoom);
   window.addEventListener('focus',checkAndReset);
-  setInterval(checkAndReset,150); // ホーム画面アプリはvisibilitychangeが発火しないことがあるための保険ポーリング（高頻度化）
+  // ホーム画面アプリはvisibilitychangeが発火しないことがあるための保険ポーリング。
+  // ★2026/10/19(C1)：150ms→400msに緩和し、画面が非表示の間は動かさない（電池・CPU負荷の軽減）。縮小時の即時復帰はgestureend/touchend/resizeのイベントで行う。
+  setInterval(function(){if(!document.hidden)checkAndReset();},400);
 })();
 </script>
 <title>JACK 現場管理</title>
@@ -1350,7 +1352,7 @@ var POST_END_PAD = 120; // ★スクロール終端の余白：完了検査列�
 // ===== 納品書機能：休工日カレンダー・稼働日計算 =====
 // ★日本の祝日（政府発表・国立天文台暦要項ベース、2025〜2028年分）
 // ★アプリバージョン（不具合問い合わせ対応用。リリースごとに更新すること。2026/8/23追加）
-var APP_VERSION = '2026.10.19.1';
+var APP_VERSION = '2026.10.19.2';
 window.APP_VERSION=APP_VERSION;
 console.log('[JACK] version', APP_VERSION);
 var JP_HOLIDAYS = [
