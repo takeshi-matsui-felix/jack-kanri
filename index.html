@@ -959,6 +959,44 @@ var FIXED_AREA=(function(){
 
 // ===== CONFIG =====
 var TODAY=(function(){var d=new Date();return d.getFullYear()+'-'+('0'+(d.getMonth()+1)).slice(-2)+'-'+('0'+d.getDate()).slice(-2);})();
+// ★2026/10/18 B2修正：TODAYはページ読込時に1回だけ決まるため、アプリを開いたまま／ホーム画面アプリを閉じずに日付をまたぐと
+//   「今日」の線・引渡し済み・来期の判定が前日のままだった。日付が変わったことを検知したら画面を再読込して全体を作り直す。
+//   入力中・パネルを開いている間は作業を壊さないよう自動再読込せず、バナーで知らせてタップで更新できるようにする。
+(function(){
+  function nowStr(){var d=new Date();return d.getFullYear()+'-'+('0'+(d.getMonth()+1)).slice(-2)+'-'+('0'+d.getDate()).slice(-2);}
+  function busy(){
+    try{
+      var ae=document.activeElement;
+      if(ae&&/^(INPUT|TEXTAREA|SELECT)$/.test(ae.tagName))return true;
+      if(document.querySelector('.slide-panel.open'))return true;
+    }catch(e){}
+    return false;
+  }
+  function showBanner(){
+    if(document.getElementById('_dateChangedBanner')||!document.body)return;
+    var b=document.createElement('div');
+    b.id='_dateChangedBanner';
+    b.style.cssText='position:fixed;left:50%;bottom:16px;transform:translateX(-50%);z-index:100000;background:#1e293b;color:#fff;font-size:12px;font-weight:700;padding:10px 16px;border-radius:20px;box-shadow:0 4px 16px rgba(0,0,0,.3);cursor:pointer;max-width:90vw';
+    b.textContent='📅 日付が変わりました。タップで画面を更新';
+    b.onclick=function(){location.reload();};
+    document.body.appendChild(b);
+  }
+  function check(){
+    if(nowStr()===TODAY)return;
+    if(busy()){showBanner();return;}
+    // 無限リロード防止（1分以内に再度リロードしない）
+    try{
+      var last=parseInt(sessionStorage.getItem('jack_date_reload')||'0',10);
+      if(Date.now()-last<60000){showBanner();return;}
+      sessionStorage.setItem('jack_date_reload',String(Date.now()));
+    }catch(e){}
+    location.reload();
+  }
+  document.addEventListener('visibilitychange',function(){if(!document.hidden)check();});
+  window.addEventListener('pageshow',check);
+  window.addEventListener('focus',check);
+  setInterval(check,60*1000);
+})();
 var COL_W = 18;        // reduced column width
 var SYNC_HOUR = 22;
 var SYNC_URL = 'https://script.google.com/a/macros/mizken.jp/s/AKfycbw6aIG24NPG-QRlVaEghJLwSrZ_DnMiicQvutfAp7ws6OmH8OOvkzmqx5Jebkazc0aY-A/exec';
@@ -1312,7 +1350,7 @@ var POST_END_PAD = 120; // ★スクロール終端の余白：完了検査列�
 // ===== 納品書機能：休工日カレンダー・稼働日計算 =====
 // ★日本の祝日（政府発表・国立天文台暦要項ベース、2025〜2028年分）
 // ★アプリバージョン（不具合問い合わせ対応用。リリースごとに更新すること。2026/8/23追加）
-var APP_VERSION = '2026.10.18.3';
+var APP_VERSION = '2026.10.18.6';
 window.APP_VERSION=APP_VERSION;
 console.log('[JACK] version', APP_VERSION);
 var JP_HOLIDAYS = [
@@ -3046,7 +3084,8 @@ function isRaikin(p){
   var delivDate=new Date(yr,mo-1,1);
   return delivDate>=raikinStart;
 }
-// 完工判定: 引渡し日がTODAY以前（ステータスは参照しない）
+// 完工判定（＝引渡し済み）: 引渡し日がTODAY以前（当日を含む。ステータスは参照しない）
+// ★「引渡し済み」の判定はこの関数に一本化している（検査取りまとめ等も必ずこれを使うこと）
 // ※ Excelのシートフィールドは使わない
 function isKankou(p){
   var dd=normDate(p.delivery_date||'');
@@ -15178,9 +15217,9 @@ function admRenderKensaTable(){
     else if(shinsaMode){if(p.shinsa_kikan!==shinsaMode)return false;}
     // 引渡し状況絞込（デフォルト＝引渡し前のみ表示。引渡日未設定は「引渡し前」扱い）
     if(deliveryMode!=='all'){
-      var nd=normDate(p.delivery_date);
-      var ndKey=nd?nd.replace(/\//g,'-'):''; // ★TODAY(YYYY-MM-DD)と区切り文字を揃えてから比較する（揃えないと文字列比較が常に誤判定になる）
-      var isDone=!!ndKey&&ndKey<TODAY;
+      // ★B3修正：「引渡し済み」の判定は他の全画面と同じ isKankou（引渡日が今日以前＝当日を含む）に統一。
+      //   以前はここだけ「今日より前」で、引渡し当日だけ画面ごとに結果が食い違っていた。
+      var isDone=isKankou(p);
       if(deliveryMode==='before'&&isDone)return false;
       if(deliveryMode==='done'&&!isDone)return false;
     }
@@ -15773,7 +15812,16 @@ async function admSaveProp(id){
   var addr=g('pa_address');
   Object.keys(prop).forEach(function(k){if(prop[k]===null||prop[k]==='')delete prop[k];});
   if(!prop.name){showToast('物件名は必須です','error');return;}
+  // ★A3対策：新規追加ではFIX No必須。FIX Noが他の物件と重複する保存は禁止（fix_no単独で行を特定する処理が多く、
+  //   重複すると別物件に書き込まれる危険があるため）
+  if(!id&&!prop.fix_no){showToast('FIX Noは必須です','error');return;}
   var sb=getSB();
+  if(prop.fix_no){
+    var dupRes=await sb.from('properties').select('id,name').eq('fix_no',String(prop.fix_no));
+    if(dupRes.error){showToast('重複チェックに失敗しました: '+dupRes.error.message,'error');return;}
+    var dupRow=(dupRes.data||[]).find(function(r){return !id||String(r.id)!==String(id);});
+    if(dupRow){showToast('FIX No「'+prop.fix_no+'」は既に「'+(dupRow.name||'')+'」で使われています','error');return;}
+  }
   // addressカラムが存在する場合のみ追加
   if(addr){
     var testRes=await sb.from('properties').select('address').limit(1);
