@@ -1350,7 +1350,7 @@ var POST_END_PAD = 120; // ★スクロール終端の余白：完了検査列�
 // ===== 納品書機能：休工日カレンダー・稼働日計算 =====
 // ★日本の祝日（政府発表・国立天文台暦要項ベース、2025〜2028年分）
 // ★アプリバージョン（不具合問い合わせ対応用。リリースごとに更新すること。2026/8/23追加）
-var APP_VERSION = '2026.10.18.8';
+var APP_VERSION = '2026.10.18.9';
 window.APP_VERSION=APP_VERSION;
 console.log('[JACK] version', APP_VERSION);
 var JP_HOLIDAYS = [
@@ -4892,7 +4892,7 @@ function _saveKensaFieldForCurrentProp(field,value){
       var idx=DB_PROPS.findIndex(function(dp){return String(dp.fix_no)===String(p.fix_no)&&dp.name===p.name;});
       if(idx>=0)DB_PROPS[idx][field]=value;
       else{var _np={fix_no:p.fix_no,name:p.name};_np[field]=value;DB_PROPS.push(_np);}
-      try{localStorage.setItem('jack_props_cache',JSON.stringify(DB_PROPS));}catch(e){}
+      try{_savePropsCache(DB_PROPS);}catch(e){}
     }
     renderKensaSplitSection(p);
     _refreshDetailGanttForKensaChange(p);
@@ -6440,7 +6440,7 @@ function applyConfirmedUntil(){
     if(typeof DB_PROPS!=='undefined'&&DB_PROPS){
       var idx=DB_PROPS.findIndex(function(dp){return String(dp.fix_no)===fixNo;});
       if(idx>=0)DB_PROPS[idx].confirmed_until=v||null;
-      try{localStorage.setItem('jack_props_cache',JSON.stringify(DB_PROPS));}catch(e){}
+      try{_savePropsCache(DB_PROPS);}catch(e){}
     }
   }
   if(!sb||!fixNo){
@@ -7095,7 +7095,7 @@ function toggleKensaStatus(statusKey){
       var idx=DB_PROPS.findIndex(function(dp){return String(dp.fix_no)===String(p.fix_no)&&dp.name===p.name;});
       if(idx>=0)DB_PROPS[idx][statusKey]=val;
       else{var np={fix_no:p.fix_no,name:p.name};np[statusKey]=val;DB_PROPS.push(np);}
-      try{localStorage.setItem('jack_props_cache',JSON.stringify(DB_PROPS));}catch(e){}
+      try{_savePropsCache(DB_PROPS);}catch(e){}
     }
     // 詳細画面を開いたままの物件だけ再描画（スクロール位置を保持）
     if(currentProp===p){
@@ -8197,7 +8197,7 @@ function savePropEdit(){
       }else{
         DB_PROPS.push(Object.assign({fix_no:p.fix_no,name:p.name},allUpdates));
       }
-      try{localStorage.setItem('jack_props_cache',JSON.stringify(DB_PROPS));}catch(e){}
+      try{_savePropsCache(DB_PROPS);}catch(e){}
     }
   }
 
@@ -9265,7 +9265,7 @@ function resetToBuiltinMasters(){
         if(r.error){showToast('⚠️ Supabase側のリセットに失敗しました（ローカルは削除済み）','error');return;}
         if(typeof DB_PROPS!=='undefined'&&DB_PROPS){
           DB_PROPS.forEach(function(dp){dp.custom_gantt=null;dp.gantt_is_manual=false;});
-          try{localStorage.setItem('jack_props_cache',JSON.stringify(DB_PROPS));}catch(e){}
+          try{_savePropsCache(DB_PROPS);}catch(e){}
         }
         renderBody();
       }).catch(function(){showToast('⚠️ Supabase側のリセットに失敗しました（ローカルは削除済み）','error');});
@@ -10229,7 +10229,7 @@ async function renameMaster(idx){
   });
   if(typeof DB_PROPS!=='undefined'&&DB_PROPS){
     DB_PROPS.forEach(function(dp){if(dp.prop_master===oldName)dp.prop_master=newName;});
-    try{localStorage.setItem('jack_props_cache',JSON.stringify(DB_PROPS));}catch(e){}
+    try{_savePropsCache(DB_PROPS);}catch(e){}
   }
   saveLS('jack_my_masters',myMasters);
   saveLS('jack_prop_master',propMaster);
@@ -10745,6 +10745,19 @@ function jsonpFetch(url, cbPrefix, onSuccess, onError){
 
 // ========== プロパティキャッシュ ==========
 var PROPS_CACHE_KEY='jack_props_cache';
+// ★2026/10/18 B5修正：物件キャッシュ(jack_props_cache)に、重い工程データ(custom_gantt)が混入して容量を二重に使っていた。
+//   工程データは別キャッシュ(jack_custom_gantt)に保存されているため、物件キャッシュへ書くときだけ除外する
+//   （メモリ上のDB_PROPSはそのまま。キャッシュからの起動後に工程が必要になった場合は、既存の仕組みで必要な物件だけ再取得される）。
+function _savePropsCache(arr){
+  try{
+    var slim=(arr||[]).map(function(d){
+      if(!d||d.custom_gantt===undefined)return d;
+      var c=Object.assign({},d);delete c.custom_gantt;return c;
+    });
+    localStorage.setItem('jack_props_cache',JSON.stringify(slim));
+    return true;
+  }catch(e){return false;}
+}
 var PROPS_CACHE_TS_KEY='jack_props_cache_ts';
 // ★2026/10/8追加：メモリ上のDB_PROPSだけ更新してlocalStorageのキャッシュを更新し忘れると、再起動で古い値に戻る。
 //   物件1件の特定項目だけをキャッシュに反映する（custom_ganttなど重い列はキャッシュに入れない）
@@ -10773,6 +10786,8 @@ async function loadPropertiesFromCacheOrDB(forceRefresh){
         var cacheHasMovein=parsed&&parsed.length>0&&parsed[0]&&Object.prototype.hasOwnProperty.call(parsed[0],'movein_date');
         if(parsed&&parsed.length>0&&cacheHasId&&cacheHasMovein){
           DB_PROPS=parsed;
+          // ★B5：過去に混入した工程データ入りの巨大キャッシュを、一度だけスリム化して保存し直す
+          try{if(parsed.some(function(d){return d&&d.custom_gantt;}))_savePropsCache(parsed);}catch(e){}
           _loadSharedGanttFromDB();
           if(typeof renderAll==='function')renderAll();
           setMode(isPcMode);
@@ -10807,7 +10822,7 @@ async function loadPropertiesFromCacheOrDB(forceRefresh){
       saveLS('jack_recent_updates',todayMap);
     }catch(e){}
     try{
-      localStorage.setItem(PROPS_CACHE_KEY, JSON.stringify(pr.data));
+      _savePropsCache(pr.data);
       var now=new Date();
       var ts=(now.getMonth()+1)+'/'+now.getDate()+' '+now.getHours()+':'+('0'+now.getMinutes()).slice(-2);
       localStorage.setItem(PROPS_CACHE_TS_KEY, ts);
@@ -12771,7 +12786,7 @@ function _saveGanttToSupabase(p,segsData,cb){
         var idx=DB_PROPS.findIndex(function(dp){return String(dp.fix_no)===String(p.fix_no);});
         if(idx>=0){DB_PROPS[idx].custom_gantt=payload.custom_gantt;DB_PROPS[idx].gantt_is_manual=payload.gantt_is_manual;}
         // LocalStorageキャッシュも更新
-        try{localStorage.setItem('jack_props_cache',JSON.stringify(DB_PROPS));}catch(e){}
+        try{_savePropsCache(DB_PROPS);}catch(e){}
         if(typeof renderBody==='function')renderBody(); // ★一覧の色分けを即座に反映
       }
       if(cb)cb(!r.error);
@@ -12786,7 +12801,7 @@ function _saveMasterLinkToSupabase(p,masterName,cb){
         var idx=DB_PROPS.findIndex(function(dp){return String(dp.fix_no)===String(p.fix_no);});
         if(idx>=0)DB_PROPS[idx].prop_master=masterName||null;
         // LocalStorageキャッシュも更新
-        try{localStorage.setItem('jack_props_cache',JSON.stringify(DB_PROPS));}catch(e){}
+        try{_savePropsCache(DB_PROPS);}catch(e){}
       }
       if(cb)cb(!r.error);
     }).catch(function(){if(cb)cb(false);});
@@ -14276,7 +14291,7 @@ async function loadAdmSec(sec){
       var sb2=getSB();
       var pr=await sb2.from('properties').select('*').order('fix_no',{ascending:true});
       props=pr.data||[];
-      if(props.length>0){DB_PROPS=props;try{localStorage.setItem('jack_props_cache',JSON.stringify(props));}catch(e){}}
+      if(props.length>0){DB_PROPS=props;try{_savePropsCache(props);}catch(e){}}
     }
 
     right.innerHTML='<div style="display:flex;flex-direction:column;height:100%">'
@@ -14323,7 +14338,7 @@ async function loadAdmSec(sec){
       var sb3=getSB();
       var pr3=await sb3.from('properties').select('*').order('fix_no',{ascending:true});
       props=pr3.data||[];
-      if(props.length>0){DB_PROPS=props;try{localStorage.setItem('jack_props_cache',JSON.stringify(props));}catch(e){}}
+      if(props.length>0){DB_PROPS=props;try{_savePropsCache(props);}catch(e){}}
     }
     window._admKensaAll=props;
     // 担当者フィルターの選択肢（実在する担当者名から生成）
@@ -15202,7 +15217,7 @@ async function openKensaViewer(){
   } else if(sb){
     var prk=await sb.from('properties').select('*').order('fix_no',{ascending:true});
     kprops=prk.data||[];
-    if(kprops.length>0){DB_PROPS=kprops;try{localStorage.setItem('jack_props_cache',JSON.stringify(kprops));}catch(e){}}
+    if(kprops.length>0){DB_PROPS=kprops;try{_savePropsCache(kprops);}catch(e){}}
   }
   // 自分の審査機関の物件のみ（審査機関未設定のアカウントは何も表示しない）
   window._admKensaAll=myShinsa?kprops.filter(function(p){return p.shinsa_kikan===myShinsa;}):[];
@@ -15384,7 +15399,7 @@ function admSaveKensaField(fixNo,field,value){
     if(typeof DB_PROPS!=='undefined'&&DB_PROPS){
       var idx=DB_PROPS.findIndex(function(dp){return String(dp.fix_no)===String(fixNo);});
       if(idx>=0)DB_PROPS[idx][field]=value;
-      try{localStorage.setItem('jack_props_cache',JSON.stringify(DB_PROPS));}catch(e){}
+      try{_savePropsCache(DB_PROPS);}catch(e){}
     }
     admRenderKensaTable();
     if(typeof renderBody==='function')renderBody(); // ★双方向：大工程表・物件詳細ガントにも即時反映
@@ -15839,7 +15854,7 @@ async function admDeleteProp(pid){
   // ★DB_PROPS本体とlocalStorageキャッシュからも削除（削除直後に古い一覧が残る不具合を防ぐ）
   if(typeof DB_PROPS!=='undefined'&&DB_PROPS){
     DB_PROPS=DB_PROPS.filter(function(p){return String(p.id)!==String(pid);});
-    try{localStorage.setItem('jack_props_cache',JSON.stringify(DB_PROPS));}catch(e){}
+    try{_savePropsCache(DB_PROPS);}catch(e){}
   }
   if(window._admAllProps){window._admAllProps=window._admAllProps.filter(function(p){return String(p.id)!==String(pid);});}
   showToast('🗑 削除しました','success');
@@ -16516,7 +16531,7 @@ function admHandleXlsx(input){
         DB_PROPS=pr.data;
         if(typeof renderAll==='function')renderAll();
         try{
-          localStorage.setItem('jack_props_cache',JSON.stringify(DB_PROPS));
+          _savePropsCache(DB_PROPS);
           var _ts=new Date().toLocaleString('ja-JP',{year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'});
           localStorage.setItem('jack_props_cache_ts',_ts);
           if(typeof updateSyncBanner==='function')updateSyncBanner('最終同期: '+_ts,false);
