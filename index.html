@@ -1350,7 +1350,7 @@ var POST_END_PAD = 120; // ★スクロール終端の余白：完了検査列�
 // ===== 納品書機能：休工日カレンダー・稼働日計算 =====
 // ★日本の祝日（政府発表・国立天文台暦要項ベース、2025〜2028年分）
 // ★アプリバージョン（不具合問い合わせ対応用。リリースごとに更新すること。2026/8/23追加）
-var APP_VERSION = '2026.10.18.6';
+var APP_VERSION = '2026.10.18.7';
 window.APP_VERSION=APP_VERSION;
 console.log('[JACK] version', APP_VERSION);
 var JP_HOLIDAYS = [
@@ -10119,10 +10119,14 @@ function _saveMasterToSupabase(master, cb){
   var sb=getSB(); if(!sb){if(cb)cb(false);return;}
   var payload={name:master.name, steps:JSON.stringify(master.steps), updated_at:new Date().toISOString()};
   // nameで既存レコードを検索してupsert
-  sb.from('masters').select('id').eq('name',master.name).single()
+  // ★B6修正：.single()は同名の行が複数あるとエラーになり、「無い」と誤判定して新規INSERTし重複が増える原因だった。
+  //   先頭1件だけを取得し、検索自体が失敗した場合は（誤って重複を作らないよう）INSERTせず失敗として返す。
+  sb.from('masters').select('id').eq('name',master.name).order('id',{ascending:true}).limit(1)
     .then(function(r){
-      if(r.data&&r.data.id){
-        return sb.from('masters').update(payload).eq('id',r.data.id);
+      if(r.error)return {error:r.error};
+      var row=r.data&&r.data[0];
+      if(row&&row.id){
+        return sb.from('masters').update(payload).eq('id',row.id);
       } else {
         return sb.from('masters').insert(payload);
       }
@@ -10183,27 +10187,71 @@ async function _loadMastersFromDB(forceRefresh){
 }
 window._loadMastersFromDB=_loadMastersFromDB;
 
-function renameMaster(idx){
+async function renameMaster(idx){
   var m=myMasters[idx]; if(!m)return;
+  // ★A6修正：以前は端末のローカルだけを書き換えていたため、DB側の旧名マスターが同期で復活して重複し、
+  //   DBの物件(properties.prop_master)は旧名のまま残って別マスターの工程が表示される恐れがあった。
+  //   サーバー(masters・properties)も同時に更新する。オフライン・非管理者では変更しない。
+  if(!(currentProfile&&currentProfile.role==='admin')){showToast('マスター名の変更は管理者のみ可能です','error');return;}
   var newName=prompt('マスター工程名を変更してください',m.name);
   if(!newName||newName.trim()===m.name)return;
   newName=newName.trim();
   var oldName=m.name;
+  if(newName.indexOf('__')===0){showToast('「__」で始まる名前は使えません','error');return;}
+  if(myMasters.some(function(x){return x.name===newName;})){showToast('同じ名前のマスターが既にあります','error');return;}
+  var sb=getSB();
+  if(!sb){showToast('オフラインのため名前を変更できません（通信回復後に再度お試しください）','error');return;}
+  // エリア自動選択は名前に「東海」「関東」を含むかで判定されるため、外れる場合は確認する
+  var lostArea=['東海','関東'].some(function(k){return oldName.indexOf(k)>=0&&newName.indexOf(k)<0;});
+  if(lostArea&&!confirm('名前から「東海」または「関東」が外れます。\nエリアによる自動選択（紐付け未設定の物件）に使われなくなる可能性があります。\n\nこのまま変更しますか？'))return;
+  var nowIso=new Date().toISOString();
+  var dbRenamed=false;
+  try{
+    // ①mastersテーブルの名前を変更（DBに未保存のマスターなら対象0件でも可）
+    var r1=await sb.from('masters').update({name:newName,updated_at:nowIso}).eq('name',oldName).select('id');
+    if(r1.error){showToast('名前の変更に失敗しました: '+r1.error.message,'error');return;}
+    dbRenamed=!!(r1.data&&r1.data.length);
+    // ②旧名を参照している物件のprop_masterを一括で新名へ（updated_atは触らない＝他端末の大量再取得を起こさない）
+    var r2=await sb.from('properties').update({prop_master:newName}).eq('prop_master',oldName).select('fix_no');
+    if(r2.error){
+      if(dbRenamed){try{await sb.from('masters').update({name:oldName}).eq('name',newName);}catch(e){}}
+      showToast('物件の紐付け更新に失敗したため、名前は変更していません: '+r2.error.message,'error');
+      return;
+    }
+  }catch(e){
+    showToast('名前の変更中にエラーが発生しました: '+(e&&e.message),'error');
+    return;
+  }
+  // ③ローカル（マスター一覧・紐付け・物件データ・キャッシュ）を更新
   myMasters[idx].name=newName;
-  // propMasterの紐付けも更新
   Object.keys(propMaster).forEach(function(ck){
     if(propMaster[ck]===oldName)propMaster[ck]=newName;
   });
+  if(typeof DB_PROPS!=='undefined'&&DB_PROPS){
+    DB_PROPS.forEach(function(dp){if(dp.prop_master===oldName)dp.prop_master=newName;});
+    try{localStorage.setItem('jack_props_cache',JSON.stringify(DB_PROPS));}catch(e){}
+  }
   saveLS('jack_my_masters',myMasters);
   saveLS('jack_prop_master',propMaster);
   renderMasterPanel();
   renderBody();renderMyPage();
-  showToast('「'+oldName+'」→「'+newName+'」に変更しました','success');
+  showToast('「'+oldName+'」→「'+newName+'」に変更しました（物件の紐付けも更新）','success');
 }
 window.renameMaster=renameMaster;
 
 function deleteMaster(idx){
   var m=myMasters[idx]; if(!m)return;
+  if(!(currentProfile&&currentProfile.role==='admin')){showToast('マスターの削除は管理者のみ可能です','error');return;}
+  // ★A6修正：物件が紐付いたままマスターを消すと、物件のprop_masterが存在しない名前を指して
+  //   別のマスター(先頭)の工程へ静かに切り替わるため、使用中のマスターは削除させない。
+  var usedNames={};
+  if(typeof DB_PROPS!=='undefined'&&DB_PROPS){DB_PROPS.forEach(function(dp){if(dp.prop_master===m.name)usedNames[String(dp.fix_no)+'__'+(dp.name||'')]=1;});}
+  Object.keys(propMaster).forEach(function(ck){if(propMaster[ck]===m.name)usedNames[ck]=1;});
+  var usedCount=Object.keys(usedNames).length;
+  if(usedCount>0){
+    alert('「'+m.name+'」は '+usedCount+' 件の物件に紐付いているため削除できません。\n\n管理者CPのマスター工程の集計から「統合」で別のマスターへ付け替えてから削除してください。');
+    return;
+  }
   if(!confirm(m.name+'を削除しますか？'))return;
   var deletedName=m.name;
   myMasters.splice(idx,1);
@@ -10211,7 +10259,9 @@ function deleteMaster(idx){
   renderMasterPanel();
   showToast('削除しました','');
   // ★Supabase側のmastersテーブルからも削除（残したままだと次回同期で復活してしまう）
-  _deleteMasterFromSupabase(deletedName,function(){});
+  _deleteMasterFromSupabase(deletedName,function(ok){
+    if(!ok)showToast('⚠️ サーバー側の削除に失敗しました（次回の同期で復活する場合があります）','error');
+  });
 }
 
 function assignMasterToProps(mi){
