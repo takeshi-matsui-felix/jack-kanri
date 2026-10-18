@@ -1350,7 +1350,7 @@ var POST_END_PAD = 120; // ★スクロール終端の余白：完了検査列�
 // ===== 納品書機能：休工日カレンダー・稼働日計算 =====
 // ★日本の祝日（政府発表・国立天文台暦要項ベース、2025〜2028年分）
 // ★アプリバージョン（不具合問い合わせ対応用。リリースごとに更新すること。2026/8/23追加）
-var APP_VERSION = '2026.10.18.14';
+var APP_VERSION = '2026.10.18.15';
 window.APP_VERSION=APP_VERSION;
 console.log('[JACK] version', APP_VERSION);
 var JP_HOLIDAYS = [
@@ -2133,6 +2133,7 @@ function _normalizeTmplSteps(steps){
     var nm=step.name||step.label||'';
     var dur=step.dur||step.days||1;
     var startDate;
+    var preK=!kisoEnd; // ★基礎より前の工程は常に直列
     if(step.offsetFrom==='基礎完了'&&kisoEnd&&step.offsetDays!=null){
       // 既存のoffsetDaysをそのまま使う
       startDate=step.offsetDays>0?addWorkdays(kisoEnd,step.offsetDays):kisoEnd;
@@ -2156,7 +2157,7 @@ function _normalizeTmplSteps(steps){
     startDate=localDateStr(sd);
     var endStr=endOfWorkdays(startDate,dur);
     if(nm==='基礎')kisoEnd=endStr;
-    if(!step.offsetFrom||step.offsetFrom!=='基礎完了')prevEnd=endStr;
+    if(preK||!step.offsetFrom||step.offsetFrom!=='基礎完了')prevEnd=endStr;
   }
   return result;
 }
@@ -2201,6 +2202,7 @@ function computeMasterSegs(confirmDoneStr, template, handKumi, masterName, landP
     if(isHandKumi&&(nm==='建て方'||nm==='建体'))dur=dur+30;
 
     var startDate;
+    var preKiso=!kisoEndDate; // ★基礎より前の工程（造成・仮設・地盤など）は、マスターにoffsetFromが入っていても必ず直列で連鎖させる（2026/10/18）
     if(step.offsetFrom==='基礎完了'&&kisoEndDate&&step.offsetDays!=null){
       // ★基礎完了日からのオフセットで固定配置
       var od=step.offsetDays;
@@ -2252,7 +2254,10 @@ function computeMasterSegs(confirmDoneStr, template, handKumi, masterName, landP
     if(nm==='基礎')kisoEndDate=endStr;
 
     // 順次連鎖用のprevEndは基礎までのみ更新（基礎以降はoffsetFromで管理）
-    if(!step.offsetFrom)prevEnd=endStr;
+    //   ★2026/10/18：基礎より前の工程は、offsetFromの有無に関わらず必ず直列（造成→(仮設)→地盤→基礎）。
+    //   関東マスターの「造成工事」に「基礎完了／0」が入っていたため、地盤が造成の終了を待たず、
+    //   土地決済ガードで造成だけが基礎の最中まで押し出される不具合（八潮Ⅰ）の修正。
+    if(preKiso||!step.offsetFrom)prevEnd=endStr;
   }
 
   // ★2026/9/2追加：工程名（「造成」「地盤」等）に頼らず、どのマスターテンプレートでも
@@ -2560,7 +2565,24 @@ function getActiveSegs(p) {
   var segs=_getActiveSegsRaw(p);
   segs=_applyKensaOverrides(p,segs);
   segs=_applyDeliveryGanttLink(p,segs);
+  segs=_applyDeliveryDateToHandover(p,segs);
   return segs;
+}
+// ★2026/10/18：工程表の「引渡し」バーは、マスターのオフセット計算ではなく物件の引渡日（Excel/DBのdelivery_date）に合わせる。
+function _applyDeliveryDateToHandover(p,segs){
+  try{
+    if(!p||!segs||!segs.length)return segs;
+    var dd=toDateKey(normDate(p.delivery_date||''));
+    if(!/^\d{4}-\d{2}-\d{2}$/.test(dd))return segs;
+    var changed=false;
+    var out=segs.map(function(s){
+      if(String(s.label||s.name||'').trim()!=='引渡し')return s;
+      if((s.start_date||s.date||'')===dd&&(s.end_date||'')===dd)return s;
+      changed=true;
+      return Object.assign({},s,{start_date:dd,date:dd,end_date:dd});
+    });
+    return changed?out:segs;
+  }catch(e){return segs;}
 }
 
 // ===== 全現場進捗管理（2026/8/24追加、2026/8/25：今期/来期分割・診断情報を追加） =====
@@ -2987,7 +3009,14 @@ function _applyDeliveryGanttLink(p,segs){
   if(typeof deliveryNotes==='undefined')return segs;
   var fixNo=String(p.fix_no||'');
   var dn=deliveryNotes[fixNo];
-  if(!dn||!dn.base_date)return segs;
+  if(!dn||!dn.base_date){
+    // ★2026/10/18：納品書が未作成（基準日なし）でも、レッカー行は納品書マスターと必ず同じ日付にする。
+    //   工程表の「土台」の開始日を基準日とみなして、納品書と同じ計算（稼働日オフセット）で出す。
+    var _dsg=segs.find(function(s){return String(s.label||s.name||'').trim()==='土台';});
+    var _dbase=_dsg?toDateKey(_dsg.start_date||_dsg.date||''):'';
+    if(!_dbase)return segs;
+    dn={base_date:_dbase,items:[],area:(typeof normalizeArea==='function')?normalizeArea(p):''};
+  }
   var overrideMap={};
   var found=false;
   var areaG=(typeof normalizeArea==='function')?normalizeArea(p):'';
