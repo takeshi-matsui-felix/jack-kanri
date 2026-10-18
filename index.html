@@ -1312,7 +1312,7 @@ var POST_END_PAD = 120; // ★スクロール終端の余白：完了検査列�
 // ===== 納品書機能：休工日カレンダー・稼働日計算 =====
 // ★日本の祝日（政府発表・国立天文台暦要項ベース、2025〜2028年分）
 // ★アプリバージョン（不具合問い合わせ対応用。リリースごとに更新すること。2026/8/23追加）
-var APP_VERSION = '2026.10.18.2';
+var APP_VERSION = '2026.10.18.3';
 window.APP_VERSION=APP_VERSION;
 console.log('[JACK] version', APP_VERSION);
 var JP_HOLIDAYS = [
@@ -8033,6 +8033,7 @@ function openPropEditModal(){
   window._editPropCk=custKey(p);
   renderModal();
   window._rerenderPropModal=renderModal;
+  _peTakeSnapshot(); // ★A4：保存時に「変更項目のみ」を判定するための基準値
 }
 window.openPropEditModal=openPropEditModal;
 
@@ -8088,49 +8089,62 @@ function peToggleKensaStatus(statusKey){
 }
 window.peToggleKensaStatus=peToggleKensaStatus;
 
+// ★A4：物件編集フォームの値を読み取る（空欄=null）。画面を開いた直後の値と比較して変更項目だけを保存するために使う
+var _PE_TEXT_KEYS=['tantou','status','shinsa_kikan','address'];
+var _PE_DATE_KEYS=['land_contract','land_payment','confirm_submit','confirm_done','delivery_date','inspection_date','complete_date','movein_date','haikin_date','kutai_date','chukan_date','dannetsu_date','kansei_date'];
+var _PE_STATUS_KEYS=['haikin_status','kutai_status','chukan_status','dannetsu_status','inspection_status','kansei_status'];
+function _peReadForm(){
+  var o={};
+  _PE_TEXT_KEYS.forEach(function(k){var el=document.getElementById('pe-'+k);if(el)o[k]=(el.value.trim())||null;});
+  _PE_DATE_KEYS.forEach(function(k){var el=document.getElementById('pe-'+k);if(el)o[k]=el.value?el.value.replace(/-/g,'/'):null;});
+  _PE_STATUS_KEYS.forEach(function(k){var b=document.getElementById('pe-'+k+'-btn');if(b)o[k]=b.getAttribute('data-status')||'before';});
+  return o;
+}
+function _peParkKey(pks){
+  return JSON.stringify((pks||[]).map(function(x){x=x||{};return {name:x.name||'',carno:x.carno||'',address:x.address||'',contract_start:x.contract_start||'',contract_end:x.contract_end||'',detail:x.detail||''};}));
+}
+function _peTakeSnapshot(){
+  window._peInit=_peReadForm();
+  window._peInitParkings=_peParkKey(window._editParkings);
+}
+
 function savePropEdit(){
   _syncParkingsFromDOM();
   var sb=getSB();
   var p=currentProp; if(!p)return;
 
-  function getDateVal(id){var el=document.getElementById(id);if(!el||!el.value)return null;return el.value.replace(/-/g,'/');}
-  function getStrVal(id){var el=document.getElementById(id);return(el&&el.value.trim())||null;}
-
-  // Supabaseのpropertiesテーブルに存在するカラムのみ
-  var dbUpdates={
-    tantou:        getStrVal('pe-tantou'),
-    status:        getStrVal('pe-status'),
-    shinsa_kikan:  getStrVal('pe-shinsa_kikan'),
-    land_contract: getDateVal('pe-land_contract'),
-    land_payment:  getDateVal('pe-land_payment'),
-    confirm_submit:getDateVal('pe-confirm_submit'),
-    confirm_done:  getDateVal('pe-confirm_done'),
-    delivery_date: getDateVal('pe-delivery_date'),
-    address:       getStrVal('pe-address')
-  };
-  // nullを除去（未入力は上書きしない）
-  Object.keys(dbUpdates).forEach(function(k){if(dbUpdates[k]===null)delete dbUpdates[k];});
-
-  // parkings・inspection_date・complete_dateもSupabaseに保存
+  // ★A4修正：画面を開いた時点（_peInit）から「変更された項目だけ」を保存する。
+  //   ・他の人が別項目を更新していても上書きして戻さない
+  //   ・変更した項目を空欄にした場合は、その項目を空にする（ステータスは空にできない項目なので除く）
+  var form=_peReadForm();
+  var init=window._peInit||null;
+  var dbUpdates={};
+  var changedKeys=[];
+  Object.keys(form).forEach(function(k){
+    var fv=form[k];
+    var iv=init?init[k]:undefined;
+    if(init){ if(fv===iv)return; }
+    else if(fv===null||fv===undefined)return; // 基準が無い場合は従来どおり空欄は無視
+    if(k==='status'&&(fv===null||fv===undefined))return; // ステータスは空にしない
+    dbUpdates[k]=fv;
+    changedKeys.push(k);
+  });
+  // 実入居発生日：手入力で変更した場合は取込元を「manual」に切替
+  if(Object.prototype.hasOwnProperty.call(dbUpdates,'movein_date')&&dbUpdates.movein_date)dbUpdates.movein_date_source='manual';
+  // 駐車場：内容が変わった場合のみ保存（全件削除＝空配列も保存できる）
   var parkingsVal=JSON.parse(JSON.stringify(window._editParkings||[]));
-  if(parkingsVal.length)dbUpdates.parkings=parkingsVal;
-  var insDate=getDateVal('pe-inspection_date');
-  var compDate=getDateVal('pe-complete_date');
-  if(insDate)dbUpdates.inspection_date=insDate;
-  if(compDate)dbUpdates.complete_date=compDate;
-  // 実入居発生日（手入力で変更した場合は取込元を「manual」に切替）
-  var moveinVal=getDateVal('pe-movein_date');
-  if(moveinVal){dbUpdates.movein_date=moveinVal;dbUpdates.movein_date_source='manual';}
-  // ★配筋検査・躯体検査・中間検査・断熱検査の日付＋6検査の予約ステータス（中間・完成は関東限定でDOMに無ければ自動的にスキップされる）
-  ['haikin_date','kutai_date','chukan_date','dannetsu_date','kansei_date'].forEach(function(k){
-    var v=getDateVal('pe-'+k); if(v)dbUpdates[k]=v;
-  });
-  ['haikin_status','kutai_status','chukan_status','dannetsu_status','inspection_status','kansei_status'].forEach(function(k){
-    var btn=document.getElementById('pe-'+k+'-btn');
-    if(btn)dbUpdates[k]=btn.getAttribute('data-status')||'before';
-  });
+  if(window._peInitParkings===undefined||_peParkKey(parkingsVal)!==window._peInitParkings){
+    dbUpdates.parkings=parkingsVal;
+    changedKeys.push('parkings');
+  }
+  if(!changedKeys.length){
+    closePropEditModal();
+    showToast('変更はありません','');
+    return;
+  }
+  // 他端末が変更を検知できるよう更新日時を明示的に更新
+  dbUpdates.updated_at=new Date().toISOString();
 
-  var localExtra={};  // ローカルフォールバック用（オフライン時）
   var allUpdates=Object.assign({},dbUpdates);
 
   function applyLocally(){
