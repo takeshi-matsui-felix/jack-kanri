@@ -1350,7 +1350,7 @@ var POST_END_PAD = 120; // ★スクロール終端の余白：完了検査列�
 // ===== 納品書機能：休工日カレンダー・稼働日計算 =====
 // ★日本の祝日（政府発表・国立天文台暦要項ベース、2025〜2028年分）
 // ★アプリバージョン（不具合問い合わせ対応用。リリースごとに更新すること。2026/8/23追加）
-var APP_VERSION = '2026.10.18.11';
+var APP_VERSION = '2026.10.18.12';
 window.APP_VERSION=APP_VERSION;
 console.log('[JACK] version', APP_VERSION);
 var JP_HOLIDAYS = [
@@ -6446,7 +6446,7 @@ function applyConfirmedUntil(){
   if(!sb||!fixNo){
     applyLocallyCU();
   } else {
-    sb.from('properties').update({confirmed_until:v||null,updated_at:new Date().toISOString()}).eq('fix_no',fixNo)
+    _tsQuery(function(n){return sb.from('properties').update(_tsPayload({confirmed_until:v||null,updated_at:new Date().toISOString()},'gantt',n)).eq('fix_no',fixNo);})
       .then(function(res){
         if(res.error){
           console.error('[JACK] confirmed_until Supabase保存失敗',res.error);
@@ -6497,7 +6497,7 @@ function saveGanttEdit(){
         var fixNo=String(currentProp.fix_no||'');
         var tsKey='jack_gantt_ts_'+fixNo;
         var dbp=DB_PROPS&&DB_PROPS.find(function(d){return String(d.fix_no)===fixNo;});
-        if(dbp&&dbp.updated_at)localStorage.setItem(tsKey,dbp.updated_at);
+        if(dbp&&_ganttTsOf(dbp))localStorage.setItem(tsKey,_ganttTsOf(dbp));
         showToast('✅ 工程表を保存しました（全共有）','success');
       } else {
         // ★ 保存失敗時はローカルのみ保存済みであることを明示
@@ -7169,19 +7169,19 @@ async function _loadDeliveryNoteIfNeeded(p){
   var localTs=localStorage.getItem(tsKey)||'';
   var needFetch=false;
   try{
-    var tsRes=await sb.from('properties').select('updated_at').eq('fix_no',fixNo).limit(1);
+    var tsRes=await _tsQuery(function(n){return sb.from('properties').select(n?'updated_at,dn_updated_at':'updated_at').eq('fix_no',fixNo).limit(1);});
     var tsRow=tsRes.data&&tsRes.data[0];
     if(!tsRes.error&&tsRow){
-      var remoteTs=tsRow.updated_at||'';
+      var remoteTs=_dnTsOf(tsRow);
       if(remoteTs&&remoteTs!==localTs)needFetch=true;
     }
   }catch(e){}
   if(!needFetch&&_deliveryFetched[fixNo])return; // TS一致かつ取得済み → 追加通信なし
   try{
-    var r=await sb.from('properties').select('fix_no,delivery_note,updated_at').eq('fix_no',fixNo).limit(1);
+    var r=await _tsQuery(function(n){return sb.from('properties').select(n?'fix_no,delivery_note,updated_at,dn_updated_at':'fix_no,delivery_note,updated_at').eq('fix_no',fixNo).limit(1);});
     var rd=r.data&&r.data[0];
     if(!r.error&&rd){
-      if(rd.updated_at)localStorage.setItem(tsKey,rd.updated_at);
+      if(_dnTsOf(rd))localStorage.setItem(tsKey,_dnTsOf(rd));
       if(rd.delivery_note){
         var dn=typeof rd.delivery_note==='string'?JSON.parse(rd.delivery_note):rd.delivery_note;
         if(dn)deliveryNotes[fixNo]=dn;
@@ -7556,7 +7556,7 @@ function _saveDeliveryNote(p){
     //   画面上は何も表示されず（本人にも他ユーザーにも）気付く手段が無かった。
     //   結果（res.error）を確認し、失敗時は明確に警告表示する。
     try{
-      var res=await sb.from('properties').update({delivery_note:deliveryNotes[fixNo],updated_at:new Date().toISOString()}).eq('fix_no',fixNo);
+      var res=await _tsQuery(function(n){return sb.from('properties').update(_tsPayload({delivery_note:deliveryNotes[fixNo],updated_at:new Date().toISOString()},'dn',n)).eq('fix_no',fixNo);});
       if(res.error){
         console.error('[JACK] 納品書の保存に失敗',res.error);
         showToast('⚠️ 納品書の保存に失敗しました：'+res.error.message,'error');
@@ -9173,7 +9173,7 @@ function saveEditorChanges(){
         var fixNo=String(edProp.fix_no||'');
         var tsKey='jack_gantt_ts_'+fixNo;
         var dbp=DB_PROPS&&DB_PROPS.find(function(d){return String(d.fix_no)===fixNo;});
-        if(dbp&&dbp.updated_at)localStorage.setItem(tsKey,dbp.updated_at);
+        if(dbp&&_ganttTsOf(dbp))localStorage.setItem(tsKey,_ganttTsOf(dbp));
       }
       showToast(ok?'✅ 工程表を保存しました（全共有）':'✅ 工程表を保存しました（ローカル）','success');
     });
@@ -9260,7 +9260,7 @@ function resetToBuiltinMasters(){
   //   1回のUPDATEクエリで全物件をまとめてリセットする
   var sbRM=(typeof getSB==='function')?getSB():null;
   if(sbRM){
-    sbRM.from('properties').update({custom_gantt:null,gantt_is_manual:false,updated_at:new Date().toISOString()}).not('fix_no','is',null)
+    _tsQuery(function(n){return sbRM.from('properties').update(_tsPayload({custom_gantt:null,gantt_is_manual:false,updated_at:new Date().toISOString()},'gantt',n)).not('fix_no','is',null);})
       .then(function(r){
         if(r.error){showToast('⚠️ Supabase側のリセットに失敗しました（ローカルは削除済み）','error');return;}
         if(typeof DB_PROPS!=='undefined'&&DB_PROPS){
@@ -10745,6 +10745,28 @@ function jsonpFetch(url, cbPrefix, onSuccess, onError){
 
 // ========== プロパティキャッシュ ==========
 var PROPS_CACHE_KEY='jack_props_cache';
+// ★2026/10/18 B10：更新確認を項目別に分離する。
+//   これまで他端末の変更検知は properties.updated_at 1本に集約されていたため、検査日1件・担当者1件の更新でも
+//   全員の端末が「その物件の工程表と納品書」を再取得していた（通信量の増加要因）。
+//   工程表(custom_gantt/confirmed_until)の更新は gantt_updated_at、納品書(delivery_note)の更新は dn_updated_at で検知する。
+//   ※DBに2列がまだ無い場合（SQL未実行）は、列エラーを検知して自動的に従来のupdated_at方式へ戻る（_tsColsOk=false）。
+var _tsColsOk=null; // null=未確認 / true=新列あり / false=新列なし（従来方式）
+function _ganttTsOf(row){return (row&&(row.gantt_updated_at||row.updated_at))||'';}
+function _dnTsOf(row){return (row&&(row.dn_updated_at||row.updated_at))||'';}
+function _isTsColErr(r){return !!(r&&r.error&&/gantt_updated_at|dn_updated_at/.test(String(r.error.message||'')+' '+String(r.error.details||'')));}
+async function _tsQuery(make){
+  var useNew=(_tsColsOk!==false);
+  var r=await make(useNew);
+  if(useNew){
+    if(_isTsColErr(r)){_tsColsOk=false;r=await make(false);}
+    else if(r&&!r.error){_tsColsOk=true;}
+  }
+  return r;
+}
+function _tsPayload(payload,kind,useNew){
+  if(!useNew)return payload;
+  var c=Object.assign({},payload);c[kind+'_updated_at']=payload.updated_at;return c;
+}
 // ★2026/10/18 B9修正：物件の「軽量カラム」一覧を1か所に定義（custom_gantt等の重い列を含まない）。
 //   管理者CP・検査取りまとめ・Excel取込後の再取得などが select('*') で重い列まで毎回取得していたため、通信量の増加要因になっていた。
 var PROPS_LIGHT_COLS='id,fix_no,seq_no,name,area,status,hand_kumi,tantou,delivery_date,delivery_month,land_contract,land_payment,confirm_submit,confirm_done,inspection_date,complete_date,haikin_date,haikin_status,kutai_date,kutai_status,chukan_date,chukan_status,dannetsu_date,dannetsu_status,inspection_status,kansei_date,kansei_status,confirmed_until,shinsa_kikan,address,parkings,prop_master,gantt_is_manual,movein_date,movein_date_source,updated_at';
@@ -10856,10 +10878,10 @@ async function _loadCustomGanttIfNeeded(p){
   var needFetch=false;
   if(sb&&fixNo){
     try{
-      var tsRes=await sb.from('properties').select('updated_at').eq('fix_no',fixNo).limit(1);
+      var tsRes=await _tsQuery(function(n){return sb.from('properties').select(n?'updated_at,gantt_updated_at':'updated_at').eq('fix_no',fixNo).limit(1);});
       var tsRow=tsRes.data&&tsRes.data[0];
       if(!tsRes.error&&tsRow){
-        var remoteTs=tsRow.updated_at||'';
+        var remoteTs=_ganttTsOf(tsRow);
         if(remoteTs&&remoteTs!==localTs)needFetch=true; // 更新あり → 再取得
       }
     }catch(e){}
@@ -10879,10 +10901,10 @@ async function _loadCustomGanttIfNeeded(p){
     // ★2026/9/10拡張：custom_ganttと同じタイムスタンプチェックの仕組みで、confirmed_until
     //   （仮工程／確定工程の区切り）もあわせて最新化する。これにより「同期」ボタンを押さなくても、
     //   物件詳細を開くたびに他ユーザーが設定した確定区切りが自動的に反映されるようになる。
-    var r0=await sb.from('properties').select('fix_no,custom_gantt,confirmed_until,updated_at').eq('fix_no',fixNo).limit(1);
+    var r0=await _tsQuery(function(n){return sb.from('properties').select(n?'fix_no,custom_gantt,confirmed_until,updated_at,gantt_updated_at':'fix_no,custom_gantt,confirmed_until,updated_at').eq('fix_no',fixNo).limit(1);});
     var r={error:r0.error,data:r0.data&&r0.data[0]};
     if(!r.error&&r.data){
-      if(r.data.updated_at)localStorage.setItem(tsKey,r.data.updated_at);
+      if(_ganttTsOf(r.data))localStorage.setItem(tsKey,_ganttTsOf(r.data));
       if(Object.prototype.hasOwnProperty.call(r.data,'confirmed_until')){
         p.confirmed_until=r.data.confirmed_until||null;
         if(DB_PROPS){
@@ -10958,14 +10980,14 @@ async function _batchCheckGanttUpdates(props){
   props.forEach(function(p){byFixNo[String(p.fix_no||'')]=p;});
   try{
     // ①タイムスタンプだけを1回のバッチクエリで確認
-    var tsRes=await sb.from('properties').select('fix_no,updated_at').in('fix_no',fixNos);
+    var tsRes=await _tsQuery(function(n){return sb.from('properties').select(n?'fix_no,updated_at,gantt_updated_at':'fix_no,updated_at').in('fix_no',fixNos);});
     if(tsRes.error||!tsRes.data)return;
     var needFixNos=[];
     tsRes.data.forEach(function(row){
       var fixNo=String(row.fix_no||'');
       var tsKey='jack_gantt_ts_'+fixNo;
       var localTs=localStorage.getItem(tsKey)||'';
-      var remoteTs=row.updated_at||'';
+      var remoteTs=_ganttTsOf(row);
       var ck=fixNo+'__'+((byFixNo[fixNo]||{}).name||'');
       // ★2026/10/8追加【再起動で戻る不具合の本対策】：TSが一致していても、手動工程フラグ(gantt_is_manual)があるのに
       //   端末側に工程データが無い場合（保存失敗・消失）は再取得する。TSだけで「取得済み」とみなさない。
@@ -10976,7 +10998,7 @@ async function _batchCheckGanttUpdates(props){
     });
     if(!needFixNos.length)return; // 全物件、変更なし → ここで終了（追加通信ゼロ）
     // ②更新があった物件だけ、まとめて本体データを取得
-    var r0=await sb.from('properties').select('fix_no,custom_gantt,confirmed_until,updated_at').in('fix_no',needFixNos);
+    var r0=await _tsQuery(function(n){return sb.from('properties').select(n?'fix_no,custom_gantt,confirmed_until,updated_at,gantt_updated_at':'fix_no,custom_gantt,confirmed_until,updated_at').in('fix_no',needFixNos);});
     if(r0.error||!r0.data)return;
     var anyChanged=false;
     r0.data.forEach(function(rd){
@@ -10996,7 +11018,7 @@ function _applyGanttFetchResult(p,r){
   var ck=String(p.fix_no||'')+'__'+(p.name||'');
   var fixNo=String(p.fix_no||'');
   var changed=false;
-  var _tsToStore=r.updated_at||'';
+  var _tsToStore=_ganttTsOf(r);
   if(Object.prototype.hasOwnProperty.call(r,'confirmed_until')){
     p.confirmed_until=r.confirmed_until||null;
     if(DB_PROPS){
@@ -12783,7 +12805,7 @@ function _saveGanttToSupabase(p,segsData,cb){
   // ★大工程表の黄色/白の色分け用に、軽量な真偽値カラムにも同じ状態を保存する
   //   （custom_ganttは重いため一覧取得時は除外しているが、この列だけは一覧取得時にも一緒に取る）
   payload.gantt_is_manual=!!saveData;
-  sb.from('properties').update(payload).eq('fix_no',String(p.fix_no))
+  _tsQuery(function(n){return sb.from('properties').update(_tsPayload(payload,'gantt',n)).eq('fix_no',String(p.fix_no));})
     .then(function(r){
       if(!r.error&&DB_PROPS){
         // ローカルDB_PROPSキャッシュも更新
