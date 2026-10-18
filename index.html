@@ -1350,7 +1350,7 @@ var POST_END_PAD = 120; // ★スクロール終端の余白：完了検査列�
 // ===== 納品書機能：休工日カレンダー・稼働日計算 =====
 // ★日本の祝日（政府発表・国立天文台暦要項ベース、2025〜2028年分）
 // ★アプリバージョン（不具合問い合わせ対応用。リリースごとに更新すること。2026/8/23追加）
-var APP_VERSION = '2026.10.18.10';
+var APP_VERSION = '2026.10.18.11';
 window.APP_VERSION=APP_VERSION;
 console.log('[JACK] version', APP_VERSION);
 var JP_HOLIDAYS = [
@@ -10745,6 +10745,9 @@ function jsonpFetch(url, cbPrefix, onSuccess, onError){
 
 // ========== プロパティキャッシュ ==========
 var PROPS_CACHE_KEY='jack_props_cache';
+// ★2026/10/18 B9修正：物件の「軽量カラム」一覧を1か所に定義（custom_gantt等の重い列を含まない）。
+//   管理者CP・検査取りまとめ・Excel取込後の再取得などが select('*') で重い列まで毎回取得していたため、通信量の増加要因になっていた。
+var PROPS_LIGHT_COLS='id,fix_no,seq_no,name,area,status,hand_kumi,tantou,delivery_date,delivery_month,land_contract,land_payment,confirm_submit,confirm_done,inspection_date,complete_date,haikin_date,haikin_status,kutai_date,kutai_status,chukan_date,chukan_status,dannetsu_date,dannetsu_status,inspection_status,kansei_date,kansei_status,confirmed_until,shinsa_kikan,address,parkings,prop_master,gantt_is_manual,movein_date,movein_date_source,updated_at';
 // ★2026/10/18 B5修正：物件キャッシュ(jack_props_cache)に、重い工程データ(custom_gantt)が混入して容量を二重に使っていた。
 //   工程データは別キャッシュ(jack_custom_gantt)に保存されているため、物件キャッシュへ書くときだけ除外する
 //   （メモリ上のDB_PROPSはそのまま。キャッシュからの起動後に工程が必要になった場合は、既存の仕組みで必要な物件だけ再取得される）。
@@ -10804,7 +10807,7 @@ async function loadPropertiesFromCacheOrDB(forceRefresh){
   //   実際には存在しない列だったため大量の書き込みエラーが発生した。properties テーブルに
   //   master_segs列は存在しない（埋め込み静的データ内にのみ存在するフィールド）。このSELECTからは除外し、
   //   代わりにland_payment/confirm_done等のマージ（getAllProps側）だけで正しく直る設計に一本化する。
-  var pr=await sb.from('properties').select('id,fix_no,seq_no,name,area,status,hand_kumi,tantou,delivery_date,delivery_month,land_contract,land_payment,confirm_submit,confirm_done,inspection_date,complete_date,haikin_date,haikin_status,kutai_date,kutai_status,chukan_date,chukan_status,dannetsu_date,dannetsu_status,inspection_status,kansei_date,kansei_status,confirmed_until,shinsa_kikan,address,parkings,prop_master,gantt_is_manual,movein_date,movein_date_source,updated_at').order('fix_no');
+  var pr=await sb.from('properties').select(PROPS_LIGHT_COLS).order('fix_no');
   if(!pr.error&&pr.data&&pr.data.length>0){
     DB_PROPS=pr.data;
     // ★新機能【最終更新バッジ】：以前は「前回キャッシュとの差分」で判定していたが、DB側の何らかの
@@ -14290,7 +14293,7 @@ async function loadAdmSec(sec){
       props=DB_PROPS;
     } else {
       var sb2=getSB();
-      var pr=await sb2.from('properties').select('*').order('fix_no',{ascending:true});
+      var pr=await sb2.from('properties').select(PROPS_LIGHT_COLS).order('fix_no',{ascending:true});
       props=pr.data||[];
       if(props.length>0){DB_PROPS=props;try{_savePropsCache(props);}catch(e){}}
     }
@@ -14337,7 +14340,7 @@ async function loadAdmSec(sec){
       props=DB_PROPS;
     } else {
       var sb3=getSB();
-      var pr3=await sb3.from('properties').select('*').order('fix_no',{ascending:true});
+      var pr3=await sb3.from('properties').select(PROPS_LIGHT_COLS).order('fix_no',{ascending:true});
       props=pr3.data||[];
       if(props.length>0){DB_PROPS=props;try{_savePropsCache(props);}catch(e){}}
     }
@@ -14356,7 +14359,7 @@ async function loadAdmSec(sec){
     var sbd=getSB();
     var prd=null, prdErrMsg='';
     try{
-      prd=await sbd.from('properties').select('*').order('fix_no',{ascending:true});
+      prd=await sbd.from('properties').select(PROPS_LIGHT_COLS+',delivery_note').order('fix_no',{ascending:true});
       if(prd&&prd.error)prdErrMsg=(prd.error.message||JSON.stringify(prd.error));
     }catch(e){prdErrMsg=e.message||String(e);}
     // ★完工済み（引渡日が今日以前）の物件は納品書管理の対象外にする（2026/8/8）
@@ -15216,7 +15219,7 @@ async function openKensaViewer(){
   if(typeof DB_PROPS!=='undefined'&&DB_PROPS&&DB_PROPS.length>0){
     kprops=DB_PROPS;
   } else if(sb){
-    var prk=await sb.from('properties').select('*').order('fix_no',{ascending:true});
+    var prk=await sb.from('properties').select(PROPS_LIGHT_COLS).order('fix_no',{ascending:true});
     kprops=prk.data||[];
     if(kprops.length>0){DB_PROPS=kprops;try{_savePropsCache(kprops);}catch(e){}}
   }
@@ -16544,7 +16547,7 @@ function admHandleXlsx(input){
       //   更新していなかったため、取込後にページを再読み込みすると、キャッシュ優先の起動ロジックにより
       //   取込前の古いキャッシュに巻き戻ってしまう不具合があった（「取込・リロードしても直らない」の
       //   直接の原因）。キャッシュとタイムスタンプも合わせて更新する。
-      var pr=await sb.from('properties').select('*').order('fix_no');
+      var pr=await sb.from('properties').select(PROPS_LIGHT_COLS).order('fix_no');
       if(!pr.error&&pr.data){
         DB_PROPS=pr.data;
         if(typeof renderAll==='function')renderAll();
