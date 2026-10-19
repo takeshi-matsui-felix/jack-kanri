@@ -898,6 +898,9 @@ body.sp-mode #areaTabsBtns{ display:none !important; }
   <div onclick="spMoreItem(function(){openVendorList();})" style="padding:14px 20px;cursor:pointer;font-size:14px;color:#1e293b;font-weight:600;letter-spacing:.3px;border-bottom:1px solid #f1f5f9">
     全業者選定一覧
   </div>
+  <div id="spMoreKensa" onclick="spMoreItem(function(){openKensaViewer();})" style="display:none;padding:14px 20px;cursor:pointer;font-size:14px;color:#1e293b;font-weight:600;letter-spacing:.3px;border-bottom:1px solid #f1f5f9">
+    検査取りまとめ
+  </div>
   <div onclick="spMoreItem(function(){openSettings();})" style="padding:14px 20px;cursor:pointer;font-size:14px;color:#1e293b;font-weight:600;letter-spacing:.3px;border-bottom:1px solid #f1f5f9">
     設定
   </div>
@@ -1350,7 +1353,7 @@ var POST_END_PAD = 120; // ★スクロール終端の余白：完了検査列�
 // ===== 納品書機能：休工日カレンダー・稼働日計算 =====
 // ★日本の祝日（政府発表・国立天文台暦要項ベース、2025〜2028年分）
 // ★アプリバージョン（不具合問い合わせ対応用。リリースごとに更新すること。2026/8/23追加）
-var APP_VERSION = '2026.10.19.9';
+var APP_VERSION = '2026.10.19.10';
 window.APP_VERSION=APP_VERSION;
 console.log('[JACK] version', APP_VERSION);
 // ★2026/10/19(C4)：握りつぶされていた失敗を記録する共通ロガー。直近30件を保持し、管理者の「🔍検証出力」の末尾に出る。
@@ -3907,6 +3910,9 @@ function setMode(pc){
   if(kensaBtn){
     kensaBtn.style.display=(pc&&_isKensaViewerNow)?'':'none';
   }
+  // ★2026/10/19：スマホ（縦・横とも）は下部「メニュー」から開けるようにする（検査機関ロールのみ）
+  var _spKensaItem=document.getElementById('spMoreKensa');
+  if(_spKensaItem)_spKensaItem.style.display=_isKensaViewerNow?'':'none';
 
   renderBody();
   if(!pc) spSetupAccordion();
@@ -13019,6 +13025,32 @@ function _loadSharedGanttFromDB(){
   if(pmChanged)saveLS('jack_prop_master',propMaster);
 }
 
+// ★2026/10/19 権限変更の即時反映：セッション復元時（端末キャッシュのprofileを使った時）に、
+//   自分のprofilesを1行だけ裏で再取得する（起動ごとに最大1回・数百バイト）。
+//   role / approved / shinsa_kikan が変わっていたらキャッシュを更新して再読み込みし、画面全体に反映する。
+//   取得に失敗した場合は何もしない（通信不良でログアウトさせない）。
+var _profileBgDone=false;
+async function _refreshProfileInBackground(){
+  if(_profileBgDone)return;
+  _profileBgDone=true;
+  try{
+    var sb=getSB();
+    if(!sb||!currentUser||!currentProfile)return;
+    var res=await sb.from('profiles').select('*').eq('id',currentUser.id).single();
+    if(res.error||!res.data)return;
+    var np=res.data,op=currentProfile;
+    var critical=['role','approved','shinsa_kikan'].some(function(k){return (np[k]||null)!==(op[k]||null);});
+    try{localStorage.setItem('jack_profile_cache',JSON.stringify(np));}catch(e){}
+    if(!critical){currentProfile=np;return;}
+    // 無限ループ防止：直前10秒以内に同じ理由で再読み込み済みなら行わない
+    var last=0;try{last=parseInt(sessionStorage.getItem('jack_profile_reload')||'0',10)||0;}catch(e){}
+    if(Date.now()-last<10000){currentProfile=np;return;}
+    try{sessionStorage.setItem('jack_profile_reload',String(Date.now()));}catch(e){}
+    showToast('権限が変更されました。画面を更新します','');
+    setTimeout(function(){location.reload();},1200);
+  }catch(e){_jackLog('profile再取得',e);}
+}
+
 async function onAuthSuccess(isNewLogin){
   var sb=getSB();
   // 既存セッション復元時（isNewLogin=false）はprofileキャッシュを使う
@@ -13026,6 +13058,7 @@ async function onAuthSuccess(isNewLogin){
   try{var cp=localStorage.getItem('jack_profile_cache');if(cp)cachedProfile=JSON.parse(cp);}catch(e){}
   if(!isNewLogin&&cachedProfile&&cachedProfile.id===currentUser.id){
     currentProfile=cachedProfile;
+    setTimeout(_refreshProfileInBackground,1500);
   } else {
     await new Promise(function(r){setTimeout(r,300);});
     var res=await sb.from('profiles').select('*').eq('id',currentUser.id).single();
@@ -13060,6 +13093,8 @@ async function onAuthSuccess(isNewLogin){
   //   管理者はこのボタンを使わず、管理者CP内のフル機能版「🔍検査取りまとめ」を使う（2026/10/5修正）
   var kensaBtn=document.getElementById('sbKensaBtn');
   if(kensaBtn&&currentProfile.role==='inspector'&&isPcMode)kensaBtn.style.display='';
+  var _spKensaItem2=document.getElementById('spMoreKensa');
+  if(_spKensaItem2)_spKensaItem2.style.display=(currentProfile.role==='inspector')?'':'none';
   // ★既存業者（約200名）の担当エリア・工種が未登録の場合、次回ログイン時に再登録を必須にする（2026/10追加）
   //   フルの再認証（ログアウト→ログイン）は不要で、ログイン直後に必須モーダルを表示するだけで済ませる。
   if(currentProfile.role==='worker'&&(!currentProfile.area||!Array.isArray(currentProfile.area)||!currentProfile.area.length)){
