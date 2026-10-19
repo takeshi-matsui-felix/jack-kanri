@@ -1350,7 +1350,7 @@ var POST_END_PAD = 120; // ★スクロール終端の余白：完了検査列�
 // ===== 納品書機能：休工日カレンダー・稼働日計算 =====
 // ★日本の祝日（政府発表・国立天文台暦要項ベース、2025〜2028年分）
 // ★アプリバージョン（不具合問い合わせ対応用。リリースごとに更新すること。2026/8/23追加）
-var APP_VERSION = '2026.10.19.4';
+var APP_VERSION = '2026.10.19.5';
 window.APP_VERSION=APP_VERSION;
 console.log('[JACK] version', APP_VERSION);
 // ★2026/10/19：全画面の左下に現在のバージョンを小さく常時表示（スマホで「最新版か」を確認できるように）。タップ操作は邪魔しない・印刷には出さない。
@@ -1359,7 +1359,7 @@ console.log('[JACK] version', APP_VERSION);
     try{
       if(document.getElementById('appVerBadge'))return;
       var st=document.createElement('style');
-      st.textContent='#appVerBadge{position:fixed;left:4px;bottom:calc(2px + env(safe-area-inset-bottom,0px));z-index:40;font:9px/1.2 var(--mono,monospace);color:#64748b;background:rgba(255,255,255,.65);padding:1px 4px;border-radius:4px;pointer-events:none}@media print{#appVerBadge{display:none}}';
+      st.textContent='#appVerBadge{position:fixed;left:4px;bottom:calc(2px + env(safe-area-inset-bottom,0px));z-index:99000;font:10px/1.2 var(--mono,monospace);color:#334155;background:rgba(255,255,255,.8);padding:1px 4px;border-radius:4px;pointer-events:none}@media print{#appVerBadge{display:none}}';
       document.head.appendChild(st);
       var d=document.createElement('div');d.id='appVerBadge';d.textContent='v'+APP_VERSION;
       document.body.appendChild(d);
