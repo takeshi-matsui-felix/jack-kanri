@@ -67,9 +67,7 @@
   document.addEventListener('visibilitychange',function(){if(!document.hidden)resetZoom();});
   window.addEventListener('pageshow',resetZoom);
   window.addEventListener('focus',checkAndReset);
-  // ホーム画面アプリはvisibilitychangeが発火しないことがあるための保険ポーリング。
-  // ★2026/10/19(C1)：150ms→400msに緩和し、画面が非表示の間は動かさない（電池・CPU負荷の軽減）。縮小時の即時復帰はgestureend/touchend/resizeのイベントで行う。
-  setInterval(function(){if(!document.hidden)checkAndReset();},400);
+  setInterval(checkAndReset,150); // ホーム画面アプリはvisibilitychangeが発火しないことがあるための保険ポーリング（高頻度化）。★2026/10/19：C1で間隔を緩めたところ縮小から戻らなくなったため従来の150msに戻した（動作優先・変更しないこと）
 })();
 </script>
 <title>JACK 現場管理</title>
@@ -1352,9 +1350,23 @@ var POST_END_PAD = 120; // ★スクロール終端の余白：完了検査列�
 // ===== 納品書機能：休工日カレンダー・稼働日計算 =====
 // ★日本の祝日（政府発表・国立天文台暦要項ベース、2025〜2028年分）
 // ★アプリバージョン（不具合問い合わせ対応用。リリースごとに更新すること。2026/8/23追加）
-var APP_VERSION = '2026.10.19.2';
+var APP_VERSION = '2026.10.19.4';
 window.APP_VERSION=APP_VERSION;
 console.log('[JACK] version', APP_VERSION);
+// ★2026/10/19：全画面の左下に現在のバージョンを小さく常時表示（スマホで「最新版か」を確認できるように）。タップ操作は邪魔しない・印刷には出さない。
+(function(){
+  function mk(){
+    try{
+      if(document.getElementById('appVerBadge'))return;
+      var st=document.createElement('style');
+      st.textContent='#appVerBadge{position:fixed;left:4px;bottom:calc(2px + env(safe-area-inset-bottom,0px));z-index:40;font:9px/1.2 var(--mono,monospace);color:#64748b;background:rgba(255,255,255,.65);padding:1px 4px;border-radius:4px;pointer-events:none}@media print{#appVerBadge{display:none}}';
+      document.head.appendChild(st);
+      var d=document.createElement('div');d.id='appVerBadge';d.textContent='v'+APP_VERSION;
+      document.body.appendChild(d);
+    }catch(e){}
+  }
+  if(document.body)mk();else document.addEventListener('DOMContentLoaded',mk);
+})();
 var JP_HOLIDAYS = [
   // 2025
   '2025-01-01','2025-01-13','2025-02-11','2025-02-23','2025-02-24','2025-03-20','2025-04-29',
@@ -4042,7 +4054,7 @@ function doPropSearch(q){
     var days=daysUntil(p.delivery_date);
     var urgStr=days!==null&&days>=0&&days<=30?'<span style="color:#ef4444;font-size:9px;font-weight:700"> ⚡'+days+'日</span>':'';
     return '<div onclick="togglePropSearch();openDetail(getAllProps().find(function(x){return x.fix_no===\''+p.fix_no+'\';}))" style="padding:7px 10px;border-bottom:1px solid #334155;cursor:pointer;display:flex;align-items:center;justify-content:space-between;background:rgba(255,255,255,.03);border-radius:5px;margin-bottom:2px;">'
-      +'<div><div style="font-size:12px;font-weight:700;color:white">'+p.name+'</div><div style="font-size:9px;color:#94a3b8">FiX '+p.fix_no+' / '+p.area+'</div></div>'
+      +'<div><div style="font-size:12px;font-weight:700;color:white">'+_escHtml(p.name)+'</div><div style="font-size:9px;color:#94a3b8">FiX '+p.fix_no+' / '+p.area+'</div></div>'
       +'<div style="text-align:right"><div style="font-size:9px;color:#64748b">'+(p.delivery_date?fmtDateShort(p.delivery_date):'')+'</div>'+urgStr+'</div>'
       +'</div>';
   }).join('');
@@ -6676,7 +6688,7 @@ function printDetailGantt(){
   if(!ganttHtml){showToast('工程データなし','error');return;}
 
   var html='<!DOCTYPE html><html><head><meta charset="UTF-8">'
-    +'<title>'+p.name+' 工程表</title>'
+    +'<title>'+_escHtml(p.name)+' 工程表</title>'
     +'<style>'
     +'*{box-sizing:border-box;margin:0;padding:0;-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important}'
     +'body{font-family:"Hiragino Sans","Meiryo",sans-serif;background:white;padding:4mm;}'
@@ -6899,7 +6911,7 @@ function _buildPrintGanttHtml(p,pageWmm,pageHmm,includeHeader){
     var HEADER_H=46;
     headerHtml='<div style="width:'+fullW+'px;box-sizing:border-box;background:#1a3a7c;color:white;padding:8px 12px;border-radius:4px;display:flex;align-items:center;justify-content:space-between;height:'+HEADER_H+'px">'
       +'<div>'
-      +'<div style="font-size:14px;font-weight:900;letter-spacing:-0.5px;">'+p.name+'</div>'
+      +'<div style="font-size:14px;font-weight:900;letter-spacing:-0.5px;">'+_escHtml(p.name)+'</div>'
       +'<div style="font-size:9px;opacity:.8;margin-top:2px;">'
       +(cd?'確認申請完了: '+cd+'　':'')
       +(p.delivery_date?'引渡し: '+p.delivery_date:'')
@@ -6957,7 +6969,7 @@ function printPropInfo(){
   var days=daysUntil(p.delivery_date);
   var urgText=days!==null&&days>=0&&days<=30?' ⚡ 引渡まで'+days+'日':'';
   var html='<!DOCTYPE html><html><head><meta charset="UTF-8">'
-    +'<title>'+p.name+' 物件詳細</title>'
+    +'<title>'+_escHtml(p.name)+' 物件詳細</title>'
     +'<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;600;700;800&display=swap" rel="stylesheet">'
     +'<style>'
     +'*{box-sizing:border-box;margin:0;padding:0;-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important}'
@@ -7132,7 +7144,7 @@ function openDetail(p){
       +parkings.map(function(pk,i){
         return '<div style="padding:5px 12px;border-bottom:1px solid var(--g100)">'
           +'<div style="font-size:10px;font-weight:700;color:var(--g700)">【'+(i+1)+'】 '+(pk.name||'駐車場'+(i+1))+'</div>'
-          +(pk.address?'<div style="font-size:10px;color:var(--g500);margin-top:2px">📍 '+pk.address+'</div>':'')
+          +(pk.address?'<div style="font-size:10px;color:var(--g500);margin-top:2px">📍 '+_escHtml(pk.address)+'</div>':'')
           +(pk.carno?'<div style="font-size:10px;color:var(--g500)">🚘 '+pk.carno+'</div>':'')
           +(pk.detail?'<div style="font-size:10px;color:var(--g400)">'+pk.detail+'</div>':'')
           +'</div>';
@@ -7158,9 +7170,9 @@ function openDetail(p){
     heroSticky.style.display='block';
     heroSticky.innerHTML='<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">'
       +'<span style="font-size:9px;background:rgba(255,255,255,.25);padding:2px 7px;border-radius:4px;font-weight:700;flex-shrink:0">'+(p.area||'不明')+'</span>'
-      +'<span style="font-size:13px;font-weight:800;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+p.name+'</span>'
+      +'<span style="font-size:13px;font-weight:800;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+_escHtml(p.name)+'</span>'
       +'</div>'
-      +'<div style="font-size:9px;opacity:.85;margin-top:2px">FiX No.'+p.fix_no+(p.seq_no?' ／ 通し:'+p.seq_no:'')+(tantouOf(p)?' ／ '+tantouOf(p):'')+'</div>'
+      +'<div style="font-size:9px;opacity:.85;margin-top:2px">FiX No.'+p.fix_no+(p.seq_no?' ／ 通し:'+p.seq_no:'')+(tantouOf(p)?' ／ '+_escHtml(tantouOf(p)):'')+'</div>'
       +'<div style="display:flex;gap:4px;overflow-x:auto;margin-top:5px;padding-bottom:2px;-webkit-overflow-scrolling:touch">'+(milestoneChipsHtml||'<span style="font-size:9px;opacity:.6">マイルストーン日付が未設定です</span>')+'</div>';
   }
 
@@ -7491,7 +7503,7 @@ function _renderDeliveryNoteBody(p,el){
       var vendorVal=_deliveryVendorValue(dn,m);
       var opts=_deliveryVendorOptions(m);
       var dlId='dl-deliv-'+m.id;
-      var dlHtml=opts.length?('<datalist id="'+dlId+'">'+opts.map(function(o){return '<option value="'+o+'">';}).join('')+'</datalist>'):'';
+      var dlHtml=opts.length?('<datalist id="'+dlId+'">'+opts.map(function(o){return '<option value="'+_escHtml(o)+'">';}).join('')+'</datalist>'):'';
       var mirrorHint=m.mirrorFrom?'<div style="font-size:9px;color:#94a3b8">項目'+m.mirrorFrom+'と連動</div>':'';
       // ★東海限定：③レッカー（id:7）が手動でずれている場合、それより後ろの自動計算項目は連動してずれる旨のヒント表示（2026/8/23追加）
       if(_lecCascadeActive&&m.id>7&&!(it&&it.manual&&it.date)){
@@ -7506,8 +7518,8 @@ function _renderDeliveryNoteBody(p,el){
         +'<td style="padding:5px 8px;font-size:11px;font-weight:700">'+m.name+' '+excl+'</td>'
         +'<td style="padding:5px 8px'+(dateChg?';'+hi:'')+'"><input type="date" value="'+date+'" onchange="deliverySetItemDate('+m.id+',this.value)" style="font-size:11px;padding:3px 5px;border:1.5px solid '+(dateChg?'#f59e0b':'#e2e8f0')+';border-radius:5px;width:130px'+(dateChg?';background:#fef3c7':'')+'">'
           +(it.manual?'<button onclick="deliveryResetItemDate('+m.id+')" title="自動計算に戻す" style="margin-left:4px;background:none;border:none;color:#94a3b8;cursor:pointer;font-size:10px">↺</button>':'')+'</td>'
-        +'<td style="padding:5px 8px'+(vendorChg?';'+hi:'')+'">'+dlHtml+'<input type="text" id="dlv-vendor-'+m.id+'" list="'+dlId+'" placeholder="業者名（一覧から選択 or 自由入力）" value="'+vendorVal+'" onmousedown="this.dataset.pv=this.value;this.value=\'\';" onfocus="this.dataset.pv=this.value;this.value=\'\';" onblur="if(!this.value)this.value=this.dataset.pv||\'\';" onchange="deliverySetItemField('+m.id+',\'vendor\',this.value)" style="font-size:11px;padding:3px 6px;border:1.5px solid '+(vendorChg?'#f59e0b':'#e2e8f0')+';border-radius:5px;width:150px'+(vendorChg?';background:#fef3c7':'')+'">'+mirrorHint+'</td>'
-        +'<td style="padding:5px 8px'+(noteChg?';'+hi:'')+'"><input type="text" placeholder="備考" value="'+(it.note||'')+'" onchange="deliverySetItemField('+m.id+',\'note\',this.value)" style="font-size:11px;padding:3px 6px;border:1.5px solid '+(noteChg?'#f59e0b':'#e2e8f0')+';border-radius:5px;width:150px'+(noteChg?';background:#fef3c7':'')+'"></td>'
+        +'<td style="padding:5px 8px'+(vendorChg?';'+hi:'')+'">'+dlHtml+'<input type="text" id="dlv-vendor-'+m.id+'" list="'+dlId+'" placeholder="業者名（一覧から選択 or 自由入力）" value="'+_escHtml(vendorVal)+'" onmousedown="this.dataset.pv=this.value;this.value=\'\';" onfocus="this.dataset.pv=this.value;this.value=\'\';" onblur="if(!this.value)this.value=this.dataset.pv||\'\';" onchange="deliverySetItemField('+m.id+',\'vendor\',this.value)" style="font-size:11px;padding:3px 6px;border:1.5px solid '+(vendorChg?'#f59e0b':'#e2e8f0')+';border-radius:5px;width:150px'+(vendorChg?';background:#fef3c7':'')+'">'+mirrorHint+'</td>'
+        +'<td style="padding:5px 8px'+(noteChg?';'+hi:'')+'"><input type="text" placeholder="備考" value="'+_escHtml(it.note||'')+'" onchange="deliverySetItemField('+m.id+',\'note\',this.value)" style="font-size:11px;padding:3px 6px;border:1.5px solid '+(noteChg?'#f59e0b':'#e2e8f0')+';border-radius:5px;width:150px'+(noteChg?';background:#fef3c7':'')+'"></td>'
         +'</tr>';
     }).join('');
     var baseDateChg=diffs.some(function(d){return d.field==='base_date';});
@@ -7893,7 +7905,7 @@ function printDeliveryNote(){
     var dispDate=date?date.replace(/-/g,'/'):'';
     var dow=date?['日','月','火','水','木','金','土'][new Date(date+'T00:00:00').getDay()]:'';
     var vendorDisp=_deliveryVendorValue(dn,m);
-    return '<tr><td>'+m.id+'</td><td>'+m.name+'</td><td>'+vendorDisp+'</td><td>'+dispDate+(dow?'　'+dow:'')+'</td><td>'+(it.note||'')+'</td></tr>';
+    return '<tr><td>'+m.id+'</td><td>'+_escHtml(m.name)+'</td><td>'+_escHtml(vendorDisp)+'</td><td>'+dispDate+(dow?'　'+dow:'')+'</td><td>'+_escHtml(it.note||'')+'</td></tr>';
   }).join('');
   var reapproveCount=(dn.approval_history||[]).length;
   var pendingDiffs=dn.approved_at?[]:_deliveryDiff(dn);
@@ -7926,7 +7938,7 @@ function printDeliveryNote(){
       +'</div>';
   }
   var win=window.open('','_blank');
-  win.document.write('<!DOCTYPE html><html><head><meta charset="UTF-8"><title>'+p.name+' 納品書</title>'
+  win.document.write('<!DOCTYPE html><html><head><meta charset="UTF-8"><title>'+_escHtml(p.name)+' 納品書</title>'
     +'<style>'
     +'*{box-sizing:border-box;margin:0;padding:0;-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important}'
     +'body{font-family:"Hiragino Sans","Meiryo",sans-serif;padding:12px;position:relative}'
@@ -7940,7 +7952,7 @@ function printDeliveryNote(){
     +'@page{size:A4 portrait;margin:9mm}'
     +'</style></head><body>'
     +stampHtml
-    +'<h1>'+p.name+' AP新築工事 納品書</h1>'
+    +'<h1>'+_escHtml(p.name)+' AP新築工事 納品書</h1>'
     +'<div class="sub">基準日（土台）：'+(dn.base_date?dn.base_date.replace(/-/g,'/'):'未設定')+'　／　印刷日：'+new Date().toLocaleDateString('ja-JP')+'</div>'
     +diffNoteHtml
     +'<table><thead><tr><th>No</th><th>納品項目</th><th>納品社</th><th>納品日</th><th>備考</th></tr></thead><tbody>'+rows+'</tbody></table>'
@@ -8078,24 +8090,24 @@ function openPropEditModal(){
       +'<button onclick="removeParkRow('+i+')" style="margin-left:auto;background:#fee2e2;color:#ef4444;border:none;border-radius:4px;padding:2px 8px;font-size:10px;cursor:pointer">削除</button></div>'
       +'<div style="display:flex;flex-direction:column;gap:4px">'
       +'<label style="font-size:10px;color:#64748b">駐車場名</label>'
-      +'<input id="pk-name-'+i+'" type="text" value="'+(pk.name||'')+'" placeholder="例: 近隣コインパーキング" style="'+iStyle+'"></div>'
+      +'<input id="pk-name-'+i+'" type="text" value="'+_escHtml(pk.name||'')+'" placeholder="例: 近隣コインパーキング" style="'+iStyle+'"></div>'
       +'<div style="display:flex;flex-direction:column;gap:4px">'
       +'<label style="font-size:10px;color:#64748b">車番</label>'
-      +'<input id="pk-carno-'+i+'" type="text" value="'+(pk.carno||'')+'" placeholder="例: 3番" style="'+iStyle+'"></div>'
+      +'<input id="pk-carno-'+i+'" type="text" value="'+_escHtml(pk.carno||'')+'" placeholder="例: 3番" style="'+iStyle+'"></div>'
       +'<div style="display:flex;flex-direction:column;gap:4px">'
       +'<label style="font-size:10px;color:#64748b">住所</label>'
-      +'<input id="pk-addr-'+i+'" type="text" value="'+(pk.address||'')+'" placeholder="例: 愛知県常滑市新開町2-1" style="'+iStyle+'"></div>'
+      +'<input id="pk-addr-'+i+'" type="text" value="'+_escHtml(pk.address||'')+'" placeholder="例: 愛知県常滑市新開町2-1" style="'+iStyle+'"></div>'
       +'<div style="display:flex;gap:8px">'
       +'<div style="flex:1;display:flex;flex-direction:column;gap:4px">'
       +'<label style="font-size:10px;color:#64748b">契約開始日</label>'
-      +'<input id="pk-start-'+i+'" type="date" value="'+(pk.contract_start||'')+'" style="'+iStyle+'"></div>'
+      +'<input id="pk-start-'+i+'" type="date" value="'+_escHtml(pk.contract_start||'')+'" style="'+iStyle+'"></div>'
       +'<div style="flex:1;display:flex;flex-direction:column;gap:4px">'
       +'<label style="font-size:10px;color:#64748b">契約終了日</label>'
-      +'<input id="pk-end-'+i+'" type="date" value="'+(pk.contract_end||'')+'" style="'+iStyle+'"></div>'
+      +'<input id="pk-end-'+i+'" type="date" value="'+_escHtml(pk.contract_end||'')+'" style="'+iStyle+'"></div>'
       +'</div>'
       +'<div style="display:flex;flex-direction:column;gap:4px">'
       +'<label style="font-size:10px;color:#64748b">詳細（任意）</label>'
-      +'<input id="pk-detail-'+i+'" type="text" value="'+(pk.detail||'')+'" placeholder="例：ハイエース限定" style="'+iStyle+'"></div>'
+      +'<input id="pk-detail-'+i+'" type="text" value="'+_escHtml(pk.detail||'')+'" placeholder="例：ハイエース限定" style="'+iStyle+'"></div>'
       +'</div>';
   }
 
@@ -8115,7 +8127,7 @@ function openPropEditModal(){
       +'<div><label style="font-size:10px;color:#64748b;display:block;margin-bottom:3px">担当者</label>'
       +staffSelectHtml('pe-tantou', tantouOf(cur), 'style="'+iStyle+'"')+'</div>'
       +'<div><label style="font-size:10px;color:#64748b;display:block;margin-bottom:3px">住所</label>'
-      +'<input id="pe-address" type="text" value="'+(typeof cur.address==='string'?cur.address:(cur.address&&cur.address.address)||'')+'" placeholder="例: 愛知県常滑市新開町1-1" style="'+iStyle+'"></div>'
+      +'<input id="pe-address" type="text" value="'+_escHtml(typeof cur.address==='string'?cur.address:(cur.address&&cur.address.address)||'')+'" placeholder="例: 愛知県常滑市新開町1-1" style="'+iStyle+'"></div>'
       +'<div><label style="font-size:10px;color:#64748b;display:block;margin-bottom:3px">販売ステータス</label>'
       +'<select id="pe-status" style="'+iStyle+'">'+statusOpts+'</select></div>'
       +'<div><label style="font-size:10px;color:#64748b;display:block;margin-bottom:3px">審査機関</label>'
@@ -8475,7 +8487,7 @@ function openSelectProp(){
       return '<div class="select-prop-item" id="'+eid+'" onclick="toggleFavItem(\''+p.fix_no+'\',\''+encodeURIComponent(p.name)+'\',\''+eid+'\')">'
         +'<div class="spi-check'+(checked?' checked':'')+'">'+( checked?'✓':'')+'</div>'
         +'<div style="flex:1;min-width:0">'
-          +'<div class="spi-name" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+p.name+'</div>'
+          +'<div class="spi-name" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+_escHtml(p.name)+'</div>'
           +'<div style="font-size:9px;color:var(--g400);display:flex;gap:6px">'
             +'<span style="color:'+areaColor+';font-weight:700">'+area+'</span>'
             +'<span>FiX:'+p.fix_no+'</span>'
@@ -8557,7 +8569,7 @@ function openSelectProp(){
         var checked=isFav(p);
         var area=normalizeArea(p);
         var areaColor=TOKAI_AREAS.indexOf(area)>=0?'#1a56db':KANTO_AREAS.indexOf(area)>=0?'#10b981':'#94a3b8';
-        return '<div class="select-prop-item" id="'+eid+'" onclick="toggleFavItem(\''+p.fix_no+'\',\''+encodeURIComponent(p.name)+'\',\''+eid+'\')">'          +'<div class="spi-check'+(checked?' checked':'')+'">'+( checked?'✓':'')+'</div>'          +'<div style="flex:1;min-width:0">'            +'<div class="spi-name" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+p.name+'</div>'            +'<div style="font-size:9px;color:var(--g400);display:flex;gap:6px">'              +'<span style="color:'+areaColor+';font-weight:700">'+area+'</span>'              +'<span>FiX:'+p.fix_no+'</span>'              +(p.delivery_date?'<span>引渡:'+normDate(p.delivery_date)+'</span>':'')            +'</div>'          +'</div>'          +'</div>';
+        return '<div class="select-prop-item" id="'+eid+'" onclick="toggleFavItem(\''+p.fix_no+'\',\''+encodeURIComponent(p.name)+'\',\''+eid+'\')">'          +'<div class="spi-check'+(checked?' checked':'')+'">'+( checked?'✓':'')+'</div>'          +'<div style="flex:1;min-width:0">'            +'<div class="spi-name" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+_escHtml(p.name)+'</div>'            +'<div style="font-size:9px;color:var(--g400);display:flex;gap:6px">'              +'<span style="color:'+areaColor+';font-weight:700">'+area+'</span>'              +'<span>FiX:'+p.fix_no+'</span>'              +(p.delivery_date?'<span>引渡:'+normDate(p.delivery_date)+'</span>':'')            +'</div>'          +'</div>'          +'</div>';
       }).join('')||'<div style="padding:16px;text-align:center;color:var(--g400);font-size:12px">該当物件なし</div>';
       var ll=document.getElementById('_spList');
       if(ll)ll.innerHTML=html;
@@ -8691,7 +8703,7 @@ function renderMyPage(){
     if(!p){
       return '<div class="mypage-card" style="opacity:0.5">'
         +'<div class="mypc-top">'
-        +'<div class="mypc-info" style="flex:1"><div class="mypc-name">'+fav.name+'</div>'
+        +'<div class="mypc-info" style="flex:1"><div class="mypc-name">'+_escHtml(fav.name)+'</div>'
         +'<div class="mypc-meta"><span style="font-size:10px;color:#94a3b8">完工・非表示物件</span></div></div>'
         +'<button class="mypc-del" onclick="event.stopPropagation();removeFavCard(\''+fav.fix_no+'\',\''+encodeURIComponent(fav.name)+'\')">✕</button>'
         +'</div></div>';
@@ -8712,8 +8724,8 @@ function renderMyPage(){
     var tag=hasC?'<span style="background:#dbeafe;color:var(--primary);padding:1px 5px;border-radius:4px;font-size:9px;font-weight:700">✏️カスタム</span>':hasMaster?'<span style="background:#dcfce7;color:#16a34a;padding:1px 5px;border-radius:4px;font-size:9px;font-weight:700">📋マスター</span>':'';
     return '<div class="mypage-card" onclick="openDetailFromFav(\''+fav.fix_no+'\',\''+encodeURIComponent(fav.name)+'\')">'
       +'<div class="mypc-top"><div class="mypc-area" style="background:'+ac+'">'+ai+'</div>'
-      +'<div class="mypc-info"><div class="mypc-name">'+p.name+'</div>'
-      +'<div class="mypc-meta">'+(tantouOf(p)?'<span style="font-size:9px;background:#475569;color:white;padding:1px 5px;border-radius:3px;margin-right:3px">'+tantouOf(p)+'</span>':'')+'<span class="mypc-date">'+(p.delivery_date||'引渡日未定')+'</span>'+tag+'</div></div>'
+      +'<div class="mypc-info"><div class="mypc-name">'+_escHtml(p.name)+'</div>'
+      +'<div class="mypc-meta">'+(tantouOf(p)?'<span style="font-size:9px;background:#475569;color:white;padding:1px 5px;border-radius:3px;margin-right:3px">'+_escHtml(tantouOf(p))+'</span>':'')+'<span class="mypc-date">'+(p.delivery_date||'引渡日未定')+'</span>'+tag+'</div></div>'
       +'<div style="display:flex;flex-direction:column;gap:4px;align-items:flex-end;flex-shrink:0">'
       +rs
       +'<button class="mypc-del" onclick="event.stopPropagation();removeFavCard(\''+fav.fix_no+'\',\''+encodeURIComponent(fav.name)+'\')">✕</button>'
@@ -8779,7 +8791,7 @@ function printAllGantt(){
     var labels='';segs.forEach(function(s,ri){labels+='<div style="position:absolute;left:-88px;top:'+(ri*ROW_H+28)+'px;width:86px;height:'+ROW_H+'px;display:flex;align-items:center;justify-content:flex-end;padding-right:3px;font-size:8px;font-weight:700;color:#334155;white-space:nowrap;overflow:hidden">'+(s.label||s.name||'')+'</div>';});
     var days2=daysUntil(p.delivery_date);
     return '<div style="margin-bottom:20px;page-break-inside:avoid">'
-      +'<div style="font-size:11px;font-weight:800;color:#1e293b;margin-bottom:6px;padding-bottom:4px;border-bottom:2px solid #1a56db">FiX '+p.fix_no+' '+p.name+(days2!==null&&days2>=0?' ─ 残'+days2+'日':'')+(p.delivery_date?' （引渡: '+p.delivery_date+')':'')+'</div>'
+      +'<div style="font-size:11px;font-weight:800;color:#1e293b;margin-bottom:6px;padding-bottom:4px;border-bottom:2px solid #1a56db">FiX '+p.fix_no+' '+_escHtml(p.name)+(days2!==null&&days2>=0?' ─ 残'+days2+'日':'')+(p.delivery_date?' （引渡: '+p.delivery_date+')':'')+'</div>'
       +'<div style="overflow:visible;padding-left:90px"><div style="position:relative;width:'+totalW+'px;height:'+totalH+'px;background:white;border:1px solid #e2e8f0;overflow:hidden">'+labels+hdr+days+todayLine+bars+'</div></div></div>';
   }
 
@@ -10402,7 +10414,7 @@ function assignMasterToProps(mi){
     radio.textContent=active?'✓':'';
     var info=document.createElement('div');
     info.style.cssText='flex:1;min-width:0';
-    info.innerHTML='<div style="font-size:12px;font-weight:700;color:var(--g800);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+p.name+'</div>'
+    info.innerHTML='<div style="font-size:12px;font-weight:700;color:var(--g800);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+_escHtml(p.name)+'</div>'
       +'<div style="font-size:10px;color:var(--g400);margin-top:1px">'+p.area+'　FiX No.'+p.fix_no+(otherMaster?'　<span style="color:var(--warn);font-weight:700">⚠ 別マスター: '+otherMaster+'</span>':'')+'</div>';
     row.appendChild(radio);row.appendChild(info);
     if(active){var tag=document.createElement('span');tag.textContent='適用中';tag.style.cssText='font-size:9px;background:var(--primary-l);color:var(--primary);padding:2px 7px;border-radius:4px;font-weight:700';row.appendChild(tag);}
@@ -10419,7 +10431,7 @@ function assignMasterToProps(mi){
     nonMy.forEach(function(p){
       var row=document.createElement('div');
       row.style.cssText='padding:8px 14px;border-bottom:1px solid #dcfce7;display:flex;align-items:center;gap:8px;background:#f0fdf4';
-      row.innerHTML='<span style="font-size:11px;font-weight:600;color:var(--g700);flex:1">'+p.name+'</span><span style="font-size:10px;color:var(--g400)">'+p.area+'</span>';
+      row.innerHTML='<span style="font-size:11px;font-weight:600;color:var(--g700);flex:1">'+_escHtml(p.name)+'</span><span style="font-size:10px;color:var(--g400)">'+p.area+'</span>';
       var unBtn=document.createElement('button');
       unBtn.textContent='解除';unBtn.style.cssText='font-size:10px;background:#fee2e2;color:var(--danger);padding:2px 8px;border-radius:4px;font-weight:700;border:none;cursor:pointer';
       (function(pp,mn,mii){unBtn.addEventListener('click',function(){togglePropMaster(pp.fix_no,encodeURIComponent(pp.name),encodeURIComponent(mn));setTimeout(function(){assignMasterToProps(mii);},150);});})(p,m.name,mi);
@@ -13161,8 +13173,8 @@ function announceCard(a){
   var recurTag=a.recurring?'<span style="font-size:9px;background:#dbeafe;color:#1d4ed8;padding:2px 6px;border-radius:4px;font-weight:700;margin-left:6px">🔁 定期</span>':'';
   return '<div style="background:#f8fafc;border:1.5px solid #e2e8f0;border-radius:10px;padding:12px 14px;margin-bottom:10px">'
     +'<div style="font-size:10px;color:#94a3b8;margin-bottom:4px">'+dateStr+recurTag+'</div>'
-    +'<div style="font-size:13px;font-weight:800;color:#1e293b;margin-bottom:6px">'+(a.title||'')+'</div>'
-    +'<div style="font-size:12px;color:#475569;line-height:1.7;white-space:pre-wrap">'+(a.body||'')+'</div>'
+    +'<div style="font-size:13px;font-weight:800;color:#1e293b;margin-bottom:6px">'+_escHtml(a.title||'')+'</div>'
+    +'<div style="font-size:12px;color:#475569;line-height:1.7;white-space:pre-wrap">'+_escHtml(a.body||'')+'</div>'
   +'</div>';
 }
 
@@ -13989,7 +14001,7 @@ function renderCalendar(){
       var _c0=_clog[0];
       var _tStr=_c0.time?_c0.time.slice(0,16).replace('T',' '):'';
       var _propShort=(_c0.prop||'').replace(/^(Jack|Walter)\s*/i,'');
-      lastChangeHtml='<div style="font-size:9px;color:#94a3b8;padding:3px 12px;background:#f8fafc;border-bottom:1px solid #e2e8f0;flex-shrink:0">🔄 最終更新：'+_tStr+'　'+_propShort+'（'+(_c0.title||'')+'）</div>';
+      lastChangeHtml='<div style="font-size:9px;color:#94a3b8;padding:3px 12px;background:#f8fafc;border-bottom:1px solid #e2e8f0;flex-shrink:0">🔄 最終更新：'+_tStr+'　'+_escHtml(_propShort)+'（'+_escHtml(_c0.title||'')+'）</div>';
     }
   }catch(e){}
 
@@ -14280,8 +14292,8 @@ function admAnnounceCard(a){
       +'<div style="font-size:10px;color:#94a3b8">'+dateStr+'</div>'
       +'<div>'+activeBadge+recurBadge+'</div>'
     +'</div>'
-    +'<div style="font-size:13px;font-weight:800;color:#1e293b;margin-bottom:6px">'+(a.title||'')+'</div>'
-    +'<div style="font-size:12px;color:#475569;line-height:1.6;white-space:pre-wrap;margin-bottom:10px">'+(a.body||'')+'</div>'
+    +'<div style="font-size:13px;font-weight:800;color:#1e293b;margin-bottom:6px">'+_escHtml(a.title||'')+'</div>'
+    +'<div style="font-size:12px;color:#475569;line-height:1.6;white-space:pre-wrap;margin-bottom:10px">'+_escHtml(a.body||'')+'</div>'
     +'<div style="display:flex;gap:6px">'
       +'<button onclick="admEditAnnouncement('+a.id+')" style="flex:1;background:#eff6ff;color:#1a56db;border:1.5px solid #bfdbfe;padding:7px;border-radius:7px;font-size:11px;font-weight:700;cursor:pointer">✏️ 編集</button>'
       +'<button onclick="admToggleAnnouncement('+a.id+','+(!a.active)+')" style="flex:1;background:#fff7ed;color:#d97706;border:1.5px solid #fed7aa;padding:7px;border-radius:7px;font-size:11px;font-weight:700;cursor:pointer">'+(a.active?(a.recurring?'⏸️ 定期配信を解除':'🙈 非公開にする'):(a.recurring?'▶️ 定期配信を再開':'👁️ 公開する'))+'</button>'
@@ -14317,9 +14329,9 @@ function admAnnouncementForm(existing){
     +'</div>'
     +'<div style="padding:18px">'
       +'<label style="font-size:11px;font-weight:700;color:#64748b;display:block;margin-bottom:5px">タイトル</label>'
-      +'<input id="annTitleInput" type="text" value="'+((existing&&existing.title)||'').replace(/"/g,'&quot;')+'" placeholder="例：システムメンテナンスのお知らせ" style="width:100%;padding:9px 11px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:13px;margin-bottom:14px;box-sizing:border-box">'
+      +'<input id="annTitleInput" type="text" value="'+_escHtml((existing&&existing.title)||'')+'" placeholder="例：システムメンテナンスのお知らせ" style="width:100%;padding:9px 11px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:13px;margin-bottom:14px;box-sizing:border-box">'
       +'<label style="font-size:11px;font-weight:700;color:#64748b;display:block;margin-bottom:5px">本文</label>'
-      +'<textarea id="annBodyInput" rows="6" placeholder="お知らせの内容を入力してください" style="width:100%;padding:9px 11px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:13px;box-sizing:border-box;resize:vertical;font-family:inherit;margin-bottom:14px">'+((existing&&existing.body)||'')+'</textarea>'
+      +'<textarea id="annBodyInput" rows="6" placeholder="お知らせの内容を入力してください" style="width:100%;padding:9px 11px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:13px;box-sizing:border-box;resize:vertical;font-family:inherit;margin-bottom:14px">'+_escHtml((existing&&existing.body)||'')+'</textarea>'
       +'<div style="background:#f0fdf4;border:1.5px solid #bbf7d0;border-radius:10px;padding:12px">'
         +'<label style="display:flex;align-items:center;gap:8px;cursor:pointer;margin-bottom:'+(isRecur?'10px':'0')+'">'
           +'<input type="checkbox" id="annRecurCheck" '+(isRecur?'checked':'')+' onchange="document.getElementById(\'annRecurFields\').style.display=this.checked?\'flex\':\'none\'" style="width:16px;height:16px">'
@@ -14701,8 +14713,8 @@ function admUserCard(u,approved){
       +'<div style="font-size:11px;color:#94a3b8">'+(u.email||'')+'</div>'
       // ★一覧（カード）上で直接編集できるように、会社名・電話番号・ロールをinput/select化（2026/10追加・モーダルを開かなくても直せる）
       +'<div style="display:flex;gap:4px;align-items:center;margin-top:2px;flex-wrap:wrap">'
-        +'<input type="text" value="'+(u.company||'')+'" placeholder="会社名未登録" data-pid="'+u.id+'" onchange="admSaveProfileField(this,\'company\')" style="font-size:10px;padding:2px 6px;border:1.5px solid '+(u.company?'#e2e8f0':'#fca5a5')+';border-radius:5px;width:120px">'
-        +'<input type="text" value="'+(u.phone||'')+'" placeholder="電話番号" data-pid="'+u.id+'" onchange="admSaveProfileField(this,\'phone\')" style="font-size:10px;padding:2px 6px;border:1.5px solid #e2e8f0;border-radius:5px;width:100px">'
+        +'<input type="text" value="'+_escHtml(u.company||'')+'" placeholder="会社名未登録" data-pid="'+u.id+'" onchange="admSaveProfileField(this,\'company\')" style="font-size:10px;padding:2px 6px;border:1.5px solid '+(u.company?'#e2e8f0':'#fca5a5')+';border-radius:5px;width:120px">'
+        +'<input type="text" value="'+_escHtml(u.phone||'')+'" placeholder="電話番号" data-pid="'+u.id+'" onchange="admSaveProfileField(this,\'phone\')" style="font-size:10px;padding:2px 6px;border:1.5px solid #e2e8f0;border-radius:5px;width:100px">'
         +'<select data-pid="'+u.id+'" onchange="admSaveUserRole(this)" style="font-size:10px;padding:2px 6px;border:1.5px solid #e2e8f0;border-radius:5px">'
           +'<option value="worker"'+(u.role!=='admin'&&u.role!=='inspector'?' selected':'')+'>協力業者</option>'
           +'<option value="inspector"'+(u.role==='inspector'?' selected':'')+'>検査機関</option>'
@@ -14919,7 +14931,7 @@ async function openUserMasterEditModal(u){
     +'<div style="overflow-y:auto;flex:1;padding:16px 20px">'
     +'<div style="font-size:11px;color:#94a3b8;margin-bottom:10px">'+(u.name||'')+'　'+(u.email||'')+'</div>'
     +'<div><label style="font-size:10px;color:#64748b;display:block;margin-bottom:3px">会社名</label>'
-    +'<input id="umk-company" type="text" value="'+(u.company||'')+'" placeholder="例：株式会社〇〇" style="'+iStyle+'"></div>'
+    +'<input id="umk-company" type="text" value="'+_escHtml(u.company||'')+'" placeholder="例：株式会社〇〇" style="'+iStyle+'"></div>'
     +'<div id="'+pickerId+'-amkroot"></div>'
     +'</div>'
     +'<div style="padding:12px 20px;border-top:1px solid #e2e8f0;flex-shrink:0;background:white;border-radius:0 0 14px 14px">'
@@ -15485,7 +15497,7 @@ function admRenderKensaTable(){
     var fixNoAttr=String(p.fix_no||'');
     html+='<tr style="background:'+(i%2===0?'white':'#f8fafc')+'">'
       +'<td style="padding:9px 12px;font-weight:700;color:#1e293b;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'
-        +'<span style="color:#94a3b8;font-weight:400">'+(p.fix_no||'')+'</span> '+(p.name||'')
+        +'<span style="color:#94a3b8;font-weight:400">'+(p.fix_no||'')+'</span> '+_escHtml(p.name||'')
       +'</td>'
       +(isInspector?'<td style="padding:9px 12px;color:#475569;font-size:10px;font-weight:700;white-space:nowrap">'+(p.shinsa_kikan||'未選択')+'</td>':'<td style="padding:6px 8px">'
         +'<select onchange="admKensaShinsaChange(\''+fixNoAttr+'\',this.value)" style="padding:4px 6px;border:1.5px solid #e2e8f0;border-radius:6px;font-size:10px;font-weight:700;outline:none;background:white;max-width:100%">'
@@ -15506,7 +15518,7 @@ function admRenderKensaTable(){
         +'</td>';
       }).join('')
       +'<td style="padding:9px 12px;color:#475569;white-space:nowrap">'+(normDate(p.delivery_date)||'')+'</td>'
-      +'<td style="padding:9px 12px;color:#475569;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+(tantouOf(p)||'—')+'</td>'
+      +'<td style="padding:9px 12px;color:#475569;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+_escHtml(tantouOf(p)||'—')+'</td>'
     +'</tr>';
   });
   html+='</tbody></table>';
@@ -15912,7 +15924,7 @@ function admPropCard(p){
       +'<div style="background:#1e293b;color:white;font-size:10px;font-weight:800;padding:3px 7px;border-radius:5px;flex-shrink:0;font-family:monospace">'+(p.fix_no||'-')+'</div>'
       +'<div style="flex:1;min-width:0;display:flex;align-items:center;gap:10px">'
         +'<div style="min-width:0;flex-shrink:1">'
-          +'<div style="font-size:13px;font-weight:700;color:#1e293b;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+(p.name||'')+'</div>'
+          +'<div style="font-size:13px;font-weight:700;color:#1e293b;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+_escHtml(p.name||'')+'</div>'
           +'<div style="font-size:10px;color:#94a3b8;margin-top:1px;white-space:nowrap">'+(p.area||'')+(p.delivery_date?' ／ 引渡: '+p.delivery_date:'')+(p.confirm_done?' ／ 確認申請: '+p.confirm_done:'')+'</div>'
         +'</div>'
         +'<div style="display:flex;gap:4px;flex-wrap:wrap">'+statusBadges+'</div>'
