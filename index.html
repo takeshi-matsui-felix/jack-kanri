@@ -54,11 +54,9 @@
     if(!vp)return;
     var base='width=device-width,initial-scale=1.0,minimum-scale=1.0,maximum-scale=1.0,user-scalable=no';
     vp.setAttribute('content',base);
-    // ★2026/10/19：固定の解除を80ms→350msに延長。縮小復帰のアニメーション中に解除されて再び縮小のまま止まる（解除→再固定の繰り返し）のを防ぐ。
-    clearTimeout(window._jackZoomUnlock);
-    window._jackZoomUnlock=setTimeout(function(){
+    setTimeout(function(){
       vp.setAttribute('content','width=device-width,initial-scale=1.0,minimum-scale=1.0,maximum-scale=4.0,user-scalable=yes');
-    },350);
+    },80);
   }
   function checkAndReset(){
     if(window.visualViewport&&window.visualViewport.scale<0.999)resetZoom();
@@ -69,7 +67,7 @@
   document.addEventListener('visibilitychange',function(){if(!document.hidden)resetZoom();});
   window.addEventListener('pageshow',resetZoom);
   window.addEventListener('focus',checkAndReset);
-  setInterval(checkAndReset,150); // ホーム画面アプリはvisibilitychangeが発火しないことがあるための保険ポーリング（高頻度化）。★2026/10/19：C1で間隔を緩めたところ縮小から戻らなくなったため従来の150msに戻した（動作優先・変更しないこと）
+  setInterval(checkAndReset,150); // ホーム画面アプリはvisibilitychangeが発火しないことがあるための保険ポーリング（高頻度化）
 })();
 </script>
 <title>JACK 現場管理</title>
@@ -1352,7 +1350,7 @@ var POST_END_PAD = 120; // ★スクロール終端の余白：完了検査列�
 // ===== 納品書機能：休工日カレンダー・稼働日計算 =====
 // ★日本の祝日（政府発表・国立天文台暦要項ベース、2025〜2028年分）
 // ★アプリバージョン（不具合問い合わせ対応用。リリースごとに更新すること。2026/8/23追加）
-var APP_VERSION = '2026.10.19.6';
+var APP_VERSION = '2026.10.19.7';
 window.APP_VERSION=APP_VERSION;
 console.log('[JACK] version', APP_VERSION);
 // ★2026/10/19：全画面の左下に現在のバージョンを小さく常時表示（スマホで「最新版か」を確認できるように）。タップ操作は邪魔しない・印刷には出さない。
@@ -3436,7 +3434,7 @@ function buildProgressSection(p){
       +'</div>';
   }).join('');
 
-  var delayBanner=delayed.length?'<div style="background:#fee2e2;color:var(--danger);padding:6px 10px;font-size:11px;font-weight:700;border-radius:6px;margin:6px 8px">⚠️ '+delayed.length+'工程が遅延しています：'+delayed.map(function(s){return s.label||s.name;}).join('・')+'</div>':'';
+  var delayBanner=delayed.length?'<div style="background:#fee2e2;color:var(--danger);padding:6px 10px;font-size:11px;font-weight:700;border-radius:6px;margin:6px 8px">⚠️ '+delayed.length+'工程が遅延しています：'+delayed.map(function(s){return _escHtml(s.label||s.name);}).join('・')+'</div>':'';
 
   return delayBanner
     +'<div class="dp-sec"><div class="dp-sec-head" style="display:flex;justify-content:space-between;align-items:center">✅ 工程完了チェック<span style="font-size:9px;font-weight:400;color:var(--g400)">マイ物件のみ</span></div>'
@@ -6176,7 +6174,7 @@ function geRenderSegList(){
     var ck=custKey(currentProp);
     var curMark=(currentProp.confirmed_until)||confirmedUntilMap[ck]||'';
     selEl.innerHTML='<option value="">（未設定＝全て確定）</option>'
-      +geSegs.map(function(s){var lbl=s.label||'';return '<option value="'+lbl.replace(/"/g,'&quot;')+'"'+(lbl===curMark?' selected':'')+'>'+lbl+'</option>';}).join('');
+      +geSegs.map(function(s){var lbl=s.label||'';return '<option value="'+_escHtml(lbl)+'"'+(lbl===curMark?' selected':'')+'>'+_escHtml(lbl)+'</option>';}).join('');
   }
   el.innerHTML=geSegs.map(function(s,i){
     var lbl=s.label||'';
@@ -7517,7 +7515,7 @@ function _renderDeliveryNoteBody(p,el){
       var hi='background:#fef3c7;border-color:#f59e0b!important;';
       return '<tr style="border-bottom:1px solid #f1f5f9">'
         +'<td style="padding:5px 8px;font-size:10px;color:#94a3b8;text-align:center">'+m.id+'</td>'
-        +'<td style="padding:5px 8px;font-size:11px;font-weight:700">'+m.name+' '+excl+'</td>'
+        +'<td style="padding:5px 8px;font-size:11px;font-weight:700">'+_escHtml(m.name)+' '+excl+'</td>'
         +'<td style="padding:5px 8px'+(dateChg?';'+hi:'')+'"><input type="date" value="'+date+'" onchange="deliverySetItemDate('+m.id+',this.value)" style="font-size:11px;padding:3px 5px;border:1.5px solid '+(dateChg?'#f59e0b':'#e2e8f0')+';border-radius:5px;width:130px'+(dateChg?';background:#fef3c7':'')+'">'
           +(it.manual?'<button onclick="deliveryResetItemDate('+m.id+')" title="自動計算に戻す" style="margin-left:4px;background:none;border:none;color:#94a3b8;cursor:pointer;font-size:10px">↺</button>':'')+'</td>'
         +'<td style="padding:5px 8px'+(vendorChg?';'+hi:'')+'">'+dlHtml+'<input type="text" id="dlv-vendor-'+m.id+'" list="'+dlId+'" placeholder="業者名（一覧から選択 or 自由入力）" value="'+_escHtml(vendorVal)+'" onmousedown="this.dataset.pv=this.value;this.value=\'\';" onfocus="this.dataset.pv=this.value;this.value=\'\';" onblur="if(!this.value)this.value=this.dataset.pv||\'\';" onchange="deliverySetItemField('+m.id+',\'vendor\',this.value)" style="font-size:11px;padding:3px 6px;border:1.5px solid '+(vendorChg?'#f59e0b':'#e2e8f0')+';border-radius:5px;width:150px'+(vendorChg?';background:#fef3c7':'')+'">'+mirrorHint+'</td>'
@@ -7807,7 +7805,7 @@ function admRenderDeliveryMasterSettings(right){
     var kantoV=DELIVERY_AREA_OVERRIDES.KANTO[m.id];
     return '<tr style="border-bottom:1px solid #f1f5f9">'
       +'<td style="padding:6px 8px;font-size:10px;color:#94a3b8;text-align:center">'+m.id+'</td>'
-      +'<td style="padding:6px 8px;font-size:12px;font-weight:700">'+m.name+'</td>'
+      +'<td style="padding:6px 8px;font-size:12px;font-weight:700">'+_escHtml(m.name)+'</td>'
       +'<td style="padding:6px 8px;font-size:11px;color:#94a3b8;text-align:center">'+m.offsetWd+'日</td>'
       +'<td style="padding:6px 8px;text-align:center">'
         +'<input type="number" value="'+(tokaiV!==undefined?tokaiV:'')+'" placeholder="'+m.offsetWd+'" '
@@ -7993,7 +7991,7 @@ function openMasterLinkModal(){
   myMasters.forEach(function(m){
     options+='<label style="display:flex;align-items:center;gap:10px;padding:10px 14px;border-bottom:1px solid #e2e8f0;cursor:pointer;">'
       +'<input type="radio" name="masterLink" value="'+encodeURIComponent(m.name)+'" '+(currentMaster===m.name?'checked':'')+' style="width:16px;height:16px;accent-color:#7c3aed;">'
-      +'<div><div style="font-size:12px;font-weight:700;color:#1e293b;">📋 '+m.name+'</div>'
+      +'<div><div style="font-size:12px;font-weight:700;color:#1e293b;">📋 '+_escHtml(m.name)+'</div>'
       +'<div style="font-size:10px;color:#94a3b8;">'+m.steps.length+'工種</div></div></label>';
   });
   if(!myMasters.length)options+='<div style="padding:16px;text-align:center;color:#94a3b8;font-size:12px;">マスター工程が未作成です</div>';
@@ -8790,7 +8788,7 @@ function printAllGantt(){
           +'<div style="position:absolute;left:'+(sx+bw+2)+'px;top:'+by+'px;height:'+bh+'px;display:flex;align-items:center;font-size:6px;font-weight:700;color:#000;white-space:nowrap;background:white;border:1px solid '+color+';border-radius:2px;padding:0 2px;">'+lblA+'</div>';
       }
     });
-    var labels='';segs.forEach(function(s,ri){labels+='<div style="position:absolute;left:-88px;top:'+(ri*ROW_H+28)+'px;width:86px;height:'+ROW_H+'px;display:flex;align-items:center;justify-content:flex-end;padding-right:3px;font-size:8px;font-weight:700;color:#334155;white-space:nowrap;overflow:hidden">'+(s.label||s.name||'')+'</div>';});
+    var labels='';segs.forEach(function(s,ri){labels+='<div style="position:absolute;left:-88px;top:'+(ri*ROW_H+28)+'px;width:86px;height:'+ROW_H+'px;display:flex;align-items:center;justify-content:flex-end;padding-right:3px;font-size:8px;font-weight:700;color:#334155;white-space:nowrap;overflow:hidden">'+_escHtml(s.label||s.name||'')+'</div>';});
     var days2=daysUntil(p.delivery_date);
     return '<div style="margin-bottom:20px;page-break-inside:avoid">'
       +'<div style="font-size:11px;font-weight:800;color:#1e293b;margin-bottom:6px;padding-bottom:4px;border-bottom:2px solid #1a56db">FiX '+p.fix_no+' '+_escHtml(p.name)+(days2!==null&&days2>=0?' ─ 残'+days2+'日':'')+(p.delivery_date?' （引渡: '+p.delivery_date+')':'')+'</div>'
@@ -8900,7 +8898,7 @@ function renderEditorCanvas(){
   // ラベル列
   var labels='<div style="position:absolute;left:0;top:28px;width:0;height:'+(numRows*ROW_H)+'px;">';
   segs.forEach(function(seg,ri){
-    labels+='<div style="position:absolute;left:-90px;top:'+(ri*ROW_H)+'px;width:88px;height:'+ROW_H+'px;display:flex;align-items:center;justify-content:flex-end;padding-right:4px;font-size:9px;font-weight:700;color:rgba(255,255,255,.75);overflow:hidden;white-space:nowrap;">'+(seg.label||seg.name||'')+'</div>';
+    labels+='<div style="position:absolute;left:-90px;top:'+(ri*ROW_H)+'px;width:88px;height:'+ROW_H+'px;display:flex;align-items:center;justify-content:flex-end;padding-right:4px;font-size:9px;font-weight:700;color:rgba(255,255,255,.75);overflow:hidden;white-space:nowrap;">'+_escHtml(seg.label||seg.name||'')+'</div>';
   });
   labels+='</div>';
 
@@ -9461,7 +9459,7 @@ function renderMasterPanel(){
     myMasters.forEach(function(m,mi){
       var isDefault=mi===0;
       html+='<div class="dp-sec" style="margin:0 8px 8px'+(isDefault?';border:2px solid var(--primary)':'')+'">'
-        +'<div class="dp-sec-head">'+(isDefault?'⭐ ':'')+'<b>'+(isDefault?'[デフォルト] ':'')+m.name+'</b>'
+        +'<div class="dp-sec-head">'+(isDefault?'⭐ ':'')+'<b>'+(isDefault?'[デフォルト] ':'')+_escHtml(m.name)+'</b>'
         +'<div style="margin-left:auto;display:flex;gap:4px">'
         +'<button style="font-size:10px;background:#fef9c3;color:#854d0e;padding:3px 7px;border-radius:5px;font-weight:700" onclick="renameMaster('+mi+')">✏️ 名称変更</button>'
         +'<button style="font-size:10px;background:var(--primary-l);color:var(--primary);padding:3px 7px;border-radius:5px;font-weight:700" onclick="startEditMaster('+mi+')">📋 工程編集</button>'
@@ -9470,7 +9468,7 @@ function renderMasterPanel(){
         +m.steps.map(function(s){
           return '<div style="display:flex;align-items:center;padding:6px 12px;border-bottom:1px solid var(--g50);gap:7px">'
             +'<div style="width:12px;height:12px;background:'+(s.color||'#64748b')+';border-radius:2px;flex-shrink:0"></div>'
-            +'<div style="flex:1;font-size:11px;font-weight:600;color:var(--g700)">'+s.name+(s.layer===1?'<span style="font-size:9px;color:var(--g400);margin-left:5px">子工程</span>':'')+'</div>'
+            +'<div style="flex:1;font-size:11px;font-weight:600;color:var(--g700)">'+_escHtml(s.name)+(s.layer===1?'<span style="font-size:9px;color:var(--g400);margin-left:5px">子工程</span>':'')+'</div>'
             +'<div style="font-size:10px;font-family:var(--mono);color:var(--g500)">'+(s.dur||s.days||1)+'日</div></div>';
         }).join('')+'</div>';
     });
@@ -10398,7 +10396,7 @@ function assignMasterToProps(mi){
   var hdr=document.createElement('div');
   hdr.style.cssText='padding:8px 12px;border-bottom:1px solid var(--g100)';
   hdr.innerHTML='<button class="panel-back" onclick="renderMasterPanel()" style="margin-bottom:6px">← 戻る</button>'
-    +'<div style="font-size:12px;font-weight:800;color:var(--g700)">📋 「'+m.name+'」を物件に紐付け</div>'
+    +'<div style="font-size:12px;font-weight:800;color:var(--g700)">📋 「'+_escHtml(m.name)+'」を物件に紐付け</div>'
     +'<div style="font-size:10px;color:var(--g400);margin-top:2px">現在'+allActive.length+'件に適用中</div>';
   panel.appendChild(hdr);
 
@@ -14688,7 +14686,7 @@ window.copyRlsSql=copyRlsSql;
 function admUserCard(u,approved){
   var isSuperAdmin=currentProfile&&currentProfile.email==='takeshi_matsui@felix-japan.co.jp';
   var deleteBtn=isSuperAdmin
-    ?'<button class="adm-delete-user" data-uid="'+u.id+'" data-email="'+(u.email||'')+'" style="font-size:10px;background:#7f1d1d;color:#fca5a5;padding:4px 10px;border-radius:6px;cursor:pointer;margin-left:4px">🗑 削除</button>'
+    ?'<button class="adm-delete-user" data-uid="'+u.id+'" data-email="'+_escHtml(u.email||'')+'" style="font-size:10px;background:#7f1d1d;color:#fca5a5;padding:4px 10px;border-radius:6px;cursor:pointer;margin-left:4px">🗑 削除</button>'
     :'';
   // ★担当工種タグ表示（koushu：jsonb配列。文字列で来た場合の保険あり）（2026/10追加）
   var koushuArr=u.koushu;
@@ -14709,10 +14707,10 @@ function admUserCard(u,approved){
       +'</select>')
     :'';
   return '<div style="background:white;border-radius:9px;padding:10px 12px;margin-bottom:8px;border:1px solid #e2e8f0;display:flex;align-items:center;gap:10px">'
-    +'<div style="width:36px;height:36px;border-radius:50%;background:#3b82f6;color:white;font-size:14px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0">'+(u.name||'?').charAt(0)+'</div>'
+    +'<div style="width:36px;height:36px;border-radius:50%;background:#3b82f6;color:white;font-size:14px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0">'+_escHtml((u.name||'?').charAt(0))+'</div>'
     +'<div style="flex:1;min-width:0">'
-      +'<div style="font-size:13px;font-weight:700;color:#1e293b">'+(u.name||'')+' <span style="font-size:10px;color:'+roleColor+'">'+roleLabel+'</span></div>'
-      +'<div style="font-size:11px;color:#94a3b8">'+(u.email||'')+'</div>'
+      +'<div style="font-size:13px;font-weight:700;color:#1e293b">'+_escHtml(u.name||'')+' <span style="font-size:10px;color:'+roleColor+'">'+roleLabel+'</span></div>'
+      +'<div style="font-size:11px;color:#94a3b8">'+_escHtml(u.email||'')+'</div>'
       // ★一覧（カード）上で直接編集できるように、会社名・電話番号・ロールをinput/select化（2026/10追加・モーダルを開かなくても直せる）
       +'<div style="display:flex;gap:4px;align-items:center;margin-top:2px;flex-wrap:wrap">'
         +'<input type="text" value="'+_escHtml(u.company||'')+'" placeholder="会社名未登録" data-pid="'+u.id+'" onchange="admSaveProfileField(this,\'company\')" style="font-size:10px;padding:2px 6px;border:1.5px solid '+(u.company?'#e2e8f0':'#fca5a5')+';border-radius:5px;width:120px">'
@@ -14843,7 +14841,7 @@ function _amkRender(pickerId){
     stage2html+='<div style="margin-bottom:8px"><div style="font-size:11px;color:#64748b;font-weight:700;margin-bottom:3px">'+a+'</div>'
       +masters.map(function(m){
           var checked=st.masterByArea[a]===m.name?' checked':'';
-          return '<label style="display:flex;align-items:center;gap:6px;font-size:12px;padding:3px 2px;cursor:pointer"><input type="radio" name="amk-master-'+pickerId+'-'+a+'" class="amk-master" data-picker="'+pickerId+'" data-area="'+a+'" value="'+m.name+'"'+checked+'>'+m.name+'</label>';
+          return '<label style="display:flex;align-items:center;gap:6px;font-size:12px;padding:3px 2px;cursor:pointer"><input type="radio" name="amk-master-'+pickerId+'-'+a+'" class="amk-master" data-picker="'+pickerId+'" data-area="'+a+'" value="'+_escHtml(m.name)+'"'+checked+'>'+_escHtml(m.name)+'</label>';
         }).join('')
       +'</div>';
   });
@@ -14931,7 +14929,7 @@ async function openUserMasterEditModal(u){
     +'<button onclick="closeUserMasterEditModal()" style="margin-left:auto;background:#f1f5f9;border:none;border-radius:7px;padding:5px 12px;font-size:12px;cursor:pointer">✕ 閉じる</button>'
     +'</div>'
     +'<div style="overflow-y:auto;flex:1;padding:16px 20px">'
-    +'<div style="font-size:11px;color:#94a3b8;margin-bottom:10px">'+(u.name||'')+'　'+(u.email||'')+'</div>'
+    +'<div style="font-size:11px;color:#94a3b8;margin-bottom:10px">'+_escHtml(u.name||'')+'　'+_escHtml(u.email||'')+'</div>'
     +'<div><label style="font-size:10px;color:#64748b;display:block;margin-bottom:3px">会社名</label>'
     +'<input id="umk-company" type="text" value="'+_escHtml(u.company||'')+'" placeholder="例：株式会社〇〇" style="'+iStyle+'"></div>'
     +'<div id="'+pickerId+'-amkroot"></div>'
@@ -17497,7 +17495,7 @@ function buildGanttSheetSection(data){
     sec.rows.forEach(function(row,ri){
       var rowBg=ri%2===0?'white':'#f8fafc';
       html+='<div style="display:flex;background:'+rowBg+';border-bottom:1px solid #f1f5f9;height:22px;align-items:center">'
-        +'<div style="width:150px;min-width:150px;padding:0 8px;font-size:10px;font-weight:600;color:#334155;border-right:2px solid #cbd5e1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex-shrink:0">'+row.name+'</div>'
+        +'<div style="width:150px;min-width:150px;padding:0 8px;font-size:10px;font-weight:600;color:#334155;border-right:2px solid #cbd5e1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex-shrink:0">'+_escHtml(row.name)+'</div>'
         +'<div style="display:flex">';
       for(var ci=0;ci<days;ci++){
         var cell=(row.cells&&row.cells[ci])||{text:'',color:''};
