@@ -54,9 +54,11 @@
     if(!vp)return;
     var base='width=device-width,initial-scale=1.0,minimum-scale=1.0,maximum-scale=1.0,user-scalable=no';
     vp.setAttribute('content',base);
-    setTimeout(function(){
+    // ★2026/10/19：固定の解除を80ms→350msに延長。縮小復帰のアニメーション中に解除されて再び縮小のまま止まる（解除→再固定の繰り返し）のを防ぐ。
+    clearTimeout(window._jackZoomUnlock);
+    window._jackZoomUnlock=setTimeout(function(){
       vp.setAttribute('content','width=device-width,initial-scale=1.0,minimum-scale=1.0,maximum-scale=4.0,user-scalable=yes');
-    },80);
+    },350);
   }
   function checkAndReset(){
     if(window.visualViewport&&window.visualViewport.scale<0.999)resetZoom();
@@ -1350,7 +1352,7 @@ var POST_END_PAD = 120; // ★スクロール終端の余白：完了検査列�
 // ===== 納品書機能：休工日カレンダー・稼働日計算 =====
 // ★日本の祝日（政府発表・国立天文台暦要項ベース、2025〜2028年分）
 // ★アプリバージョン（不具合問い合わせ対応用。リリースごとに更新すること。2026/8/23追加）
-var APP_VERSION = '2026.10.19.5';
+var APP_VERSION = '2026.10.19.6';
 window.APP_VERSION=APP_VERSION;
 console.log('[JACK] version', APP_VERSION);
 // ★2026/10/19：全画面の左下に現在のバージョンを小さく常時表示（スマホで「最新版か」を確認できるように）。タップ操作は邪魔しない・印刷には出さない。
