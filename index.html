@@ -1350,9 +1350,23 @@ var POST_END_PAD = 120; // ★スクロール終端の余白：完了検査列�
 // ===== 納品書機能：休工日カレンダー・稼働日計算 =====
 // ★日本の祝日（政府発表・国立天文台暦要項ベース、2025〜2028年分）
 // ★アプリバージョン（不具合問い合わせ対応用。リリースごとに更新すること。2026/8/23追加）
-var APP_VERSION = '2026.10.19.7';
+var APP_VERSION = '2026.10.19.8';
 window.APP_VERSION=APP_VERSION;
 console.log('[JACK] version', APP_VERSION);
+// ★2026/10/19(C4)：握りつぶされていた失敗を記録する共通ロガー。直近30件を保持し、管理者の「🔍検証出力」の末尾に出る。
+//   通常の動作・通信には影響しない（画面表示もしない）。重要なcatchから呼ぶほか、未処理のエラー／Promise失敗も自動記録する。
+window._jackErrs=window._jackErrs||[];
+function _jackLog(tag,e){
+  try{
+    var m=String((e&&e.message)||e||'');
+    window._jackErrs.push({t:new Date().toISOString().slice(5,19).replace('T',' '),tag:String(tag),msg:m.slice(0,200)});
+    if(window._jackErrs.length>30)window._jackErrs.shift();
+    console.warn('[JACK]',tag,e);
+  }catch(_){}
+}
+window._jackLog=_jackLog;
+window.addEventListener('error',function(ev){_jackLog('未処理エラー',(ev&&ev.message||'')+' ('+(ev&&ev.lineno||'?')+'行)');});
+window.addEventListener('unhandledrejection',function(ev){_jackLog('未処理Promise失敗',ev&&ev.reason);});
 // ★2026/10/19：全画面の左下に現在のバージョンを小さく常時表示（スマホで「最新版か」を確認できるように）。タップ操作は邪魔しない・印刷には出さない。
 (function(){
   function mk(){
@@ -2550,6 +2564,9 @@ function _dumpPropCalc(){
         L.push(m.id+'. '+m.name+' / '+(d||'')+' / '+(it.manual?'手入力':'自動')+' / '+eff+(frozen?'(凍結)':'')+' / '+m.offsetWd+' / '+real);
       });
     }
+    L.push(''); L.push('--- この端末で記録されたエラー（直近30件） ---');
+    if(window._jackErrs&&window._jackErrs.length)window._jackErrs.forEach(function(x){L.push(x.t+' / '+x.tag+' / '+x.msg);});
+    else L.push('(なし)');
     var txt=L.join('\n');
     var ov=document.createElement('div');
     ov.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:99999;display:flex;align-items:center;justify-content:center;padding:12px';
@@ -7297,7 +7314,7 @@ async function _loadDeliveryNoteIfNeeded(p){
       var remoteTs=_dnTsOf(tsRow);
       if(remoteTs&&remoteTs!==localTs)needFetch=true;
     }
-  }catch(e){}
+  }catch(e){_jackLog('納品書の更新確認に失敗',e);}
   if(!needFetch&&_deliveryFetched[fixNo])return; // TS一致かつ取得済み → 追加通信なし
   try{
     var r=await _tsQuery(function(n){return sb.from('properties').select(n?'fix_no,delivery_note,updated_at,dn_updated_at':'fix_no,delivery_note,updated_at').eq('fix_no',fixNo).limit(1);});
@@ -10903,7 +10920,7 @@ function _savePropsCache(arr){
     });
     localStorage.setItem('jack_props_cache',JSON.stringify(slim));
     return true;
-  }catch(e){return false;}
+  }catch(e){_jackLog('物件キャッシュの保存に失敗（端末の保存容量不足の可能性）',e);return false;}
 }
 var PROPS_CACHE_TS_KEY='jack_props_cache_ts';
 // ★2026/10/8追加：メモリ上のDB_PROPSだけ更新してlocalStorageのキャッシュを更新し忘れると、再起動で古い値に戻る。
@@ -11006,7 +11023,7 @@ async function _loadCustomGanttIfNeeded(p){
         var remoteTs=_ganttTsOf(tsRow);
         if(remoteTs&&remoteTs!==localTs)needFetch=true; // 更新あり → 再取得
       }
-    }catch(e){}
+    }catch(e){_jackLog('工程表の更新確認に失敗',e);}
   }
   // TS一致かつキャッシュあり → そのまま（追加通信なし）
   if(!needFetch){
@@ -12905,8 +12922,9 @@ async function doRegister(){
     try{
       var _regUp={area:area,koushu:koushu};
       if(shinsaKikan)_regUp.shinsa_kikan=shinsaKikan;
-      await sb.from('profiles').update(_regUp).eq('id',r.data.user.id);
-    }catch(e){}
+      var _regRes=await sb.from('profiles').update(_regUp).eq('id',r.data.user.id);
+      if(_regRes&&_regRes.error)_jackLog('登録時のprofiles更新に失敗（管理者がユーザー管理から設定可）',_regRes.error);
+    }catch(e){_jackLog('登録時のprofiles更新で例外',e);}
   }
   showPendingScreen();
   if(btn){btn.textContent='登録申請';btn.disabled=false;}
