@@ -1353,7 +1353,7 @@ var POST_END_PAD = 120; // ★スクロール終端の余白：完了検査列�
 // ===== 納品書機能：休工日カレンダー・稼働日計算 =====
 // ★日本の祝日（政府発表・国立天文台暦要項ベース、2025〜2028年分）
 // ★アプリバージョン（不具合問い合わせ対応用。リリースごとに更新すること。2026/8/23追加）
-var APP_VERSION = '2026.10.19.10';
+var APP_VERSION = '2026.10.20.1';
 window.APP_VERSION=APP_VERSION;
 console.log('[JACK] version', APP_VERSION);
 // ★2026/10/19(C4)：握りつぶされていた失敗を記録する共通ロガー。直近30件を保持し、管理者の「🔍検証出力」の末尾に出る。
@@ -15557,6 +15557,31 @@ function admRenderKensaTable(){
     return;
   }
   if(!rows.length){wrap.innerHTML='<div style="text-align:center;padding:32px;color:#94a3b8;font-size:12px">該当する物件がありません</div>';return;}
+  // ★2026/10/20 スマホ表示：表のままだと各列が極端に狭くなり文字が潰れるため、物件ごとのカード表示にする（PC表示は従来どおり）
+  if(document.body.classList.contains('sp-mode')){
+    var cardHtml='';
+    rows.forEach(function(p){
+      var fx=String(p.fix_no||'');
+      cardHtml+='<div style="padding:12px 14px;border-bottom:1px solid #e2e8f0;background:white">'
+        +'<div style="display:flex;align-items:baseline;justify-content:space-between;gap:8px">'
+          +'<div style="font-weight:800;font-size:14px;color:#1e293b;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"><span style="color:#94a3b8;font-weight:500;font-size:12px">'+_escHtml(fx)+'</span> '+_escHtml(p.name||'')+'</div>'
+          +'<div style="font-size:11px;color:#475569;white-space:nowrap;flex-shrink:0">引渡 '+(normDate(p.delivery_date)||'未定')+'</div>'
+        +'</div>'
+        +'<div style="font-size:11px;color:#64748b;margin:3px 0 8px">'+_escHtml(tantouOf(p)||'担当なし')+(p.shinsa_kikan?'　/　'+_escHtml(p.shinsa_kikan):'')+'</div>'
+        +defs.map(function(d){
+          var dv=(p[d.dateKey]||'').replace(/\//g,'-');
+          var isRes=(p[d.statusKey]||'before')==='reserved';
+          return '<div style="display:flex;align-items:center;gap:8px;padding:5px 0">'
+            +'<div style="width:62px;flex-shrink:0;font-size:12px;font-weight:700;color:#334155">'+d.label+'</div>'
+            +'<input type="date" value="'+dv+'" onchange="admKensaDateChange(\''+fx+'\',\''+d.dateKey+'\',this.value)" style="flex:1;min-width:0;padding:7px 8px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:13px;outline:none">'
+            +'<button type="button" onclick="admKensaToggleStatus(\''+fx+'\',\''+d.statusKey+'\')" style="flex-shrink:0;width:70px;font-size:11px;font-weight:800;color:white;background:'+(isRes?'#3b82f6':'#f97316')+';border:none;border-radius:12px;padding:8px 0;cursor:pointer;white-space:nowrap">'+(isRes?'予約済み':'予約前')+'</button>'
+            +'</div>';
+        }).join('')
+        +'</div>';
+    });
+    wrap.innerHTML=cardHtml;
+    return;
+  }
   var html='<table style="width:100%;border-collapse:collapse;font-size:11px;table-layout:fixed">'
     +'<colgroup><col style="width:14%"><col style="width:8%"><col style="width:9%"><col style="width:9%"><col style="width:9%"><col style="width:9%"><col style="width:9%"><col style="width:9%"><col style="width:12%"><col style="width:12%"></colgroup>'
     +'<thead><tr style="background:#f8fafc">'
