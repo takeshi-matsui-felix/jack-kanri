@@ -54,11 +54,9 @@
     if(!vp)return;
     var base='width=device-width,initial-scale=1.0,minimum-scale=1.0,maximum-scale=1.0,user-scalable=no';
     vp.setAttribute('content',base);
-    // ★2026/10/19：固定の解除を80ms→350msに延長。縮小復帰のアニメーション中に解除されて再び縮小のまま止まる（解除→再固定の繰り返し）のを防ぐ。
-    clearTimeout(window._jackZoomUnlock);
-    window._jackZoomUnlock=setTimeout(function(){
+    setTimeout(function(){
       vp.setAttribute('content','width=device-width,initial-scale=1.0,minimum-scale=1.0,maximum-scale=4.0,user-scalable=yes');
-    },350);
+    },80);
   }
   function checkAndReset(){
     if(window.visualViewport&&window.visualViewport.scale<0.999)resetZoom();
@@ -69,7 +67,7 @@
   document.addEventListener('visibilitychange',function(){if(!document.hidden)resetZoom();});
   window.addEventListener('pageshow',resetZoom);
   window.addEventListener('focus',checkAndReset);
-  setInterval(checkAndReset,150); // ホーム画面アプリはvisibilitychangeが発火しないことがあるための保険ポーリング（高頻度化）。★2026/10/19：C1で間隔を緩めたところ縮小から戻らなくなったため従来の150msに戻した（動作優先・変更しないこと）
+  setInterval(checkAndReset,150); // ホーム画面アプリはvisibilitychangeが発火しないことがあるための保険ポーリング（高頻度化）
 })();
 </script>
 <title>JACK 現場管理</title>
@@ -961,44 +959,6 @@ var FIXED_AREA=(function(){
 
 // ===== CONFIG =====
 var TODAY=(function(){var d=new Date();return d.getFullYear()+'-'+('0'+(d.getMonth()+1)).slice(-2)+'-'+('0'+d.getDate()).slice(-2);})();
-// ★2026/10/18 B2修正：TODAYはページ読込時に1回だけ決まるため、アプリを開いたまま／ホーム画面アプリを閉じずに日付をまたぐと
-//   「今日」の線・引渡し済み・来期の判定が前日のままだった。日付が変わったことを検知したら画面を再読込して全体を作り直す。
-//   入力中・パネルを開いている間は作業を壊さないよう自動再読込せず、バナーで知らせてタップで更新できるようにする。
-(function(){
-  function nowStr(){var d=new Date();return d.getFullYear()+'-'+('0'+(d.getMonth()+1)).slice(-2)+'-'+('0'+d.getDate()).slice(-2);}
-  function busy(){
-    try{
-      var ae=document.activeElement;
-      if(ae&&/^(INPUT|TEXTAREA|SELECT)$/.test(ae.tagName))return true;
-      if(document.querySelector('.slide-panel.open'))return true;
-    }catch(e){}
-    return false;
-  }
-  function showBanner(){
-    if(document.getElementById('_dateChangedBanner')||!document.body)return;
-    var b=document.createElement('div');
-    b.id='_dateChangedBanner';
-    b.style.cssText='position:fixed;left:50%;bottom:16px;transform:translateX(-50%);z-index:100000;background:#1e293b;color:#fff;font-size:12px;font-weight:700;padding:10px 16px;border-radius:20px;box-shadow:0 4px 16px rgba(0,0,0,.3);cursor:pointer;max-width:90vw';
-    b.textContent='📅 日付が変わりました。タップで画面を更新';
-    b.onclick=function(){location.reload();};
-    document.body.appendChild(b);
-  }
-  function check(){
-    if(nowStr()===TODAY)return;
-    if(busy()){showBanner();return;}
-    // 無限リロード防止（1分以内に再度リロードしない）
-    try{
-      var last=parseInt(sessionStorage.getItem('jack_date_reload')||'0',10);
-      if(Date.now()-last<60000){showBanner();return;}
-      sessionStorage.setItem('jack_date_reload',String(Date.now()));
-    }catch(e){}
-    location.reload();
-  }
-  document.addEventListener('visibilitychange',function(){if(!document.hidden)check();});
-  window.addEventListener('pageshow',check);
-  window.addEventListener('focus',check);
-  setInterval(check,60*1000);
-})();
 var COL_W = 18;        // reduced column width
 var SYNC_HOUR = 22;
 var SYNC_URL = 'https://script.google.com/a/macros/mizken.jp/s/AKfycbw6aIG24NPG-QRlVaEghJLwSrZ_DnMiicQvutfAp7ws6OmH8OOvkzmqx5Jebkazc0aY-A/exec';
@@ -1352,23 +1312,9 @@ var POST_END_PAD = 120; // ★スクロール終端の余白：完了検査列�
 // ===== 納品書機能：休工日カレンダー・稼働日計算 =====
 // ★日本の祝日（政府発表・国立天文台暦要項ベース、2025〜2028年分）
 // ★アプリバージョン（不具合問い合わせ対応用。リリースごとに更新すること。2026/8/23追加）
-var APP_VERSION = '2026.10.19.6';
+var APP_VERSION = '2026.10.08.2';
 window.APP_VERSION=APP_VERSION;
 console.log('[JACK] version', APP_VERSION);
-// ★2026/10/19：全画面の左下に現在のバージョンを小さく常時表示（スマホで「最新版か」を確認できるように）。タップ操作は邪魔しない・印刷には出さない。
-(function(){
-  function mk(){
-    try{
-      if(document.getElementById('appVerBadge'))return;
-      var st=document.createElement('style');
-      st.textContent='#appVerBadge{position:fixed;left:4px;bottom:calc(2px + env(safe-area-inset-bottom,0px));z-index:99000;font:10px/1.2 var(--mono,monospace);color:#334155;background:rgba(255,255,255,.8);padding:1px 4px;border-radius:4px;pointer-events:none}@media print{#appVerBadge{display:none}}';
-      document.head.appendChild(st);
-      var d=document.createElement('div');d.id='appVerBadge';d.textContent='v'+APP_VERSION;
-      document.body.appendChild(d);
-    }catch(e){}
-  }
-  if(document.body)mk();else document.addEventListener('DOMContentLoaded',mk);
-})();
 var JP_HOLIDAYS = [
   // 2025
   '2025-01-01','2025-01-13','2025-02-11','2025-02-23','2025-02-24','2025-03-20','2025-04-29',
@@ -1385,24 +1331,8 @@ var JP_HOLIDAYS = [
   // 2028
   '2028-01-01','2028-01-10','2028-02-11','2028-02-23','2028-03-20','2028-04-29',
   '2028-05-03','2028-05-04','2028-05-05','2028-07-17','2028-08-11','2028-09-18',
-  '2028-09-22','2028-10-09','2028-11-03','2028-11-23',
-  // 2029・2030（★2026/10/18追加。春分・秋分の日は国立天文台の暦要項で正式発表されるまで暫定＝毎年2月に翌年分を確認すること）
-  '2029-01-01','2029-01-08','2029-02-11','2029-02-12','2029-02-23','2029-03-20','2029-04-29','2029-04-30',
-  '2029-05-03','2029-05-04','2029-05-05','2029-07-16','2029-08-11','2029-09-17',
-  '2029-09-23','2029-09-24','2029-10-08','2029-11-03','2029-11-23',
-  '2030-01-01','2030-01-14','2030-02-11','2030-02-23','2030-03-20','2030-04-29',
-  '2030-05-03','2030-05-04','2030-05-05','2030-05-06','2030-07-15','2030-08-11','2030-08-12','2030-09-16',
-  '2030-09-23','2030-10-14','2030-11-03','2030-11-04','2030-11-23'
+  '2028-09-22','2028-10-09','2028-11-03','2028-11-23'
 ];
-// ★祝日表の最終対応年。この年に入ったら管理者に「祝日表を追加してください」と知らせる（表が切れると祝日を稼働日扱いして納品日・工程がずれるため）
-var JP_HOLIDAYS_LAST_YEAR = 2030;
-setTimeout(function(){
-  try{
-    if(new Date().getFullYear()>=JP_HOLIDAYS_LAST_YEAR && currentProfile && currentProfile.role==='admin'){
-      showToast('祝日表が '+JP_HOLIDAYS_LAST_YEAR+' 年までです。祝日の追加が必要です（開発担当へ連絡してください）','warn');
-    }
-  }catch(e){}
-},8000);
 var JP_HOLIDAY_SET = (function(){var s={};JP_HOLIDAYS.forEach(function(d){s[d]=true;});return s;})();
 function _dkey(d){return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');}
 // 休工日判定：日曜／祝日／年末年始(12/29〜1/4)／盆(8/13〜8/16、暦通り)
@@ -1935,12 +1865,6 @@ if(loadLS('jack_gantt_logic_ver','')!==GANTT_LOGIC_VERSION){
   saveLS('jack_gantt_logic_ver',GANTT_LOGIC_VERSION);
   console.log('[JACK] 旧工程キャッシュをクリアしました（新ロジック: 基礎大親方式）');
 }
-// ★2026/10/18 A1修正：端末ローカルの物件上書き(jack_prop_overrides)は古い値でDBの最新値を隠す原因だったため廃止。
-//   一度だけこの端末のローカル分を削除する（サーバーのデータには一切影響しない）。
-if(loadLS('jack_ov_cleaned','')!=='2026.10.18.1'){
-  try{localStorage.removeItem('jack_prop_overrides');}catch(e){}
-  saveLS('jack_ov_cleaned','2026.10.18.1');
-}
 // ★2026/10/8修正【重大】：以前は「常に空」で起動していたが、工程表のタイムスタンプ(jack_gantt_ts_*)は
 //   端末に残るため、再起動後は「TS一致＝取得済み」と判定されて再取得されず、同期で取得した手動工程が
 //   消えて標準工程に戻る不具合があった。同期時に保存済みのjack_custom_gantt（ts と同時に保存）を復元する。
@@ -2149,7 +2073,6 @@ function _normalizeTmplSteps(steps){
     var nm=step.name||step.label||'';
     var dur=step.dur||step.days||1;
     var startDate;
-    var preK=!kisoEnd; // ★基礎より前の工程は常に直列
     if(step.offsetFrom==='基礎完了'&&kisoEnd&&step.offsetDays!=null){
       // 既存のoffsetDaysをそのまま使う
       startDate=step.offsetDays>0?addWorkdays(kisoEnd,step.offsetDays):kisoEnd;
@@ -2173,7 +2096,7 @@ function _normalizeTmplSteps(steps){
     startDate=localDateStr(sd);
     var endStr=endOfWorkdays(startDate,dur);
     if(nm==='基礎')kisoEnd=endStr;
-    if(preK||!step.offsetFrom||step.offsetFrom!=='基礎完了')prevEnd=endStr;
+    if(!step.offsetFrom||step.offsetFrom!=='基礎完了')prevEnd=endStr;
   }
   return result;
 }
@@ -2218,7 +2141,6 @@ function computeMasterSegs(confirmDoneStr, template, handKumi, masterName, landP
     if(isHandKumi&&(nm==='建て方'||nm==='建体'))dur=dur+30;
 
     var startDate;
-    var preKiso=!kisoEndDate; // ★基礎より前の工程（造成・仮設・地盤など）は、マスターにoffsetFromが入っていても必ず直列で連鎖させる（2026/10/18）
     if(step.offsetFrom==='基礎完了'&&kisoEndDate&&step.offsetDays!=null){
       // ★基礎完了日からのオフセットで固定配置
       var od=step.offsetDays;
@@ -2270,10 +2192,7 @@ function computeMasterSegs(confirmDoneStr, template, handKumi, masterName, landP
     if(nm==='基礎')kisoEndDate=endStr;
 
     // 順次連鎖用のprevEndは基礎までのみ更新（基礎以降はoffsetFromで管理）
-    //   ★2026/10/18：基礎より前の工程は、offsetFromの有無に関わらず必ず直列（造成→(仮設)→地盤→基礎）。
-    //   関東マスターの「造成工事」に「基礎完了／0」が入っていたため、地盤が造成の終了を待たず、
-    //   土地決済ガードで造成だけが基礎の最中まで押し出される不具合（八潮Ⅰ）の修正。
-    if(preKiso||!step.offsetFrom)prevEnd=endStr;
+    if(!step.offsetFrom)prevEnd=endStr;
   }
 
   // ★2026/9/2追加：工程名（「造成」「地盤」等）に頼らず、どのマスターテンプレートでも
@@ -2505,77 +2424,15 @@ function _filterHomeGanttSegs(p, segs){
 
 // ★手動での紐付けが無い物件に対し、エリア（東海/関東）に応じてマスター工程を自動選択する
 //   東海エリアの物件には名前に「東海」を含むマスター、関東エリアには「関東」を含むマスターを自動適用する
-// ★B4（2026/10/18）：キーワードを含むマスターが複数あっても、端末ごとの並び順に左右されないよう
-//   名前の昇順（同順なら短い名前）で必ず同じ1件を選ぶ。
-function _pickAreaMaster(keyword){
-  var c=myMasters.filter(function(m){return m&&(m.name||'').indexOf(keyword)>=0;}).map(function(m){return m.name;});
-  if(!c.length)return '';
-  c.sort(function(a,b){return a.length-b.length||(a<b?-1:a>b?1:0);});
-  if(c.length>1)console.warn('[JACK] 「'+keyword+'」を含むマスターが複数あります。自動選択は',c[0],'（候補:',c.join(' / '),'）');
-  return c[0];
-}
-// ★Phase4（2026/10/18）：管理者用「検証出力」。物件の入力値・適用マスター・計算された全工程の日付をテキストで出し、
-//   手計算・Excelとの突き合わせ（スクリーンショットでは読み取れない数値の確認）に使う。通信は発生しない。
-function _dumpPropCalc(){
-  try{
-    var p=currentProp; if(!p){showToast('物件が選択されていません','error');return;}
-    var L=[];
-    var mn=_resolvePropMasterName(p);
-    var dbp=(typeof DB_PROPS!=='undefined'&&DB_PROPS)?DB_PROPS.find(function(x){return String(x.fix_no)===String(p.fix_no)&&x.name===p.name;}):null;
-    L.push('[JACK検証出力] v'+APP_VERSION+' 出力日 '+TODAY);
-    L.push('物件: No.'+p.fix_no+' '+p.name+' / エリア '+(p.area||'')+' / 正規化 '+normalizeArea(p));
-    L.push('適用マスター: '+(mn||'(なし)')+(dbp&&dbp.prop_master?' (物件に紐付け)':propMaster[custKey(p)]?' (端末の紐付け)':' (エリア自動選択)'));
-    L.push('手組: '+(p.hand_kumi||'')+' / 土地決済: '+(p.land_payment||'')+' / 確認完了: '+(p.confirm_done||'')+' / 引渡日: '+(p.delivery_date||'')+' / 引渡月: '+(p.delivery_month||''));
-    L.push('検査日: 配筋 '+(p.haikin_date||'')+' 躯体 '+(p.kutai_date||'')+' 中間 '+(p.chukan_date||'')+' 断熱 '+(p.dannetsu_date||'')+' 完了 '+(p.inspection_date||'')+' 完成 '+(p.kansei_date||''));
-    L.push('確定区切り(confirmed_until): '+(p.confirmed_until||(dbp&&dbp.confirmed_until)||'')+' / 手動工程(gantt_is_manual): '+(dbp?dbp.gantt_is_manual:'')+' / 保存済み工程バー: '+(_cgSegsArr(customGantt[custKey(p)])?'あり('+_cgSegsArr(customGantt[custKey(p)]).length+'本)':'なし'));
-    var mt=mn&&myMasters.find(function(m){return m.name===mn;});
-    L.push(''); L.push('--- マスター工程（名前 / 日数 / 基準 / オフセット） ---');
-    if(mt&&mt.steps)mt.steps.forEach(function(st,i){L.push((i+1)+'. '+(st.name||st.label||'')+' / '+(st.dur||st.days||'')+' / '+(st.offsetFrom||'')+' / '+(st.offsetDays==null?'':st.offsetDays));});
-    else L.push('(マスターのstepsなし)');
-    L.push(''); L.push('--- 画面に出る工程（名前 / 開始 / 終了） ---');
-    var segs=getActiveSegs(p)||[];
-    segs.forEach(function(sg,i){L.push((i+1)+'. '+(sg.name||sg.label||'')+' / '+(sg.start_date||sg.date||'')+' / '+(sg.end_date||''));});
-    // ★納品書（作成済みの場合のみ）：各項目の日付・手入力の有無・使われているオフセット（確定時の凍結値／東海上書き／標準）
-    L.push(''); L.push('--- 納品書（No / 項目 / 表示日 / 手入力 / 使用offset / 標準offset / 実際の稼働日差） ---');
-    var dnx=(typeof deliveryNotes!=='undefined')?deliveryNotes[String(p.fix_no||'')]:null;
-    if(!dnx||!dnx.base_date){L.push('(納品書なし／基準日未設定)');}
-    else{
-      var _ar=(typeof normalizeArea==='function')?normalizeArea(p):(dnx.area||'');
-      L.push('基準日(土台): '+dnx.base_date+' / 状態: '+(dnx.approved_at?'承認済':dnx.tentative_at?'仮確定':'未確定')+' / エリア: '+_ar+' / offset凍結: '+(dnx.offset_snapshot?'あり':'なし'));
-      DELIVERY_MASTER.forEach(function(m){
-        var it=dnx.items.find(function(i){return i.id===m.id;})||{};
-        var d=_deliveryItemDate(dnx,m,_ar);
-        var frozen=(dnx.tentative_at||dnx.approved_at)&&dnx.offset_snapshot&&dnx.offset_snapshot[m.id]!==undefined;
-        var eff=frozen?dnx.offset_snapshot[m.id]:_deliveryEffectiveOffsetWd({area:_ar},m);
-        var real='';
-        try{real=d?(d>=dnx.base_date?countWorkdays(dnx.base_date,d):-countWorkdays(d,dnx.base_date)):'';}catch(e){}
-        L.push(m.id+'. '+m.name+' / '+(d||'')+' / '+(it.manual?'手入力':'自動')+' / '+eff+(frozen?'(凍結)':'')+' / '+m.offsetWd+' / '+real);
-      });
-    }
-    var txt=L.join('\n');
-    var ov=document.createElement('div');
-    ov.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:99999;display:flex;align-items:center;justify-content:center;padding:12px';
-    ov.innerHTML='<div style="background:#fff;border-radius:10px;padding:12px;width:min(720px,100%);max-height:90vh;display:flex;flex-direction:column;gap:8px"><div style="font-weight:700;font-size:13px">🔍 検証出力（コピーして貼り付けてください）</div><textarea readonly style="flex:1;min-height:50vh;font-size:11px;font-family:monospace"></textarea><div style="display:flex;gap:8px;justify-content:flex-end"><button id="_dpcCopy" style="padding:6px 14px;border-radius:6px;border:none;background:#1a56db;color:#fff;font-weight:700">コピー</button><button id="_dpcClose" style="padding:6px 14px;border-radius:6px;border:1px solid #cbd5e1;background:#fff">閉じる</button></div></div>';
-    document.body.appendChild(ov);
-    var ta=ov.querySelector('textarea'); ta.value=txt;
-    ov.querySelector('#_dpcClose').onclick=function(){ov.remove();};
-    ov.querySelector('#_dpcCopy').onclick=function(){
-      ta.select();
-      try{ if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(txt).then(function(){showToast('コピーしました','success');},function(){document.execCommand('copy');showToast('コピーしました','success');});}
-           else{document.execCommand('copy');showToast('コピーしました','success');} }catch(e){showToast('長押しで全選択してコピーしてください','warn');}
-    };
-  }catch(e){showToast('検証出力に失敗: '+e.message,'error');}
-}
-window._dumpPropCalc=_dumpPropCalc;
 function _autoAreaMasterName(p){
   if(!p||typeof myMasters==='undefined'||!myMasters||!myMasters.length)return '';
   var area=normalizeArea(p);
   if(TOKAI_AREAS.indexOf(area)>=0){
-    var mt=_pickAreaMaster('東海');
-    if(mt)return mt;
+    var mt=myMasters.find(function(m){return (m.name||'').indexOf('東海')>=0;});
+    if(mt)return mt.name;
   } else if(KANTO_AREAS.indexOf(area)>=0){
-    var mk=_pickAreaMaster('関東');
-    if(mk)return mk;
+    var mk=myMasters.find(function(m){return (m.name||'').indexOf('関東')>=0;});
+    if(mk)return mk.name;
   }
   return '';
 }
@@ -2598,24 +2455,7 @@ function getActiveSegs(p) {
   var segs=_getActiveSegsRaw(p);
   segs=_applyKensaOverrides(p,segs);
   segs=_applyDeliveryGanttLink(p,segs);
-  segs=_applyDeliveryDateToHandover(p,segs);
   return segs;
-}
-// ★2026/10/18：工程表の「引渡し」バーは、マスターのオフセット計算ではなく物件の引渡日（Excel/DBのdelivery_date）に合わせる。
-function _applyDeliveryDateToHandover(p,segs){
-  try{
-    if(!p||!segs||!segs.length)return segs;
-    var dd=toDateKey(normDate(p.delivery_date||''));
-    if(!/^\d{4}-\d{2}-\d{2}$/.test(dd))return segs;
-    var changed=false;
-    var out=segs.map(function(s){
-      if(String(s.label||s.name||'').trim()!=='引渡し')return s;
-      if((s.start_date||s.date||'')===dd&&(s.end_date||'')===dd)return s;
-      changed=true;
-      return Object.assign({},s,{start_date:dd,date:dd,end_date:dd});
-    });
-    return changed?out:segs;
-  }catch(e){return segs;}
 }
 
 // ===== 全現場進捗管理（2026/8/24追加、2026/8/25：今期/来期分割・診断情報を追加） =====
@@ -3042,14 +2882,7 @@ function _applyDeliveryGanttLink(p,segs){
   if(typeof deliveryNotes==='undefined')return segs;
   var fixNo=String(p.fix_no||'');
   var dn=deliveryNotes[fixNo];
-  if(!dn||!dn.base_date){
-    // ★2026/10/18：納品書が未作成（基準日なし）でも、レッカー行は納品書マスターと必ず同じ日付にする。
-    //   工程表の「土台」の開始日を基準日とみなして、納品書と同じ計算（稼働日オフセット）で出す。
-    var _dsg=segs.find(function(s){return String(s.label||s.name||'').trim()==='土台';});
-    var _dbase=_dsg?toDateKey(_dsg.start_date||_dsg.date||''):'';
-    if(!_dbase)return segs;
-    dn={base_date:_dbase,items:[],area:(typeof normalizeArea==='function')?normalizeArea(p):''};
-  }
+  if(!dn||!dn.base_date)return segs;
   var overrideMap={};
   var found=false;
   var areaG=(typeof normalizeArea==='function')?normalizeArea(p):'';
@@ -3207,8 +3040,7 @@ function isRaikin(p){
   var delivDate=new Date(yr,mo-1,1);
   return delivDate>=raikinStart;
 }
-// 完工判定（＝引渡し済み）: 引渡し日がTODAY以前（当日を含む。ステータスは参照しない）
-// ★「引渡し済み」の判定はこの関数に一本化している（検査取りまとめ等も必ずこれを使うこと）
+// 完工判定: 引渡し日がTODAY以前（ステータスは参照しない）
 // ※ Excelのシートフィールドは使わない
 function isKankou(p){
   var dd=normDate(p.delivery_date||'');
@@ -4056,7 +3888,7 @@ function doPropSearch(q){
     var days=daysUntil(p.delivery_date);
     var urgStr=days!==null&&days>=0&&days<=30?'<span style="color:#ef4444;font-size:9px;font-weight:700"> ⚡'+days+'日</span>':'';
     return '<div onclick="togglePropSearch();openDetail(getAllProps().find(function(x){return x.fix_no===\''+p.fix_no+'\';}))" style="padding:7px 10px;border-bottom:1px solid #334155;cursor:pointer;display:flex;align-items:center;justify-content:space-between;background:rgba(255,255,255,.03);border-radius:5px;margin-bottom:2px;">'
-      +'<div><div style="font-size:12px;font-weight:700;color:white">'+_escHtml(p.name)+'</div><div style="font-size:9px;color:#94a3b8">FiX '+p.fix_no+' / '+p.area+'</div></div>'
+      +'<div><div style="font-size:12px;font-weight:700;color:white">'+p.name+'</div><div style="font-size:9px;color:#94a3b8">FiX '+p.fix_no+' / '+p.area+'</div></div>'
       +'<div style="text-align:right"><div style="font-size:9px;color:#64748b">'+(p.delivery_date?fmtDateShort(p.delivery_date):'')+'</div>'+urgStr+'</div>'
       +'</div>';
   }).join('');
@@ -4096,7 +3928,9 @@ function renderStats(){
   var labels={'delayed':'🔴 遅延工程'};
   var hasPark=0,noPark=0;
   allList.forEach(function(p){
-    var pks=p.parkings||[];
+    var ov=loadLS('jack_prop_overrides',{});
+    var ck=custKey(p);
+    var pks=(ov[ck]&&ov[ck].parkings&&ov[ck].parkings.length)?ov[ck].parkings:(p.parkings||[]);
     var todayStr=TODAY;
     var active=pks.filter(function(pk){return !pk.contract_end||pk.contract_end>=todayStr;});
     if(active.length>0)hasPark++;else noPark++;
@@ -4524,7 +4358,8 @@ function renderBody(){
         nd.style.cssText='font-size:10px;font-weight:700;color:var(--g800);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:'+(c.w-6)+'px;font-family:var(--font)';
         nd.textContent=val;
         // 駐車場バッジ
-        var pks=p.parkings||[];
+        var pOv=loadLS('jack_prop_overrides',{});var pCk=custKey(p);
+        var pks=(pOv[pCk]&&pOv[pCk].parkings&&pOv[pCk].parkings.length)?pOv[pCk].parkings:(p.parkings||[]);
         var todayStr2=TODAY;
         var activePks2=pks.filter(function(pk){return !pk.contract_end||pk.contract_end>=todayStr2;});
         var parkBadge2=activePks2.length?'<span style="font-size:8px;background:#6366f1;color:white;padding:0 3px;border-radius:3px;margin-left:2px">🅿️</span>':'';
@@ -5014,19 +4849,20 @@ function _saveKensaFieldForCurrentProp(field,value){
     if(typeof DB_PROPS!=='undefined'&&DB_PROPS){
       var idx=DB_PROPS.findIndex(function(dp){return String(dp.fix_no)===String(p.fix_no)&&dp.name===p.name;});
       if(idx>=0)DB_PROPS[idx][field]=value;
-      else{var _np={fix_no:p.fix_no,name:p.name};_np[field]=value;DB_PROPS.push(_np);}
-      try{_savePropsCache(DB_PROPS);}catch(e){}
+      try{localStorage.setItem('jack_props_cache',JSON.stringify(DB_PROPS));}catch(e){}
     }
+    var ov=loadLS('jack_prop_overrides',{});
+    ov[custKey(p)]=Object.assign(ov[custKey(p)]||{},dbUpdates);
+    saveLS('jack_prop_overrides',ov);
     renderKensaSplitSection(p);
     _refreshDetailGanttForKensaChange(p);
     if(typeof renderBody==='function')renderBody(); // ★ホーム画面・検査取りまとめ等にも即時反映
   }
   var sb=getSB();
   if(!sb){applyLocallyK();showToast('⚠️ オフライン: ローカルに保存（他端末未反映）','');return;}
-  sb.from('properties').update(dbUpdates).eq('fix_no',String(p.fix_no)).select('fix_no')
+  sb.from('properties').update(dbUpdates).eq('fix_no',String(p.fix_no))
     .then(function(res){
       if(res.error){showToast('保存エラー: '+res.error.message,'error');return;}
-      if(!res.data||!res.data.length){showToast('保存エラー: 更新対象が見つかりません','error');return;}
       applyLocallyK();
       showToast('✅ 保存しました','success');
     })
@@ -5292,7 +5128,6 @@ function buildGanttTab(p){
       +'<button id="gantt-tab-custom" onclick="switchGanttTab(\'custom\')" style="padding:6px 14px;font-size:11px;font-weight:700;border:none;background:none;cursor:pointer;border-bottom:2px solid #1a56db;color:#1a56db;margin-bottom:-2px">📅 カスタム工程</button>'
       +'<button id="gantt-tab-excel" onclick="switchGanttTab(\'excel\')" style="padding:6px 14px;font-size:11px;font-weight:700;border:none;background:none;cursor:pointer;border-bottom:2px solid transparent;color:#94a3b8;margin-bottom:-2px">📋 Excel工程表</button>'
       +'<button id="gantt-tab-delivery" onclick="switchGanttTab(\'delivery\')" style="padding:6px 14px;font-size:11px;font-weight:700;border:none;background:none;cursor:pointer;border-bottom:2px solid transparent;color:#94a3b8;margin-bottom:-2px">📦 納品書</button>'
-      +((currentProfile&&currentProfile.role==='admin')?'<button onclick="_dumpPropCalc()" title="管理者用：この物件の入力値・マスター・計算結果をテキストで出力（検証用）" style="padding:4px 8px;font-size:10px;border:1px solid #cbd5e1;background:#f8fafc;color:#64748b;border-radius:6px;cursor:pointer;margin-left:6px">🔍検証出力</button>':'')
       +'<div id="detailGanttHeaderBtns" style="display:flex;gap:6px;align-items:center;margin-left:auto;padding:4px 8px;flex-wrap:wrap;justify-content:flex-end"></div>'
     +'</div>'
     +'<div id="gantt-panes-wrap">'
@@ -6564,13 +6399,13 @@ function applyConfirmedUntil(){
     if(typeof DB_PROPS!=='undefined'&&DB_PROPS){
       var idx=DB_PROPS.findIndex(function(dp){return String(dp.fix_no)===fixNo;});
       if(idx>=0)DB_PROPS[idx].confirmed_until=v||null;
-      try{_savePropsCache(DB_PROPS);}catch(e){}
+      try{localStorage.setItem('jack_props_cache',JSON.stringify(DB_PROPS));}catch(e){}
     }
   }
   if(!sb||!fixNo){
     applyLocallyCU();
   } else {
-    _tsQuery(function(n){return sb.from('properties').update(_tsPayload({confirmed_until:v||null,updated_at:new Date().toISOString()},'gantt',n)).eq('fix_no',fixNo);})
+    sb.from('properties').update({confirmed_until:v||null,updated_at:new Date().toISOString()}).eq('fix_no',fixNo)
       .then(function(res){
         if(res.error){
           console.error('[JACK] confirmed_until Supabase保存失敗',res.error);
@@ -6621,7 +6456,7 @@ function saveGanttEdit(){
         var fixNo=String(currentProp.fix_no||'');
         var tsKey='jack_gantt_ts_'+fixNo;
         var dbp=DB_PROPS&&DB_PROPS.find(function(d){return String(d.fix_no)===fixNo;});
-        if(dbp&&_ganttTsOf(dbp))localStorage.setItem(tsKey,_ganttTsOf(dbp));
+        if(dbp&&dbp.updated_at)localStorage.setItem(tsKey,dbp.updated_at);
         showToast('✅ 工程表を保存しました（全共有）','success');
       } else {
         // ★ 保存失敗時はローカルのみ保存済みであることを明示
@@ -6690,7 +6525,7 @@ function printDetailGantt(){
   if(!ganttHtml){showToast('工程データなし','error');return;}
 
   var html='<!DOCTYPE html><html><head><meta charset="UTF-8">'
-    +'<title>'+_escHtml(p.name)+' 工程表</title>'
+    +'<title>'+p.name+' 工程表</title>'
     +'<style>'
     +'*{box-sizing:border-box;margin:0;padding:0;-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important}'
     +'body{font-family:"Hiragino Sans","Meiryo",sans-serif;background:white;padding:4mm;}'
@@ -6913,7 +6748,7 @@ function _buildPrintGanttHtml(p,pageWmm,pageHmm,includeHeader){
     var HEADER_H=46;
     headerHtml='<div style="width:'+fullW+'px;box-sizing:border-box;background:#1a3a7c;color:white;padding:8px 12px;border-radius:4px;display:flex;align-items:center;justify-content:space-between;height:'+HEADER_H+'px">'
       +'<div>'
-      +'<div style="font-size:14px;font-weight:900;letter-spacing:-0.5px;">'+_escHtml(p.name)+'</div>'
+      +'<div style="font-size:14px;font-weight:900;letter-spacing:-0.5px;">'+p.name+'</div>'
       +'<div style="font-size:9px;opacity:.8;margin-top:2px;">'
       +(cd?'確認申請完了: '+cd+'　':'')
       +(p.delivery_date?'引渡し: '+p.delivery_date:'')
@@ -6971,7 +6806,7 @@ function printPropInfo(){
   var days=daysUntil(p.delivery_date);
   var urgText=days!==null&&days>=0&&days<=30?' ⚡ 引渡まで'+days+'日':'';
   var html='<!DOCTYPE html><html><head><meta charset="UTF-8">'
-    +'<title>'+_escHtml(p.name)+' 物件詳細</title>'
+    +'<title>'+p.name+' 物件詳細</title>'
     +'<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;600;700;800&display=swap" rel="stylesheet">'
     +'<style>'
     +'*{box-sizing:border-box;margin:0;padding:0;-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important}'
@@ -7069,8 +6904,10 @@ function openDetail(p){
       contentEl.innerHTML=data?buildGanttSheetSection(data):'<div style="color:#94a3b8;font-size:11px;padding:16px;text-align:center">📋 工程表データがありません</div>';
     });
   }
-  // ★A1修正：ローカル上書きは廃止。渡されたp（DB/DATA由来の最新値）をそのまま使う
+  // LocalStorageのオーバーライドをマージ
+  var ov=loadLS('jack_prop_overrides',{});
   var ck=custKey(p);
+  if(ov[ck])p=Object.assign({},p,ov[ck]);
   currentProp=p;
 
   var today=new Date(TODAY),days=daysUntil(p.delivery_date),isUrgent=days!==null&&days>=0&&days<=30;
@@ -7146,7 +6983,7 @@ function openDetail(p){
       +parkings.map(function(pk,i){
         return '<div style="padding:5px 12px;border-bottom:1px solid var(--g100)">'
           +'<div style="font-size:10px;font-weight:700;color:var(--g700)">【'+(i+1)+'】 '+(pk.name||'駐車場'+(i+1))+'</div>'
-          +(pk.address?'<div style="font-size:10px;color:var(--g500);margin-top:2px">📍 '+_escHtml(pk.address)+'</div>':'')
+          +(pk.address?'<div style="font-size:10px;color:var(--g500);margin-top:2px">📍 '+pk.address+'</div>':'')
           +(pk.carno?'<div style="font-size:10px;color:var(--g500)">🚘 '+pk.carno+'</div>':'')
           +(pk.detail?'<div style="font-size:10px;color:var(--g400)">'+pk.detail+'</div>':'')
           +'</div>';
@@ -7172,9 +7009,9 @@ function openDetail(p){
     heroSticky.style.display='block';
     heroSticky.innerHTML='<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">'
       +'<span style="font-size:9px;background:rgba(255,255,255,.25);padding:2px 7px;border-radius:4px;font-weight:700;flex-shrink:0">'+(p.area||'不明')+'</span>'
-      +'<span style="font-size:13px;font-weight:800;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+_escHtml(p.name)+'</span>'
+      +'<span style="font-size:13px;font-weight:800;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+p.name+'</span>'
       +'</div>'
-      +'<div style="font-size:9px;opacity:.85;margin-top:2px">FiX No.'+p.fix_no+(p.seq_no?' ／ 通し:'+p.seq_no:'')+(tantouOf(p)?' ／ '+_escHtml(tantouOf(p)):'')+'</div>'
+      +'<div style="font-size:9px;opacity:.85;margin-top:2px">FiX No.'+p.fix_no+(p.seq_no?' ／ 通し:'+p.seq_no:'')+(tantouOf(p)?' ／ '+tantouOf(p):'')+'</div>'
       +'<div style="display:flex;gap:4px;overflow-x:auto;margin-top:5px;padding-bottom:2px;-webkit-overflow-scrolling:touch">'+(milestoneChipsHtml||'<span style="font-size:9px;opacity:.6">マイルストーン日付が未設定です</span>')+'</div>';
   }
 
@@ -7205,54 +7042,30 @@ function openDetail(p){
 
 // ===== 検査予約ステータス切替（配筋検査・躯体検査・断熱検査・完了検査） =====
 function toggleKensaStatus(statusKey){
-  var p=currentProp; if(!p)return;
-  // ★A2修正：保存中の連打を無効化（連打すると巻き戻し先が不定になるため）
-  window._kensaBusy=window._kensaBusy||{};
-  var busyKey=String(p.fix_no)+'__'+statusKey;
-  if(window._kensaBusy[busyKey])return;
-  var prev=p[statusKey]||'before';
-  var next=prev==='reserved'?'before':'reserved';
-  // 画面・メモリ・端末キャッシュへ反映（成功時＝確定、失敗時＝prevで呼び直して巻き戻し）
-  function applyStatus(val){
-    p[statusKey]=val;
-    if(typeof DB_PROPS!=='undefined'&&DB_PROPS){
-      var idx=DB_PROPS.findIndex(function(dp){return String(dp.fix_no)===String(p.fix_no)&&dp.name===p.name;});
-      if(idx>=0)DB_PROPS[idx][statusKey]=val;
-      else{var np={fix_no:p.fix_no,name:p.name};np[statusKey]=val;DB_PROPS.push(np);}
-      try{_savePropsCache(DB_PROPS);}catch(e){}
-    }
-    // 詳細画面を開いたままの物件だけ再描画（スクロール位置を保持）
-    if(currentProp===p){
-      var ps=document.getElementById('dpContent');
-      var savedScrollTop=ps?ps.scrollTop:0;
-      openDetail(p);
-      var ps2=document.getElementById('dpContent');
-      if(ps2)ps2.scrollTop=savedScrollTop;
-    }
-    // ★ホーム画面・検査取りまとめ等にも反映
-    if(typeof renderBody==='function'){try{renderBody();}catch(e){}}
-  }
+  if(!currentProp)return;
+  var cur=currentProp[statusKey]||'before';
+  var next=cur==='reserved'?'before':'reserved';
+  currentProp[statusKey]=next;
   var payload={updated_at:new Date().toISOString()};
   payload[statusKey]=next;
   var sb=(typeof getSB==='function')?getSB():null;
-  applyStatus(next);
-  if(!sb){
-    showToast('⚠️ オフライン: この端末のみ反映（他端末には未反映）。通信回復後にもう一度操作してください','');
-    return;
+  if(sb){
+    sb.from('properties').update(payload).eq('fix_no',String(currentProp.fix_no))
+      .then(function(r){
+        if(!r.error&&typeof DB_PROPS!=='undefined'&&DB_PROPS){
+          var idx=DB_PROPS.findIndex(function(dp){return String(dp.fix_no)===String(currentProp.fix_no);});
+          if(idx>=0)DB_PROPS[idx][statusKey]=next;
+          try{localStorage.setItem('jack_props_cache',JSON.stringify(DB_PROPS));}catch(e){}
+        }
+        if(r.error&&typeof showToast==='function')showToast('保存に失敗しました','error');
+      }).catch(function(){if(typeof showToast==='function')showToast('保存に失敗しました','error');});
   }
-  window._kensaBusy[busyKey]=true;
-  function fail(msg){
-    delete window._kensaBusy[busyKey];
-    applyStatus(prev); // ★保存失敗時は元の状態に戻す
-    showToast('❌ 保存に失敗したため元に戻しました'+(msg?'（'+msg+'）':''),'error');
-  }
-  sb.from('properties').update(payload).eq('fix_no',String(p.fix_no)).select('fix_no')
-    .then(function(r){
-      if(r.error){fail(r.error.message);return;}
-      // 権限等で0件更新だった場合もエラーとして扱う
-      if(!r.data||!r.data.length){fail('更新対象が見つかりません');return;}
-      delete window._kensaBusy[busyKey];
-    }).catch(function(e){fail(e&&e.message);});
+  // ★スクロール位置を保持したまま再描画（マイルストーン・ガント両方に反映）
+  var ps=document.getElementById('dpContent');
+  var savedScrollTop=ps?ps.scrollTop:0;
+  openDetail(currentProp);
+  var ps2=document.getElementById('dpContent');
+  if(ps2)ps2.scrollTop=savedScrollTop;
 }
 window.toggleKensaStatus=toggleKensaStatus;
 
@@ -7293,19 +7106,19 @@ async function _loadDeliveryNoteIfNeeded(p){
   var localTs=localStorage.getItem(tsKey)||'';
   var needFetch=false;
   try{
-    var tsRes=await _tsQuery(function(n){return sb.from('properties').select(n?'updated_at,dn_updated_at':'updated_at').eq('fix_no',fixNo).limit(1);});
+    var tsRes=await sb.from('properties').select('updated_at').eq('fix_no',fixNo).limit(1);
     var tsRow=tsRes.data&&tsRes.data[0];
     if(!tsRes.error&&tsRow){
-      var remoteTs=_dnTsOf(tsRow);
+      var remoteTs=tsRow.updated_at||'';
       if(remoteTs&&remoteTs!==localTs)needFetch=true;
     }
   }catch(e){}
   if(!needFetch&&_deliveryFetched[fixNo])return; // TS一致かつ取得済み → 追加通信なし
   try{
-    var r=await _tsQuery(function(n){return sb.from('properties').select(n?'fix_no,delivery_note,updated_at,dn_updated_at':'fix_no,delivery_note,updated_at').eq('fix_no',fixNo).limit(1);});
+    var r=await sb.from('properties').select('fix_no,delivery_note,updated_at').eq('fix_no',fixNo).limit(1);
     var rd=r.data&&r.data[0];
     if(!r.error&&rd){
-      if(_dnTsOf(rd))localStorage.setItem(tsKey,_dnTsOf(rd));
+      if(rd.updated_at)localStorage.setItem(tsKey,rd.updated_at);
       if(rd.delivery_note){
         var dn=typeof rd.delivery_note==='string'?JSON.parse(rd.delivery_note):rd.delivery_note;
         if(dn)deliveryNotes[fixNo]=dn;
@@ -7505,7 +7318,7 @@ function _renderDeliveryNoteBody(p,el){
       var vendorVal=_deliveryVendorValue(dn,m);
       var opts=_deliveryVendorOptions(m);
       var dlId='dl-deliv-'+m.id;
-      var dlHtml=opts.length?('<datalist id="'+dlId+'">'+opts.map(function(o){return '<option value="'+_escHtml(o)+'">';}).join('')+'</datalist>'):'';
+      var dlHtml=opts.length?('<datalist id="'+dlId+'">'+opts.map(function(o){return '<option value="'+o+'">';}).join('')+'</datalist>'):'';
       var mirrorHint=m.mirrorFrom?'<div style="font-size:9px;color:#94a3b8">項目'+m.mirrorFrom+'と連動</div>':'';
       // ★東海限定：③レッカー（id:7）が手動でずれている場合、それより後ろの自動計算項目は連動してずれる旨のヒント表示（2026/8/23追加）
       if(_lecCascadeActive&&m.id>7&&!(it&&it.manual&&it.date)){
@@ -7520,8 +7333,8 @@ function _renderDeliveryNoteBody(p,el){
         +'<td style="padding:5px 8px;font-size:11px;font-weight:700">'+m.name+' '+excl+'</td>'
         +'<td style="padding:5px 8px'+(dateChg?';'+hi:'')+'"><input type="date" value="'+date+'" onchange="deliverySetItemDate('+m.id+',this.value)" style="font-size:11px;padding:3px 5px;border:1.5px solid '+(dateChg?'#f59e0b':'#e2e8f0')+';border-radius:5px;width:130px'+(dateChg?';background:#fef3c7':'')+'">'
           +(it.manual?'<button onclick="deliveryResetItemDate('+m.id+')" title="自動計算に戻す" style="margin-left:4px;background:none;border:none;color:#94a3b8;cursor:pointer;font-size:10px">↺</button>':'')+'</td>'
-        +'<td style="padding:5px 8px'+(vendorChg?';'+hi:'')+'">'+dlHtml+'<input type="text" id="dlv-vendor-'+m.id+'" list="'+dlId+'" placeholder="業者名（一覧から選択 or 自由入力）" value="'+_escHtml(vendorVal)+'" onmousedown="this.dataset.pv=this.value;this.value=\'\';" onfocus="this.dataset.pv=this.value;this.value=\'\';" onblur="if(!this.value)this.value=this.dataset.pv||\'\';" onchange="deliverySetItemField('+m.id+',\'vendor\',this.value)" style="font-size:11px;padding:3px 6px;border:1.5px solid '+(vendorChg?'#f59e0b':'#e2e8f0')+';border-radius:5px;width:150px'+(vendorChg?';background:#fef3c7':'')+'">'+mirrorHint+'</td>'
-        +'<td style="padding:5px 8px'+(noteChg?';'+hi:'')+'"><input type="text" placeholder="備考" value="'+_escHtml(it.note||'')+'" onchange="deliverySetItemField('+m.id+',\'note\',this.value)" style="font-size:11px;padding:3px 6px;border:1.5px solid '+(noteChg?'#f59e0b':'#e2e8f0')+';border-radius:5px;width:150px'+(noteChg?';background:#fef3c7':'')+'"></td>'
+        +'<td style="padding:5px 8px'+(vendorChg?';'+hi:'')+'">'+dlHtml+'<input type="text" id="dlv-vendor-'+m.id+'" list="'+dlId+'" placeholder="業者名（一覧から選択 or 自由入力）" value="'+vendorVal+'" onmousedown="this.dataset.pv=this.value;this.value=\'\';" onfocus="this.dataset.pv=this.value;this.value=\'\';" onblur="if(!this.value)this.value=this.dataset.pv||\'\';" onchange="deliverySetItemField('+m.id+',\'vendor\',this.value)" style="font-size:11px;padding:3px 6px;border:1.5px solid '+(vendorChg?'#f59e0b':'#e2e8f0')+';border-radius:5px;width:150px'+(vendorChg?';background:#fef3c7':'')+'">'+mirrorHint+'</td>'
+        +'<td style="padding:5px 8px'+(noteChg?';'+hi:'')+'"><input type="text" placeholder="備考" value="'+(it.note||'')+'" onchange="deliverySetItemField('+m.id+',\'note\',this.value)" style="font-size:11px;padding:3px 6px;border:1.5px solid '+(noteChg?'#f59e0b':'#e2e8f0')+';border-radius:5px;width:150px'+(noteChg?';background:#fef3c7':'')+'"></td>'
         +'</tr>';
     }).join('');
     var baseDateChg=diffs.some(function(d){return d.field==='base_date';});
@@ -7680,7 +7493,7 @@ function _saveDeliveryNote(p){
     //   画面上は何も表示されず（本人にも他ユーザーにも）気付く手段が無かった。
     //   結果（res.error）を確認し、失敗時は明確に警告表示する。
     try{
-      var res=await _tsQuery(function(n){return sb.from('properties').update(_tsPayload({delivery_note:deliveryNotes[fixNo],updated_at:new Date().toISOString()},'dn',n)).eq('fix_no',fixNo);});
+      var res=await sb.from('properties').update({delivery_note:deliveryNotes[fixNo],updated_at:new Date().toISOString()}).eq('fix_no',fixNo);
       if(res.error){
         console.error('[JACK] 納品書の保存に失敗',res.error);
         showToast('⚠️ 納品書の保存に失敗しました：'+res.error.message,'error');
@@ -7907,7 +7720,7 @@ function printDeliveryNote(){
     var dispDate=date?date.replace(/-/g,'/'):'';
     var dow=date?['日','月','火','水','木','金','土'][new Date(date+'T00:00:00').getDay()]:'';
     var vendorDisp=_deliveryVendorValue(dn,m);
-    return '<tr><td>'+m.id+'</td><td>'+_escHtml(m.name)+'</td><td>'+_escHtml(vendorDisp)+'</td><td>'+dispDate+(dow?'　'+dow:'')+'</td><td>'+_escHtml(it.note||'')+'</td></tr>';
+    return '<tr><td>'+m.id+'</td><td>'+m.name+'</td><td>'+vendorDisp+'</td><td>'+dispDate+(dow?'　'+dow:'')+'</td><td>'+(it.note||'')+'</td></tr>';
   }).join('');
   var reapproveCount=(dn.approval_history||[]).length;
   var pendingDiffs=dn.approved_at?[]:_deliveryDiff(dn);
@@ -7940,7 +7753,7 @@ function printDeliveryNote(){
       +'</div>';
   }
   var win=window.open('','_blank');
-  win.document.write('<!DOCTYPE html><html><head><meta charset="UTF-8"><title>'+_escHtml(p.name)+' 納品書</title>'
+  win.document.write('<!DOCTYPE html><html><head><meta charset="UTF-8"><title>'+p.name+' 納品書</title>'
     +'<style>'
     +'*{box-sizing:border-box;margin:0;padding:0;-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important}'
     +'body{font-family:"Hiragino Sans","Meiryo",sans-serif;padding:12px;position:relative}'
@@ -7954,7 +7767,7 @@ function printDeliveryNote(){
     +'@page{size:A4 portrait;margin:9mm}'
     +'</style></head><body>'
     +stampHtml
-    +'<h1>'+_escHtml(p.name)+' AP新築工事 納品書</h1>'
+    +'<h1>'+p.name+' AP新築工事 納品書</h1>'
     +'<div class="sub">基準日（土台）：'+(dn.base_date?dn.base_date.replace(/-/g,'/'):'未設定')+'　／　印刷日：'+new Date().toLocaleDateString('ja-JP')+'</div>'
     +diffNoteHtml
     +'<table><thead><tr><th>No</th><th>納品項目</th><th>納品社</th><th>納品日</th><th>備考</th></tr></thead><tbody>'+rows+'</tbody></table>'
@@ -8045,6 +7858,9 @@ function saveMasterLink(){
   var fresh=getAllProps().find(function(x){return x.fix_no===p.fix_no&&x.name===p.name;});
   if(fresh){
     currentProp=fresh;
+    // prop_overridesをマージ
+    var ov=loadLS('jack_prop_overrides',{});
+    if(ov[ck])currentProp=Object.assign({},fresh,ov[ck]);
   }
 
   // 管理者の場合はSupabaseにも保存（全ユーザーに共有）
@@ -8067,7 +7883,9 @@ window.closeMasterLinkModal=closeMasterLinkModal;
 // ===== 物件情報編集モーダル（管理者専用） =====
 function openPropEditModal(){
   var p=currentProp; if(!p)return;
-  var cur=Object.assign({},p);
+  var ov=loadLS('jack_prop_overrides',{});
+  var ck=custKey(p);
+  var cur=Object.assign({},p,ov[ck]||{});
   var parkings=cur.parkings||[];
   if(typeof parkings==='string'){try{parkings=JSON.parse(parkings);}catch(e){parkings=[];}}
   if(!Array.isArray(parkings))parkings=[];
@@ -8092,24 +7910,24 @@ function openPropEditModal(){
       +'<button onclick="removeParkRow('+i+')" style="margin-left:auto;background:#fee2e2;color:#ef4444;border:none;border-radius:4px;padding:2px 8px;font-size:10px;cursor:pointer">削除</button></div>'
       +'<div style="display:flex;flex-direction:column;gap:4px">'
       +'<label style="font-size:10px;color:#64748b">駐車場名</label>'
-      +'<input id="pk-name-'+i+'" type="text" value="'+_escHtml(pk.name||'')+'" placeholder="例: 近隣コインパーキング" style="'+iStyle+'"></div>'
+      +'<input id="pk-name-'+i+'" type="text" value="'+(pk.name||'')+'" placeholder="例: 近隣コインパーキング" style="'+iStyle+'"></div>'
       +'<div style="display:flex;flex-direction:column;gap:4px">'
       +'<label style="font-size:10px;color:#64748b">車番</label>'
-      +'<input id="pk-carno-'+i+'" type="text" value="'+_escHtml(pk.carno||'')+'" placeholder="例: 3番" style="'+iStyle+'"></div>'
+      +'<input id="pk-carno-'+i+'" type="text" value="'+(pk.carno||'')+'" placeholder="例: 3番" style="'+iStyle+'"></div>'
       +'<div style="display:flex;flex-direction:column;gap:4px">'
       +'<label style="font-size:10px;color:#64748b">住所</label>'
-      +'<input id="pk-addr-'+i+'" type="text" value="'+_escHtml(pk.address||'')+'" placeholder="例: 愛知県常滑市新開町2-1" style="'+iStyle+'"></div>'
+      +'<input id="pk-addr-'+i+'" type="text" value="'+(pk.address||'')+'" placeholder="例: 愛知県常滑市新開町2-1" style="'+iStyle+'"></div>'
       +'<div style="display:flex;gap:8px">'
       +'<div style="flex:1;display:flex;flex-direction:column;gap:4px">'
       +'<label style="font-size:10px;color:#64748b">契約開始日</label>'
-      +'<input id="pk-start-'+i+'" type="date" value="'+_escHtml(pk.contract_start||'')+'" style="'+iStyle+'"></div>'
+      +'<input id="pk-start-'+i+'" type="date" value="'+(pk.contract_start||'')+'" style="'+iStyle+'"></div>'
       +'<div style="flex:1;display:flex;flex-direction:column;gap:4px">'
       +'<label style="font-size:10px;color:#64748b">契約終了日</label>'
-      +'<input id="pk-end-'+i+'" type="date" value="'+_escHtml(pk.contract_end||'')+'" style="'+iStyle+'"></div>'
+      +'<input id="pk-end-'+i+'" type="date" value="'+(pk.contract_end||'')+'" style="'+iStyle+'"></div>'
       +'</div>'
       +'<div style="display:flex;flex-direction:column;gap:4px">'
       +'<label style="font-size:10px;color:#64748b">詳細（任意）</label>'
-      +'<input id="pk-detail-'+i+'" type="text" value="'+_escHtml(pk.detail||'')+'" placeholder="例：ハイエース限定" style="'+iStyle+'"></div>'
+      +'<input id="pk-detail-'+i+'" type="text" value="'+(pk.detail||'')+'" placeholder="例：ハイエース限定" style="'+iStyle+'"></div>'
       +'</div>';
   }
 
@@ -8129,7 +7947,7 @@ function openPropEditModal(){
       +'<div><label style="font-size:10px;color:#64748b;display:block;margin-bottom:3px">担当者</label>'
       +staffSelectHtml('pe-tantou', tantouOf(cur), 'style="'+iStyle+'"')+'</div>'
       +'<div><label style="font-size:10px;color:#64748b;display:block;margin-bottom:3px">住所</label>'
-      +'<input id="pe-address" type="text" value="'+_escHtml(typeof cur.address==='string'?cur.address:(cur.address&&cur.address.address)||'')+'" placeholder="例: 愛知県常滑市新開町1-1" style="'+iStyle+'"></div>'
+      +'<input id="pe-address" type="text" value="'+(typeof cur.address==='string'?cur.address:(cur.address&&cur.address.address)||'')+'" placeholder="例: 愛知県常滑市新開町1-1" style="'+iStyle+'"></div>'
       +'<div><label style="font-size:10px;color:#64748b;display:block;margin-bottom:3px">販売ステータス</label>'
       +'<select id="pe-status" style="'+iStyle+'">'+statusOpts+'</select></div>'
       +'<div><label style="font-size:10px;color:#64748b;display:block;margin-bottom:3px">審査機関</label>'
@@ -8193,10 +8011,9 @@ function openPropEditModal(){
   }
 
   window._editParkings=JSON.parse(JSON.stringify(parkings));
-  window._editPropCk=custKey(p);
+  window._editPropCk=ck;
   renderModal();
   window._rerenderPropModal=renderModal;
-  _peTakeSnapshot(); // ★A4：保存時に「変更項目のみ」を判定するための基準値
 }
 window.openPropEditModal=openPropEditModal;
 
@@ -8252,62 +8069,49 @@ function peToggleKensaStatus(statusKey){
 }
 window.peToggleKensaStatus=peToggleKensaStatus;
 
-// ★A4：物件編集フォームの値を読み取る（空欄=null）。画面を開いた直後の値と比較して変更項目だけを保存するために使う
-var _PE_TEXT_KEYS=['tantou','status','shinsa_kikan','address'];
-var _PE_DATE_KEYS=['land_contract','land_payment','confirm_submit','confirm_done','delivery_date','inspection_date','complete_date','movein_date','haikin_date','kutai_date','chukan_date','dannetsu_date','kansei_date'];
-var _PE_STATUS_KEYS=['haikin_status','kutai_status','chukan_status','dannetsu_status','inspection_status','kansei_status'];
-function _peReadForm(){
-  var o={};
-  _PE_TEXT_KEYS.forEach(function(k){var el=document.getElementById('pe-'+k);if(el)o[k]=(el.value.trim())||null;});
-  _PE_DATE_KEYS.forEach(function(k){var el=document.getElementById('pe-'+k);if(el)o[k]=el.value?el.value.replace(/-/g,'/'):null;});
-  _PE_STATUS_KEYS.forEach(function(k){var b=document.getElementById('pe-'+k+'-btn');if(b)o[k]=b.getAttribute('data-status')||'before';});
-  return o;
-}
-function _peParkKey(pks){
-  return JSON.stringify((pks||[]).map(function(x){x=x||{};return {name:x.name||'',carno:x.carno||'',address:x.address||'',contract_start:x.contract_start||'',contract_end:x.contract_end||'',detail:x.detail||''};}));
-}
-function _peTakeSnapshot(){
-  window._peInit=_peReadForm();
-  window._peInitParkings=_peParkKey(window._editParkings);
-}
-
 function savePropEdit(){
   _syncParkingsFromDOM();
   var sb=getSB();
   var p=currentProp; if(!p)return;
 
-  // ★A4修正：画面を開いた時点（_peInit）から「変更された項目だけ」を保存する。
-  //   ・他の人が別項目を更新していても上書きして戻さない
-  //   ・変更した項目を空欄にした場合は、その項目を空にする（ステータスは空にできない項目なので除く）
-  var form=_peReadForm();
-  var init=window._peInit||null;
-  var dbUpdates={};
-  var changedKeys=[];
-  Object.keys(form).forEach(function(k){
-    var fv=form[k];
-    var iv=init?init[k]:undefined;
-    if(init){ if(fv===iv)return; }
-    else if(fv===null||fv===undefined)return; // 基準が無い場合は従来どおり空欄は無視
-    if(k==='status'&&(fv===null||fv===undefined))return; // ステータスは空にしない
-    dbUpdates[k]=fv;
-    changedKeys.push(k);
-  });
-  // 実入居発生日：手入力で変更した場合は取込元を「manual」に切替
-  if(Object.prototype.hasOwnProperty.call(dbUpdates,'movein_date')&&dbUpdates.movein_date)dbUpdates.movein_date_source='manual';
-  // 駐車場：内容が変わった場合のみ保存（全件削除＝空配列も保存できる）
-  var parkingsVal=JSON.parse(JSON.stringify(window._editParkings||[]));
-  if(window._peInitParkings===undefined||_peParkKey(parkingsVal)!==window._peInitParkings){
-    dbUpdates.parkings=parkingsVal;
-    changedKeys.push('parkings');
-  }
-  if(!changedKeys.length){
-    closePropEditModal();
-    showToast('変更はありません','');
-    return;
-  }
-  // 他端末が変更を検知できるよう更新日時を明示的に更新
-  dbUpdates.updated_at=new Date().toISOString();
+  function getDateVal(id){var el=document.getElementById(id);if(!el||!el.value)return null;return el.value.replace(/-/g,'/');}
+  function getStrVal(id){var el=document.getElementById(id);return(el&&el.value.trim())||null;}
 
+  // Supabaseのpropertiesテーブルに存在するカラムのみ
+  var dbUpdates={
+    tantou:        getStrVal('pe-tantou'),
+    status:        getStrVal('pe-status'),
+    shinsa_kikan:  getStrVal('pe-shinsa_kikan'),
+    land_contract: getDateVal('pe-land_contract'),
+    land_payment:  getDateVal('pe-land_payment'),
+    confirm_submit:getDateVal('pe-confirm_submit'),
+    confirm_done:  getDateVal('pe-confirm_done'),
+    delivery_date: getDateVal('pe-delivery_date'),
+    address:       getStrVal('pe-address')
+  };
+  // nullを除去（未入力は上書きしない）
+  Object.keys(dbUpdates).forEach(function(k){if(dbUpdates[k]===null)delete dbUpdates[k];});
+
+  // parkings・inspection_date・complete_dateもSupabaseに保存
+  var parkingsVal=JSON.parse(JSON.stringify(window._editParkings||[]));
+  if(parkingsVal.length)dbUpdates.parkings=parkingsVal;
+  var insDate=getDateVal('pe-inspection_date');
+  var compDate=getDateVal('pe-complete_date');
+  if(insDate)dbUpdates.inspection_date=insDate;
+  if(compDate)dbUpdates.complete_date=compDate;
+  // 実入居発生日（手入力で変更した場合は取込元を「manual」に切替）
+  var moveinVal=getDateVal('pe-movein_date');
+  if(moveinVal){dbUpdates.movein_date=moveinVal;dbUpdates.movein_date_source='manual';}
+  // ★配筋検査・躯体検査・中間検査・断熱検査の日付＋6検査の予約ステータス（中間・完成は関東限定でDOMに無ければ自動的にスキップされる）
+  ['haikin_date','kutai_date','chukan_date','dannetsu_date','kansei_date'].forEach(function(k){
+    var v=getDateVal('pe-'+k); if(v)dbUpdates[k]=v;
+  });
+  ['haikin_status','kutai_status','chukan_status','dannetsu_status','inspection_status','kansei_status'].forEach(function(k){
+    var btn=document.getElementById('pe-'+k+'-btn');
+    if(btn)dbUpdates[k]=btn.getAttribute('data-status')||'before';
+  });
+
+  var localExtra={};  // ローカルフォールバック用（オフライン時）
   var allUpdates=Object.assign({},dbUpdates);
 
   function applyLocally(){
@@ -8321,8 +8125,12 @@ function savePropEdit(){
       }else{
         DB_PROPS.push(Object.assign({fix_no:p.fix_no,name:p.name},allUpdates));
       }
-      try{_savePropsCache(DB_PROPS);}catch(e){}
+      try{localStorage.setItem('jack_props_cache',JSON.stringify(DB_PROPS));}catch(e){}
     }
+    // LocalStorageにもフォールバック保存
+    var ov=loadLS('jack_prop_overrides',{});
+    ov[custKey(p)]=Object.assign(ov[custKey(p)]||{},allUpdates);
+    saveLS('jack_prop_overrides',ov);
   }
 
   if(!sb){
@@ -8489,7 +8297,7 @@ function openSelectProp(){
       return '<div class="select-prop-item" id="'+eid+'" onclick="toggleFavItem(\''+p.fix_no+'\',\''+encodeURIComponent(p.name)+'\',\''+eid+'\')">'
         +'<div class="spi-check'+(checked?' checked':'')+'">'+( checked?'✓':'')+'</div>'
         +'<div style="flex:1;min-width:0">'
-          +'<div class="spi-name" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+_escHtml(p.name)+'</div>'
+          +'<div class="spi-name" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+p.name+'</div>'
           +'<div style="font-size:9px;color:var(--g400);display:flex;gap:6px">'
             +'<span style="color:'+areaColor+';font-weight:700">'+area+'</span>'
             +'<span>FiX:'+p.fix_no+'</span>'
@@ -8571,7 +8379,7 @@ function openSelectProp(){
         var checked=isFav(p);
         var area=normalizeArea(p);
         var areaColor=TOKAI_AREAS.indexOf(area)>=0?'#1a56db':KANTO_AREAS.indexOf(area)>=0?'#10b981':'#94a3b8';
-        return '<div class="select-prop-item" id="'+eid+'" onclick="toggleFavItem(\''+p.fix_no+'\',\''+encodeURIComponent(p.name)+'\',\''+eid+'\')">'          +'<div class="spi-check'+(checked?' checked':'')+'">'+( checked?'✓':'')+'</div>'          +'<div style="flex:1;min-width:0">'            +'<div class="spi-name" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+_escHtml(p.name)+'</div>'            +'<div style="font-size:9px;color:var(--g400);display:flex;gap:6px">'              +'<span style="color:'+areaColor+';font-weight:700">'+area+'</span>'              +'<span>FiX:'+p.fix_no+'</span>'              +(p.delivery_date?'<span>引渡:'+normDate(p.delivery_date)+'</span>':'')            +'</div>'          +'</div>'          +'</div>';
+        return '<div class="select-prop-item" id="'+eid+'" onclick="toggleFavItem(\''+p.fix_no+'\',\''+encodeURIComponent(p.name)+'\',\''+eid+'\')">'          +'<div class="spi-check'+(checked?' checked':'')+'">'+( checked?'✓':'')+'</div>'          +'<div style="flex:1;min-width:0">'            +'<div class="spi-name" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+p.name+'</div>'            +'<div style="font-size:9px;color:var(--g400);display:flex;gap:6px">'              +'<span style="color:'+areaColor+';font-weight:700">'+area+'</span>'              +'<span>FiX:'+p.fix_no+'</span>'              +(p.delivery_date?'<span>引渡:'+normDate(p.delivery_date)+'</span>':'')            +'</div>'          +'</div>'          +'</div>';
       }).join('')||'<div style="padding:16px;text-align:center;color:var(--g400);font-size:12px">該当物件なし</div>';
       var ll=document.getElementById('_spList');
       if(ll)ll.innerHTML=html;
@@ -8705,7 +8513,7 @@ function renderMyPage(){
     if(!p){
       return '<div class="mypage-card" style="opacity:0.5">'
         +'<div class="mypc-top">'
-        +'<div class="mypc-info" style="flex:1"><div class="mypc-name">'+_escHtml(fav.name)+'</div>'
+        +'<div class="mypc-info" style="flex:1"><div class="mypc-name">'+fav.name+'</div>'
         +'<div class="mypc-meta"><span style="font-size:10px;color:#94a3b8">完工・非表示物件</span></div></div>'
         +'<button class="mypc-del" onclick="event.stopPropagation();removeFavCard(\''+fav.fix_no+'\',\''+encodeURIComponent(fav.name)+'\')">✕</button>'
         +'</div></div>';
@@ -8726,8 +8534,8 @@ function renderMyPage(){
     var tag=hasC?'<span style="background:#dbeafe;color:var(--primary);padding:1px 5px;border-radius:4px;font-size:9px;font-weight:700">✏️カスタム</span>':hasMaster?'<span style="background:#dcfce7;color:#16a34a;padding:1px 5px;border-radius:4px;font-size:9px;font-weight:700">📋マスター</span>':'';
     return '<div class="mypage-card" onclick="openDetailFromFav(\''+fav.fix_no+'\',\''+encodeURIComponent(fav.name)+'\')">'
       +'<div class="mypc-top"><div class="mypc-area" style="background:'+ac+'">'+ai+'</div>'
-      +'<div class="mypc-info"><div class="mypc-name">'+_escHtml(p.name)+'</div>'
-      +'<div class="mypc-meta">'+(tantouOf(p)?'<span style="font-size:9px;background:#475569;color:white;padding:1px 5px;border-radius:3px;margin-right:3px">'+_escHtml(tantouOf(p))+'</span>':'')+'<span class="mypc-date">'+(p.delivery_date||'引渡日未定')+'</span>'+tag+'</div></div>'
+      +'<div class="mypc-info"><div class="mypc-name">'+p.name+'</div>'
+      +'<div class="mypc-meta">'+(tantouOf(p)?'<span style="font-size:9px;background:#475569;color:white;padding:1px 5px;border-radius:3px;margin-right:3px">'+tantouOf(p)+'</span>':'')+'<span class="mypc-date">'+(p.delivery_date||'引渡日未定')+'</span>'+tag+'</div></div>'
       +'<div style="display:flex;flex-direction:column;gap:4px;align-items:flex-end;flex-shrink:0">'
       +rs
       +'<button class="mypc-del" onclick="event.stopPropagation();removeFavCard(\''+fav.fix_no+'\',\''+encodeURIComponent(fav.name)+'\')">✕</button>'
@@ -8793,7 +8601,7 @@ function printAllGantt(){
     var labels='';segs.forEach(function(s,ri){labels+='<div style="position:absolute;left:-88px;top:'+(ri*ROW_H+28)+'px;width:86px;height:'+ROW_H+'px;display:flex;align-items:center;justify-content:flex-end;padding-right:3px;font-size:8px;font-weight:700;color:#334155;white-space:nowrap;overflow:hidden">'+(s.label||s.name||'')+'</div>';});
     var days2=daysUntil(p.delivery_date);
     return '<div style="margin-bottom:20px;page-break-inside:avoid">'
-      +'<div style="font-size:11px;font-weight:800;color:#1e293b;margin-bottom:6px;padding-bottom:4px;border-bottom:2px solid #1a56db">FiX '+p.fix_no+' '+_escHtml(p.name)+(days2!==null&&days2>=0?' ─ 残'+days2+'日':'')+(p.delivery_date?' （引渡: '+p.delivery_date+')':'')+'</div>'
+      +'<div style="font-size:11px;font-weight:800;color:#1e293b;margin-bottom:6px;padding-bottom:4px;border-bottom:2px solid #1a56db">FiX '+p.fix_no+' '+p.name+(days2!==null&&days2>=0?' ─ 残'+days2+'日':'')+(p.delivery_date?' （引渡: '+p.delivery_date+')':'')+'</div>'
       +'<div style="overflow:visible;padding-left:90px"><div style="position:relative;width:'+totalW+'px;height:'+totalH+'px;background:white;border:1px solid #e2e8f0;overflow:hidden">'+labels+hdr+days+todayLine+bars+'</div></div></div>';
   }
 
@@ -9297,7 +9105,7 @@ function saveEditorChanges(){
         var fixNo=String(edProp.fix_no||'');
         var tsKey='jack_gantt_ts_'+fixNo;
         var dbp=DB_PROPS&&DB_PROPS.find(function(d){return String(d.fix_no)===fixNo;});
-        if(dbp&&_ganttTsOf(dbp))localStorage.setItem(tsKey,_ganttTsOf(dbp));
+        if(dbp&&dbp.updated_at)localStorage.setItem(tsKey,dbp.updated_at);
       }
       showToast(ok?'✅ 工程表を保存しました（全共有）':'✅ 工程表を保存しました（ローカル）','success');
     });
@@ -9384,12 +9192,12 @@ function resetToBuiltinMasters(){
   //   1回のUPDATEクエリで全物件をまとめてリセットする
   var sbRM=(typeof getSB==='function')?getSB():null;
   if(sbRM){
-    _tsQuery(function(n){return sbRM.from('properties').update(_tsPayload({custom_gantt:null,gantt_is_manual:false,updated_at:new Date().toISOString()},'gantt',n)).not('fix_no','is',null);})
+    sbRM.from('properties').update({custom_gantt:null,gantt_is_manual:false,updated_at:new Date().toISOString()}).not('fix_no','is',null)
       .then(function(r){
         if(r.error){showToast('⚠️ Supabase側のリセットに失敗しました（ローカルは削除済み）','error');return;}
         if(typeof DB_PROPS!=='undefined'&&DB_PROPS){
           DB_PROPS.forEach(function(dp){dp.custom_gantt=null;dp.gantt_is_manual=false;});
-          try{_savePropsCache(DB_PROPS);}catch(e){}
+          try{localStorage.setItem('jack_props_cache',JSON.stringify(DB_PROPS));}catch(e){}
         }
         renderBody();
       }).catch(function(){showToast('⚠️ Supabase側のリセットに失敗しました（ローカルは削除済み）','error');});
@@ -10243,14 +10051,10 @@ function _saveMasterToSupabase(master, cb){
   var sb=getSB(); if(!sb){if(cb)cb(false);return;}
   var payload={name:master.name, steps:JSON.stringify(master.steps), updated_at:new Date().toISOString()};
   // nameで既存レコードを検索してupsert
-  // ★B6修正：.single()は同名の行が複数あるとエラーになり、「無い」と誤判定して新規INSERTし重複が増える原因だった。
-  //   先頭1件だけを取得し、検索自体が失敗した場合は（誤って重複を作らないよう）INSERTせず失敗として返す。
-  sb.from('masters').select('id').eq('name',master.name).order('id',{ascending:true}).limit(1)
+  sb.from('masters').select('id').eq('name',master.name).single()
     .then(function(r){
-      if(r.error)return {error:r.error};
-      var row=r.data&&r.data[0];
-      if(row&&row.id){
-        return sb.from('masters').update(payload).eq('id',row.id);
+      if(r.data&&r.data.id){
+        return sb.from('masters').update(payload).eq('id',r.data.id);
       } else {
         return sb.from('masters').insert(payload);
       }
@@ -10311,71 +10115,27 @@ async function _loadMastersFromDB(forceRefresh){
 }
 window._loadMastersFromDB=_loadMastersFromDB;
 
-async function renameMaster(idx){
+function renameMaster(idx){
   var m=myMasters[idx]; if(!m)return;
-  // ★A6修正：以前は端末のローカルだけを書き換えていたため、DB側の旧名マスターが同期で復活して重複し、
-  //   DBの物件(properties.prop_master)は旧名のまま残って別マスターの工程が表示される恐れがあった。
-  //   サーバー(masters・properties)も同時に更新する。オフライン・非管理者では変更しない。
-  if(!(currentProfile&&currentProfile.role==='admin')){showToast('マスター名の変更は管理者のみ可能です','error');return;}
   var newName=prompt('マスター工程名を変更してください',m.name);
   if(!newName||newName.trim()===m.name)return;
   newName=newName.trim();
   var oldName=m.name;
-  if(newName.indexOf('__')===0){showToast('「__」で始まる名前は使えません','error');return;}
-  if(myMasters.some(function(x){return x.name===newName;})){showToast('同じ名前のマスターが既にあります','error');return;}
-  var sb=getSB();
-  if(!sb){showToast('オフラインのため名前を変更できません（通信回復後に再度お試しください）','error');return;}
-  // エリア自動選択は名前に「東海」「関東」を含むかで判定されるため、外れる場合は確認する
-  var lostArea=['東海','関東'].some(function(k){return oldName.indexOf(k)>=0&&newName.indexOf(k)<0;});
-  if(lostArea&&!confirm('名前から「東海」または「関東」が外れます。\nエリアによる自動選択（紐付け未設定の物件）に使われなくなる可能性があります。\n\nこのまま変更しますか？'))return;
-  var nowIso=new Date().toISOString();
-  var dbRenamed=false;
-  try{
-    // ①mastersテーブルの名前を変更（DBに未保存のマスターなら対象0件でも可）
-    var r1=await sb.from('masters').update({name:newName,updated_at:nowIso}).eq('name',oldName).select('id');
-    if(r1.error){showToast('名前の変更に失敗しました: '+r1.error.message,'error');return;}
-    dbRenamed=!!(r1.data&&r1.data.length);
-    // ②旧名を参照している物件のprop_masterを一括で新名へ（updated_atは触らない＝他端末の大量再取得を起こさない）
-    var r2=await sb.from('properties').update({prop_master:newName}).eq('prop_master',oldName).select('fix_no');
-    if(r2.error){
-      if(dbRenamed){try{await sb.from('masters').update({name:oldName}).eq('name',newName);}catch(e){}}
-      showToast('物件の紐付け更新に失敗したため、名前は変更していません: '+r2.error.message,'error');
-      return;
-    }
-  }catch(e){
-    showToast('名前の変更中にエラーが発生しました: '+(e&&e.message),'error');
-    return;
-  }
-  // ③ローカル（マスター一覧・紐付け・物件データ・キャッシュ）を更新
   myMasters[idx].name=newName;
+  // propMasterの紐付けも更新
   Object.keys(propMaster).forEach(function(ck){
     if(propMaster[ck]===oldName)propMaster[ck]=newName;
   });
-  if(typeof DB_PROPS!=='undefined'&&DB_PROPS){
-    DB_PROPS.forEach(function(dp){if(dp.prop_master===oldName)dp.prop_master=newName;});
-    try{_savePropsCache(DB_PROPS);}catch(e){}
-  }
   saveLS('jack_my_masters',myMasters);
   saveLS('jack_prop_master',propMaster);
   renderMasterPanel();
   renderBody();renderMyPage();
-  showToast('「'+oldName+'」→「'+newName+'」に変更しました（物件の紐付けも更新）','success');
+  showToast('「'+oldName+'」→「'+newName+'」に変更しました','success');
 }
 window.renameMaster=renameMaster;
 
 function deleteMaster(idx){
   var m=myMasters[idx]; if(!m)return;
-  if(!(currentProfile&&currentProfile.role==='admin')){showToast('マスターの削除は管理者のみ可能です','error');return;}
-  // ★A6修正：物件が紐付いたままマスターを消すと、物件のprop_masterが存在しない名前を指して
-  //   別のマスター(先頭)の工程へ静かに切り替わるため、使用中のマスターは削除させない。
-  var usedNames={};
-  if(typeof DB_PROPS!=='undefined'&&DB_PROPS){DB_PROPS.forEach(function(dp){if(dp.prop_master===m.name)usedNames[String(dp.fix_no)+'__'+(dp.name||'')]=1;});}
-  Object.keys(propMaster).forEach(function(ck){if(propMaster[ck]===m.name)usedNames[ck]=1;});
-  var usedCount=Object.keys(usedNames).length;
-  if(usedCount>0){
-    alert('「'+m.name+'」は '+usedCount+' 件の物件に紐付いているため削除できません。\n\n管理者CPのマスター工程の集計から「統合」で別のマスターへ付け替えてから削除してください。');
-    return;
-  }
   if(!confirm(m.name+'を削除しますか？'))return;
   var deletedName=m.name;
   myMasters.splice(idx,1);
@@ -10383,9 +10143,7 @@ function deleteMaster(idx){
   renderMasterPanel();
   showToast('削除しました','');
   // ★Supabase側のmastersテーブルからも削除（残したままだと次回同期で復活してしまう）
-  _deleteMasterFromSupabase(deletedName,function(ok){
-    if(!ok)showToast('⚠️ サーバー側の削除に失敗しました（次回の同期で復活する場合があります）','error');
-  });
+  _deleteMasterFromSupabase(deletedName,function(){});
 }
 
 function assignMasterToProps(mi){
@@ -10416,7 +10174,7 @@ function assignMasterToProps(mi){
     radio.textContent=active?'✓':'';
     var info=document.createElement('div');
     info.style.cssText='flex:1;min-width:0';
-    info.innerHTML='<div style="font-size:12px;font-weight:700;color:var(--g800);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+_escHtml(p.name)+'</div>'
+    info.innerHTML='<div style="font-size:12px;font-weight:700;color:var(--g800);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+p.name+'</div>'
       +'<div style="font-size:10px;color:var(--g400);margin-top:1px">'+p.area+'　FiX No.'+p.fix_no+(otherMaster?'　<span style="color:var(--warn);font-weight:700">⚠ 別マスター: '+otherMaster+'</span>':'')+'</div>';
     row.appendChild(radio);row.appendChild(info);
     if(active){var tag=document.createElement('span');tag.textContent='適用中';tag.style.cssText='font-size:9px;background:var(--primary-l);color:var(--primary);padding:2px 7px;border-radius:4px;font-weight:700';row.appendChild(tag);}
@@ -10433,7 +10191,7 @@ function assignMasterToProps(mi){
     nonMy.forEach(function(p){
       var row=document.createElement('div');
       row.style.cssText='padding:8px 14px;border-bottom:1px solid #dcfce7;display:flex;align-items:center;gap:8px;background:#f0fdf4';
-      row.innerHTML='<span style="font-size:11px;font-weight:600;color:var(--g700);flex:1">'+_escHtml(p.name)+'</span><span style="font-size:10px;color:var(--g400)">'+p.area+'</span>';
+      row.innerHTML='<span style="font-size:11px;font-weight:600;color:var(--g700);flex:1">'+p.name+'</span><span style="font-size:10px;color:var(--g400)">'+p.area+'</span>';
       var unBtn=document.createElement('button');
       unBtn.textContent='解除';unBtn.style.cssText='font-size:10px;background:#fee2e2;color:var(--danger);padding:2px 8px;border-radius:4px;font-weight:700;border:none;cursor:pointer';
       (function(pp,mn,mii){unBtn.addEventListener('click',function(){togglePropMaster(pp.fix_no,encodeURIComponent(pp.name),encodeURIComponent(mn));setTimeout(function(){assignMasterToProps(mii);},150);});})(p,m.name,mi);
@@ -10462,7 +10220,11 @@ function showPropQR(){
   if(!currentProp)return;
   var p=currentProp;
   // 現場住所またはGoogle Maps URLをQR化
-  var addr=p.address||'';if(typeof addr==='object')addr=addr.address||'';addr=String(addr).trim();
+  var ov=loadLS('jack_prop_overrides',{});
+  var ck=custKey(p);
+  var addr='';
+  if(ov[ck]&&ov[ck].address)addr=String(ov[ck].address).trim();
+  if(!addr){addr=p.address||'';if(typeof addr==='object')addr=addr.address||'';addr=String(addr).trim();}
   var label=p.name||'物件';
   var qrContent=addr
     ?'https://maps.google.com/maps?q='+encodeURIComponent(addr)
@@ -10869,44 +10631,6 @@ function jsonpFetch(url, cbPrefix, onSuccess, onError){
 
 // ========== プロパティキャッシュ ==========
 var PROPS_CACHE_KEY='jack_props_cache';
-// ★2026/10/18 B10：更新確認を項目別に分離する。
-//   これまで他端末の変更検知は properties.updated_at 1本に集約されていたため、検査日1件・担当者1件の更新でも
-//   全員の端末が「その物件の工程表と納品書」を再取得していた（通信量の増加要因）。
-//   工程表(custom_gantt/confirmed_until)の更新は gantt_updated_at、納品書(delivery_note)の更新は dn_updated_at で検知する。
-//   ※DBに2列がまだ無い場合（SQL未実行）は、列エラーを検知して自動的に従来のupdated_at方式へ戻る（_tsColsOk=false）。
-var _tsColsOk=null; // null=未確認 / true=新列あり / false=新列なし（従来方式）
-function _ganttTsOf(row){return (row&&(row.gantt_updated_at||row.updated_at))||'';}
-function _dnTsOf(row){return (row&&(row.dn_updated_at||row.updated_at))||'';}
-function _isTsColErr(r){return !!(r&&r.error&&/gantt_updated_at|dn_updated_at/.test(String(r.error.message||'')+' '+String(r.error.details||'')));}
-async function _tsQuery(make){
-  var useNew=(_tsColsOk!==false);
-  var r=await make(useNew);
-  if(useNew){
-    if(_isTsColErr(r)){_tsColsOk=false;r=await make(false);}
-    else if(r&&!r.error){_tsColsOk=true;}
-  }
-  return r;
-}
-function _tsPayload(payload,kind,useNew){
-  if(!useNew)return payload;
-  var c=Object.assign({},payload);c[kind+'_updated_at']=payload.updated_at;return c;
-}
-// ★2026/10/18 B9修正：物件の「軽量カラム」一覧を1か所に定義（custom_gantt等の重い列を含まない）。
-//   管理者CP・検査取りまとめ・Excel取込後の再取得などが select('*') で重い列まで毎回取得していたため、通信量の増加要因になっていた。
-var PROPS_LIGHT_COLS='id,fix_no,seq_no,name,area,status,hand_kumi,tantou,delivery_date,delivery_month,land_contract,land_payment,confirm_submit,confirm_done,inspection_date,complete_date,haikin_date,haikin_status,kutai_date,kutai_status,chukan_date,chukan_status,dannetsu_date,dannetsu_status,inspection_status,kansei_date,kansei_status,confirmed_until,shinsa_kikan,address,parkings,prop_master,gantt_is_manual,movein_date,movein_date_source,updated_at';
-// ★2026/10/18 B5修正：物件キャッシュ(jack_props_cache)に、重い工程データ(custom_gantt)が混入して容量を二重に使っていた。
-//   工程データは別キャッシュ(jack_custom_gantt)に保存されているため、物件キャッシュへ書くときだけ除外する
-//   （メモリ上のDB_PROPSはそのまま。キャッシュからの起動後に工程が必要になった場合は、既存の仕組みで必要な物件だけ再取得される）。
-function _savePropsCache(arr){
-  try{
-    var slim=(arr||[]).map(function(d){
-      if(!d||d.custom_gantt===undefined)return d;
-      var c=Object.assign({},d);delete c.custom_gantt;return c;
-    });
-    localStorage.setItem('jack_props_cache',JSON.stringify(slim));
-    return true;
-  }catch(e){return false;}
-}
 var PROPS_CACHE_TS_KEY='jack_props_cache_ts';
 // ★2026/10/8追加：メモリ上のDB_PROPSだけ更新してlocalStorageのキャッシュを更新し忘れると、再起動で古い値に戻る。
 //   物件1件の特定項目だけをキャッシュに反映する（custom_ganttなど重い列はキャッシュに入れない）
@@ -10935,8 +10659,6 @@ async function loadPropertiesFromCacheOrDB(forceRefresh){
         var cacheHasMovein=parsed&&parsed.length>0&&parsed[0]&&Object.prototype.hasOwnProperty.call(parsed[0],'movein_date');
         if(parsed&&parsed.length>0&&cacheHasId&&cacheHasMovein){
           DB_PROPS=parsed;
-          // ★B5：過去に混入した工程データ入りの巨大キャッシュを、一度だけスリム化して保存し直す
-          try{if(parsed.some(function(d){return d&&d.custom_gantt;}))_savePropsCache(parsed);}catch(e){}
           _loadSharedGanttFromDB();
           if(typeof renderAll==='function')renderAll();
           setMode(isPcMode);
@@ -10953,7 +10675,7 @@ async function loadPropertiesFromCacheOrDB(forceRefresh){
   //   実際には存在しない列だったため大量の書き込みエラーが発生した。properties テーブルに
   //   master_segs列は存在しない（埋め込み静的データ内にのみ存在するフィールド）。このSELECTからは除外し、
   //   代わりにland_payment/confirm_done等のマージ（getAllProps側）だけで正しく直る設計に一本化する。
-  var pr=await sb.from('properties').select(PROPS_LIGHT_COLS).order('fix_no');
+  var pr=await sb.from('properties').select('id,fix_no,seq_no,name,area,status,hand_kumi,tantou,delivery_date,delivery_month,land_contract,land_payment,confirm_submit,confirm_done,inspection_date,complete_date,haikin_date,haikin_status,kutai_date,kutai_status,chukan_date,chukan_status,dannetsu_date,dannetsu_status,inspection_status,kansei_date,kansei_status,confirmed_until,shinsa_kikan,address,parkings,prop_master,gantt_is_manual,movein_date,movein_date_source,updated_at').order('fix_no');
   if(!pr.error&&pr.data&&pr.data.length>0){
     DB_PROPS=pr.data;
     // ★新機能【最終更新バッジ】：以前は「前回キャッシュとの差分」で判定していたが、DB側の何らかの
@@ -10971,7 +10693,7 @@ async function loadPropertiesFromCacheOrDB(forceRefresh){
       saveLS('jack_recent_updates',todayMap);
     }catch(e){}
     try{
-      _savePropsCache(pr.data);
+      localStorage.setItem(PROPS_CACHE_KEY, JSON.stringify(pr.data));
       var now=new Date();
       var ts=(now.getMonth()+1)+'/'+now.getDate()+' '+now.getHours()+':'+('0'+now.getMinutes()).slice(-2);
       localStorage.setItem(PROPS_CACHE_TS_KEY, ts);
@@ -10985,7 +10707,6 @@ async function loadPropertiesFromCacheOrDB(forceRefresh){
     if(typeof _loadImportMetaFromDB==='function')_loadImportMetaFromDB();
     if(typeof renderAll==='function')renderAll();
     setMode(isPcMode);
-    if(typeof _refreshKensaAfterSync==='function')_refreshKensaAfterSync(); // ★B8：開いている検査取りまとめも最新化
   }
 }
 window.loadPropertiesFromCacheOrDB=loadPropertiesFromCacheOrDB;
@@ -11002,10 +10723,10 @@ async function _loadCustomGanttIfNeeded(p){
   var needFetch=false;
   if(sb&&fixNo){
     try{
-      var tsRes=await _tsQuery(function(n){return sb.from('properties').select(n?'updated_at,gantt_updated_at':'updated_at').eq('fix_no',fixNo).limit(1);});
+      var tsRes=await sb.from('properties').select('updated_at').eq('fix_no',fixNo).limit(1);
       var tsRow=tsRes.data&&tsRes.data[0];
       if(!tsRes.error&&tsRow){
-        var remoteTs=_ganttTsOf(tsRow);
+        var remoteTs=tsRow.updated_at||'';
         if(remoteTs&&remoteTs!==localTs)needFetch=true; // 更新あり → 再取得
       }
     }catch(e){}
@@ -11025,10 +10746,10 @@ async function _loadCustomGanttIfNeeded(p){
     // ★2026/9/10拡張：custom_ganttと同じタイムスタンプチェックの仕組みで、confirmed_until
     //   （仮工程／確定工程の区切り）もあわせて最新化する。これにより「同期」ボタンを押さなくても、
     //   物件詳細を開くたびに他ユーザーが設定した確定区切りが自動的に反映されるようになる。
-    var r0=await _tsQuery(function(n){return sb.from('properties').select(n?'fix_no,custom_gantt,confirmed_until,updated_at,gantt_updated_at':'fix_no,custom_gantt,confirmed_until,updated_at').eq('fix_no',fixNo).limit(1);});
+    var r0=await sb.from('properties').select('fix_no,custom_gantt,confirmed_until,updated_at').eq('fix_no',fixNo).limit(1);
     var r={error:r0.error,data:r0.data&&r0.data[0]};
     if(!r.error&&r.data){
-      if(_ganttTsOf(r.data))localStorage.setItem(tsKey,_ganttTsOf(r.data));
+      if(r.data.updated_at)localStorage.setItem(tsKey,r.data.updated_at);
       if(Object.prototype.hasOwnProperty.call(r.data,'confirmed_until')){
         p.confirmed_until=r.data.confirmed_until||null;
         if(DB_PROPS){
@@ -11104,14 +10825,14 @@ async function _batchCheckGanttUpdates(props){
   props.forEach(function(p){byFixNo[String(p.fix_no||'')]=p;});
   try{
     // ①タイムスタンプだけを1回のバッチクエリで確認
-    var tsRes=await _tsQuery(function(n){return sb.from('properties').select(n?'fix_no,updated_at,gantt_updated_at':'fix_no,updated_at').in('fix_no',fixNos);});
+    var tsRes=await sb.from('properties').select('fix_no,updated_at').in('fix_no',fixNos);
     if(tsRes.error||!tsRes.data)return;
     var needFixNos=[];
     tsRes.data.forEach(function(row){
       var fixNo=String(row.fix_no||'');
       var tsKey='jack_gantt_ts_'+fixNo;
       var localTs=localStorage.getItem(tsKey)||'';
-      var remoteTs=_ganttTsOf(row);
+      var remoteTs=row.updated_at||'';
       var ck=fixNo+'__'+((byFixNo[fixNo]||{}).name||'');
       // ★2026/10/8追加【再起動で戻る不具合の本対策】：TSが一致していても、手動工程フラグ(gantt_is_manual)があるのに
       //   端末側に工程データが無い場合（保存失敗・消失）は再取得する。TSだけで「取得済み」とみなさない。
@@ -11122,7 +10843,7 @@ async function _batchCheckGanttUpdates(props){
     });
     if(!needFixNos.length)return; // 全物件、変更なし → ここで終了（追加通信ゼロ）
     // ②更新があった物件だけ、まとめて本体データを取得
-    var r0=await _tsQuery(function(n){return sb.from('properties').select(n?'fix_no,custom_gantt,confirmed_until,updated_at,gantt_updated_at':'fix_no,custom_gantt,confirmed_until,updated_at').in('fix_no',needFixNos);});
+    var r0=await sb.from('properties').select('fix_no,custom_gantt,confirmed_until,updated_at').in('fix_no',needFixNos);
     if(r0.error||!r0.data)return;
     var anyChanged=false;
     r0.data.forEach(function(rd){
@@ -11142,7 +10863,7 @@ function _applyGanttFetchResult(p,r){
   var ck=String(p.fix_no||'')+'__'+(p.name||'');
   var fixNo=String(p.fix_no||'');
   var changed=false;
-  var _tsToStore=_ganttTsOf(r);
+  var _tsToStore=r.updated_at||'';
   if(Object.prototype.hasOwnProperty.call(r,'confirmed_until')){
     p.confirmed_until=r.confirmed_until||null;
     if(DB_PROPS){
@@ -12929,14 +12650,14 @@ function _saveGanttToSupabase(p,segsData,cb){
   // ★大工程表の黄色/白の色分け用に、軽量な真偽値カラムにも同じ状態を保存する
   //   （custom_ganttは重いため一覧取得時は除外しているが、この列だけは一覧取得時にも一緒に取る）
   payload.gantt_is_manual=!!saveData;
-  _tsQuery(function(n){return sb.from('properties').update(_tsPayload(payload,'gantt',n)).eq('fix_no',String(p.fix_no));})
+  sb.from('properties').update(payload).eq('fix_no',String(p.fix_no))
     .then(function(r){
       if(!r.error&&DB_PROPS){
         // ローカルDB_PROPSキャッシュも更新
         var idx=DB_PROPS.findIndex(function(dp){return String(dp.fix_no)===String(p.fix_no);});
         if(idx>=0){DB_PROPS[idx].custom_gantt=payload.custom_gantt;DB_PROPS[idx].gantt_is_manual=payload.gantt_is_manual;}
         // LocalStorageキャッシュも更新
-        try{_savePropsCache(DB_PROPS);}catch(e){}
+        try{localStorage.setItem('jack_props_cache',JSON.stringify(DB_PROPS));}catch(e){}
         if(typeof renderBody==='function')renderBody(); // ★一覧の色分けを即座に反映
       }
       if(cb)cb(!r.error);
@@ -12951,7 +12672,7 @@ function _saveMasterLinkToSupabase(p,masterName,cb){
         var idx=DB_PROPS.findIndex(function(dp){return String(dp.fix_no)===String(p.fix_no);});
         if(idx>=0)DB_PROPS[idx].prop_master=masterName||null;
         // LocalStorageキャッシュも更新
-        try{_savePropsCache(DB_PROPS);}catch(e){}
+        try{localStorage.setItem('jack_props_cache',JSON.stringify(DB_PROPS));}catch(e){}
       }
       if(cb)cb(!r.error);
     }).catch(function(){if(cb)cb(false);});
@@ -12959,7 +12680,8 @@ function _saveMasterLinkToSupabase(p,masterName,cb){
 // ログイン時: DBのcustom_gantt/prop_masterをローカルに展開（全ユーザー向け）
 function _loadSharedGanttFromDB(){
   if(!DB_PROPS||!DB_PROPS.length)return;
-  var cgChanged=false, pmChanged=false;
+  var cgChanged=false, pmChanged=false, ovChanged=false;
+  var ov=loadLS('jack_prop_overrides',{});
   DB_PROPS.forEach(function(dbp){
     var ck=String(dbp.fix_no||'')+'__'+(dbp.name||'');
     // custom_gantt
@@ -12978,9 +12700,17 @@ function _loadSharedGanttFromDB(){
     if(dbp.prop_master){
       propMaster[ck]=dbp.prop_master;pmChanged=true;
     }
+    // address（DBに住所があればprop_overridesに展開）
+    if(dbp.address){
+      if(!ov[ck])ov[ck]={};
+      if(!ov[ck].address){  // ローカルに既に設定がある場合はローカル優先
+        ov[ck].address=dbp.address;ovChanged=true;
+      }
+    }
   });
   if(cgChanged)saveLS('jack_custom_gantt',customGantt);
   if(pmChanged)saveLS('jack_prop_master',propMaster);
+  if(ovChanged)saveLS('jack_prop_overrides',ov);
 }
 
 async function onAuthSuccess(isNewLogin){
@@ -13175,8 +12905,8 @@ function announceCard(a){
   var recurTag=a.recurring?'<span style="font-size:9px;background:#dbeafe;color:#1d4ed8;padding:2px 6px;border-radius:4px;font-weight:700;margin-left:6px">🔁 定期</span>':'';
   return '<div style="background:#f8fafc;border:1.5px solid #e2e8f0;border-radius:10px;padding:12px 14px;margin-bottom:10px">'
     +'<div style="font-size:10px;color:#94a3b8;margin-bottom:4px">'+dateStr+recurTag+'</div>'
-    +'<div style="font-size:13px;font-weight:800;color:#1e293b;margin-bottom:6px">'+_escHtml(a.title||'')+'</div>'
-    +'<div style="font-size:12px;color:#475569;line-height:1.7;white-space:pre-wrap">'+_escHtml(a.body||'')+'</div>'
+    +'<div style="font-size:13px;font-weight:800;color:#1e293b;margin-bottom:6px">'+(a.title||'')+'</div>'
+    +'<div style="font-size:12px;color:#475569;line-height:1.7;white-space:pre-wrap">'+(a.body||'')+'</div>'
   +'</div>';
 }
 
@@ -13407,12 +13137,20 @@ function openJackMap(area){
   else{allAreas=Object.keys(areaGroups);}
 
   function getAddr(p){
-    // DB_PROPS / p.address（DB最新値）
+    // prop_overrides(LocalStorage)を優先
+    var ov=loadLS('jack_prop_overrides',{});
+    var ck=custKey(p);
+    if(ov[ck]&&ov[ck].address)return String(ov[ck].address).trim();
+    // DB_PROPS / p.address
     var a=p.address||'';
     if(typeof a==='object')a=a.address||'';
     return String(a).trim();
   }
   function getParkings(p){
+    // prop_overrides(LocalStorage)を優先
+    var ov=loadLS('jack_prop_overrides',{});
+    var ck=custKey(p);
+    if(ov[ck]&&ov[ck].parkings&&ov[ck].parkings.length)return ov[ck].parkings;
     return p.parkings||[];
   }
 
@@ -13576,13 +13314,21 @@ window.openNavigation=openNavigation;
 
 function showMapTab(type){
   if(!_mapProp)return;
-  // 住所取得（DB/DATAの最新値）
-  var addr=_mapProp.address||'';
-  if(typeof addr==='object')addr=addr.address||'';
-  addr=String(addr).trim();
+  var ov=loadLS('jack_prop_overrides',{});
+  var ck=custKey(_mapProp);
+  // 住所取得（prop_overrides優先 → DB/DATA）
+  var addr='';
+  if(ov[ck]&&ov[ck].address)addr=String(ov[ck].address).trim();
+  if(!addr){
+    addr=_mapProp.address||'';
+    if(typeof addr==='object')addr=addr.address||'';
+    addr=String(addr).trim();
+  }
   if(!addr)return;
 
-  var pks=(_mapProp.parkings&&_mapProp.parkings.length)?_mapProp.parkings:[];
+  var pks=[];
+  if(ov[ck]&&ov[ck].parkings&&ov[ck].parkings.length)pks=ov[ck].parkings;
+  else if(_mapProp.parkings&&_mapProp.parkings.length)pks=_mapProp.parkings;
 
   document.querySelectorAll('.map-tab-btn').forEach(function(b){b.classList.remove('active');});
   var btn=document.getElementById('mapTabBtn_'+type);
@@ -13688,7 +13434,9 @@ window.showMapTab=showMapTab;
 // 駐車場リストからの個別マップ表示
 window.showParkMap=function(idx){
   if(!_mapProp)return;
-  var pks=_mapProp.parkings||[];
+  var ov=loadLS('jack_prop_overrides',{});
+  var ck=custKey(_mapProp);
+  var pks=(ov[ck]&&ov[ck].parkings&&ov[ck].parkings.length)?ov[ck].parkings:(_mapProp.parkings||[]);
   var pk=pks[idx]; if(!pk)return;
   var addr=pk.address||'';
   if(!addr){showToast('この駐車場は住所が未登録です','error');return;}
@@ -14003,7 +13751,7 @@ function renderCalendar(){
       var _c0=_clog[0];
       var _tStr=_c0.time?_c0.time.slice(0,16).replace('T',' '):'';
       var _propShort=(_c0.prop||'').replace(/^(Jack|Walter)\s*/i,'');
-      lastChangeHtml='<div style="font-size:9px;color:#94a3b8;padding:3px 12px;background:#f8fafc;border-bottom:1px solid #e2e8f0;flex-shrink:0">🔄 最終更新：'+_tStr+'　'+_escHtml(_propShort)+'（'+_escHtml(_c0.title||'')+'）</div>';
+      lastChangeHtml='<div style="font-size:9px;color:#94a3b8;padding:3px 12px;background:#f8fafc;border-bottom:1px solid #e2e8f0;flex-shrink:0">🔄 最終更新：'+_tStr+'　'+_propShort+'（'+(_c0.title||'')+'）</div>';
     }
   }catch(e){}
 
@@ -14294,8 +14042,8 @@ function admAnnounceCard(a){
       +'<div style="font-size:10px;color:#94a3b8">'+dateStr+'</div>'
       +'<div>'+activeBadge+recurBadge+'</div>'
     +'</div>'
-    +'<div style="font-size:13px;font-weight:800;color:#1e293b;margin-bottom:6px">'+_escHtml(a.title||'')+'</div>'
-    +'<div style="font-size:12px;color:#475569;line-height:1.6;white-space:pre-wrap;margin-bottom:10px">'+_escHtml(a.body||'')+'</div>'
+    +'<div style="font-size:13px;font-weight:800;color:#1e293b;margin-bottom:6px">'+(a.title||'')+'</div>'
+    +'<div style="font-size:12px;color:#475569;line-height:1.6;white-space:pre-wrap;margin-bottom:10px">'+(a.body||'')+'</div>'
     +'<div style="display:flex;gap:6px">'
       +'<button onclick="admEditAnnouncement('+a.id+')" style="flex:1;background:#eff6ff;color:#1a56db;border:1.5px solid #bfdbfe;padding:7px;border-radius:7px;font-size:11px;font-weight:700;cursor:pointer">✏️ 編集</button>'
       +'<button onclick="admToggleAnnouncement('+a.id+','+(!a.active)+')" style="flex:1;background:#fff7ed;color:#d97706;border:1.5px solid #fed7aa;padding:7px;border-radius:7px;font-size:11px;font-weight:700;cursor:pointer">'+(a.active?(a.recurring?'⏸️ 定期配信を解除':'🙈 非公開にする'):(a.recurring?'▶️ 定期配信を再開':'👁️ 公開する'))+'</button>'
@@ -14331,9 +14079,9 @@ function admAnnouncementForm(existing){
     +'</div>'
     +'<div style="padding:18px">'
       +'<label style="font-size:11px;font-weight:700;color:#64748b;display:block;margin-bottom:5px">タイトル</label>'
-      +'<input id="annTitleInput" type="text" value="'+_escHtml((existing&&existing.title)||'')+'" placeholder="例：システムメンテナンスのお知らせ" style="width:100%;padding:9px 11px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:13px;margin-bottom:14px;box-sizing:border-box">'
+      +'<input id="annTitleInput" type="text" value="'+((existing&&existing.title)||'').replace(/"/g,'&quot;')+'" placeholder="例：システムメンテナンスのお知らせ" style="width:100%;padding:9px 11px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:13px;margin-bottom:14px;box-sizing:border-box">'
       +'<label style="font-size:11px;font-weight:700;color:#64748b;display:block;margin-bottom:5px">本文</label>'
-      +'<textarea id="annBodyInput" rows="6" placeholder="お知らせの内容を入力してください" style="width:100%;padding:9px 11px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:13px;box-sizing:border-box;resize:vertical;font-family:inherit;margin-bottom:14px">'+_escHtml((existing&&existing.body)||'')+'</textarea>'
+      +'<textarea id="annBodyInput" rows="6" placeholder="お知らせの内容を入力してください" style="width:100%;padding:9px 11px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:13px;box-sizing:border-box;resize:vertical;font-family:inherit;margin-bottom:14px">'+((existing&&existing.body)||'')+'</textarea>'
       +'<div style="background:#f0fdf4;border:1.5px solid #bbf7d0;border-radius:10px;padding:12px">'
         +'<label style="display:flex;align-items:center;gap:8px;cursor:pointer;margin-bottom:'+(isRecur?'10px':'0')+'">'
           +'<input type="checkbox" id="annRecurCheck" '+(isRecur?'checked':'')+' onchange="document.getElementById(\'annRecurFields\').style.display=this.checked?\'flex\':\'none\'" style="width:16px;height:16px">'
@@ -14439,9 +14187,9 @@ async function loadAdmSec(sec){
       props=DB_PROPS;
     } else {
       var sb2=getSB();
-      var pr=await sb2.from('properties').select(PROPS_LIGHT_COLS).order('fix_no',{ascending:true});
+      var pr=await sb2.from('properties').select('*').order('fix_no',{ascending:true});
       props=pr.data||[];
-      if(props.length>0){DB_PROPS=props;try{_savePropsCache(props);}catch(e){}}
+      if(props.length>0){DB_PROPS=props;try{localStorage.setItem('jack_props_cache',JSON.stringify(props));}catch(e){}}
     }
 
     right.innerHTML='<div style="display:flex;flex-direction:column;height:100%">'
@@ -14486,9 +14234,9 @@ async function loadAdmSec(sec){
       props=DB_PROPS;
     } else {
       var sb3=getSB();
-      var pr3=await sb3.from('properties').select(PROPS_LIGHT_COLS).order('fix_no',{ascending:true});
+      var pr3=await sb3.from('properties').select('*').order('fix_no',{ascending:true});
       props=pr3.data||[];
-      if(props.length>0){DB_PROPS=props;try{_savePropsCache(props);}catch(e){}}
+      if(props.length>0){DB_PROPS=props;try{localStorage.setItem('jack_props_cache',JSON.stringify(props));}catch(e){}}
     }
     window._admKensaAll=props;
     // 担当者フィルターの選択肢（実在する担当者名から生成）
@@ -14505,7 +14253,7 @@ async function loadAdmSec(sec){
     var sbd=getSB();
     var prd=null, prdErrMsg='';
     try{
-      prd=await sbd.from('properties').select(PROPS_LIGHT_COLS+',delivery_note').order('fix_no',{ascending:true});
+      prd=await sbd.from('properties').select('*').order('fix_no',{ascending:true});
       if(prd&&prd.error)prdErrMsg=(prd.error.message||JSON.stringify(prd.error));
     }catch(e){prdErrMsg=e.message||String(e);}
     // ★完工済み（引渡日が今日以前）の物件は納品書管理の対象外にする（2026/8/8）
@@ -14715,8 +14463,8 @@ function admUserCard(u,approved){
       +'<div style="font-size:11px;color:#94a3b8">'+(u.email||'')+'</div>'
       // ★一覧（カード）上で直接編集できるように、会社名・電話番号・ロールをinput/select化（2026/10追加・モーダルを開かなくても直せる）
       +'<div style="display:flex;gap:4px;align-items:center;margin-top:2px;flex-wrap:wrap">'
-        +'<input type="text" value="'+_escHtml(u.company||'')+'" placeholder="会社名未登録" data-pid="'+u.id+'" onchange="admSaveProfileField(this,\'company\')" style="font-size:10px;padding:2px 6px;border:1.5px solid '+(u.company?'#e2e8f0':'#fca5a5')+';border-radius:5px;width:120px">'
-        +'<input type="text" value="'+_escHtml(u.phone||'')+'" placeholder="電話番号" data-pid="'+u.id+'" onchange="admSaveProfileField(this,\'phone\')" style="font-size:10px;padding:2px 6px;border:1.5px solid #e2e8f0;border-radius:5px;width:100px">'
+        +'<input type="text" value="'+(u.company||'')+'" placeholder="会社名未登録" data-pid="'+u.id+'" onchange="admSaveProfileField(this,\'company\')" style="font-size:10px;padding:2px 6px;border:1.5px solid '+(u.company?'#e2e8f0':'#fca5a5')+';border-radius:5px;width:120px">'
+        +'<input type="text" value="'+(u.phone||'')+'" placeholder="電話番号" data-pid="'+u.id+'" onchange="admSaveProfileField(this,\'phone\')" style="font-size:10px;padding:2px 6px;border:1.5px solid #e2e8f0;border-radius:5px;width:100px">'
         +'<select data-pid="'+u.id+'" onchange="admSaveUserRole(this)" style="font-size:10px;padding:2px 6px;border:1.5px solid #e2e8f0;border-radius:5px">'
           +'<option value="worker"'+(u.role!=='admin'&&u.role!=='inspector'?' selected':'')+'>協力業者</option>'
           +'<option value="inspector"'+(u.role==='inspector'?' selected':'')+'>検査機関</option>'
@@ -14933,7 +14681,7 @@ async function openUserMasterEditModal(u){
     +'<div style="overflow-y:auto;flex:1;padding:16px 20px">'
     +'<div style="font-size:11px;color:#94a3b8;margin-bottom:10px">'+(u.name||'')+'　'+(u.email||'')+'</div>'
     +'<div><label style="font-size:10px;color:#64748b;display:block;margin-bottom:3px">会社名</label>'
-    +'<input id="umk-company" type="text" value="'+_escHtml(u.company||'')+'" placeholder="例：株式会社〇〇" style="'+iStyle+'"></div>'
+    +'<input id="umk-company" type="text" value="'+(u.company||'')+'" placeholder="例：株式会社〇〇" style="'+iStyle+'"></div>'
     +'<div id="'+pickerId+'-amkroot"></div>'
     +'</div>'
     +'<div style="padding:12px 20px;border-top:1px solid #e2e8f0;flex-shrink:0;background:white;border-radius:0 0 14px 14px">'
@@ -15365,9 +15113,9 @@ async function openKensaViewer(){
   if(typeof DB_PROPS!=='undefined'&&DB_PROPS&&DB_PROPS.length>0){
     kprops=DB_PROPS;
   } else if(sb){
-    var prk=await sb.from('properties').select(PROPS_LIGHT_COLS).order('fix_no',{ascending:true});
+    var prk=await sb.from('properties').select('*').order('fix_no',{ascending:true});
     kprops=prk.data||[];
-    if(kprops.length>0){DB_PROPS=kprops;try{_savePropsCache(kprops);}catch(e){}}
+    if(kprops.length>0){DB_PROPS=kprops;try{localStorage.setItem('jack_props_cache',JSON.stringify(kprops));}catch(e){}}
   }
   // 自分の審査機関の物件のみ（審査機関未設定のアカウントは何も表示しない）
   window._admKensaAll=myShinsa?kprops.filter(function(p){return p.shinsa_kikan===myShinsa;}):[];
@@ -15379,23 +15127,6 @@ async function openKensaViewer(){
   admRenderKensaTable();
 }
 window.openKensaViewer=openKensaViewer;
-
-// ★2026/10/18 B8修正：同期（DB_PROPSの置き換え）後も、開いている検査取りまとめが古い物件配列のまま残っていた。
-//   同期後に呼び出して、表示用の配列を最新のDB_PROPSから作り直して再描画する（通信は発生しない）。
-function _refreshKensaAfterSync(){
-  try{
-    if(!document.getElementById('admKensaTableWrap'))return; // 検査取りまとめを一度も開いていなければ何もしない
-    if(typeof DB_PROPS==='undefined'||!DB_PROPS||!DB_PROPS.length)return;
-    if(currentProfile&&currentProfile.role==='inspector'){
-      var my=currentProfile.shinsa_kikan||'';
-      window._admKensaAll=my?DB_PROPS.filter(function(p){return p.shinsa_kikan===my;}):[];
-    }else{
-      window._admKensaAll=DB_PROPS;
-    }
-    admRenderKensaTable();
-  }catch(e){console.warn('[JACK] 検査取りまとめの更新に失敗',e);}
-}
-window._refreshKensaAfterSync=_refreshKensaAfterSync;
 
 function admRenderKensaTable(){
   var wrap=document.getElementById('admKensaTableWrap');if(!wrap)return;
@@ -15449,9 +15180,9 @@ function admRenderKensaTable(){
     else if(shinsaMode){if(p.shinsa_kikan!==shinsaMode)return false;}
     // 引渡し状況絞込（デフォルト＝引渡し前のみ表示。引渡日未設定は「引渡し前」扱い）
     if(deliveryMode!=='all'){
-      // ★B3修正：「引渡し済み」の判定は他の全画面と同じ isKankou（引渡日が今日以前＝当日を含む）に統一。
-      //   以前はここだけ「今日より前」で、引渡し当日だけ画面ごとに結果が食い違っていた。
-      var isDone=isKankou(p);
+      var nd=normDate(p.delivery_date);
+      var ndKey=nd?nd.replace(/\//g,'-'):''; // ★TODAY(YYYY-MM-DD)と区切り文字を揃えてから比較する（揃えないと文字列比較が常に誤判定になる）
+      var isDone=!!ndKey&&ndKey<TODAY;
       if(deliveryMode==='before'&&isDone)return false;
       if(deliveryMode==='done'&&!isDone)return false;
     }
@@ -15499,7 +15230,7 @@ function admRenderKensaTable(){
     var fixNoAttr=String(p.fix_no||'');
     html+='<tr style="background:'+(i%2===0?'white':'#f8fafc')+'">'
       +'<td style="padding:9px 12px;font-weight:700;color:#1e293b;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'
-        +'<span style="color:#94a3b8;font-weight:400">'+(p.fix_no||'')+'</span> '+_escHtml(p.name||'')
+        +'<span style="color:#94a3b8;font-weight:400">'+(p.fix_no||'')+'</span> '+(p.name||'')
       +'</td>'
       +(isInspector?'<td style="padding:9px 12px;color:#475569;font-size:10px;font-weight:700;white-space:nowrap">'+(p.shinsa_kikan||'未選択')+'</td>':'<td style="padding:6px 8px">'
         +'<select onchange="admKensaShinsaChange(\''+fixNoAttr+'\',this.value)" style="padding:4px 6px;border:1.5px solid #e2e8f0;border-radius:6px;font-size:10px;font-weight:700;outline:none;background:white;max-width:100%">'
@@ -15520,7 +15251,7 @@ function admRenderKensaTable(){
         +'</td>';
       }).join('')
       +'<td style="padding:9px 12px;color:#475569;white-space:nowrap">'+(normDate(p.delivery_date)||'')+'</td>'
-      +'<td style="padding:9px 12px;color:#475569;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+_escHtml(tantouOf(p)||'—')+'</td>'
+      +'<td style="padding:9px 12px;color:#475569;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+(tantouOf(p)||'—')+'</td>'
     +'</tr>';
   });
   html+='</tbody></table>';
@@ -15566,7 +15297,7 @@ function admSaveKensaField(fixNo,field,value){
     if(typeof DB_PROPS!=='undefined'&&DB_PROPS){
       var idx=DB_PROPS.findIndex(function(dp){return String(dp.fix_no)===String(fixNo);});
       if(idx>=0)DB_PROPS[idx][field]=value;
-      try{_savePropsCache(DB_PROPS);}catch(e){}
+      try{localStorage.setItem('jack_props_cache',JSON.stringify(DB_PROPS));}catch(e){}
     }
     admRenderKensaTable();
     if(typeof renderBody==='function')renderBody(); // ★双方向：大工程表・物件詳細ガントにも即時反映
@@ -15926,7 +15657,7 @@ function admPropCard(p){
       +'<div style="background:#1e293b;color:white;font-size:10px;font-weight:800;padding:3px 7px;border-radius:5px;flex-shrink:0;font-family:monospace">'+(p.fix_no||'-')+'</div>'
       +'<div style="flex:1;min-width:0;display:flex;align-items:center;gap:10px">'
         +'<div style="min-width:0;flex-shrink:1">'
-          +'<div style="font-size:13px;font-weight:700;color:#1e293b;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+_escHtml(p.name||'')+'</div>'
+          +'<div style="font-size:13px;font-weight:700;color:#1e293b;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+(p.name||'')+'</div>'
           +'<div style="font-size:10px;color:#94a3b8;margin-top:1px;white-space:nowrap">'+(p.area||'')+(p.delivery_date?' ／ 引渡: '+p.delivery_date:'')+(p.confirm_done?' ／ 確認申請: '+p.confirm_done:'')+'</div>'
         +'</div>'
         +'<div style="display:flex;gap:4px;flex-wrap:wrap">'+statusBadges+'</div>'
@@ -15951,6 +15682,10 @@ function admOpenPropEdit(fixNo,encName){
   if(!found&&DB_PROPS){found=DB_PROPS.find(function(x){return String(x.fix_no)===String(fixNo)&&x.name===name;});}
   if(!found){showToast('物件データが見つかりません','error');return;}
   currentProp=found;
+  // prop_overridesをマージ
+  var ov=loadLS('jack_prop_overrides',{});
+  var ck=custKey(found);
+  if(ov[ck])currentProp=Object.assign({},found,ov[ck]);
   openPropEditModal();
 }
 window.admOpenPropEdit=admOpenPropEdit;
@@ -16021,7 +15756,7 @@ async function admDeleteProp(pid){
   // ★DB_PROPS本体とlocalStorageキャッシュからも削除（削除直後に古い一覧が残る不具合を防ぐ）
   if(typeof DB_PROPS!=='undefined'&&DB_PROPS){
     DB_PROPS=DB_PROPS.filter(function(p){return String(p.id)!==String(pid);});
-    try{_savePropsCache(DB_PROPS);}catch(e){}
+    try{localStorage.setItem('jack_props_cache',JSON.stringify(DB_PROPS));}catch(e){}
   }
   if(window._admAllProps){window._admAllProps=window._admAllProps.filter(function(p){return String(p.id)!==String(pid);});}
   showToast('🗑 削除しました','success');
@@ -16044,16 +15779,7 @@ async function admSaveProp(id){
   var addr=g('pa_address');
   Object.keys(prop).forEach(function(k){if(prop[k]===null||prop[k]==='')delete prop[k];});
   if(!prop.name){showToast('物件名は必須です','error');return;}
-  // ★A3対策：新規追加ではFIX No必須。FIX Noが他の物件と重複する保存は禁止（fix_no単独で行を特定する処理が多く、
-  //   重複すると別物件に書き込まれる危険があるため）
-  if(!id&&!prop.fix_no){showToast('FIX Noは必須です','error');return;}
   var sb=getSB();
-  if(prop.fix_no){
-    var dupRes=await sb.from('properties').select('id,name').eq('fix_no',String(prop.fix_no));
-    if(dupRes.error){showToast('重複チェックに失敗しました: '+dupRes.error.message,'error');return;}
-    var dupRow=(dupRes.data||[]).find(function(r){return !id||String(r.id)!==String(id);});
-    if(dupRow){showToast('FIX No「'+prop.fix_no+'」は既に「'+(dupRow.name||'')+'」で使われています','error');return;}
-  }
   // addressカラムが存在する場合のみ追加
   if(addr){
     var testRes=await sb.from('properties').select('address').limit(1);
@@ -16061,6 +15787,15 @@ async function admSaveProp(id){
   }
   var result=id?await sb.from('properties').update(prop).eq('id',id):await sb.from('properties').insert(prop);
   if(result.error){showToast('保存エラー: '+result.error.message,'error');return;}
+  // address はローカルにも保存
+  if(addr){
+    var ov=loadLS('jack_prop_overrides',{});
+    // fix_noで物件を探してckを作る
+    var ck=(prop.fix_no||'')+'__'+(prop.name||'');
+    if(!ov[ck])ov[ck]={};
+    ov[ck].address=addr;
+    saveLS('jack_prop_overrides',ov);
+  }
   showToast('✅ 保存しました','success');
   if(DB_PROPS&&id){var idx=DB_PROPS.findIndex(function(p){return String(p.id)===String(id);});if(idx>=0)Object.assign(DB_PROPS[idx],prop);}
   admClosePropForm();
@@ -16076,24 +15811,13 @@ window._VENDOR_LIST_TAB='';
 // Supabaseにvendors一括保存（全削除→再INSERT、data列にJSON保存、col_orderで列順保存）
 async function _saveVendorsToDB(allRows, colOrderMap){
   var sb=getSB();if(!sb)return false;
-  // ★B7修正：以前は「全削除→50件ずつ登録」だったため、途中で失敗すると既存データが消えたまま一部しか入らなかった。
-  //   今は「新しい行を先に登録 → 全部成功したら旧行を削除」の順にし、途中で失敗しても元のデータは残す
-  //   （失敗時は登録済みの新しい行を取り消して元に戻す）。
-  var newIds=[];
-  async function rollbackNew(){
-    for(var k=0;k<newIds.length;k+=100){
-      try{await sb.from('vendors').delete().in('id',newIds.slice(k,k+100));}catch(e){}
-    }
-  }
   try{
-    // ①旧データのidを控える（idのみ取得するので通信量は小さい）
-    var oldRes=await sb.from('vendors').select('id');
-    if(oldRes.error){
-      if(oldRes.error.message.indexOf('vendors')>=0)showToast('vendorsテーブル未作成。DB設定のSQLを実行してください','error');
-      else showToast('保存エラー: '+oldRes.error.message,'error');
+    // 既存データ削除
+    var delR=await sb.from('vendors').delete().gte('id',0);
+    if(delR.error&&delR.error.message.indexOf('vendors')>=0){
+      showToast('vendorsテーブル未作成。DB設定のSQLを実行してください','error');
       return false;
     }
-    var oldIds=(oldRes.data||[]).map(function(r){return r.id;});
     // data列にJSONとして保存（col_orderに列順も保存）
     var insertRows=allRows.map(function(row){
       var area=row.area||'';
@@ -16102,32 +15826,12 @@ async function _saveVendorsToDB(allRows, colOrderMap){
       var colOrder=(colOrderMap&&colOrderMap[area])?JSON.stringify(colOrderMap[area]):null;
       return {area:area, data:rowData, col_order:colOrder};
     });
-    // ②新しい行を先に登録
     for(var i=0;i<insertRows.length;i+=50){
-      var ins=await sb.from('vendors').insert(insertRows.slice(i,i+50)).select('id');
-      if(ins.error){
-        await rollbackNew();
-        showToast('保存エラー: '+ins.error.message+'（既存の業者一覧はそのまま残しています）','error');
-        return false;
-      }
-      (ins.data||[]).forEach(function(r){newIds.push(r.id);});
-    }
-    // ③全部登録できたら旧データを削除。失敗した場合は新しい行を取り消して元の状態に戻す
-    for(var j=0;j<oldIds.length;j+=100){
-      var del=await sb.from('vendors').delete().in('id',oldIds.slice(j,j+100));
-      if(del.error){
-        showToast('保存エラー: 旧データの置き換えに失敗しました: '+del.error.message,'error');
-        // 既に消えた旧行がある場合は元に戻せないため、新しい行は残す（データを失わないことを優先）
-        if(j===0)await rollbackNew();
-        return false;
-      }
+      var ins=await sb.from('vendors').insert(insertRows.slice(i,i+50));
+      if(ins.error){showToast('保存エラー: '+ins.error.message,'error');return false;}
     }
     return true;
-  }catch(e){
-    await rollbackNew();
-    showToast('保存エラー: '+e.message,'error');
-    return false;
-  }
+  }catch(e){showToast('保存エラー: '+e.message,'error');return false;}
 }
 
 // サイドバー：全業者選定一覧パネルを開く
@@ -16693,13 +16397,12 @@ function admHandleXlsx(input){
       //   更新していなかったため、取込後にページを再読み込みすると、キャッシュ優先の起動ロジックにより
       //   取込前の古いキャッシュに巻き戻ってしまう不具合があった（「取込・リロードしても直らない」の
       //   直接の原因）。キャッシュとタイムスタンプも合わせて更新する。
-      var pr=await sb.from('properties').select(PROPS_LIGHT_COLS).order('fix_no');
+      var pr=await sb.from('properties').select('*').order('fix_no');
       if(!pr.error&&pr.data){
         DB_PROPS=pr.data;
         if(typeof renderAll==='function')renderAll();
-        if(typeof _refreshKensaAfterSync==='function')_refreshKensaAfterSync(); // ★B8
         try{
-          _savePropsCache(DB_PROPS);
+          localStorage.setItem('jack_props_cache',JSON.stringify(DB_PROPS));
           var _ts=new Date().toLocaleString('ja-JP',{year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'});
           localStorage.setItem('jack_props_cache_ts',_ts);
           if(typeof updateSyncBanner==='function')updateSyncBanner('最終同期: '+_ts,false);
@@ -16798,7 +16501,6 @@ function admHandleGanttSheetXlsx(input){
     _saveGanttSheetsToDB(toSave).then(function(ok){
       var msg='';
       if(ok)msg+='<div style="color:#10b981;font-size:12px;font-weight:700;margin-bottom:6px">✅ '+toSave.length+'件を保存しました</div>';
-      else msg+='<div style="color:#ef4444;font-size:12px;font-weight:700;margin-bottom:6px">❌ 保存に失敗した工程表があります（失敗したものは元のデータを残しています。もう一度お試しください）</div>';
       toSave.forEach(function(r){msg+='<div style="font-size:11px;color:#475569">・'+r.file+' → FIX ID: '+r.fixNo+'</div>';});
       if(failed.length)msg+='<div style="color:#ef4444;font-size:11px;margin-top:6px">⚠️ 失敗: '+failed.map(function(r){return r.file;}).join(', ')+'</div>';
       if(resultEl)resultEl.innerHTML='<div style="background:white;border-radius:8px;padding:10px;border:1px solid #e2e8f0">'+msg+'</div>';
@@ -17372,36 +17074,25 @@ function _parseGanttSheetXlsx(ws,jsonRows){
 
 async function _saveGanttSheetsToDB(items){
   var sb=getSB();if(!sb)return false;
-  // ★B7修正：以前は「削除→登録」の順で、登録に失敗してもエラー確認が無く、既存の工程表が消えたままになる恐れがあった。
-  //   今は「新しい行を先に登録 → 成功したら同じfix_noの旧行を削除」にし、失敗した物件は旧データを残して失敗として返す。
-  var okItems=[], failCount=0;
   try{
     for(var i=0;i<items.length;i++){
       var item=items[i];
       // canvasDataUrlはDB/キャッシュに保存しない（サイズ大・各端末で再生成）
       var dbData=Object.assign({},item.data);
       delete dbData.canvasDataUrl;
-      var ins=await sb.from('gantt_sheets').insert({fix_no:item.fixNo,sheet_data:dbData,updated_at:new Date().toISOString()}).select('id');
-      if(ins.error||!ins.data||!ins.data.length){
-        failCount++;
-        console.warn('gantt_sheets insert err:',ins.error&&ins.error.message);
-        continue; // 旧データは触らない
-      }
-      var newId=ins.data[0].id;
-      var del=await sb.from('gantt_sheets').delete().eq('fix_no',item.fixNo).neq('id',newId);
-      if(del.error)console.warn('gantt_sheets 旧行削除失敗（重複が残るが最新が優先される）:',del.error.message);
+      await sb.from('gantt_sheets').delete().eq('fix_no',item.fixNo);
+      await sb.from('gantt_sheets').insert({fix_no:item.fixNo,sheet_data:dbData,updated_at:new Date().toISOString()});
       window._GANTT_SHEET_DATA[item.fixNo]=dbData;
-      okItems.push(item);
     }
     try{
       var cache=JSON.parse(localStorage.getItem(GANTT_SHEET_CACHE_KEY)||'{}');
-      okItems.forEach(function(item){
+      items.forEach(function(item){
         var dbData2=Object.assign({},item.data);delete dbData2.canvasDataUrl;
         cache[item.fixNo]=dbData2;
       });
       localStorage.setItem(GANTT_SHEET_CACHE_KEY,JSON.stringify(cache));
     }catch(e){}
-    return failCount===0;
+    return true;
   }catch(e){console.warn('gantt_sheets err:',e);return false;}
 }
 
