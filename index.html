@@ -1353,8 +1353,45 @@ var POST_END_PAD = 120; // ★スクロール終端の余白：完了検査列�
 // ===== 納品書機能：休工日カレンダー・稼働日計算 =====
 // ★日本の祝日（政府発表・国立天文台暦要項ベース、2025〜2028年分）
 // ★アプリバージョン（不具合問い合わせ対応用。リリースごとに更新すること。2026/8/23追加）
-var APP_VERSION = '2026.10.21.2';
+var APP_VERSION = '2026.10.22.1';
 window.APP_VERSION=APP_VERSION;
+// ★物件詳細URL（?fix=FIX番号）：起動時に値を控え、ログイン・物件読込後に該当物件の詳細を開く（2026/10/22）
+var _JACK_DEEP_FIX=(function(){try{var v=new URLSearchParams(window.location.search).get('fix');return v?String(v).trim():'';}catch(e){return '';}})();
+function _jackSetUrlFix(fixNo){
+  try{
+    var u=new URL(window.location.href);
+    if(fixNo)u.searchParams.set('fix',String(fixNo)); else u.searchParams.delete('fix');
+    history.replaceState(null,'',u.pathname+u.search+u.hash);
+  }catch(e){}
+}
+function copyDetailUrl(){
+  if(!currentProp||!currentProp.fix_no)return;
+  var u=new URL(window.location.href);
+  u.search='';u.hash='';
+  var area=null;try{area=new URLSearchParams(window.location.search).get('area');}catch(e){}
+  if(area)u.searchParams.set('area',area);
+  u.searchParams.set('fix',String(currentProp.fix_no));
+  var txt=u.toString();
+  function fb(){
+    try{var ta=document.createElement('textarea');ta.value=txt;ta.style.cssText='position:fixed;left:-9999px';document.body.appendChild(ta);ta.select();document.execCommand('copy');document.body.removeChild(ta);showToast('URLをコピーしました','success');}
+    catch(e){prompt('このURLをコピーしてください',txt);}
+  }
+  if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(txt).then(function(){showToast('URLをコピーしました','success');},fb);}else fb();
+}
+window.copyDetailUrl=copyDetailUrl;
+function _applyDeepLink(){
+  var fx=_JACK_DEEP_FIX; _JACK_DEEP_FIX='';
+  if(!fx)return;
+  try{
+    var p=(typeof getAllProps==='function'?getAllProps():[]).find(function(x){return String(x.fix_no)===fx;});
+    if(!p){showToast('このURLの物件は表示できません（FIX No.'+fx+'）','error');_jackSetUrlFix(null);return;}
+    openDetail(p);
+    setTimeout(function(){
+      var sec=document.getElementById('detail-gantt-sec'),sc=document.getElementById('dpContent');
+      if(sec&&sc&&sc.contains(sec)){try{sc.scrollTop=Math.max(0,sec.offsetTop-sc.offsetTop-40);}catch(e){}}
+    },500);
+  }catch(e){_jackLog('URLから物件を開く',e);}
+}
 console.log('[JACK] version', APP_VERSION);
 // ★2026/10/19(C4)：握りつぶされていた失敗を記録する共通ロガー。直近30件を保持し、管理者の「🔍検証出力」の末尾に出る。
 //   通常の動作・通信には影響しない（画面表示もしない）。重要なcatchから呼ぶほか、未処理のエラー／Promise失敗も自動記録する。
@@ -3928,6 +3965,7 @@ function spTabHome(){
     var el=document.getElementById(id);
     if(el)el.classList.remove('open');
   });
+  _jackSetUrlFix(null);
 }
 function spTabMy(){
   spSetActiveTab('sp-tab-my');
@@ -3942,6 +3980,7 @@ function spTabAll(){
     var el=document.getElementById(id);
     if(el)el.classList.remove('open');
   });
+  _jackSetUrlFix(null);
   // エリアタブ・ステータスをリセットして全件表示
   if(typeof setStatus==='function') setStatus('all');
   renderBody();
@@ -7211,7 +7250,7 @@ function openDetail(p){
   // ★マイ物件登録の切替ボタンのみ、上部バー（パネルヘッダー）に残す（印刷・QRは廃止／2026/8/9）
   var favWrap=document.getElementById('dpFavBtnWrap');
   if(favWrap){
-    favWrap.innerHTML=(isFav(p)
+    favWrap.innerHTML='<button onclick="copyDetailUrl()" style="background:rgba(255,255,255,.2);color:white;border:none;border-radius:16px;padding:5px 10px;font-size:11px;font-weight:700;white-space:nowrap;margin-right:4px">🔗 URL</button>'+(isFav(p)
       ?'<button onclick="removeFavAction()" style="background:rgba(239,68,68,.85);color:white;border:none;border-radius:16px;padding:5px 12px;font-size:11px;font-weight:700;white-space:nowrap">⭐ マイ物件から削除</button>'
       :'<button onclick="addFavAction()" style="background:rgba(255,255,255,.2);color:white;border:none;border-radius:16px;padding:5px 12px;font-size:11px;font-weight:700;white-space:nowrap">⭐ マイ物件に追加</button>');
   }
@@ -7219,6 +7258,7 @@ function openDetail(p){
   ganttEditMode=false;
   relocateGanttHeaderButtons();
   openPanel('detailPanel');
+  _jackSetUrlFix(p.fix_no);
   if(!isPcMode && typeof spSetupAccordion==='function') spSetupAccordion();
   if(!isPcMode) spSetActiveTab('sp-tab-home');
   // ★納品書データを先読みし、届いたらガント（カスタム工程タブ）を最新の納品バッジで再描画する
@@ -8431,6 +8471,7 @@ function closePanel(id){
   if(id==='detailPanel'){
     var dp=document.getElementById('detailPanel');
     if(dp)dp.classList.remove('gantt-fullscreen');
+    _jackSetUrlFix(null);
   }
 }
 
@@ -13166,7 +13207,8 @@ async function onAuthSuccess(isNewLogin){
   _finishLoginFlow(isNewLogin);
 }
 function _finishLoginFlow(isNewLogin){
-  loadPropertiesFromCacheOrDB(false);
+  var _lp=loadPropertiesFromCacheOrDB(false);
+  if(_JACK_DEEP_FIX&&_lp&&_lp.then)_lp.then(_applyDeepLink,_applyDeepLink);
   // ★MY工種のみ表示がONのまま前回終了していた場合、再読込直後はwindow._homeMyKoushuListが
   //   空のままなので、ログイン直後に静かに最新のkoushuを取り直しておく（2026/10/5追加）
   if(HOME_KOUSYU_MYONLY)_restoreHomeKousyuMyOnlyQuiet();
