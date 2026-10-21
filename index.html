@@ -1353,7 +1353,7 @@ var POST_END_PAD = 120; // ★スクロール終端の余白：完了検査列�
 // ===== 納品書機能：休工日カレンダー・稼働日計算 =====
 // ★日本の祝日（政府発表・国立天文台暦要項ベース、2025〜2028年分）
 // ★アプリバージョン（不具合問い合わせ対応用。リリースごとに更新すること。2026/8/23追加）
-var APP_VERSION = '2026.10.22.1';
+var APP_VERSION = '2026.10.22.2';
 window.APP_VERSION=APP_VERSION;
 // ★物件詳細URL（?fix=FIX番号）：起動時に値を控え、ログイン・物件読込後に該当物件の詳細を開く（2026/10/22）
 var _JACK_DEEP_FIX=(function(){try{var v=new URLSearchParams(window.location.search).get('fix');return v?String(v).trim():'';}catch(e){return '';}})();
@@ -11004,6 +11004,33 @@ function _savePropsCache(arr){
   }catch(e){_jackLog('物件キャッシュの保存に失敗（端末の保存容量不足の可能性）',e);return false;}
 }
 var PROPS_CACHE_TS_KEY='jack_props_cache_ts';
+// ★他の人の更新（Excel取込・管理者の編集）を即座に取り込むための鮮度チェック（2026/10/22）：
+//   物件の最新updated_atを1行だけ問い合わせ、前回取得時と違う場合のみ全件を再取得する（通常は極小通信）
+var PROPS_MAXUPD_KEY='jack_props_maxupd';
+function _rememberPropsMaxUpd(arr){
+  try{var m='';(arr||[]).forEach(function(d){if(d&&d.updated_at&&d.updated_at>m)m=d.updated_at;});if(m)localStorage.setItem(PROPS_MAXUPD_KEY,m);}catch(e){}
+}
+var _propsFreshBusy=false,_propsFreshLast=0;
+async function _checkPropsFresh(force){
+  if(_propsFreshBusy)return;
+  var nowMs=Date.now(); if(!force&&nowMs-_propsFreshLast<60000)return;
+  _propsFreshLast=nowMs;
+  var sb=getSB(); if(!sb||typeof currentUser==='undefined'||!currentUser)return;
+  _propsFreshBusy=true;
+  try{
+    var r=await sb.from('properties').select('updated_at').order('updated_at',{ascending:false}).limit(1);
+    if(r.error||!r.data||!r.data.length)return;
+    var latest=r.data[0].updated_at||'', mine='';
+    try{mine=localStorage.getItem(PROPS_MAXUPD_KEY)||'';}catch(e){}
+    if(latest&&latest!==mine){
+      await loadPropertiesFromCacheOrDB(true);
+      showToast('🔄 最新の物件データに更新しました','success');
+    }
+  }catch(e){_jackLog('物件鮮度チェック',e);}
+  finally{_propsFreshBusy=false;}
+}
+document.addEventListener('visibilitychange',function(){if(!document.hidden)_checkPropsFresh(false);});
+
 // ★2026/10/8追加：メモリ上のDB_PROPSだけ更新してlocalStorageのキャッシュを更新し忘れると、再起動で古い値に戻る。
 //   物件1件の特定項目だけをキャッシュに反映する（custom_ganttなど重い列はキャッシュに入れない）
 function _patchPropsCacheField(fixNo,field,val){
@@ -11036,6 +11063,7 @@ async function loadPropertiesFromCacheOrDB(forceRefresh){
           _loadSharedGanttFromDB();
           if(typeof renderAll==='function')renderAll();
           setMode(isPcMode);
+          setTimeout(function(){_checkPropsFresh(true);},1200);
           var ts=localStorage.getItem(PROPS_CACHE_TS_KEY)||'';
           updateSyncBanner(ts?('最終同期: '+ts):'キャッシュから表示',false);
           return;
@@ -11068,6 +11096,7 @@ async function loadPropertiesFromCacheOrDB(forceRefresh){
     }catch(e){}
     try{
       _savePropsCache(pr.data);
+      _rememberPropsMaxUpd(pr.data);
       var now=new Date();
       var ts=(now.getMonth()+1)+'/'+now.getDate()+' '+now.getHours()+':'+('0'+now.getMinutes()).slice(-2);
       localStorage.setItem(PROPS_CACHE_TS_KEY, ts);
@@ -16725,9 +16754,24 @@ function admHandleXlsx(input){
         confirm_submit:14,confirm_done:15,inspection:231,completion:232,delivery_date:237,
         delivery_month:237,status:242};
       var sb=getSB();
-      var existing=await sb.from('properties').select('id,fix_no,name');
+      var existing=await sb.from('properties').select('id,fix_no,name,hand_kumi,land_contract,land_payment,confirm_submit,confirm_done,delivery_date');
       var exMap={};
-      (existing.data||[]).forEach(function(p){exMap[String(p.fix_no)+'_'+p.name]=p.id;});
+      var exRowById={};
+      (existing.data||[]).forEach(function(p){exMap[String(p.fix_no)+'_'+p.name]=p.id;exRowById[p.id]=p;});
+      // ★取込結果の可視化（2026/10/22）：日付の変更一覧／シート別の読取件数／0件更新の検出
+      var changeList=[];
+      var sheetStats=[];
+      var zeroRowList=[];
+      var DIFF_LABELS={land_contract:'土地契約',land_payment:'土地決済',confirm_submit:'確認申請提出',confirm_done:'確認申請完了',delivery_date:'引渡し',hand_kumi:'手組'};
+      function _dnorm(v){var t=String(v||'').trim();if(!t||t==='-')return '';return (typeof normDate==='function'?normDate(t):t)||t;}
+      function _collectDiff(oldRow,np){
+        if(!oldRow)return;
+        Object.keys(DIFF_LABELS).forEach(function(k){
+          if(!(k in np))return;
+          var o=_dnorm(oldRow[k]),n=_dnorm(np[k]);
+          if(o!==n)changeList.push({fix:np.fix_no,name:np.name,label:DIFF_LABELS[k],o:o,n:n});
+        });
+      }
       var totalNew=0,totalUpd=0;
       var importErrors=[]; // ★Supabase書き込みエラーを収集（サイレント失敗を防ぐ）
       var deliveryColFallbackSheets=[]; // 引渡し日列を自動検出できず既定値を使ったシート名
@@ -16761,8 +16805,9 @@ function admHandleXlsx(input){
       var sheets=['全物件進捗','来期物件'];
       for(var si=0;si<sheets.length;si++){
         var sn=sheets[si];
-        if(!wb3.Sheets[sn])continue;
+        if(!wb3.Sheets[sn]){sheetStats.push({sn:sn,missing:true,n:0});continue;}
         var rows=window.XLSX.utils.sheet_to_json(wb3.Sheets[sn],{header:1,defval:'',raw:false});
+        var _sheetStat={sn:sn,missing:false,n:0};sheetStats.push(_sheetStat);
         // ★引渡し日列を動的検出：月の日数(30日/31日)により列がIC/ID/IE等にずれるため、
         //   ヘッダー行を実際にスキャンして「引渡」という文字を含む列を特定する
         //   （行位置・列位置・表記ゆれ「引き渡し」にすべて対応できるよう広めにスキャンする）
@@ -16834,6 +16879,7 @@ function admHandleXlsx(input){
             var miNorm=_normXlsxDate(row[moveinCol]);
             if(miNorm){prop.movein_date=miNorm;prop.movein_date_source='excel';}
           }
+          _sheetStat.n++;
           var key=fixNo+'_'+nameVal;
           // ★2026/8/30追加→同日中に撤回：Excel取込時にmaster_segsを再計算して保存する仕組みを
           //   入れていたが、properties テーブルに master_segs 列が実在せず大量の書き込みエラーが
@@ -16842,21 +16888,41 @@ function admHandleXlsx(input){
           var _sameFixIdKey=exMap[key]?null:Object.keys(exMap).find(function(k){return k.split('_')[0]===fixNo;});
           if(exMap[key]){
             // 同じFIX ID+名前 → 通常更新
-            var upR=await sb.from('properties').update(prop).eq('id',exMap[key]);
-            if(upR.error){importErrors.push(fixNo+' '+nameVal+': '+upR.error.message);}else{totalUpd++;}
+            _collectDiff(exRowById[exMap[key]],prop);
+            var upR=await sb.from('properties').update(prop).eq('id',exMap[key]).select('id');
+            if(upR.error){importErrors.push(fixNo+' '+nameVal+': '+upR.error.message);}
+            else if(!upR.data||!upR.data.length){zeroRowList.push(fixNo+' '+nameVal);}else{totalUpd++;}
           } else {
             // ★ FIX IDが同じで名前が違う（物件名変更）→ 最新名に上書き更新
             var sameFixId=_sameFixIdKey;
             if(sameFixId){
               // 旧名のレコードを最新名で更新
-              var upR2=await sb.from('properties').update(prop).eq('id',exMap[sameFixId]);
-              if(upR2.error){importErrors.push(fixNo+' '+nameVal+': '+upR2.error.message);}else{totalUpd++;}
+              _collectDiff(exRowById[exMap[sameFixId]],prop);
+              var upR2=await sb.from('properties').update(prop).eq('id',exMap[sameFixId]).select('id');
+              if(upR2.error){importErrors.push(fixNo+' '+nameVal+': '+upR2.error.message);}
+              else if(!upR2.data||!upR2.data.length){zeroRowList.push(fixNo+' '+nameVal);}else{totalUpd++;}
             } else {
               var insR=await sb.from('properties').insert(prop);
               if(insR.error){importErrors.push(fixNo+' '+nameVal+': '+insR.error.message);}else{totalNew++;}
             }
           }
         }
+      }
+      function _buildImportReport(){
+        var h='';
+        h+='<div style="margin-top:8px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:8px 10px;font-size:11px;color:#334155">'
+          +'📄 シート別の読取: '+sheetStats.map(function(x){return x.missing?('<span style="color:#dc2626;font-weight:700">'+x.sn+'：シートが見つかりません⚠️</span>'):(x.sn+'：'+x.n+'行');}).join(' ／ ')
+          +'<br><span style="color:#64748b">ファイル内のシート: '+Object.keys(wb3.Sheets).map(_escHtml).join('、')+'</span></div>';
+        if(zeroRowList.length){
+          h+='<div style="margin-top:8px;background:#fef2f2;color:#991b1b;padding:8px 10px;border-radius:8px;font-size:11px">⚠️ 書き込みが反映されなかった物件 '+zeroRowList.length+'件（権限等でDBが変更されていません）<br>'
+            +zeroRowList.slice(0,15).map(function(x){return '・'+_escHtml(x);}).join('<br>')+'</div>';
+        }
+        h+='<div style="margin-top:8px;background:#fffbeb;border:1px solid #fde68a;border-radius:8px;padding:8px 10px;font-size:11px;color:#78350f;max-height:260px;overflow-y:auto">'
+          +'<div style="font-weight:800;margin-bottom:4px">📝 日付が変わった物件（'+changeList.length+'件）</div>';
+        if(!changeList.length)h+='<div>変更はありませんでした（Excelの日付が既存データと同じです）</div>';
+        else h+=changeList.slice(0,200).map(function(c){return '<div style="padding:2px 0;border-top:1px dashed #fde68a">FiX'+_escHtml(String(c.fix))+' '+_escHtml(c.name)+'<br>　'+c.label+'：'+(c.o||'（空）')+' → <b>'+(c.n||'（空）')+'</b></div>';}).join('')
+          +(changeList.length>200?'<div>…他'+(changeList.length-200)+'件</div>':'');
+        return h+'</div>';
       }
       var deliveryColInfo='<div style="margin-top:6px;font-size:10px;color:#065f46">引渡し日列の自動検出: '
         +(deliveryColDetectedLetters.length?('✅ '+deliveryColDetectedLetters.join(' / ')):'')
@@ -16874,7 +16940,7 @@ function admHandleXlsx(input){
             +(importErrors.length>15?'<br>…他'+(importErrors.length-15)+'件':'')
             +'</div>')
           :'';
-        statusEl.innerHTML='<div style="background:#d1fae5;color:#065f46;padding:12px;border-radius:8px;font-size:12px">✅ 取込完了: 新規 '+totalNew+'件 / 更新 '+totalUpd+'件</div>'+deliveryColInfo+errBlock;
+        statusEl.innerHTML='<div style="background:#d1fae5;color:#065f46;padding:12px;border-radius:8px;font-size:12px">✅ 取込完了: 新規 '+totalNew+'件 / 更新 '+totalUpd+'件</div>'+deliveryColInfo+errBlock+_buildImportReport();
       }
       showToast('✅ Excelを取込みました','success');
       // ★エクセル最終更新日時を記録（2026/8/30追加：ホーム画面表示用）
@@ -16895,6 +16961,7 @@ function admHandleXlsx(input){
         if(typeof _refreshKensaAfterSync==='function')_refreshKensaAfterSync(); // ★B8
         try{
           _savePropsCache(DB_PROPS);
+          _rememberPropsMaxUpd(DB_PROPS);
           var _ts=new Date().toLocaleString('ja-JP',{year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'});
           localStorage.setItem('jack_props_cache_ts',_ts);
           if(typeof updateSyncBanner==='function')updateSyncBanner('最終同期: '+_ts,false);
