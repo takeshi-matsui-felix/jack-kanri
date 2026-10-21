@@ -1353,7 +1353,7 @@ var POST_END_PAD = 120; // ★スクロール終端の余白：完了検査列�
 // ===== 納品書機能：休工日カレンダー・稼働日計算 =====
 // ★日本の祝日（政府発表・国立天文台暦要項ベース、2025〜2028年分）
 // ★アプリバージョン（不具合問い合わせ対応用。リリースごとに更新すること。2026/8/23追加）
-var APP_VERSION = '2026.10.22.2';
+var APP_VERSION = '2026.10.22.3';
 window.APP_VERSION=APP_VERSION;
 // ★物件詳細URL（?fix=FIX番号）：起動時に値を控え、ログイン・物件読込後に該当物件の詳細を開く（2026/10/22）
 var _JACK_DEEP_FIX=(function(){try{var v=new URLSearchParams(window.location.search).get('fix');return v?String(v).trim():'';}catch(e){return '';}})();
@@ -16762,6 +16762,8 @@ function admHandleXlsx(input){
       var changeList=[];
       var sheetStats=[];
       var zeroRowList=[];
+      var _pending=[];
+      var dupList=[];
       var DIFF_LABELS={land_contract:'土地契約',land_payment:'土地決済',confirm_submit:'確認申請提出',confirm_done:'確認申請完了',delivery_date:'引渡し',hand_kumi:'手組'};
       function _dnorm(v){var t=String(v||'').trim();if(!t||t==='-')return '';return (typeof normDate==='function'?normDate(t):t)||t;}
       function _collectDiff(oldRow,np){
@@ -16880,7 +16882,27 @@ function admHandleXlsx(input){
             if(miNorm){prop.movein_date=miNorm;prop.movein_date_source='excel';}
           }
           _sheetStat.n++;
-          var key=fixNo+'_'+nameVal;
+          _pending.push({sn:sn,fixNo:fixNo,nameVal:nameVal,prop:prop});
+        }
+      }
+      // ★同じFIX番号が複数シートにある場合は、先に読んだシート（全物件進捗）を優先して1回だけ書き込む。
+      //   以前は後のシート（来期物件）の古い値が、先に書いた新しい値を上書きしていた恐れがある（2026/10/22）
+      var _seenFix={};
+      var _pendingUse=[];
+      _pending.forEach(function(it){
+        if(_seenFix[it.fixNo]){
+          var f=_seenFix[it.fixNo];
+          var diffK=Object.keys(DIFF_LABELS).filter(function(k){return k in f.prop&&k in it.prop&&_dnorm(f.prop[k])!==_dnorm(it.prop[k]);});
+          dupList.push({fix:it.fixNo,name:it.nameVal,keep:f.sn,skip:it.sn,diffs:diffK.map(function(k){return DIFF_LABELS[k]+'('+(_dnorm(f.prop[k])||'空')+' / '+(_dnorm(it.prop[k])||'空')+')';})});
+          return;
+        }
+        _seenFix[it.fixNo]=it; _pendingUse.push(it);
+      });
+      var _intended={};
+      for(var pi=0;pi<_pendingUse.length;pi++){
+        var _it=_pendingUse[pi],fixNo=_it.fixNo,nameVal=_it.nameVal,prop=_it.prop;
+        _intended[fixNo]={name:nameVal,prop:prop};
+        var key=fixNo+'_'+nameVal;
           // ★2026/8/30追加→同日中に撤回：Excel取込時にmaster_segsを再計算して保存する仕組みを
           //   入れていたが、properties テーブルに master_segs 列が実在せず大量の書き込みエラーが
           //   発生したため削除。工程表の自動反映は getAllProps() 側のland_payment/confirm_done
@@ -16906,8 +16928,19 @@ function admHandleXlsx(input){
               if(insR.error){importErrors.push(fixNo+' '+nameVal+': '+insR.error.message);}else{totalNew++;}
             }
           }
-        }
       }
+      // ★書き込み後の検証：DBを読み直し、意図した日付と違う物件があれば報告する（トリガー等で値が戻る場合の検出）
+      var verifyMismatch=[];
+      try{
+        var vr=await sb.from('properties').select('fix_no,name,land_contract,land_payment,confirm_submit,confirm_done,delivery_date');
+        (vr.data||[]).forEach(function(d){
+          var it=_intended[String(d.fix_no)]; if(!it)return;
+          Object.keys(DIFF_LABELS).forEach(function(k){
+            if(k==='hand_kumi'||!(k in it.prop))return;
+            if(_dnorm(d[k])!==_dnorm(it.prop[k]))verifyMismatch.push(d.fix_no+' '+d.name+' '+DIFF_LABELS[k]+'：Excel '+(_dnorm(it.prop[k])||'空')+' / DB '+(_dnorm(d[k])||'空'));
+          });
+        });
+      }catch(e){}
       function _buildImportReport(){
         var h='';
         h+='<div style="margin-top:8px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:8px 10px;font-size:11px;color:#334155">'
@@ -16916,6 +16949,14 @@ function admHandleXlsx(input){
         if(zeroRowList.length){
           h+='<div style="margin-top:8px;background:#fef2f2;color:#991b1b;padding:8px 10px;border-radius:8px;font-size:11px">⚠️ 書き込みが反映されなかった物件 '+zeroRowList.length+'件（権限等でDBが変更されていません）<br>'
             +zeroRowList.slice(0,15).map(function(x){return '・'+_escHtml(x);}).join('<br>')+'</div>';
+        }
+        if(verifyMismatch.length){
+          h+='<div style="margin-top:8px;background:#fef2f2;color:#991b1b;padding:8px 10px;border-radius:8px;font-size:11px;max-height:160px;overflow-y:auto">⚠️ 書き込み後のDBがExcelと一致しない項目 '+verifyMismatch.length+'件<br>'
+            +verifyMismatch.slice(0,30).map(function(x){return '・'+_escHtml(x);}).join('<br>')+'</div>';
+        }
+        if(dupList.length){
+          h+='<div style="margin-top:8px;background:#eff6ff;color:#1e3a8a;padding:8px 10px;border-radius:8px;font-size:11px;max-height:160px;overflow-y:auto">ℹ️ 複数シートに重複する物件 '+dupList.length+'件（先に読んだシートを採用）<br>'
+            +dupList.slice(0,30).map(function(x){return '・FiX'+_escHtml(String(x.fix))+' '+_escHtml(x.name)+'：'+x.keep+'を採用、'+x.skip+'は無視'+(x.diffs.length?'<br>　値の違い '+_escHtml(x.diffs.join('、')):'');}).join('<br>')+'</div>';
         }
         h+='<div style="margin-top:8px;background:#fffbeb;border:1px solid #fde68a;border-radius:8px;padding:8px 10px;font-size:11px;color:#78350f;max-height:260px;overflow-y:auto">'
           +'<div style="font-weight:800;margin-bottom:4px">📝 日付が変わった物件（'+changeList.length+'件）</div>';
