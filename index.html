@@ -1353,7 +1353,7 @@ var POST_END_PAD = 120; // ★スクロール終端の余白：完了検査列�
 // ===== 納品書機能：休工日カレンダー・稼働日計算 =====
 // ★日本の祝日（政府発表・国立天文台暦要項ベース、2025〜2028年分）
 // ★アプリバージョン（不具合問い合わせ対応用。リリースごとに更新すること。2026/8/23追加）
-var APP_VERSION = '2026.10.22.3';
+var APP_VERSION = '2026.10.22.4';
 window.APP_VERSION=APP_VERSION;
 // ★物件詳細URL（?fix=FIX番号）：起動時に値を控え、ログイン・物件読込後に該当物件の詳細を開く（2026/10/22）
 var _JACK_DEEP_FIX=(function(){try{var v=new URLSearchParams(window.location.search).get('fix');return v?String(v).trim():'';}catch(e){return '';}})();
@@ -5388,10 +5388,13 @@ function renderGanttHeaderBtns(){
     html+='<button id="detail-gantt-split-btn" onclick="toggleGanttSplitMode()" title="工程表・納品書・検査予約を並べて同時編集" style="background:'+(split?'#7c3aed':'#e2e8f0')+';color:'+(split?'white':'#475569')+';padding:4px 12px;border-radius:16px;font-size:10px;font-weight:800;white-space:nowrap;border:none;box-shadow:0 1px 3px rgba(0,0,0,.15)">'
       +(split?'⬛ 3画面表示ON':'◧ 工程表+納品書+検査予約 分割表示')+'</button>';
   }
-  if(expanded&&currentProfile&&currentProfile.role==='admin'){
-    html+='<button id="detail-gantt-edit-btn" onclick="toggleGanttEditMode()" style="background:'+(editing?'#ef4444':'#f59e0b')+';color:white;padding:3px 10px;border-radius:5px;font-size:10px;font-weight:700;white-space:nowrap">'
-      +(editing?'✕ 工程表編集終了':'✏️ 工程表編集')+'</button>'
-      +'<div id="detail-gantt-print-btn"><button onclick="printDetailGantt()" style="background:#10b981;color:white;padding:3px 10px;border-radius:5px;font-size:10px;font-weight:700;white-space:nowrap">🖨️ 工程表印刷</button></div>';
+  // ★工程表編集ボタンは管理者のみ。印刷ボタンは全ロール（協力業者・検査機関含む）に表示（2026/10/22 復活）
+  if(expanded){
+    if(currentProfile&&currentProfile.role==='admin'){
+      html+='<button id="detail-gantt-edit-btn" onclick="toggleGanttEditMode()" style="background:'+(editing?'#ef4444':'#f59e0b')+';color:white;padding:3px 10px;border-radius:5px;font-size:10px;font-weight:700;white-space:nowrap">'
+        +(editing?'✕ 工程表編集終了':'✏️ 工程表編集')+'</button>';
+    }
+    html+='<div id="detail-gantt-print-btn"><button onclick="printDetailGantt()" style="background:#10b981;color:white;padding:3px 10px;border-radius:5px;font-size:10px;font-weight:700;white-space:nowrap">🖨️ 工程表印刷</button></div>';
   }
   el.innerHTML=html;
 }
