@@ -1353,7 +1353,7 @@ var POST_END_PAD = 120; // ★スクロール終端の余白：完了検査列�
 // ===== 納品書機能：休工日カレンダー・稼働日計算 =====
 // ★日本の祝日（政府発表・国立天文台暦要項ベース、2025〜2028年分）
 // ★アプリバージョン（不具合問い合わせ対応用。リリースごとに更新すること。2026/8/23追加）
-var APP_VERSION = '2026.10.20.1';
+var APP_VERSION = '2026.10.21.1';
 window.APP_VERSION=APP_VERSION;
 console.log('[JACK] version', APP_VERSION);
 // ★2026/10/19(C4)：握りつぶされていた失敗を記録する共通ロガー。直近30件を保持し、管理者の「🔍検証出力」の末尾に出る。
@@ -5006,6 +5006,13 @@ function renderKensaSplitSection(p,containerId){
       +'</div>';
   }).join('');
   el.innerHTML=html;
+  // ★2026/10/21：検査予約の入力は管理者と検査機関のみ。それ以外（協力業者）は閲覧のみ
+  try{
+    var _kr=currentProfile&&currentProfile.role;
+    if(_kr!=='admin'&&_kr!=='inspector'){
+      el.querySelectorAll('input,select,textarea,button').forEach(function(x){x.disabled=true;});
+    }
+  }catch(e){}
 }
 window.renderKensaSplitSection=renderKensaSplitSection;
 
@@ -5342,7 +5349,7 @@ function renderGanttHeaderBtns(){
     html+='<button id="detail-gantt-split-btn" onclick="toggleGanttSplitMode()" title="工程表・納品書・検査予約を並べて同時編集" style="background:'+(split?'#7c3aed':'#e2e8f0')+';color:'+(split?'white':'#475569')+';padding:4px 12px;border-radius:16px;font-size:10px;font-weight:800;white-space:nowrap;border:none;box-shadow:0 1px 3px rgba(0,0,0,.15)">'
       +(split?'⬛ 3画面表示ON':'◧ 工程表+納品書+検査予約 分割表示')+'</button>';
   }
-  if(expanded){
+  if(expanded&&currentProfile&&currentProfile.role==='admin'){
     html+='<button id="detail-gantt-edit-btn" onclick="toggleGanttEditMode()" style="background:'+(editing?'#ef4444':'#f59e0b')+';color:white;padding:3px 10px;border-radius:5px;font-size:10px;font-weight:700;white-space:nowrap">'
       +(editing?'✕ 工程表編集終了':'✏️ 工程表編集')+'</button>'
       +'<div id="detail-gantt-print-btn"><button onclick="printDetailGantt()" style="background:#10b981;color:white;padding:3px 10px;border-radius:5px;font-size:10px;font-weight:700;white-space:nowrap">🖨️ 工程表印刷</button></div>';
@@ -5424,6 +5431,7 @@ var GCW_GE=14;
 function toggleGanttEditMode(){
   var sb=document.getElementById('ganttEditSidebar');
   if(!currentProp||!sb)return;
+  if(!(currentProfile&&currentProfile.role==='admin')){showToast('工程表の編集は管理者のみ行えます','error');return;} // ★2026/10/21
   // ★ 既に編集中なら終了、そうでなければ開始（2回押し問題の修正）
   var isNowEdit=ganttEditMode;
   ganttEditMode=!isNowEdit;
@@ -6591,8 +6599,9 @@ function applyConfirmedUntil(){
   if(!sb||!fixNo){
     applyLocallyCU();
   } else {
-    _tsQuery(function(n){return sb.from('properties').update(_tsPayload({confirmed_until:v||null,updated_at:new Date().toISOString()},'gantt',n)).eq('fix_no',fixNo);})
+    _tsQuery(function(n){return sb.from('properties').update(_tsPayload({confirmed_until:v||null,updated_at:new Date().toISOString()},'gantt',n)).eq('fix_no',fixNo).select('fix_no');})
       .then(function(res){
+        _zeroRowAsError(res);
         if(res.error){
           console.error('[JACK] confirmed_until Supabase保存失敗',res.error);
           showToast('⚠️ ローカルには保存しましたが、Supabaseへの保存に失敗しました（他ユーザーには反映されません）：'+res.error.message,'error');
@@ -7567,6 +7576,20 @@ function _renderDeliveryNoteBody(p,el){
         +'<div style="font-size:11px;font-weight:700;margin-bottom:4px">納品内訳（自由記述）</div>'
         +'<textarea id="deliveryBreakdownInput" onchange="deliverySetBreakdown(this.value)" style="width:100%;min-height:140px;font-size:11px;padding:8px;border:1.5px solid #e2e8f0;border-radius:8px;font-family:inherit;box-sizing:border-box;white-space:pre">'+(dn.breakdown_text||'')+'</textarea>'
       +'</div>';
+  // ★2026/10/21：納品書の入力・承認は管理者のみ。管理者以外は閲覧と印刷だけにする（保存は権限制限で通らないため）
+  if(!isAdmin){
+    try{
+      el.querySelectorAll('input,select,textarea').forEach(function(x){x.disabled=true;});
+      el.querySelectorAll('button').forEach(function(b){
+        var oc=b.getAttribute('onclick')||'';
+        if(oc.indexOf('printDeliveryNote')<0)b.disabled=true;
+      });
+      var ro=document.createElement('div');
+      ro.style.cssText='background:#fef9c3;color:#92400e;font-size:11px;font-weight:700;padding:6px 10px;border-radius:6px;margin-bottom:8px';
+      ro.textContent='🔒 閲覧のみ（納品書の入力・承認は管理者が行います）';
+      el.insertBefore(ro,el.firstChild);
+    }catch(e){}
+  }
 }
 
 function _touchDeliveryUnapproved(dn){
@@ -7701,7 +7724,8 @@ function _saveDeliveryNote(p){
     //   画面上は何も表示されず（本人にも他ユーザーにも）気付く手段が無かった。
     //   結果（res.error）を確認し、失敗時は明確に警告表示する。
     try{
-      var res=await _tsQuery(function(n){return sb.from('properties').update(_tsPayload({delivery_note:deliveryNotes[fixNo],updated_at:new Date().toISOString()},'dn',n)).eq('fix_no',fixNo);});
+      var res=await _tsQuery(function(n){return sb.from('properties').update(_tsPayload({delivery_note:deliveryNotes[fixNo],updated_at:new Date().toISOString()},'dn',n)).eq('fix_no',fixNo).select('fix_no');});
+      _zeroRowAsError(res);
       if(res.error){
         console.error('[JACK] 納品書の保存に失敗',res.error);
         showToast('⚠️ 納品書の保存に失敗しました：'+res.error.message,'error');
@@ -10908,6 +10932,16 @@ async function _tsQuery(make){
   }
   return r;
 }
+// ★2026/10/21：権限制限(RLS)で止められた更新は、エラーではなく「0件更新」として返る。
+//   .select()で更新行を受け取り、0件ならエラーとして扱う（保存できていないのに「保存済み」と見える事故を防ぐ）
+function _zeroRowAsError(r){
+  try{
+    if(r&&!r.error&&Array.isArray(r.data)&&r.data.length===0){
+      r.error={message:'更新できませんでした（権限がないか、対象の物件が見つかりません）'};
+    }
+  }catch(e){}
+  return r;
+}
 function _tsPayload(payload,kind,useNew){
   if(!useNew)return payload;
   var c=Object.assign({},payload);c[kind+'_updated_at']=payload.updated_at;return c;
@@ -12971,8 +13005,10 @@ function _saveGanttToSupabase(p,segsData,cb){
   // ★大工程表の黄色/白の色分け用に、軽量な真偽値カラムにも同じ状態を保存する
   //   （custom_ganttは重いため一覧取得時は除外しているが、この列だけは一覧取得時にも一緒に取る）
   payload.gantt_is_manual=!!saveData;
-  _tsQuery(function(n){return sb.from('properties').update(_tsPayload(payload,'gantt',n)).eq('fix_no',String(p.fix_no));})
+  _tsQuery(function(n){return sb.from('properties').update(_tsPayload(payload,'gantt',n)).eq('fix_no',String(p.fix_no)).select('fix_no');})
     .then(function(r){
+      _zeroRowAsError(r);
+      if(r.error)showToast('⚠️ 工程表を保存できませんでした：'+r.error.message,'error');
       if(!r.error&&DB_PROPS){
         // ローカルDB_PROPSキャッシュも更新
         var idx=DB_PROPS.findIndex(function(dp){return String(dp.fix_no)===String(p.fix_no);});
@@ -12987,8 +13023,9 @@ function _saveGanttToSupabase(p,segsData,cb){
 function _saveMasterLinkToSupabase(p,masterName,cb){
   var sb=getSB(); if(!sb){if(cb)cb(false);return;}
   var payload={prop_master:masterName||null,updated_at:new Date().toISOString()};
-  sb.from('properties').update(payload).eq('fix_no',String(p.fix_no))
+  sb.from('properties').update(payload).eq('fix_no',String(p.fix_no)).select('fix_no')
     .then(function(r){
+      _zeroRowAsError(r);
       if(!r.error&&DB_PROPS){
         var idx=DB_PROPS.findIndex(function(dp){return String(dp.fix_no)===String(p.fix_no);});
         if(idx>=0)DB_PROPS[idx].prop_master=masterName||null;
