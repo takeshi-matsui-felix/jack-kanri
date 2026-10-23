@@ -680,6 +680,7 @@ body.sp-mode #areaTabsBtns{ display:none !important; }
         <div style="margin-bottom:16px"><label style="font-size:11px;font-weight:700;color:#475569;display:block;margin-bottom:4px">パスワード</label><input type="password" id="jackLoginPw" placeholder="パスワード" style="width:100%;padding:9px 11px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:13px;box-sizing:border-box;outline:none"></div>
         <div id="jackLoginErr" style="display:none;background:#fee2e2;color:#dc2626;padding:8px 11px;border-radius:7px;font-size:12px;margin-bottom:10px"></div>
         <button onclick="doLogin()" id="jackLoginBtn" style="width:100%;padding:12px;background:#1a56db;color:white;border-radius:9px;font-size:14px;font-weight:700;cursor:pointer">ログイン</button>
+        <div style="text-align:center;margin-top:10px"><a href="javascript:void(0)" onclick="alert('パスワードを忘れた場合は、管理者へご連絡ください。\n新しいパスワードを発行します（メールでの再設定はありません）。')" style="font-size:12px;color:#64748b;text-decoration:underline">パスワードを忘れた方</a></div>
       </div>
       <div id="jackFormRegister" style="display:none;padding:20px">
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px">
@@ -1352,7 +1353,7 @@ var POST_END_PAD = 120; // ★スクロール終端の余白：完了検査列�
 // ===== 納品書機能：休工日カレンダー・稼働日計算 =====
 // ★日本の祝日（政府発表・国立天文台暦要項ベース、2025〜2028年分）
 // ★アプリバージョン（不具合問い合わせ対応用。リリースごとに更新すること。2026/8/23追加）
-var APP_VERSION = '2026.10.23.5';
+var APP_VERSION = '2026.10.23.6';
 window.APP_VERSION=APP_VERSION;
 // ★物件詳細URL（?fix=FIX番号）：起動時に値を控え、ログイン・物件読込後に該当物件の詳細を開く（2026/10/22）
 var _JACK_DEEP_FIX=(function(){try{var v=new URLSearchParams(window.location.search).get('fix');return v?String(v).trim():'';}catch(e){return '';}})();
@@ -15010,6 +15011,7 @@ function admUserCard(u,approved){
       +koushuHtml
     +'</div>'
     +'<div style="display:flex;gap:4px;align-items:center;flex-wrap:wrap">'
+    +'<button onclick="admResetPassword(\''+u.id+'\')" style="font-size:10px;background:#fef3c7;color:#92400e;padding:4px 10px;border-radius:6px;cursor:pointer">🔑 PW再設定</button>'
     +'<button class="adm-master-edit" data-uid="'+u.id+'" style="font-size:10px;background:#eef2ff;color:#4338ca;padding:4px 10px;border-radius:6px;cursor:pointer">✏️ マスター編集</button>'
     +(approved
       ?'<button class="adm-revoke" data-uid="'+u.id+'" style="font-size:10px;background:#fee2e2;color:#dc2626;padding:4px 10px;border-radius:6px;cursor:pointer">取消</button>'
@@ -15020,6 +15022,48 @@ function admUserCard(u,approved){
 }
 // ★ユーザーのロール変更（2026/10追加）：検査機関⇔協力業者⇔管理者の切替。
 //   見た目（バッジ・所属審査機関欄の表示）を正しく反映するため、保存後は一覧を再描画する。
+// ★パスワード再設定（管理者用・2026/10/23）：パスワードを忘れたユーザーの新しいパスワードを、管理者が画面から発行する。
+//   DB側の関数 admin_set_password（管理者のみ実行可）を呼ぶ。事前に「PW再設定_SQL.sql」の実行が必要
+function _genTempPassword(){
+  var chars='abcdefghijkmnpqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789', out='';
+  var arr=new Uint32Array(10);
+  (window.crypto||window.msCrypto).getRandomValues(arr);
+  for(var i=0;i<arr.length;i++)out+=chars.charAt(arr[i]%chars.length);
+  return out;
+}
+async function admResetPassword(uid){
+  if(!currentProfile||currentProfile.role!=='admin'){showToast('管理者のみ実行できます','error');return;}
+  var u=(window._admUsersList||[]).find(function(x){return String(x.id)===String(uid);})||{};
+  var label=(u.name||'')+(u.company?'（'+u.company+'）':'');
+  if(!confirm(label+' のパスワードを再設定します。\n新しいパスワードを自動で発行し、このユーザーは一度ログアウトされます。よろしいですか？'))return;
+  var pw=_genTempPassword(), sb=getSB();
+  if(!sb)return;
+  var r=await sb.rpc('admin_set_password',{target_id:uid,new_password:pw});
+  if(r.error){
+    showToast('⚠️ 再設定に失敗しました：'+r.error.message,'error');
+    return;
+  }
+  var old=document.getElementById('_pwResetModal'); if(old)old.remove();
+  var wrap=document.createElement('div');
+  wrap.id='_pwResetModal';
+  wrap.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:100000;display:flex;align-items:center;justify-content:center;padding:16px';
+  wrap.innerHTML='<div style="background:white;border-radius:14px;width:100%;max-width:360px;padding:18px">'
+    +'<div style="font-size:15px;font-weight:800;color:#1e293b;margin-bottom:8px">🔑 新しいパスワードを発行しました</div>'
+    +'<div style="font-size:12px;color:#475569;margin-bottom:10px">'+_escHtml(label)+'<br>ログインID：<b>'+_escHtml(_jackIdDisplay(u.email||''))+'</b></div>'
+    +'<div id="_pwResetVal" style="font-size:22px;font-weight:800;letter-spacing:2px;text-align:center;background:#f1f5f9;border-radius:10px;padding:14px;font-family:monospace;user-select:all">'+_escHtml(pw)+'</div>'
+    +'<div style="font-size:11px;color:#b91c1c;margin:10px 0">この画面を閉じると、パスワードは二度と表示できません。本人へ、他の人に見られない方法で伝えてください。本人は、ログイン後に「設定」から好きなパスワードへ変更できます。</div>'
+    +'<div style="display:flex;gap:8px"><button id="_pwCopyBtn" style="flex:1;padding:10px;border:none;border-radius:9px;background:#1a56db;color:white;font-size:13px;font-weight:700">コピー</button>'
+    +'<button onclick="document.getElementById(\'_pwResetModal\').remove()" style="flex:1;padding:10px;border:none;border-radius:9px;background:#f1f5f9;color:#475569;font-size:13px;font-weight:700">閉じる</button></div></div>';
+  document.body.appendChild(wrap);
+  var cb=document.getElementById('_pwCopyBtn');
+  if(cb)cb.onclick=function(){
+    function ok(){showToast('コピーしました','success');}
+    if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(pw).then(ok,function(){showToast('長押しでコピーしてください','');});}
+    else{showToast('長押しでコピーしてください','');}
+  };
+}
+window.admResetPassword=admResetPassword;
+
 async function admSaveUserRole(sel){
   var pid=sel.getAttribute('data-pid'), val=sel.value, sb=getSB();
   if(!sb)return;
