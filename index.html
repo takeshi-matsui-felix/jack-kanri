@@ -676,7 +676,7 @@ body.sp-mode #areaTabsBtns{ display:none !important; }
         <button onclick="showAuthTab('register')" id="jackTabRegister" style="flex:1;padding:11px;font-size:13px;font-weight:600;color:#64748b">新規登録</button>
       </div>
       <div id="jackFormLogin" style="padding:20px">
-        <div style="margin-bottom:12px"><label style="font-size:11px;font-weight:700;color:#475569;display:block;margin-bottom:4px">メールアドレス</label><input type="email" id="jackLoginEmail" placeholder="email@example.com" style="width:100%;padding:9px 11px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:13px;box-sizing:border-box;outline:none"></div>
+        <div style="margin-bottom:12px"><label style="font-size:11px;font-weight:700;color:#475569;display:block;margin-bottom:4px">ログインID</label><input type="text" id="jackLoginEmail" autocapitalize="none" autocorrect="off" spellcheck="false" autocomplete="username" placeholder="ログインID（以前のメールアドレスでも可）" style="width:100%;padding:9px 11px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:13px;box-sizing:border-box;outline:none"></div>
         <div style="margin-bottom:16px"><label style="font-size:11px;font-weight:700;color:#475569;display:block;margin-bottom:4px">パスワード</label><input type="password" id="jackLoginPw" placeholder="パスワード" style="width:100%;padding:9px 11px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:13px;box-sizing:border-box;outline:none"></div>
         <div id="jackLoginErr" style="display:none;background:#fee2e2;color:#dc2626;padding:8px 11px;border-radius:7px;font-size:12px;margin-bottom:10px"></div>
         <button onclick="doLogin()" id="jackLoginBtn" style="width:100%;padding:12px;background:#1a56db;color:white;border-radius:9px;font-size:14px;font-weight:700;cursor:pointer">ログイン</button>
@@ -686,8 +686,7 @@ body.sp-mode #areaTabsBtns{ display:none !important; }
           <div><label style="font-size:10px;font-weight:700;color:#475569;display:block;margin-bottom:3px">氏名 *</label><input type="text" id="jackRegName" placeholder="松井 武史" style="width:100%;padding:8px 10px;border:1.5px solid #e2e8f0;border-radius:7px;font-size:12px;box-sizing:border-box"></div>
           <div><label style="font-size:10px;font-weight:700;color:#475569;display:block;margin-bottom:3px">会社名 *</label><input type="text" id="jackRegCompany" placeholder="フィリックス" style="width:100%;padding:8px 10px;border:1.5px solid #e2e8f0;border-radius:7px;font-size:12px;box-sizing:border-box"></div>
         </div>
-        <div style="margin-bottom:8px"><label style="font-size:10px;font-weight:700;color:#475569;display:block;margin-bottom:3px">携帯電話 *</label><input type="tel" id="jackRegPhone" placeholder="090-0000-0000" style="width:100%;padding:8px 10px;border:1.5px solid #e2e8f0;border-radius:7px;font-size:12px;box-sizing:border-box"></div>
-        <div style="margin-bottom:8px"><label style="font-size:10px;font-weight:700;color:#475569;display:block;margin-bottom:3px">メール *</label><input type="email" id="jackRegEmail" placeholder="email@example.com" style="width:100%;padding:8px 10px;border:1.5px solid #e2e8f0;border-radius:7px;font-size:12px;box-sizing:border-box"></div>
+        <div style="margin-bottom:8px"><label style="font-size:10px;font-weight:700;color:#475569;display:block;margin-bottom:3px">ログインID *（半角英数字。氏名のローマ字など）</label><input type="text" id="jackRegEmail" autocapitalize="none" autocorrect="off" spellcheck="false" autocomplete="username" placeholder="例: tanaka01" style="width:100%;padding:8px 10px;border:1.5px solid #e2e8f0;border-radius:7px;font-size:12px;box-sizing:border-box"><div style="font-size:9px;color:#94a3b8;margin-top:2px">※メールアドレスや電話番号は不要です</div></div>
         <div style="margin-bottom:8px"><label style="font-size:10px;font-weight:700;color:#475569;display:block;margin-bottom:3px">パスワード * (8文字以上)</label><input type="password" id="jackRegPw" placeholder="パスワード" style="width:100%;padding:8px 10px;border:1.5px solid #e2e8f0;border-radius:7px;font-size:12px;box-sizing:border-box"></div>
         <div style="margin-bottom:14px"><label style="font-size:10px;font-weight:700;color:#475569;display:block;margin-bottom:3px">役割 *</label>
           <select id="jackRegRole" onchange="jackRegRoleChanged()" style="width:100%;padding:8px 10px;border:1.5px solid #e2e8f0;border-radius:7px;font-size:12px;box-sizing:border-box"><option value="worker">協力業者</option><option value="inspector">検査機関（要承認）</option><option value="admin">管理者（要承認）</option></select></div>
@@ -1353,7 +1352,7 @@ var POST_END_PAD = 120; // ★スクロール終端の余白：完了検査列�
 // ===== 納品書機能：休工日カレンダー・稼働日計算 =====
 // ★日本の祝日（政府発表・国立天文台暦要項ベース、2025〜2028年分）
 // ★アプリバージョン（不具合問い合わせ対応用。リリースごとに更新すること。2026/8/23追加）
-var APP_VERSION = '2026.10.23.1';
+var APP_VERSION = '2026.10.23.3';
 window.APP_VERSION=APP_VERSION;
 // ★物件詳細URL（?fix=FIX番号）：起動時に値を控え、ログイン・物件読込後に該当物件の詳細を開く（2026/10/22）
 var _JACK_DEEP_FIX=(function(){try{var v=new URLSearchParams(window.location.search).get('fix');return v?String(v).trim():'';}catch(e){return '';}})();
@@ -13018,19 +13017,34 @@ function jackRegRoleChanged(){
 }
 window.jackRegRoleChanged=jackRegRoleChanged;
 
+// ★ログインID方式（2026/10/23）：メールアドレスは使わず、IDを内部で擬似メール形式（ID@jack-login.example）に変換して認証する。
+//   「@」を含む入力は、@より前の部分だけをIDとして扱う（以前のメールアドレスのままでもログインできる）
+var JACK_ID_DOMAIN='jack-login.example';
+function _jackIdNormalize(v){
+  v=String(v||'').trim().toLowerCase();
+  var at=v.indexOf('@'); if(at>=0)v=v.slice(0,at);
+  return v;
+}
+function _jackIdValid(id){return /^[a-z0-9._+-]{3,40}$/.test(id);}
+function _jackIdToEmail(v){return _jackIdNormalize(v)+'@'+JACK_ID_DOMAIN;}
+function _jackIdDisplay(email){return String(email||'').replace('@'+JACK_ID_DOMAIN,'');}
+function _jackIsSuperAdmin(){var e=(currentProfile&&currentProfile.email)||'';return /^takeshi_matsui@/i.test(e);}
 async function doLogin(){
   var email=(document.getElementById('jackLoginEmail')||{}).value||'',
       pw=(document.getElementById('jackLoginPw')||{}).value||'',
       errEl=document.getElementById('jackLoginErr'),
       btn=document.getElementById('jackLoginBtn');
-  if(!email||!pw){if(errEl){errEl.textContent='メールとパスワードを入力してください';errEl.style.display='';}return;}
+  if(!email||!pw){if(errEl){errEl.textContent='ログインIDとパスワードを入力してください';errEl.style.display='';}return;}
   if(btn){btn.textContent='ログイン中...';btn.disabled=true;}
   if(errEl)errEl.style.display='none';
   var sb=getSB();
   if(!sb){if(errEl){errEl.textContent='接続エラー';errEl.style.display='';}if(btn){btn.textContent='ログイン';btn.disabled=false;}return;}
-  var r=await sb.auth.signInWithPassword({email,password:pw});
+  var rawInput=email.trim();
+  var r=await sb.auth.signInWithPassword({email:_jackIdToEmail(rawInput),password:pw});
+  // 旧メールアドレスのままのユーザー（ID化SQLの実行前）は、入力そのままでもう一度試す
+  if(r.error&&rawInput.indexOf('@')>=0){r=await sb.auth.signInWithPassword({email:rawInput,password:pw});}
   if(r.error){
-    if(errEl){errEl.textContent=r.error.message==='Invalid login credentials'?'メールまたはパスワードが違います':r.error.message;errEl.style.display='';}
+    if(errEl){errEl.textContent=r.error.message==='Invalid login credentials'?'ログインIDまたはパスワードが違います':r.error.message;errEl.style.display='';}
     if(btn){btn.textContent='ログイン';btn.disabled=false;}return;
   }
   currentUser=r.data.user;
@@ -13042,7 +13056,6 @@ window.doLogin=doLogin;
 async function doRegister(){
   var name=(document.getElementById('jackRegName')||{}).value||'',
       company=(document.getElementById('jackRegCompany')||{}).value||'',
-      phone=(document.getElementById('jackRegPhone')||{}).value||'',
       email=(document.getElementById('jackRegEmail')||{}).value||'',
       pw=(document.getElementById('jackRegPw')||{}).value||'',
       role=(document.getElementById('jackRegRole')||{}).value||'worker',
@@ -13060,13 +13073,15 @@ async function doRegister(){
   if(role==='inspector'){
     shinsaKikan=(document.getElementById('jackRegShinsa')||{}).value||'住宅センター';
   }
-  if(!name||!company||!phone||!email||!pw){if(errEl){errEl.textContent='全ての項目を入力してください';errEl.style.display='';}return;}
+  var regId=_jackIdNormalize(email);
+  if(!name||!company||!regId||!pw){if(errEl){errEl.textContent='全ての項目を入力してください';errEl.style.display='';}return;}
+  if(!_jackIdValid(regId)){if(errEl){errEl.textContent='ログインIDは半角英数字（. _ - も可）の3文字以上で入力してください';errEl.style.display='';}return;}
   if(pw.length<8){if(errEl){errEl.textContent='パスワードは8文字以上';errEl.style.display='';}return;}
   if(btn){btn.textContent='登録中...';btn.disabled=true;}
   if(errEl)errEl.style.display='none';
   var sb=getSB();
-  var r=await sb.auth.signUp({email,password:pw,options:{data:{name,company,phone,role,area,koushu,shinsa_kikan:shinsaKikan}}});
-  if(r.error){if(errEl){errEl.textContent=r.error.message;errEl.style.display='';}if(btn){btn.textContent='登録申請';btn.disabled=false;}return;}
+  var r=await sb.auth.signUp({email:_jackIdToEmail(regId),password:pw,options:{data:{name,company,role,area,koushu,shinsa_kikan:shinsaKikan}}});
+  if(r.error){if(errEl){errEl.textContent=/already registered|already been registered/i.test(r.error.message)?'このログインIDは既に使われています。別のIDにしてください':r.error.message;errEl.style.display='';}if(btn){btn.textContent='登録申請';btn.disabled=false;}return;}
   currentUser=r.data.user;
   // ★profilesへのarea/koushu/shinsa_kikan反映はDBトリガー側の対応状況に依存するため、セッションが取れていれば
   //   保険としてクライアント側からも直接書き込む（失敗しても登録自体は継続。あとで管理者が
@@ -13502,7 +13517,7 @@ async function retryAuth(){
       }
     }
     // profileが取得できないかまだ未承認 → サインアウトして再ログイン
-    var savedEmail=(currentUser&&currentUser.email)||'';
+    var savedEmail=_jackIdDisplay((currentUser&&currentUser.email)||'');
     await sb.auth.signOut();
     currentUser=null; currentProfile=null;
     showAuthScreen();
@@ -14888,7 +14903,7 @@ function copyRlsSql(){copyText('rlsSqlPre');}
 window.copyRlsSql=copyRlsSql;
 
 function admUserCard(u,approved){
-  var isSuperAdmin=currentProfile&&currentProfile.email==='takeshi_matsui@felix-japan.co.jp';
+  var isSuperAdmin=_jackIsSuperAdmin();
   var deleteBtn=isSuperAdmin
     ?'<button class="adm-delete-user" data-uid="'+u.id+'" data-email="'+_escHtml(u.email||'')+'" style="font-size:10px;background:#7f1d1d;color:#fca5a5;padding:4px 10px;border-radius:6px;cursor:pointer;margin-left:4px">🗑 削除</button>'
     :'';
@@ -14914,11 +14929,10 @@ function admUserCard(u,approved){
     +'<div style="width:36px;height:36px;border-radius:50%;background:#3b82f6;color:white;font-size:14px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0">'+_escHtml((u.name||'?').charAt(0))+'</div>'
     +'<div style="flex:1;min-width:0">'
       +'<div style="font-size:13px;font-weight:700;color:#1e293b">'+_escHtml(u.name||'')+' <span style="font-size:10px;color:'+roleColor+'">'+roleLabel+'</span></div>'
-      +'<div style="font-size:11px;color:#94a3b8">'+_escHtml(u.email||'')+'</div>'
+      +'<div style="font-size:11px;color:#94a3b8">'+_escHtml(_jackIdDisplay(u.email))+'</div>'
       // ★一覧（カード）上で直接編集できるように、会社名・電話番号・ロールをinput/select化（2026/10追加・モーダルを開かなくても直せる）
       +'<div style="display:flex;gap:4px;align-items:center;margin-top:2px;flex-wrap:wrap">'
         +'<input type="text" value="'+_escHtml(u.company||'')+'" placeholder="会社名未登録" data-pid="'+u.id+'" onchange="admSaveProfileField(this,\'company\')" style="font-size:10px;padding:2px 6px;border:1.5px solid '+(u.company?'#e2e8f0':'#fca5a5')+';border-radius:5px;width:120px">'
-        +'<input type="text" value="'+_escHtml(u.phone||'')+'" placeholder="電話番号" data-pid="'+u.id+'" onchange="admSaveProfileField(this,\'phone\')" style="font-size:10px;padding:2px 6px;border:1.5px solid #e2e8f0;border-radius:5px;width:100px">'
         +'<select data-pid="'+u.id+'" onchange="admSaveUserRole(this)" style="font-size:10px;padding:2px 6px;border:1.5px solid #e2e8f0;border-radius:5px">'
           +'<option value="worker"'+(u.role!=='admin'&&u.role!=='inspector'?' selected':'')+'>協力業者</option>'
           +'<option value="inspector"'+(u.role==='inspector'?' selected':'')+'>検査機関</option>'
@@ -15133,7 +15147,7 @@ async function openUserMasterEditModal(u){
     +'<button onclick="closeUserMasterEditModal()" style="margin-left:auto;background:#f1f5f9;border:none;border-radius:7px;padding:5px 12px;font-size:12px;cursor:pointer">✕ 閉じる</button>'
     +'</div>'
     +'<div style="overflow-y:auto;flex:1;padding:16px 20px">'
-    +'<div style="font-size:11px;color:#94a3b8;margin-bottom:10px">'+_escHtml(u.name||'')+'　'+_escHtml(u.email||'')+'</div>'
+    +'<div style="font-size:11px;color:#94a3b8;margin-bottom:10px">'+_escHtml(u.name||'')+'　'+_escHtml(_jackIdDisplay(u.email))+'</div>'
     +'<div><label style="font-size:10px;color:#64748b;display:block;margin-bottom:3px">会社名</label>'
     +'<input id="umk-company" type="text" value="'+_escHtml(u.company||'')+'" placeholder="例：株式会社〇〇" style="'+iStyle+'"></div>'
     +'<div id="'+pickerId+'-amkroot"></div>'
@@ -15200,7 +15214,7 @@ document.addEventListener('click',async function(e){
   }
   else if(t.classList.contains('adm-delete-user')){
     // 削除権限: takeshi_matsui@felix-japan.co.jp のみ
-    if(!currentProfile||currentProfile.email!=='takeshi_matsui@felix-japan.co.jp'){showToast('削除権限がありません','error');return;}
+    if(!_jackIsSuperAdmin()){showToast('削除権限がありません','error');return;}
     var delEmail=t.getAttribute('data-email')||'';
     if(!confirm('【'+delEmail+'】を完全削除します。\nこのユーザーは再度承認されるまでログイン不可になります。\n本当に削除しますか？'))return;
     var delUid=t.getAttribute('data-uid');
