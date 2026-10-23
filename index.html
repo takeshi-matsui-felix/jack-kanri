@@ -1353,7 +1353,7 @@ var POST_END_PAD = 120; // ★スクロール終端の余白：完了検査列�
 // ===== 納品書機能：休工日カレンダー・稼働日計算 =====
 // ★日本の祝日（政府発表・国立天文台暦要項ベース、2025〜2028年分）
 // ★アプリバージョン（不具合問い合わせ対応用。リリースごとに更新すること。2026/8/23追加）
-var APP_VERSION = '2026.10.22.4';
+var APP_VERSION = '2026.10.23.1';
 window.APP_VERSION=APP_VERSION;
 // ★物件詳細URL（?fix=FIX番号）：起動時に値を控え、ログイン・物件読込後に該当物件の詳細を開く（2026/10/22）
 var _JACK_DEEP_FIX=(function(){try{var v=new URLSearchParams(window.location.search).get('fix');return v?String(v).trim():'';}catch(e){return '';}})();
@@ -16757,7 +16757,7 @@ function admHandleXlsx(input){
         confirm_submit:14,confirm_done:15,inspection:231,completion:232,delivery_date:237,
         delivery_month:237,status:242};
       var sb=getSB();
-      var existing=await sb.from('properties').select('id,fix_no,name,hand_kumi,land_contract,land_payment,confirm_submit,confirm_done,delivery_date');
+      var existing=await sb.from('properties').select('id,fix_no,seq_no,name,area,status,hand_kumi,land_contract,land_payment,confirm_submit,confirm_done,delivery_date,delivery_month,movein_date,movein_date_source');
       var exMap={};
       var exRowById={};
       (existing.data||[]).forEach(function(p){exMap[String(p.fix_no)+'_'+p.name]=p.id;exRowById[p.id]=p;});
@@ -16769,6 +16769,20 @@ function admHandleXlsx(input){
       var dupList=[];
       var DIFF_LABELS={land_contract:'土地契約',land_payment:'土地決済',confirm_submit:'確認申請提出',confirm_done:'確認申請完了',delivery_date:'引渡し',hand_kumi:'手組'};
       function _dnorm(v){var t=String(v||'').trim();if(!t||t==='-')return '';return (typeof normDate==='function'?normDate(t):t)||t;}
+      var skippedSame=0;
+      // ★変更のある行だけ書き込む（2026/10/23）：変化のない行まで毎回更新すると、書き込み負荷が増え、
+      //   全物件の updated_at が変わって「更新」バッジが全件に付き、他端末も全件再取得してしまうため
+      function _rowChanged(oldRow,np){
+        if(!oldRow)return true;
+        var dateKeys={land_contract:1,land_payment:1,confirm_submit:1,confirm_done:1,delivery_date:1,movein_date:1};
+        return Object.keys(np).some(function(k){
+          if(k==='updated_at')return false;
+          var o=String(oldRow[k]==null?'':oldRow[k]).trim(),n=String(np[k]==null?'':np[k]).trim();
+          if(o===n)return false;
+          if(dateKeys[k]&&_dnorm(o)===_dnorm(n))return false;
+          return true;
+        });
+      }
       function _collectDiff(oldRow,np){
         if(!oldRow)return;
         Object.keys(DIFF_LABELS).forEach(function(k){
@@ -16914,6 +16928,7 @@ function admHandleXlsx(input){
           if(exMap[key]){
             // 同じFIX ID+名前 → 通常更新
             _collectDiff(exRowById[exMap[key]],prop);
+            if(!_rowChanged(exRowById[exMap[key]],prop)){skippedSame++;continue;}
             var upR=await sb.from('properties').update(prop).eq('id',exMap[key]).select('id');
             if(upR.error){importErrors.push(fixNo+' '+nameVal+': '+upR.error.message);}
             else if(!upR.data||!upR.data.length){zeroRowList.push(fixNo+' '+nameVal);}else{totalUpd++;}
@@ -16923,6 +16938,7 @@ function admHandleXlsx(input){
             if(sameFixId){
               // 旧名のレコードを最新名で更新
               _collectDiff(exRowById[exMap[sameFixId]],prop);
+              if(!_rowChanged(exRowById[exMap[sameFixId]],prop)){skippedSame++;continue;}
               var upR2=await sb.from('properties').update(prop).eq('id',exMap[sameFixId]).select('id');
               if(upR2.error){importErrors.push(fixNo+' '+nameVal+': '+upR2.error.message);}
               else if(!upR2.data||!upR2.data.length){zeroRowList.push(fixNo+' '+nameVal);}else{totalUpd++;}
@@ -16984,7 +17000,7 @@ function admHandleXlsx(input){
             +(importErrors.length>15?'<br>…他'+(importErrors.length-15)+'件':'')
             +'</div>')
           :'';
-        statusEl.innerHTML='<div style="background:#d1fae5;color:#065f46;padding:12px;border-radius:8px;font-size:12px">✅ 取込完了: 新規 '+totalNew+'件 / 更新 '+totalUpd+'件</div>'+deliveryColInfo+errBlock+_buildImportReport();
+        statusEl.innerHTML='<div style="background:#d1fae5;color:#065f46;padding:12px;border-radius:8px;font-size:12px">✅ 取込完了: 新規 '+totalNew+'件 / 更新 '+totalUpd+'件 / 変更なし '+skippedSame+'件（書き込みを省略）</div>'+deliveryColInfo+errBlock+_buildImportReport();
       }
       showToast('✅ Excelを取込みました','success');
       // ★エクセル最終更新日時を記録（2026/8/30追加：ホーム画面表示用）
