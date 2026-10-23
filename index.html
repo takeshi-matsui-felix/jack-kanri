@@ -1352,7 +1352,7 @@ var POST_END_PAD = 120; // ★スクロール終端の余白：完了検査列�
 // ===== 納品書機能：休工日カレンダー・稼働日計算 =====
 // ★日本の祝日（政府発表・国立天文台暦要項ベース、2025〜2028年分）
 // ★アプリバージョン（不具合問い合わせ対応用。リリースごとに更新すること。2026/8/23追加）
-var APP_VERSION = '2026.10.23.4';
+var APP_VERSION = '2026.10.23.5';
 window.APP_VERSION=APP_VERSION;
 // ★物件詳細URL（?fix=FIX番号）：起動時に値を控え、ログイン・物件読込後に該当物件の詳細を開く（2026/10/22）
 var _JACK_DEEP_FIX=(function(){try{var v=new URLSearchParams(window.location.search).get('fix');return v?String(v).trim():'';}catch(e){return '';}})();
@@ -11431,6 +11431,53 @@ function scheduleSync(){
 }
 
 // ===== SETTINGS =====
+// ===== パスワード変更（本人用） =====
+function openChangePassword(){
+  var old=document.getElementById('_pwModal'); if(old)old.remove();
+  var wrap=document.createElement('div');
+  wrap.id='_pwModal';
+  wrap.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:100000;display:flex;align-items:center;justify-content:center;padding:16px';
+  var inp='width:100%;padding:9px 11px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:14px;box-sizing:border-box;margin-bottom:10px';
+  wrap.innerHTML='<div style="background:white;border-radius:14px;width:100%;max-width:360px;padding:18px">'
+    +'<div style="font-size:15px;font-weight:800;color:#1e293b;margin-bottom:12px">🔑 パスワードの変更</div>'
+    +'<label style="font-size:11px;font-weight:700;color:#64748b">現在のパスワード</label>'
+    +'<input id="pwCur" type="password" autocomplete="current-password" style="'+inp+'">'
+    +'<label style="font-size:11px;font-weight:700;color:#64748b">新しいパスワード（8文字以上）</label>'
+    +'<input id="pwNew" type="password" autocomplete="new-password" style="'+inp+'">'
+    +'<label style="font-size:11px;font-weight:700;color:#64748b">新しいパスワード（確認）</label>'
+    +'<input id="pwNew2" type="password" autocomplete="new-password" style="'+inp+'">'
+    +'<div id="pwErr" style="display:none;background:#fef2f2;color:#991b1b;padding:8px 10px;border-radius:8px;font-size:12px;margin-bottom:10px"></div>'
+    +'<div style="display:flex;gap:8px"><button onclick="document.getElementById(\'_pwModal\').remove()" style="flex:1;padding:10px;border:none;border-radius:9px;background:#f1f5f9;color:#475569;font-size:13px;font-weight:700">キャンセル</button>'
+    +'<button id="pwSaveBtn" onclick="doChangePassword()" style="flex:2;padding:10px;border:none;border-radius:9px;background:#1a56db;color:white;font-size:13px;font-weight:700">変更する</button></div>'
+    +'</div>';
+  document.body.appendChild(wrap);
+}
+window.openChangePassword=openChangePassword;
+async function doChangePassword(){
+  var cur=(document.getElementById('pwCur')||{}).value||'',
+      n1=(document.getElementById('pwNew')||{}).value||'',
+      n2=(document.getElementById('pwNew2')||{}).value||'',
+      err=document.getElementById('pwErr'), btn=document.getElementById('pwSaveBtn');
+  function bad(m){if(err){err.textContent=m;err.style.display='';}if(btn){btn.disabled=false;btn.textContent='変更する';}}
+  if(err)err.style.display='none';
+  if(!cur||!n1||!n2)return bad('すべて入力してください');
+  if(n1.length<8)return bad('新しいパスワードは8文字以上にしてください');
+  if(n1!==n2)return bad('新しいパスワード（確認）が一致しません');
+  if(n1===cur)return bad('現在と同じパスワードは使えません');
+  var sb=getSB(); if(!sb||!currentUser)return bad('ログインし直してください');
+  if(btn){btn.disabled=true;btn.textContent='変更中...';}
+  try{
+    // 現在のパスワードの確認（本人確認）
+    var chk=await sb.auth.signInWithPassword({email:currentUser.email,password:cur});
+    if(chk.error)return bad('現在のパスワードが違います');
+    var up=await sb.auth.updateUser({password:n1});
+    if(up.error)return bad('変更に失敗しました：'+up.error.message);
+    var m=document.getElementById('_pwModal'); if(m)m.remove();
+    showToast('✅ パスワードを変更しました。次回から新しいパスワードでログインしてください','success');
+  }catch(e){bad('変更に失敗しました：'+e.message);}
+}
+window.doChangePassword=doChangePassword;
+
 function openSettings(){
   closeMenu();
   var last=syncData&&syncData.lastSync?new Date(syncData.lastSync).toLocaleString('ja-JP'):'未同期';
@@ -11501,6 +11548,13 @@ function openSettings(){
           +'</div>'
           +'<div style="padding:0 12px 12px"><button onclick="clearAllCache()" style="width:100%;padding:11px;background:#fee2e2;color:#dc2626;border:2px solid #fca5a5;border-radius:8px;font-size:12.5px;font-weight:800;cursor:pointer">すべてリセットする</button></div>'
         +'</div>'
+      +'</div>'
+      // パスワード変更（2026/10/23追加：メールでの再設定が無いため、本人が画面から変更できるようにする）
+      +'<div style="background:white;border:1px solid #e2e8f0;border-radius:12px;overflow:hidden;margin-bottom:14px">'
+        +'<div style="padding:10px 14px;background:#f8fafc;border-bottom:1px solid #e2e8f0;display:flex;align-items:center;gap:6px">'
+          +'<span style="font-size:14px">🔑</span><span style="font-size:12px;font-weight:800;color:#334155">パスワード</span>'
+        +'</div>'
+        +'<div style="padding:10px 14px"><button onclick="document.getElementById(\'_settingsModal\').remove();openChangePassword()" class="btn-primary" style="width:100%;background:#475569">🔑 パスワードを変更する</button></div>'
       +'</div>'
       // 使い方ガイド
       +'<div style="background:white;border:1px solid #e2e8f0;border-radius:12px;overflow:hidden;margin-bottom:14px">'
