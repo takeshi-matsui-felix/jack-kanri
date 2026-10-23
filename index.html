@@ -1353,7 +1353,7 @@ var POST_END_PAD = 120; // ★スクロール終端の余白：完了検査列�
 // ===== 納品書機能：休工日カレンダー・稼働日計算 =====
 // ★日本の祝日（政府発表・国立天文台暦要項ベース、2025〜2028年分）
 // ★アプリバージョン（不具合問い合わせ対応用。リリースごとに更新すること。2026/8/23追加）
-var APP_VERSION = '2026.10.23.6';
+var APP_VERSION = '2026.10.23.7';
 window.APP_VERSION=APP_VERSION;
 // ★物件詳細URL（?fix=FIX番号）：起動時に値を控え、ログイン・物件読込後に該当物件の詳細を開く（2026/10/22）
 var _JACK_DEEP_FIX=(function(){try{var v=new URLSearchParams(window.location.search).get('fix');return v?String(v).trim():'';}catch(e){return '';}})();
@@ -13076,7 +13076,7 @@ window.jackRegRoleChanged=jackRegRoleChanged;
 //   「@」を含む入力は、@より前の部分だけをIDとして扱う（以前のメールアドレスのままでもログインできる）
 var JACK_ID_DOMAIN='jack-login.example';
 function _jackIdNormalize(v){
-  v=String(v||'').trim().toLowerCase();
+  v=String(v||'').normalize('NFKC').trim().toLowerCase(); // 全角の英数字（ｔｅｓｕｔｏ 等）は半角にそろえる
   var at=v.indexOf('@'); if(at>=0)v=v.slice(0,at);
   return v;
 }
@@ -13112,7 +13112,7 @@ async function doLogin(){
     if(r.error.message!=='Invalid login credentials')break; // 通信エラー等は次の候補を試さない
   }
   if(r.error){
-    if(errEl){errEl.textContent=r.error.message==='Invalid login credentials'?'ログインIDまたはパスワードが違います':r.error.message;errEl.style.display='';}
+    if(errEl){errEl.textContent=r.error.message==='Invalid login credentials'?(/[^\x00-\x7F]/.test(_jackIdNormalize(rawInput))?'ログインIDは半角英数字です（氏名や会社名ではありません）。ユーザー管理に表示されているIDを入力してください':'ログインIDまたはパスワードが違います'):r.error.message;errEl.style.display='';}
     if(btn){btn.textContent='ログイン';btn.disabled=false;}return;
   }
   currentUser=r.data.user;
