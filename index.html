@@ -1353,7 +1353,7 @@ var POST_END_PAD = 120; // ★スクロール終端の余白：完了検査列�
 // ===== 納品書機能：休工日カレンダー・稼働日計算 =====
 // ★日本の祝日（政府発表・国立天文台暦要項ベース、2025〜2028年分）
 // ★アプリバージョン（不具合問い合わせ対応用。リリースごとに更新すること。2026/8/23追加）
-var APP_VERSION = '2026.10.23.7';
+var APP_VERSION = '2026.10.25.1';
 window.APP_VERSION=APP_VERSION;
 // ★物件詳細URL（?fix=FIX番号）：起動時に値を控え、ログイン・物件読込後に該当物件の詳細を開く（2026/10/22）
 var _JACK_DEEP_FIX=(function(){try{var v=new URLSearchParams(window.location.search).get('fix');return v?String(v).trim():'';}catch(e){return '';}})();
@@ -15327,14 +15327,14 @@ document.addEventListener('click',async function(e){
     // 削除権限: takeshi_matsui@felix-japan.co.jp のみ
     if(!_jackIsSuperAdmin()){showToast('削除権限がありません','error');return;}
     var delEmail=t.getAttribute('data-email')||'';
-    if(!confirm('【'+delEmail+'】を完全削除します。\nこのユーザーは再度承認されるまでログイン不可になります。\n本当に削除しますか？'))return;
+    if(!confirm('【'+_jackIdDisplay(delEmail)+'】を完全削除します。\nログイン情報も消え、元に戻せません。\n本当に削除しますか？'))return;
     var delUid=t.getAttribute('data-uid');
-    // まずapprovedをfalseにして即座にログイン不可に
-    await sb.from('profiles').update({approved:false,deleted:true}).eq('id',delUid);
-    // profilesテーブルから削除（Supabase Authのユーザーはauth.usersから削除はAdmin APIが必要なためprofiles削除で対応）
-    var delRes=await sb.from('profiles').delete().eq('id',delUid);
+    if(currentUser&&String(currentUser.id)===String(delUid)){showToast('自分自身は削除できません','error');return;}
+    // ★2026/10/25：DB関数 admin_delete_user でログイン情報（auth.users）ごと完全削除する（事前に「ユーザー削除_SQL.sql」の実行が必要）。
+    //   以前は profiles の行だけ消えて、ログイン情報とログインIDが残り続けていた
+    var delRes=await sb.rpc('admin_delete_user',{target_id:delUid});
     if(delRes.error){showToast('削除エラー: '+delRes.error.message,'error');}
-    else{showToast('✅ 【'+delEmail+'】を削除しました。再承認なしにはログイン不可です。','success');loadAdmSec('users');}
+    else{showToast('✅ 【'+_jackIdDisplay(delEmail)+'】を完全に削除しました','success');loadAdmSec('users');}
   }
 });
 
