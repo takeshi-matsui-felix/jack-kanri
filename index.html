@@ -1422,7 +1422,7 @@ var POST_END_PAD = 120; // ★スクロール終端の余白：完了検査列�
 // ===== 納品書機能：休工日カレンダー・稼働日計算 =====
 // ★日本の祝日（政府発表・国立天文台暦要項ベース、2025〜2028年分）
 // ★アプリバージョン（不具合問い合わせ対応用。リリースごとに更新すること。2026/8/23追加）
-var APP_VERSION = '2026.10.25.17';
+var APP_VERSION = '2026.10.25.19';
 window.APP_VERSION=APP_VERSION;
 // ★物件詳細URL（?fix=FIX番号）：起動時に値を控え、ログイン・物件読込後に該当物件の詳細を開く（2026/10/22）
 var _JACK_DEEP_FIX=(function(){try{var v=new URLSearchParams(window.location.search).get('fix');return v?String(v).trim():'';}catch(e){return '';}})();
@@ -18484,8 +18484,15 @@ document.addEventListener('DOMContentLoaded',function(){
   function ts(t){var d=new Date(t);return (d.getMonth()+1)+'/'+d.getDate()+' '+d.getHours()+':'+('0'+d.getMinutes()).slice(-2);}
   function sgn(d){return (d>0?'+':'')+d+'日';}
   // 工程の配列 → [{k,p,s,e}]（同名の工種は出現順で区別）
+  // 検査の行（配筋・躯体・中間・断熱・完了・完成）は検査予約から自動で作られ、名前に日付が付いたり日付が切り替わったりするため、
+  // 工程の変更とは見なさず履歴から除く
+  var KN=['配筋検査','躯体検査','中間検査','断熱検査','完了検査','完成検査'];
+  function isK(name){var nm=String(name||'').trim().replace(/\s*[\(（][^)）]*[\)）]\s*$/,'');return KN.indexOf(nm)>=0;}
+  // 日付が動いた工種があるか（工程の「追加・削除」だけの変更は、ズレとして扱わない＝バッジ・帯・LINE文章の対象外）
+  function hasMove(e){return (e&&e.items||[]).some(function(i){return !i.add&&!i.rm;});}
+  function cleanEv(e){if(e&&e.kind==='edit')e.items=(e.items||[]).filter(function(i){return !isK(i.p);});return e;}
   function norm(segs){var cnt={},out=[];(segs||[]).forEach(function(g){
-    var p=String(g.label||g.name||'').trim();if(!p)return;
+    var p=String(g.label||g.name||'').trim();if(!p||g._kensaDef||isK(p))return;
     var s=dkey(g.start_date||g.date),e=dkey(g.end_date)||s;if(!s)return;
     cnt[p]=(cnt[p]||0)+1;out.push({k:p+'#'+cnt[p],p:p,s:s,e:e});});return out;}
   function diff(a,b){var ma={},seen={},items=[];a.forEach(function(x){ma[x.k]=x;});
@@ -18511,7 +18518,7 @@ document.addEventListener('DOMContentLoaded',function(){
   // ---------- 記録 ----------
   function who(){try{return (currentProfile&&(currentProfile.name||currentProfile.company))||'';}catch(e){return '';}}
   function addLocal(e){
-    if(e.kind==='edit'&&(e.items||[]).length)RECENT[e.fix_no]=e;
+    cleanEv(e);if(e.kind==='edit'&&hasMove(e))RECENT[e.fix_no]=e;
     var h=HIST[e.fix_no];if(h){h.ev.unshift(e);}
     try{if(typeof renderBody==='function')renderBody();}catch(x){}
     mountStrip();}
@@ -18558,7 +18565,7 @@ document.addEventListener('DOMContentLoaded',function(){
       .order('changed_at',{ascending:false}).limit(1500)
       .then(function(r){
         if(r.error){noTable(r.error);return;}
-        var m={};(r.data||[]).forEach(function(e){if((e.items||[]).length&&!m[e.fix_no])m[e.fix_no]=e;});
+        var m={};(r.data||[]).forEach(function(e){cleanEv(e);if(hasMove(e)&&!m[e.fix_no])m[e.fix_no]=e;});
         var key=Object.keys(m).map(function(k){return k+':'+m[k].id;}).sort().join(',');
         RECENT=m;
         if(key!==lastRecentKey){lastRecentKey=key;try{if(typeof renderBody==='function')renderBody();}catch(x){}}
@@ -18568,7 +18575,7 @@ document.addEventListener('DOMContentLoaded',function(){
     var sb=SB();if(!sb||!tableOk)return Promise.resolve([]);
     return sb.from('gantt_changes').select('id,fix_no,changed_at,changed_by,kind,items,snapshot').eq('fix_no',fix)
       .order('changed_at',{ascending:false}).limit(200)
-      .then(function(r){if(r.error){noTable(r.error);return [];}HIST[fix]={t:Date.now(),ev:r.data||[]};return HIST[fix].ev;})
+      .then(function(r){if(r.error){noTable(r.error);return [];}HIST[fix]={t:Date.now(),ev:(r.data||[]).map(cleanEv)};return HIST[fix].ev;})
       .catch(function(){return [];});}
 
   // ---------- 一覧のバッジ ----------
@@ -18596,7 +18603,7 @@ document.addEventListener('DOMContentLoaded',function(){
     var fix=String(p.fix_no||'');
     loadHist(fix).then(function(ev){
       if(!st.parentNode||String((typeof currentProp!=='undefined'&&currentProp&&currentProp.fix_no)||'')!==fix)return;
-      var last=ev.find(function(e){return e.kind==='edit'&&(e.items||[]).length;}),conf=ev.find(function(e){return e.kind==='confirm';});
+      var last=ev.find(function(e){return e.kind==='edit'&&hasMove(e);}),conf=ev.find(function(e){return e.kind==='confirm';});
       if(!last&&!conf){st.style.display='none';return;}
       var h='';
       if(conf){
@@ -18623,7 +18630,7 @@ document.addEventListener('DOMContentLoaded',function(){
     var conf=ev.find(function(e){return e.kind==='confirm';});if(!conf)return '';
     var items=confDiff(conf,p);if(!items.length)return '';
     items.sort(function(a,b){return Math.abs(shiftOf(b)||0)-Math.abs(shiftOf(a)||0);});
-    var last=ev.find(function(e){return e.kind==='edit'&&(e.items||[]).length;});
+    var last=ev.find(function(e){return e.kind==='edit'&&hasMove(e);});
     var L=['【確定済み工程表の変更のお知らせ】'].concat(headLines(p,ts(last?last.changed_at:new Date())+' 変更'));
     var ds=items.map(shiftOf);
     if(items.length>=3&&ds.every(function(d){return d===ds[0]&&d!==0;})){
