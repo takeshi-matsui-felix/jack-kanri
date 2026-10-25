@@ -689,6 +689,10 @@ body.sp-mode #areaTabsBtns{ display:none !important; }
 #jackAuthOverlay #jackLoginErr,#jackAuthOverlay #jackRegErr{border-radius:12px!important;font-size:13px!important;padding:10px 12px!important}
 #jackAuthOverlay a{color:#1e40af!important;font-size:13px!important;display:inline-block;padding:8px 4px}
 #jackAuthOverlay #jackFormRegister div[style*="fefce8"]{border-radius:12px!important;font-size:12px!important;padding:10px 12px!important}
+/* ★案4：ガントのバーを少し丸く・今日ラベルを見やすく（色・サイズ・配置は変えない）（2026/10/25） */
+.bar,.ed-bar-el{border-radius:4px}
+.bar{box-shadow:0 1px 3px rgba(15,27,61,.25)}
+.today-lbl{border-radius:4px;font-size:8px;padding:1px 4px;box-shadow:0 1px 3px rgba(185,28,28,.4)}
 </style>
 </head><body>
 <div id="jackAuthOverlay" style="display:flex">
@@ -1381,7 +1385,7 @@ var POST_END_PAD = 120; // ★スクロール終端の余白：完了検査列�
 // ===== 納品書機能：休工日カレンダー・稼働日計算 =====
 // ★日本の祝日（政府発表・国立天文台暦要項ベース、2025〜2028年分）
 // ★アプリバージョン（不具合問い合わせ対応用。リリースごとに更新すること。2026/8/23追加）
-var APP_VERSION = '2026.10.25.6';
+var APP_VERSION = '2026.10.25.7';
 window.APP_VERSION=APP_VERSION;
 // ★物件詳細URL（?fix=FIX番号）：起動時に値を控え、ログイン・物件読込後に該当物件の詳細を開く（2026/10/22）
 var _JACK_DEEP_FIX=(function(){try{var v=new URLSearchParams(window.location.search).get('fix');return v?String(v).trim():'';}catch(e){return '';}})();
@@ -14601,10 +14605,28 @@ function renderAdminCPShell(){
   loadAdmSec('users');
 }
 
+// ★案3：管理者CPメニューの絵文字を線のアイコンに置換（2026/10/25）。対応表にない絵文字はそのまま表示する。
+var _ADM_ICONS={
+ '👥':'<circle cx="9" cy="8" r="3"/><path d="M3 20c0-3.5 2.7-5.5 6-5.5s6 2 6 5.5"/><path d="M16 5.5a3 3 0 0 1 0 5.5M18 14.800c1.800.8 3 2.600 3 5.200"/>',
+ '🏠':'<path d="M3 11l9-8 9 8"/><path d="M5 10v10h14V10"/><path d="M10 20v-6h4v6"/>',
+ '🔍':'<circle cx="11" cy="11" r="7"/><path d="M20 20l-4-4"/>',
+ '📊':'<path d="M5 20V10M12 20V4M19 20v-7"/>',
+ '👤':'<circle cx="12" cy="8" r="3.500"/><path d="M5 20c0-3.900 3.100-6 7-6s7 2.100 7 6"/>',
+ '📦':'<path d="M3.500 7.500L12 3l8.500 4.500v9L12 21l-8.500-4.500z"/><path d="M3.500 7.500L12 12l8.500-4.500M12 12v9"/>',
+ '🧾':'<path d="M6 3h12v18l-3-2-3 2-3-2-3 2z"/><path d="M9 8h6M9 12h6"/>',
+ '📐':'<path d="M4 20V4l16 16z"/><path d="M8 20v-3M12 20v-4"/>',
+ '📥':'<path d="M12 4v11M7 11l5 5 5-5"/><path d="M4 20h16"/>',
+ '👷':'<circle cx="12" cy="8" r="3.500"/><path d="M5 20c0-3.900 3.100-6 7-6s7 2.100 7 6"/>',
+ '📋':'<rect x="5" y="4" width="14" height="17" rx="2"/><path d="M9 4V3h6v1M9 11h6M9 15h6"/>',
+ '📢':'<path d="M4 10v4h3l7 4V6L7 10z"/><path d="M17 9a4 4 0 0 1 0 6"/>',
+ '🔧':'<path d="M14.500 6.500a4 4 0 0 0 5 5L11 20a2.100 2.100 0 0 1-3-3z"/><path d="M14.500 6.500l3-3"/>'
+};
 function admMenuItem(id,icon,label){
+  var _d=_ADM_ICONS[icon];
+  if(_d)icon='<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="display:block">'+_d+'</svg>';
   return '<div class="adm-mi" data-sec="'+id+'" onclick="loadAdmSec(\''+id+'\')" '
     +'style="display:flex;align-items:center;gap:8px;padding:9px 12px;cursor:pointer;color:rgba(255,255,255,.7);font-size:12px;font-weight:600;transition:background .1s">'
-    +'<span style="font-size:14px">'+icon+'</span><span>'+label+'</span></div>';
+    +'<span style="font-size:14px;width:18px;height:18px;display:flex;align-items:center;justify-content:center;flex-shrink:0">'+icon+'</span><span>'+label+'</span></div>';
 }
 
 // ===== お知らせ管理（管理者CP） =====
