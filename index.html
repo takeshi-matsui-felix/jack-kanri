@@ -85,6 +85,11 @@
   --col-w:18px; /* reduced from 22px */
   --row-h:40px;
   --freeze-w:150px;
+  /* ★UI統一ルール（案1・2026/10/25）：角丸 8/12/16、影 弱/強、完了・注意・警告の色 */
+  --r-sm:8px;--r-md:12px;--r-lg:16px;
+  --sh-card:0 1px 2px rgba(15,27,61,.06),0 4px 12px rgba(15,27,61,.05);
+  --sh-pop:0 8px 24px rgba(15,27,61,.14);
+  --c-ok:#047857;--c-warn:#b45309;--c-err:#b91c1c;--c-sub:#566377;
 }
 *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
 html,body{height:100%;font-family:var(--font);background:#0f172a;overflow:clip;touch-action:pan-x pan-y pinch-zoom;}
@@ -662,6 +667,15 @@ body:not(.sp-mode) .top-header{ display:none !important; }
 body:not(.sp-mode) .sync-banner{ display:none !important; }
 /* ★スマホモードでは上部バーの検索/表示切替ボタンをそのまま使うため、エリアタブ横の複製ボタンは隠す */
 body.sp-mode #areaTabsBtns{ display:none !important; }
+/* ★UI統一ルール（案1）：共通部品の角丸・影をそろえる。サイズ・配置は変えない（2026/10/25） */
+.dp-sec,.mypage-card{border-radius:var(--r-lg);box-shadow:var(--sh-card)}
+.btn-primary,.btn-secondary,.btn-danger,.popup-close{border-radius:var(--r-md)}
+.btn-primary{box-shadow:0 2px 6px rgba(26,86,219,.25)}
+.form-row input[type=text],.form-row input[type=number]{border-radius:var(--r-sm)}
+.popup-box,#jackMapBox{border-radius:var(--r-lg);box-shadow:var(--sh-pop)}
+.toast{box-shadow:var(--sh-pop)}
+.sb,.urg-pill{border-radius:999px;padding-left:6px;padding-right:6px}
+.btn-primary:active,.btn-secondary:active,.btn-danger:active{transform:scale(.97)}
 </style>
 </head><body>
 <div id="jackAuthOverlay" style="display:flex">
@@ -1353,7 +1367,7 @@ var POST_END_PAD = 120; // ★スクロール終端の余白：完了検査列�
 // ===== 納品書機能：休工日カレンダー・稼働日計算 =====
 // ★日本の祝日（政府発表・国立天文台暦要項ベース、2025〜2028年分）
 // ★アプリバージョン（不具合問い合わせ対応用。リリースごとに更新すること。2026/8/23追加）
-var APP_VERSION = '2026.10.25.2';
+var APP_VERSION = '2026.10.25.3';
 window.APP_VERSION=APP_VERSION;
 // ★物件詳細URL（?fix=FIX番号）：起動時に値を控え、ログイン・物件読込後に該当物件の詳細を開く（2026/10/22）
 var _JACK_DEEP_FIX=(function(){try{var v=new URLSearchParams(window.location.search).get('fix');return v?String(v).trim():'';}catch(e){return '';}})();
