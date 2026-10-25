@@ -676,14 +676,28 @@ body.sp-mode #areaTabsBtns{ display:none !important; }
 .toast{box-shadow:var(--sh-pop)}
 .sb,.urg-pill{border-radius:999px;padding-left:6px;padding-right:6px}
 .btn-primary:active,.btn-secondary:active,.btn-danger:active{transform:scale(.97)}
+/* ★案2：ログイン・新規登録画面の刷新（2026/10/25）。#jackAuthOverlay 内だけに効く。入力欄は16px（iOSの自動ズーム防止） */
+#jackAuthOverlay>div>div{border-radius:20px!important;box-shadow:var(--sh-pop)!important;max-width:400px!important}
+#jackAuthOverlay>div>div>div:first-child{background:linear-gradient(160deg,#0f1b3d 0%,#1a56db 100%)!important;padding:30px 24px 22px!important}
+#jackAuthOverlay .jk-auth-ico{width:52px;height:52px;margin:0 auto 10px;border-radius:16px;background:rgba(255,255,255,.14);display:flex;align-items:center;justify-content:center}
+#jackAuthOverlay label{font-size:12px!important;color:#334155!important;margin-bottom:6px!important}
+#jackAuthOverlay input,#jackAuthOverlay select{font-size:16px!important;min-height:46px;padding:0 14px!important;border:1.5px solid #cbd5e1!important;border-radius:12px!important;transition:border-color .15s,box-shadow .15s}
+#jackAuthOverlay input:focus,#jackAuthOverlay select:focus{border-color:#1a56db!important;box-shadow:0 0 0 4px rgba(26,86,219,.15)}
+#jackAuthOverlay #jackTabLogin,#jackAuthOverlay #jackTabRegister{font-size:14px!important;min-height:48px}
+#jackAuthOverlay #jackLoginBtn,#jackAuthOverlay #jackRegBtn{min-height:52px;border-radius:12px!important;font-size:16px!important;box-shadow:0 4px 12px rgba(26,86,219,.35);transition:transform .1s}
+#jackAuthOverlay #jackLoginBtn:active,#jackAuthOverlay #jackRegBtn:active{transform:scale(.98)}
+#jackAuthOverlay #jackLoginErr,#jackAuthOverlay #jackRegErr{border-radius:12px!important;font-size:13px!important;padding:10px 12px!important}
+#jackAuthOverlay a{color:#1e40af!important;font-size:13px!important;display:inline-block;padding:8px 4px}
+#jackAuthOverlay #jackFormRegister div[style*="fefce8"]{border-radius:12px!important;font-size:12px!important;padding:10px 12px!important}
 </style>
 </head><body>
 <div id="jackAuthOverlay" style="display:flex">
   <div style="min-height:100vh;display:flex;align-items:center;justify-content:center;padding:20px;width:100%">
     <div style="background:white;border-radius:18px;width:100%;max-width:380px;overflow:hidden;box-shadow:0 20px 60px rgba(0,0,0,.5)">
       <div style="background:linear-gradient(135deg,#1a56db,#3b82f6);padding:26px 24px 20px;text-align:center">
-        <div style="font-size:30px;font-weight:900;color:white;letter-spacing:-1px">JACK</div>
-        <div style="color:rgba(255,255,255,.8);font-size:12px;margin-top:3px">新築AP 現場管理システム</div>
+        <div class="jk-auth-ico"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 21V9l9-6 9 6v12"/><path d="M9 21v-7h6v7"/></svg></div>
+        <div style="font-size:30px;font-weight:900;color:white;letter-spacing:.06em">JACK</div>
+        <div style="color:rgba(255,255,255,.85);font-size:12px;margin-top:3px">新築AP 現場管理システム</div>
       </div>
       <div style="display:flex;border-bottom:2px solid #e2e8f0">
         <button onclick="showAuthTab('login')" id="jackTabLogin" style="flex:1;padding:11px;font-size:13px;font-weight:700;color:#1a56db;border-bottom:2px solid #1a56db;margin-bottom:-2px">ログイン</button>
@@ -1367,7 +1381,7 @@ var POST_END_PAD = 120; // ★スクロール終端の余白：完了検査列�
 // ===== 納品書機能：休工日カレンダー・稼働日計算 =====
 // ★日本の祝日（政府発表・国立天文台暦要項ベース、2025〜2028年分）
 // ★アプリバージョン（不具合問い合わせ対応用。リリースごとに更新すること。2026/8/23追加）
-var APP_VERSION = '2026.10.25.3';
+var APP_VERSION = '2026.10.25.4';
 window.APP_VERSION=APP_VERSION;
 // ★物件詳細URL（?fix=FIX番号）：起動時に値を控え、ログイン・物件読込後に該当物件の詳細を開く（2026/10/22）
 var _JACK_DEEP_FIX=(function(){try{var v=new URLSearchParams(window.location.search).get('fix');return v?String(v).trim():'';}catch(e){return '';}})();
