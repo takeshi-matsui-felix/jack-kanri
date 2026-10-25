@@ -1422,7 +1422,7 @@ var POST_END_PAD = 120; // ★スクロール終端の余白：完了検査列�
 // ===== 納品書機能：休工日カレンダー・稼働日計算 =====
 // ★日本の祝日（政府発表・国立天文台暦要項ベース、2025〜2028年分）
 // ★アプリバージョン（不具合問い合わせ対応用。リリースごとに更新すること。2026/8/23追加）
-var APP_VERSION = '2026.10.25.14';
+var APP_VERSION = '2026.10.25.15';
 window.APP_VERSION=APP_VERSION;
 // ★物件詳細URL（?fix=FIX番号）：起動時に値を控え、ログイン・物件読込後に該当物件の詳細を開く（2026/10/22）
 var _JACK_DEEP_FIX=(function(){try{var v=new URLSearchParams(window.location.search).get('fix');return v?String(v).trim():'';}catch(e){return '';}})();
@@ -4675,7 +4675,7 @@ function renderBody(){
           var updLabel=(updD.getMonth()+1)+'/'+updD.getDate()+' '+updD.getHours()+':'+('0'+updD.getMinutes()).slice(-2);
           updBadge2='<span onclick="event.stopPropagation();showToast(\'🕒 最終更新: '+updLabel+'\',\'\')" style="font-size:9px;background:#16a34a;color:white;padding:1px 5px;border-radius:3px;font-weight:700;cursor:pointer" title="タップで更新日時を表示">🆕更新</span>';
         }
-        md.innerHTML=tantouBadge+shinsaBadge2+updBadge2+(isUrgent?'<span class="urg-pill">⚡'+days+'日</span>':'')+(fav?'<span style="font-size:9px">⭐</span>':'')+parkBadge2;
+        md.innerHTML=tantouBadge+shinsaBadge2+updBadge2+(isUrgent?'<span class="urg-pill">⚡'+days+'日</span>':'')+(fav?'<span style="font-size:9px">⭐</span>':'')+parkBadge2+(typeof _gchgBadge==='function'?_gchgBadge(p):'');
         cell.appendChild(nd);cell.appendChild(md);
       } else if(c.key==='_vendorGrid'){
         cell.style.cssText+='flex-direction:column;align-items:flex-start;justify-content:center;padding:2px 3px;overflow:hidden;';
@@ -18467,6 +18467,197 @@ document.addEventListener('DOMContentLoaded',function(){
     push(document.body);
   }
   if(document.body)start();else document.addEventListener('DOMContentLoaded',start);
+})();
+</script>
+<script>
+// ★工程の変更履歴（2026/10/25）：工程表が保存されるたびに「どの工種が何日から何日に変わったか」を記録し、
+//   ①物件詳細のガント上に「最終変更／工期確定との比較」の帯を出す ②一覧に「変更 M/D」バッジを出す
+//   ③「工期確定」を押した時点の工程を保存して、確定後のズレを比較できるようにする。
+//   記録先は Supabase の gantt_changes テーブル（工程変更履歴_SQL.sql）。テーブルが無い間は何も起きない。
+(function(){
+  var RECENT={}, HIST={}, tableOk=true, lastRecentKey='';
+  function SB(){return (typeof getSB==='function')?getSB():null;}
+  function esc(s){return String(s==null?'':s).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];});}
+  function dkey(s){s=String(s||'');var m=s.match(/(\d{4})\D(\d{1,2})\D(\d{1,2})/);return m?m[1]+'-'+('0'+m[2]).slice(-2)+'-'+('0'+m[3]).slice(-2):'';}
+  function dnum(k){if(!k)return null;var p=k.split('-');return Date.UTC(+p[0],+p[1]-1,+p[2])/86400000;}
+  function md(k){if(!k)return '';var p=k.split('-');return (+p[1])+'/'+(+p[2]);}
+  function ts(t){var d=new Date(t);return (d.getMonth()+1)+'/'+d.getDate()+' '+d.getHours()+':'+('0'+d.getMinutes()).slice(-2);}
+  function sgn(d){return (d>0?'+':'')+d+'日';}
+  // 工程の配列 → [{k,p,s,e}]（同名の工種は出現順で区別）
+  function norm(segs){var cnt={},out=[];(segs||[]).forEach(function(g){
+    var p=String(g.label||g.name||'').trim();if(!p)return;
+    var s=dkey(g.start_date||g.date),e=dkey(g.end_date)||s;if(!s)return;
+    cnt[p]=(cnt[p]||0)+1;out.push({k:p+'#'+cnt[p],p:p,s:s,e:e});});return out;}
+  function diff(a,b){var ma={},seen={},items=[];a.forEach(function(x){ma[x.k]=x;});
+    b.forEach(function(y){var x=ma[y.k];seen[y.k]=1;
+      if(!x)items.push({p:y.p,ts:y.s,te:y.e,add:1});
+      else if(x.s!==y.s||x.e!==y.e)items.push({p:y.p,fs:x.s,fe:x.e,ts:y.s,te:y.e});});
+    a.forEach(function(x){if(!seen[x.k])items.push({p:x.p,fs:x.s,fe:x.e,rm:1});});
+    return items;}
+  function shiftOf(i){if(i.add||i.rm)return null;var d=dnum(i.ts)-dnum(i.fs);if(!d)d=dnum(i.te)-dnum(i.fe);return d||0;}
+  // 変更の要約：全部同じ日数なら「全N工種を一括 +7日」、そうでなければ大きいものから2件＋「ほかN件」
+  function sumItems(items){
+    items=items||[];
+    var mv=items.filter(function(i){return !i.add&&!i.rm;}),ad=items.filter(function(i){return i.add;}).length,rm=items.filter(function(i){return i.rm;}).length;
+    var o=mv.map(function(i){return {i:i,d:shiftOf(i)};}),parts=[];
+    if(o.length>=3&&o.every(function(x){return x.d===o[0].d&&x.d!==0;}))parts.push('全'+o.length+'工種を一括 '+sgn(o[0].d));
+    else{o.sort(function(a,b){return Math.abs(b.d)-Math.abs(a.d);});
+      o.slice(0,2).forEach(function(x){parts.push(x.i.p+' '+sgn(x.d));});
+      if(o.length>2)parts.push('ほか'+(o.length-2)+'件');}
+    if(ad)parts.push('追加'+ad+'件');if(rm)parts.push('削除'+rm+'件');
+    return parts.join('・');}
+  function noTable(err){var m=String((err&&err.message)||'');if(/gantt_changes|does not exist|schema cache|42P01|PGRST205/.test(m)){tableOk=false;return true;}return false;}
+
+  // ---------- 記録 ----------
+  function who(){try{return (currentProfile&&(currentProfile.name||currentProfile.company))||'';}catch(e){return '';}}
+  function addLocal(e){
+    if(e.kind==='edit'&&(e.items||[]).length)RECENT[e.fix_no]=e;
+    var h=HIST[e.fix_no];if(h){h.ev.unshift(e);}
+    try{if(typeof renderBody==='function')renderBody();}catch(x){}
+    mountStrip();}
+  function insertEv(row){
+    var sb=SB();if(!sb||!tableOk)return;
+    sb.from('gantt_changes').insert(row).select('id,fix_no,changed_at,changed_by,kind,items,snapshot')
+      .then(function(r){if(r.error){if(!noTable(r.error))console.warn('[JACK] 変更履歴の記録に失敗',r.error.message);return;}
+        var e=r.data&&r.data[0];if(e)addLocal(e);})
+      .catch(function(x){console.warn('[JACK] 変更履歴の記録に失敗',x);});}
+  if(typeof _saveGanttToSupabase==='function'){
+    var _origSave=_saveGanttToSupabase;
+    window._saveGanttToSupabase=_saveGanttToSupabase=function(p,segsData,cb){
+      var before=null;
+      try{var row=(typeof DB_PROPS!=='undefined'&&DB_PROPS)?DB_PROPS.find(function(x){return String(x.fix_no)===String(p.fix_no);}):null;
+        var cg=row&&row.custom_gantt;if(typeof cg==='string')cg=JSON.parse(cg);
+        var arr=_cgSegsArr(cg);if(arr)before=norm(arr);}catch(e){}
+      var after=segsData?norm(segsData):null;
+      return _origSave.call(this,p,segsData,function(ok){
+        try{if(ok&&after){
+          if(before){var items=diff(before,after);if(items.length)insertEv({fix_no:String(p.fix_no),changed_by:who(),kind:'edit',items:items});}
+          else insertEv({fix_no:String(p.fix_no),changed_by:who(),kind:'init',items:[]});}}catch(e){}
+        if(cb)cb(ok);});};
+  }
+  // 工期確定：「この工程までを確定にする」を押した時点の、確定済み工程を保存する
+  if(typeof applyConfirmedUntil==='function'){
+    var _origCU=applyConfirmedUntil;
+    window.applyConfirmedUntil=applyConfirmedUntil=function(){
+      var sel=document.getElementById('geConfirmedUntilSel'),v=sel?sel.value:'',p=currentProp;
+      var r=_origCU.apply(this,arguments);
+      try{if(v&&p){
+        var segs=getActiveSegs(p)||[];
+        var idx=segs.findIndex(function(s){return String(s.label||s.name||'').trim()===v;});
+        if(idx>=0){
+          var snap=norm(segs.slice(0,idx+1)).map(function(x){return {label:x.p,start_date:x.s,end_date:x.e};});
+          insertEv({fix_no:String(p.fix_no),changed_by:who(),kind:'confirm',items:[{upto:v}],snapshot:snap});}}}catch(e){}
+      return r;};
+  }
+
+  // ---------- 読み込み ----------
+  function loadRecent(){
+    var sb=SB();if(!sb||!tableOk)return;
+    var since=new Date(Date.now()-14*86400000).toISOString();
+    sb.from('gantt_changes').select('id,fix_no,changed_at,kind,items').eq('kind','edit').gte('changed_at',since)
+      .order('changed_at',{ascending:false}).limit(1500)
+      .then(function(r){
+        if(r.error){noTable(r.error);return;}
+        var m={};(r.data||[]).forEach(function(e){if((e.items||[]).length&&!m[e.fix_no])m[e.fix_no]=e;});
+        var key=Object.keys(m).map(function(k){return k+':'+m[k].id;}).sort().join(',');
+        RECENT=m;
+        if(key!==lastRecentKey){lastRecentKey=key;try{if(typeof renderBody==='function')renderBody();}catch(x){}}
+      }).catch(function(){});}
+  function loadHist(fix){
+    var h=HIST[fix];if(h&&Date.now()-h.t<60000)return Promise.resolve(h.ev);
+    var sb=SB();if(!sb||!tableOk)return Promise.resolve([]);
+    return sb.from('gantt_changes').select('id,fix_no,changed_at,changed_by,kind,items,snapshot').eq('fix_no',fix)
+      .order('changed_at',{ascending:false}).limit(200)
+      .then(function(r){if(r.error){noTable(r.error);return [];}HIST[fix]={t:Date.now(),ev:r.data||[]};return HIST[fix].ev;})
+      .catch(function(){return [];});}
+
+  // ---------- 一覧のバッジ ----------
+  window._gchgBadge=function(p){
+    var e=RECENT[String(p&&p.fix_no)];if(!e)return '';
+    var d=new Date(e.changed_at);
+    return '<span title="工程が変更されました（'+esc(sumItems(e.items))+'）" style="font-size:9px;background:#fff7ed;color:#c2410c;border:1px solid #fdba74;padding:0 5px;border-radius:999px;font-weight:700;white-space:nowrap">変更 '+(d.getMonth()+1)+'/'+d.getDate()+'</span>';};
+
+  // ---------- 物件詳細の帯 ----------
+  function confDiff(conf,p){
+    var cur=norm(getActiveSegs(p)||[]);var want={};norm(conf.snapshot).forEach(function(x){want[x.k]=1;});
+    var curC=cur.filter(function(x){return want[x.k];}); // 確定時に存在した工種だけを比べる
+    return diff(norm(conf.snapshot),curC).filter(function(i){return !i.add;});}
+  function chip(txt,bg,fg,bd){return '<span style="display:inline-flex;align-items:center;gap:4px;padding:2px 9px;border-radius:999px;background:'+bg+';color:'+fg+';border:1px solid '+bd+';font-weight:700;font-size:11px;white-space:nowrap">'+txt+'</span>';}
+  function mountStrip(){
+    var sec=document.getElementById('detail-gantt-sec'),p=(typeof currentProp!=='undefined')?currentProp:null;
+    if(!sec||!p)return;
+    var fix=String(p.fix_no||'');
+    var old=document.getElementById('jk-gchg-strip');if(old&&old.getAttribute('data-fix')===fix&&old.parentNode===sec)return renderStrip(old,p);
+    if(old)old.remove();
+    var wrap=document.getElementById('gantt-panes-wrap');if(!wrap)return;
+    var st=document.createElement('div');st.id='jk-gchg-strip';st.setAttribute('data-fix',fix);st.style.display='none';
+    sec.insertBefore(st,wrap);renderStrip(st,p);}
+  function renderStrip(st,p){
+    var fix=String(p.fix_no||'');
+    loadHist(fix).then(function(ev){
+      if(!st.parentNode||String((typeof currentProp!=='undefined'&&currentProp&&currentProp.fix_no)||'')!==fix)return;
+      var last=ev.find(function(e){return e.kind==='edit'&&(e.items||[]).length;}),conf=ev.find(function(e){return e.kind==='confirm';});
+      if(!last&&!conf){st.style.display='none';return;}
+      var h='';
+      if(conf){
+        var n=confDiff(conf,p).length;
+        h+=chip('工期確定 '+md(conf.changed_at.slice(0,10)),'#eff6ff','#1e40af','#bfdbfe');
+        h+=n?chip('確定から '+n+'工種がズレ','#fef2f2','#b91c1c','#fecaca'):chip('確定どおり','#ecfdf5','#047857','#a7f3d0');}
+      if(last)h+=chip('最終変更 '+ts(last.changed_at),'#fff7ed','#c2410c','#fed7aa')+'<span style="font-size:12px;color:#475569;min-width:0">'+esc(sumItems(last.items))+'</span>';
+      h+='<button type="button" onclick="openGchgModal()" style="margin-left:auto;padding:5px 12px;border-radius:999px;background:#1a56db;color:white;font-size:12px;font-weight:700;white-space:nowrap">変更履歴を見る ›</button>';
+      st.style.cssText='display:flex;align-items:center;gap:6px 8px;flex-wrap:wrap;padding:7px 10px;background:#fffdf7;border-bottom:1px solid #fde68a';
+      st.innerHTML=h;});}
+
+  // ---------- 履歴ウィンドウ ----------
+  function rowItem(i,withDelta){
+    var d=shiftOf(i),col=d>0?'#b91c1c':d<0?'#1d4ed8':'#475569';
+    var body=i.add?('追加 '+md(i.ts)+'〜'+md(i.te)):i.rm?('削除（'+md(i.fs)+'〜'+md(i.fe)+'）'):(md(i.fs)+'〜'+md(i.fe)+' → <b>'+md(i.ts)+'〜'+md(i.te)+'</b>');
+    return '<div style="display:flex;align-items:baseline;gap:8px;padding:6px 0;border-bottom:1px solid #f1f5f9;font-size:13px"><span style="flex:0 0 auto;min-width:5.5em;font-weight:700;color:#1e293b">'+esc(i.p)+'</span><span style="flex:1;color:#334155">'+body+'</span>'
+      +((withDelta&&d!=null)?'<span style="flex:0 0 auto;font-weight:800;color:'+col+'">'+sgn(d)+'</span>':'')+'</div>';}
+  window.openGchgModal=function(){
+    var p=currentProp;if(!p)return;var fix=String(p.fix_no||'');
+    loadHist(fix).then(function(ev){
+      var conf=ev.find(function(e){return e.kind==='confirm';});
+      var h='';
+      if(conf){
+        var items=confDiff(conf,p);
+        items.sort(function(a,b){return Math.abs(shiftOf(b)||0)-Math.abs(shiftOf(a)||0);});
+        h+='<div style="margin-bottom:16px"><div style="font-size:13px;font-weight:800;color:#1e293b;margin-bottom:2px">工期確定（'+ts(conf.changed_at)+'）からの変化</div>';
+        if(!items.length)h+='<div style="padding:10px;background:#ecfdf5;color:#047857;border-radius:10px;font-size:13px;font-weight:700">確定した工程から変更はありません</div>';
+        else{
+          var show=items.slice(0,6),rest=items.slice(6);
+          h+='<div style="font-size:12px;color:#64748b;margin-bottom:4px">'+items.length+'工種がズレています（大きい順）</div>'+show.map(function(i){return rowItem(i,true);}).join('');
+          if(rest.length)h+='<details style="margin-top:4px"><summary style="cursor:pointer;font-size:12px;color:#1a56db;font-weight:700;padding:6px 0">ほか'+rest.length+'件を表示</summary>'+rest.map(function(i){return rowItem(i,true);}).join('')+'</details>';}
+        h+='</div>';}
+      h+='<div style="font-size:13px;font-weight:800;color:#1e293b;margin-bottom:6px">変更の流れ</div>';
+      var evs=ev.filter(function(e){return e.kind!=='edit'||(e.items||[]).length;});
+      if(!evs.length)h+='<div style="padding:12px;color:#94a3b8;font-size:13px">まだ記録がありません</div>';
+      var lastDay='';
+      evs.slice(0,12).forEach(function(e){
+        var day=ts(e.changed_at).split(' ')[0],tm=ts(e.changed_at).split(' ')[1];
+        if(day!==lastDay){h+='<div style="margin:10px 0 4px;font-size:11px;font-weight:800;color:#64748b">'+day+'</div>';lastDay=day;}
+        var line=e.kind==='confirm'?('工期確定（〜'+esc(((e.items||[])[0]||{}).upto||'')+'）'):e.kind==='init'?'工程表を手動編集に切り替え':esc(sumItems(e.items));
+        var dot=e.kind==='confirm'?'#1a56db':e.kind==='init'?'#94a3b8':'#ea580c';
+        h+='<details style="border-left:3px solid '+dot+';padding:2px 0 2px 10px;margin-bottom:4px"><summary style="cursor:pointer;list-style:none;font-size:13px;color:#1e293b"><span style="color:#64748b;font-size:12px;margin-right:8px">'+tm+'</span>'+line+(e.kind==='edit'?' <span style="color:#1a56db;font-size:11px">詳細</span>':'')+'</summary>'
+          +(e.kind==='edit'?'<div style="padding:4px 0">'+(e.items||[]).map(function(i){return rowItem(i,true);}).join('')+'</div>':'')+'</details>';});
+      if(evs.length>12)h+='<div style="font-size:12px;color:#94a3b8;padding:6px 0">古い'+(evs.length-12)+'件は省略しています</div>';
+      var ov=document.createElement('div');ov.id='jk-gchg-modal';
+      ov.style.cssText='position:fixed;inset:0;background:rgba(15,27,61,.5);z-index:10050;display:flex;align-items:flex-end;justify-content:center';
+      ov.innerHTML='<div style="background:#fff;width:100%;max-width:560px;max-height:86vh;border-radius:20px 20px 0 0;box-shadow:0 -8px 24px rgba(15,27,61,.2);display:flex;flex-direction:column"><div style="display:flex;align-items:center;padding:14px 16px;border-bottom:1px solid #e2e8f0"><div style="flex:1;min-width:0"><div style="font-size:16px;font-weight:800;color:#1e293b">工程の変更履歴</div><div style="font-size:12px;color:#64748b;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+esc(p.name||'')+'</div></div><button type="button" id="jk-gchg-x" style="padding:8px 16px;border-radius:999px;background:#f1f5f9;color:#334155;font-size:13px;font-weight:700">閉じる</button></div><div style="padding:14px 16px 24px;overflow-y:auto;-webkit-overflow-scrolling:touch">'+h+'</div></div>';
+      document.body.appendChild(ov);
+      function close(){ov.remove();}
+      ov.addEventListener('click',function(e){if(e.target===ov)close();});
+      document.getElementById('jk-gchg-x').onclick=close;});};
+
+  // ---------- 起動 ----------
+  new MutationObserver(function(ms){
+    for(var i=0;i<ms.length;i++){var a=ms[i].addedNodes;
+      for(var j=0;j<a.length;j++){var n=a[j];
+        if(n.nodeType===1&&(n.id==='detail-gantt-sec'||(n.querySelector&&n.querySelector('#detail-gantt-sec')))){setTimeout(mountStrip,0);return;}}}
+  }).observe(document.body,{childList:true,subtree:true});
+  function tick(){try{if(typeof currentUser!=='undefined'&&currentUser)loadRecent();}catch(e){}}
+  setTimeout(tick,5000);setInterval(tick,300000);
+  var lastVis=0;document.addEventListener('visibilitychange',function(){if(!document.hidden&&Date.now()-lastVis>60000){lastVis=Date.now();tick();}});
 })();
 </script>
 </body></html>
