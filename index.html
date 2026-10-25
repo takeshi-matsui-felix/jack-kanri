@@ -430,7 +430,7 @@ body{display:flex;overflow:clip;}
 .sb-section{font-size:9px;font-weight:800;color:rgba(255,255,255,.28);padding:8px 12px 2px;letter-spacing:.4px;text-transform:uppercase;}
 .sb-item{display:flex;align-items:center;gap:8px;padding:8px 12px;cursor:pointer;color:rgba(255,255,255,.7);font-size:12px;font-weight:600;transition:background .1s;user-select:none;}
 .sb-item:hover{background:rgba(255,255,255,.07);color:white;}
-.sb-icon{font-size:14px;width:18px;text-align:center;flex-shrink:0;}
+.sb-icon{font-size:14px;width:18px;height:18px;display:inline-flex;align-items:center;justify-content:center;flex-shrink:0;}
 .sb-label{flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
 .sb-caret{font-size:10px;color:rgba(255,255,255,.3);flex-shrink:0;transition:transform .15s;}
 .sb-divider{height:1px;background:rgba(255,255,255,.07);margin:3px 10px;}
@@ -753,35 +753,35 @@ body.sp-mode #areaTabsBtns{ display:none !important; }
   </div>
   <div class="sb-body">
     <div class="sb-section">マイ物件</div>
-    <div class="sb-item" onclick="sbOpenSub('sbSubMyProp')"><span class="sb-icon">⭐</span><span class="sb-label">マイ物件編集</span><span class="sb-caret" id="cMyProp">▾</span></div>
+    <div class="sb-item" onclick="sbOpenSub('sbSubMyProp')"><span class="sb-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l2.8 5.7 6.2.9-4.5 4.4 1.1 6.2L12 17.2 6.4 20.2l1.1-6.2L3 9.6l6.2-.9z"/></svg></span><span class="sb-label">マイ物件編集</span><span class="sb-caret" id="cMyProp">▾</span></div>
     <div class="sb-sub" id="sbSubMyProp">
-      <div class="sb-item" onclick="openSelectProp()"><span class="sb-icon">➕</span><span class="sb-label">登録・削除</span></div>
+      <div class="sb-item" onclick="openSelectProp()"><span class="sb-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg></span><span class="sb-label">登録・削除</span></div>
       
-      <div class="sb-item" onclick="openMyCalendar()"><span class="sb-icon">📅</span><span class="sb-label">工事カレンダー</span></div>
+      <div class="sb-item" onclick="openMyCalendar()"><span class="sb-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3.5" y="5" width="17" height="15" rx="3"/><path d="M3.5 10h17M8 3v4M16 3v4"/></svg></span><span class="sb-label">工事カレンダー</span></div>
     </div>
     <div class="sb-divider"></div>
     <div class="sb-section">全現場マップ</div>
-    <div class="sb-item" onclick="sbOpenSub('sbSubMap')"><span class="sb-icon">🗺️</span><span class="sb-label">全現場マップ</span><span class="sb-caret" id="cMap">▾</span></div>
+    <div class="sb-item" onclick="sbOpenSub('sbSubMap')"><span class="sb-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 4L3 6.5v13L9 17l6 3 6-2.5v-13L15 7z"/><path d="M9 4v13M15 7v13"/></svg></span><span class="sb-label">全現場マップ</span><span class="sb-caret" id="cMap">▾</span></div>
     <div class="sb-sub" id="sbSubMap">
-      <div class="sb-item" onclick="openJackMap('東海')"><span class="sb-icon">📍</span><span class="sb-label">東海エリア</span></div>
-      <div class="sb-item" onclick="openJackMap('関東')"><span class="sb-icon">📍</span><span class="sb-label">関東エリア</span></div>
+      <div class="sb-item" onclick="openJackMap('東海')"><span class="sb-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 21s7-6.2 7-11.5A7 7 0 0 0 5 9.5C5 14.800 12 21 12 21z"/><circle cx="12" cy="9.500" r="2.500"/></svg></span><span class="sb-label">東海エリア</span></div>
+      <div class="sb-item" onclick="openJackMap('関東')"><span class="sb-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 21s7-6.2 7-11.5A7 7 0 0 0 5 9.5C5 14.800 12 21 12 21z"/><circle cx="12" cy="9.500" r="2.500"/></svg></span><span class="sb-label">関東エリア</span></div>
     </div>
     <div class="sb-divider"></div>
     <div class="sb-section">業者選定</div>
-    <div class="sb-item" onclick="openVendorList()"><span class="sb-icon">👷</span><span class="sb-label">全業者選定一覧</span></div>
+    <div class="sb-item" onclick="openVendorList()"><span class="sb-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="8" r="3.500"/><path d="M5 20c0-3.900 3.100-6 7-6s7 2.100 7 6"/></svg></span><span class="sb-label">全業者選定一覧</span></div>
     <div id="vendorSbTs" style="padding:2px 16px 6px;font-size:9px;color:#64748b;line-height:1.4"></div>
     <div class="sb-divider"></div>
     <div class="sb-section">その他</div>
-    <div class="sb-item" onclick="doSyncFull()"><span class="sb-icon">🔄</span><span class="sb-label">今すぐ同期</span></div>
-    <div class="sb-item" onclick="openSettings()"><span class="sb-icon">⚙️</span><span class="sb-label">設定</span></div>
-    <div class="sb-item" onclick="printPage()"><span class="sb-icon">🖨️</span><span class="sb-label">印刷</span></div>
-    <div class="sb-item sp-hide" id="sbKensaBtn" style="display:none" onclick="openKensaViewer()"><span class="sb-icon">🔍</span><span class="sb-label">検査取りまとめ</span></div>
-    <div class="sb-item sp-hide" id="sbAdminBtn" style="display:none" onclick="openAdminCP()"><span class="sb-icon">🏢</span><span class="sb-label">管理者CP</span></div>
+    <div class="sb-item" onclick="doSyncFull()"><span class="sb-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 12a8 8 0 0 0-14-5.300L4 9M4 4v5h5M4 12a8 8 0 0 0 14 5.300L20 15M20 20v-5h-5"/></svg></span><span class="sb-label">今すぐ同期</span></div>
+    <div class="sb-item" onclick="openSettings()"><span class="sb-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M12 3v3M12 18v3M3 12h3M18 12h3M5.600 5.600l2.100 2.100M16.300 16.300l2.100 2.100M18.400 5.600l-2.100 2.100M7.700 16.300l-2.100 2.100"/></svg></span><span class="sb-label">設定</span></div>
+    <div class="sb-item" onclick="printPage()"><span class="sb-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 9V4h10v5"/><rect x="4" y="9" width="16" height="8" rx="2"/><path d="M7 14h10v6H7z"/></svg></span><span class="sb-label">印刷</span></div>
+    <div class="sb-item sp-hide" id="sbKensaBtn" style="display:none" onclick="openKensaViewer()"><span class="sb-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M20 20l-4-4"/></svg></span><span class="sb-label">検査取りまとめ</span></div>
+    <div class="sb-item sp-hide" id="sbAdminBtn" style="display:none" onclick="openAdminCP()"><span class="sb-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="3.500" width="14" height="17" rx="2"/><path d="M9 8h2M13 8h2M9 12h2M13 12h2M10 20.500v-4h4v4"/></svg></span><span class="sb-label">管理者CP</span></div>
   </div>
   <div class="sb-foot">
     <div class="sb-avatar" id="sbAvatar">?</div>
     <div style="flex:1;min-width:0"><div class="sb-foot-name" id="sbUserName">ゲスト</div><div class="sb-foot-role" id="sbUserRole">未ログイン</div></div>
-    <div onclick="sbSignOut()" style="cursor:pointer;font-size:14px;color:rgba(255,255,255,.35)" title="ログアウト">🚪</div>
+    <div onclick="sbSignOut()" style="cursor:pointer;font-size:14px;color:rgba(255,255,255,.35)" title="ログアウト" aria-label="ログアウト"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 4H6a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h4M15 8l4 4-4 4M19 12H9"/></svg></div>
   </div>
 </div>
 <div id="jackMainWrap">
@@ -1381,7 +1381,7 @@ var POST_END_PAD = 120; // ★スクロール終端の余白：完了検査列�
 // ===== 納品書機能：休工日カレンダー・稼働日計算 =====
 // ★日本の祝日（政府発表・国立天文台暦要項ベース、2025〜2028年分）
 // ★アプリバージョン（不具合問い合わせ対応用。リリースごとに更新すること。2026/8/23追加）
-var APP_VERSION = '2026.10.25.4';
+var APP_VERSION = '2026.10.25.5';
 window.APP_VERSION=APP_VERSION;
 // ★物件詳細URL（?fix=FIX番号）：起動時に値を控え、ログイン・物件読込後に該当物件の詳細を開く（2026/10/22）
 var _JACK_DEEP_FIX=(function(){try{var v=new URLSearchParams(window.location.search).get('fix');return v?String(v).trim():'';}catch(e){return '';}})();
