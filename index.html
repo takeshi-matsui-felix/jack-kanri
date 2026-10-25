@@ -656,6 +656,16 @@ body.sp-mode .fr-row .fc:last-child{
   font-weight:600;
 }
 
+/* ★案5（表の見た目のみ）：スマホの物件一覧を読みやすく。表の構造・列幅・操作は変えない（2026/10/25） */
+body.sp-mode .fr-row{border-bottom:1px solid #e9eef5}
+body.sp-mode .fr-row.urgent{border-left:5px solid #b91c1c}
+body.sp-mode .fr-row.soon{border-left:5px solid #b45309}
+body.sp-mode .fr-row.urgent:not(.myfav-row){background:#fff5f5}
+body.sp-mode .fr-row.soon:not(.myfav-row){background:#fffaf0}
+body.sp-mode .fr-row .fc:last-child>div:first-child{font-size:11.5px!important;font-weight:800!important;color:#1e293b!important}
+body.sp-mode .fr-row:active{background:#eaf1ff!important}
+body.sp-mode .urg-pill{font-size:9px;padding:1px 6px;background:#fee2e2;color:#b91c1c}
+
 /* ============================================================
    PC横長モード (pc-mode) スタイル
    ============================================================ */
@@ -1385,7 +1395,7 @@ var POST_END_PAD = 120; // ★スクロール終端の余白：完了検査列�
 // ===== 納品書機能：休工日カレンダー・稼働日計算 =====
 // ★日本の祝日（政府発表・国立天文台暦要項ベース、2025〜2028年分）
 // ★アプリバージョン（不具合問い合わせ対応用。リリースごとに更新すること。2026/8/23追加）
-var APP_VERSION = '2026.10.25.7';
+var APP_VERSION = '2026.10.25.8';
 window.APP_VERSION=APP_VERSION;
 // ★物件詳細URL（?fix=FIX番号）：起動時に値を控え、ログイン・物件読込後に該当物件の詳細を開く（2026/10/22）
 var _JACK_DEEP_FIX=(function(){try{var v=new URLSearchParams(window.location.search).get('fix');return v?String(v).trim():'';}catch(e){return '';}})();
