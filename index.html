@@ -656,6 +656,13 @@ body.sp-mode .fr-row .fc:last-child{
   font-weight:600;
 }
 
+/* ★案7：操作中の反応（2026/10/25）。押した感触・無効化中の見た目・「動きを減らす」設定への対応 */
+.ed-btn:active,.vendor-toggle-btn:active,.th-icon-btn:active,.popup-close:active,.panel-back:active,.sf-chip:active,.print-btn:active{transform:scale(.96)}
+button:disabled{opacity:.6;cursor:default}
+.toast{border-radius:var(--r-md)}
+@media (prefers-reduced-motion:reduce){
+  *{animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important}
+}
 /* ★案5（表の見た目のみ）：スマホの物件一覧を読みやすく。表の構造・列幅・操作は変えない（2026/10/25） */
 body.sp-mode .fr-row{border-bottom:1px solid #e9eef5}
 body.sp-mode .fr-row.urgent{border-left:5px solid #b91c1c}
@@ -1395,7 +1402,7 @@ var POST_END_PAD = 120; // ★スクロール終端の余白：完了検査列�
 // ===== 納品書機能：休工日カレンダー・稼働日計算 =====
 // ★日本の祝日（政府発表・国立天文台暦要項ベース、2025〜2028年分）
 // ★アプリバージョン（不具合問い合わせ対応用。リリースごとに更新すること。2026/8/23追加）
-var APP_VERSION = '2026.10.25.8';
+var APP_VERSION = '2026.10.25.9';
 window.APP_VERSION=APP_VERSION;
 // ★物件詳細URL（?fix=FIX番号）：起動時に値を控え、ログイン・物件読込後に該当物件の詳細を開く（2026/10/22）
 var _JACK_DEEP_FIX=(function(){try{var v=new URLSearchParams(window.location.search).get('fix');return v?String(v).trim():'';}catch(e){return '';}})();
@@ -3934,7 +3941,9 @@ function showToast(msg,type){
   t.textContent=msg;
   t.style.background=type==='error'?'#ef4444':type==='success'?'#10b981':type==='warn'?'#f59e0b':'#1e293b';
   t.classList.add('show');
-  setTimeout(function(){t.classList.remove('show');},2600);
+  // ★案7：失敗（error）は読み切れるよう長めに表示（4.5秒）。それ以外は従来どおり2.6秒
+  clearTimeout(window._jkToastTm);
+  window._jkToastTm=setTimeout(function(){t.classList.remove('show');},type==='error'?4500:2600);
 }
 
 // ===== MODE =====
