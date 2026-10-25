@@ -1422,7 +1422,7 @@ var POST_END_PAD = 120; // ★スクロール終端の余白：完了検査列�
 // ===== 納品書機能：休工日カレンダー・稼働日計算 =====
 // ★日本の祝日（政府発表・国立天文台暦要項ベース、2025〜2028年分）
 // ★アプリバージョン（不具合問い合わせ対応用。リリースごとに更新すること。2026/8/23追加）
-var APP_VERSION = '2026.10.25.16';
+var APP_VERSION = '2026.10.25.17';
 window.APP_VERSION=APP_VERSION;
 // ★物件詳細URL（?fix=FIX番号）：起動時に値を控え、ログイン・物件読込後に該当物件の詳細を開く（2026/10/22）
 var _JACK_DEEP_FIX=(function(){try{var v=new URLSearchParams(window.location.search).get('fix');return v?String(v).trim():'';}catch(e){return '';}})();
@@ -18648,14 +18648,39 @@ document.addEventListener('DOMContentLoaded',function(){
     if(snap.length>12)L.push('ほか'+(snap.length-12)+'件');
     L.push('');L.push('確定後に日付を変更した場合は、【確定済み工程表の変更のお知らせ】でお知らせします。');
     L.push(propUrl(p));return L.join('\n');}
+  // ★コピー前に「コピーしますか？ YES / NO」を出し、内容を確認してからコピーする。コピー後は「コピーしました」を表示
+  function doCopy(txt,done){
+    function ok(){done(true);}
+    function fb(){try{var ta=document.createElement('textarea');ta.value=txt;ta.style.cssText='position:fixed;left:-9999px';document.body.appendChild(ta);ta.select();var r=document.execCommand('copy');document.body.removeChild(ta);done(!!r);}
+      catch(e){done(false);}}
+    if(navigator.clipboard&&navigator.clipboard.writeText)navigator.clipboard.writeText(txt).then(ok,fb);else fb();}
   window.gchgCopy=function(kind){
     var c=window._gchgCtx;if(!c)return;
     var txt=kind==='A'?textChanged(c.p,c.ev):textConfirm(c.p,c.ev);
     if(!txt){if(typeof showToast==='function')showToast('コピーできる内容がありません','error');return;}
-    function ok(){if(typeof showToast==='function')showToast('文章をコピーしました。LINEに貼り付けてください','success');}
-    function fb(){try{var ta=document.createElement('textarea');ta.value=txt;ta.style.cssText='position:fixed;left:-9999px';document.body.appendChild(ta);ta.select();document.execCommand('copy');document.body.removeChild(ta);ok();}
-      catch(e){prompt('この文章をコピーしてください',txt);}}
-    if(navigator.clipboard&&navigator.clipboard.writeText)navigator.clipboard.writeText(txt).then(ok,fb);else fb();};
+    var old=document.getElementById('jk-gchg-cf');if(old)old.remove();
+    var ov=document.createElement('div');ov.id='jk-gchg-cf';
+    ov.style.cssText='position:fixed;inset:0;background:rgba(15,27,61,.55);z-index:10060;display:flex;align-items:center;justify-content:center;padding:16px';
+    ov.innerHTML='<div style="background:#fff;width:100%;max-width:420px;border-radius:20px;box-shadow:0 8px 24px rgba(15,27,61,.25);overflow:hidden">'
+      +'<div id="jk-gchg-cf-body" style="padding:18px 18px 8px"><div style="font-size:16px;font-weight:800;color:#1e293b;margin-bottom:8px">コピーしますか？</div>'
+      +'<pre style="margin:0;max-height:38vh;overflow:auto;white-space:pre-wrap;word-break:break-all;background:#f8fafc;border:1px solid #e2e8f0;border-radius:12px;padding:10px 12px;font-size:12px;line-height:1.6;color:#334155;font-family:inherit">'+esc(txt)+'</pre></div>'
+      +'<div id="jk-gchg-cf-btns" style="display:flex;gap:10px;padding:12px 18px 18px"><button type="button" id="jk-gchg-no" style="flex:1;min-height:44px;border-radius:12px;background:#f1f5f9;color:#334155;font-size:14px;font-weight:700">NO</button><button type="button" id="jk-gchg-yes" style="flex:1;min-height:44px;border-radius:12px;background:#1a56db;color:#fff;font-size:14px;font-weight:700">YES</button></div></div>';
+    document.body.appendChild(ov);
+    function close(){ov.remove();}
+    ov.addEventListener('click',function(e){if(e.target===ov)close();});
+    document.getElementById('jk-gchg-no').onclick=close;
+    document.getElementById('jk-gchg-yes').onclick=function(){
+      doCopy(txt,function(okk){
+        var b=document.getElementById('jk-gchg-cf-body'),bt=document.getElementById('jk-gchg-cf-btns');if(!b||!bt)return;
+        if(okk){
+          b.innerHTML='<div style="text-align:center;padding:18px 0 6px"><div style="font-size:18px;font-weight:800;color:#047857">コピーしました</div><div style="font-size:12px;color:#64748b;margin-top:6px">LINEに貼り付けてください</div></div>';
+          bt.innerHTML='<button type="button" id="jk-gchg-ok" style="flex:1;min-height:44px;border-radius:12px;background:#1a56db;color:#fff;font-size:14px;font-weight:700">閉じる</button>';
+          document.getElementById('jk-gchg-ok').onclick=close;
+          setTimeout(close,2500);
+        }else{
+          b.innerHTML='<div style="text-align:center;padding:18px 0 6px"><div style="font-size:16px;font-weight:800;color:#b91c1c">コピーできませんでした</div><div style="font-size:12px;color:#64748b;margin-top:6px">もう一度お試しください</div></div>';
+          bt.innerHTML='<button type="button" id="jk-gchg-ok" style="flex:1;min-height:44px;border-radius:12px;background:#f1f5f9;color:#334155;font-size:14px;font-weight:700">閉じる</button>';
+          document.getElementById('jk-gchg-ok').onclick=close;}});};};
 
   // ---------- 履歴ウィンドウ ----------
   function rowItem(i,withDelta){
