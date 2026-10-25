@@ -663,6 +663,25 @@ button:disabled{opacity:.6;cursor:default}
 @media (prefers-reduced-motion:reduce){
   *{animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important}
 }
+/* ★MY物件登録画面（担当物件を選択）の刷新（2026/10/25）。見た目のみ。登録・解除・絞り込みの動作は変えない */
+#selectPropPanel .panel-header>button:last-child{border-radius:999px!important;padding:8px 18px!important;font-size:13px!important;background:#fff!important;color:#1a56db!important}
+#selectPropPanel #_spTabBar{box-shadow:0 2px 8px rgba(15,27,61,.06)}
+#selectPropPanel #_spTabBar>div:first-child{border-bottom:none!important;padding:8px 8px 2px;gap:4px}
+#selectPropPanel [data-stab]{border-radius:999px!important;border-bottom:none!important;margin:0 !important;padding:9px 4px!important;font-size:12px!important;background:#f1f5f9!important;color:#566377!important;min-height:40px}
+#selectPropPanel [data-stab].on{background:#1a56db!important;color:#fff!important;box-shadow:0 2px 6px rgba(26,86,219,.3)}
+#selectPropPanel #_spTabBar button[onclick^="bulk"]{border-radius:12px!important;min-height:44px;font-size:13px!important}
+#selectPropPanel #_spTabBar div:has(>#selectPropSearch){border-radius:12px!important;padding:0 12px!important;min-height:44px;border:1.5px solid transparent;transition:border-color .15s,box-shadow .15s}
+#selectPropPanel #_spTabBar div:has(>#selectPropSearch):focus-within{border-color:#1a56db;background:#fff!important;box-shadow:0 0 0 4px rgba(26,86,219,.12)}
+#selectPropPanel #selectPropTantou{border-radius:12px!important;min-height:44px;font-size:14px!important;border-color:#cbd5e1!important}
+#selectPropPanel .select-prop-item{padding:13px 16px;margin:8px 12px 0;border:1px solid #e9eef5;border-radius:14px;background:#fff;box-shadow:var(--sh-card)}
+#selectPropPanel .select-prop-item:active{background:#eaf1ff}
+#selectPropPanel .spi-check{width:28px;height:28px;margin-right:14px;border-width:2px;font-size:15px;font-weight:800}
+#selectPropPanel .spi-check.checked{font-size:15px;box-shadow:0 2px 6px rgba(26,86,219,.35)}
+#selectPropPanel .select-prop-item:has(.spi-check.checked){border-color:#bfd2fb;background:#f5f8ff}
+#selectPropPanel .spi-name{font-size:15px;font-weight:800;line-height:1.35}
+#selectPropPanel .select-prop-item>div:nth-child(2)>div:nth-child(2){font-size:12px!important;gap:8px!important;margin-top:4px;align-items:center;color:#566377!important}
+#selectPropPanel .select-prop-item>div:nth-child(2)>div:nth-child(2) span:first-child{padding:1px 9px;border-radius:999px;background:color-mix(in srgb,currentColor 12%,#fff);font-size:11px}
+#selectPropPanel #_spList{padding-bottom:24px}
 /* ★案5（表の見た目のみ）：スマホの物件一覧を読みやすく。表の構造・列幅・操作は変えない（2026/10/25） */
 body.sp-mode .fr-row{border-bottom:1px solid #e9eef5}
 body.sp-mode .fr-row.urgent{border-left:5px solid #b91c1c}
@@ -1402,7 +1421,7 @@ var POST_END_PAD = 120; // ★スクロール終端の余白：完了検査列�
 // ===== 納品書機能：休工日カレンダー・稼働日計算 =====
 // ★日本の祝日（政府発表・国立天文台暦要項ベース、2025〜2028年分）
 // ★アプリバージョン（不具合問い合わせ対応用。リリースごとに更新すること。2026/8/23追加）
-var APP_VERSION = '2026.10.25.12';
+var APP_VERSION = '2026.10.25.13';
 window.APP_VERSION=APP_VERSION;
 // ★物件詳細URL（?fix=FIX番号）：起動時に値を控え、ログイン・物件読込後に該当物件の詳細を開く（2026/10/22）
 var _JACK_DEEP_FIX=(function(){try{var v=new URLSearchParams(window.location.search).get('fix');return v?String(v).trim():'';}catch(e){return '';}})();
@@ -8598,7 +8617,7 @@ function openSelectProp(){
       +'<div style="display:flex;border-bottom:2px solid #e2e8f0;">'
       +tabDefs.map(function(t){
         var act=t.id===selTab;
-        return '<button data-stab="'+t.id+'" style="flex:1;padding:8px 4px;font-size:11px;font-weight:700;border:none;cursor:pointer;border-bottom:2px solid '+(act?'#1a56db':'transparent')+';color:'+(act?'#1a56db':'#94a3b8')+';background:white;margin-bottom:-2px">'+t.label+'</button>';
+        return '<button data-stab="'+t.id+'" class="spt'+(act?' on':'')+'" style="flex:1;padding:8px 4px;font-size:11px;font-weight:700;border:none;cursor:pointer;border-bottom:2px solid '+(act?'#1a56db':'transparent')+';color:'+(act?'#1a56db':'#94a3b8')+';background:white;margin-bottom:-2px">'+t.label+'</button>';
       }).join('')+'</div>'
       // ★全物件まとめて登録／一括解除ボタン（2026/10追加）：1現場担当の業者だけでなく、全現場を担当する
       //   業者（大工等）が毎回チェックを入れる手間を省くため、現在表示中の全件を一括登録・解除できるようにする
@@ -8688,6 +8707,7 @@ function openSelectProp(){
         var act=btn.getAttribute('data-stab')===selTab;
         btn.style.borderBottomColor=act?'#1a56db':'transparent';
         btn.style.color=act?'#1a56db':'#94a3b8';
+        btn.classList.toggle('on',act);
       });
     }
     if(listEl)listEl.innerHTML=itemsHtml;
