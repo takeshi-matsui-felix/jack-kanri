@@ -1422,7 +1422,7 @@ var POST_END_PAD = 120; // ★スクロール終端の余白：完了検査列�
 // ===== 納品書機能：休工日カレンダー・稼働日計算 =====
 // ★日本の祝日（政府発表・国立天文台暦要項ベース、2025〜2028年分）
 // ★アプリバージョン（不具合問い合わせ対応用。リリースごとに更新すること。2026/8/23追加）
-var APP_VERSION = '2026.10.26.3';
+var APP_VERSION = '2026.10.26.4';
 window.APP_VERSION=APP_VERSION;
 // ★物件詳細URL（?fix=FIX番号）：起動時に値を控え、ログイン・物件読込後に該当物件の詳細を開く（2026/10/22）
 var _JACK_DEEP_FIX=(function(){try{var v=new URLSearchParams(window.location.search).get('fix');return v?String(v).trim():'';}catch(e){return '';}})();
@@ -1606,7 +1606,7 @@ var DELIVERY_MASTER = [
   {id:28,name:'室内物干',        offsetWd:76, ganttExclude:false, vendorOptions:['ジューテック']},
   {id:29,name:'SK',            offsetWd:62, ganttExclude:false, mirrorFrom:23, defaultNote:'９時搬入'},
   {id:30,name:'洗面・便器',      offsetWd:76, ganttExclude:false, vendorOptions:['フルサト工業'], defaultNote:'101号室搬入'},
-  {id:32,name:'選択パン',        offsetWd:76, ganttExclude:false, vendorOptions:['ナカザワ建販','フルサト工業']},
+  {id:32,name:'洗濯パン',        offsetWd:76, ganttExclude:false, vendorOptions:['ナカザワ建販','フルサト工業']},
   {id:31,name:'照明器具',        offsetWd:68, ganttExclude:false, mirrorFrom:10}
 ];
 function _deliveryDispNo(m){for(var i=0;i<DELIVERY_MASTER.length;i++){if(DELIVERY_MASTER[i].id===m.id)return i+1;}return m.id;}
@@ -5994,7 +5994,10 @@ function geDeliveryMove(id,oldDate,newDate){
   }else{
     var it=dn.items.find(function(i){return i.id===id;});
     if(!it){it={id:id};dn.items.push(it);}
-    it.manual=true;it.date=newDate;
+    // ★動かした先が「自動計算の日付」と同じなら手動扱いにしない（③レッカーとの連動を外さないため）
+    it.manual=false;
+    var _auto=(m?_deliveryItemDate(dn,m):'');
+    if(_auto!==newDate){it.manual=true;it.date=newDate;}else{delete it.date;}
   }
   _touchDeliveryUnapproved(dn);
   _saveDeliveryNote(p);
