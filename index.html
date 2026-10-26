@@ -1422,7 +1422,7 @@ var POST_END_PAD = 120; // ★スクロール終端の余白：完了検査列�
 // ===== 納品書機能：休工日カレンダー・稼働日計算 =====
 // ★日本の祝日（政府発表・国立天文台暦要項ベース、2025〜2028年分）
 // ★アプリバージョン（不具合問い合わせ対応用。リリースごとに更新すること。2026/8/23追加）
-var APP_VERSION = '2026.10.26.1';
+var APP_VERSION = '2026.10.26.2';
 window.APP_VERSION=APP_VERSION;
 // ★物件詳細URL（?fix=FIX番号）：起動時に値を控え、ログイン・物件読込後に該当物件の詳細を開く（2026/10/22）
 var _JACK_DEEP_FIX=(function(){try{var v=new URLSearchParams(window.location.search).get('fix');return v?String(v).trim():'';}catch(e){return '';}})();
@@ -4991,7 +4991,7 @@ function _deliveryAssignRows(badgeList,dateIdx,GCW,maxRows){
     var label=b.name+(b.vendor?'（'+b.vendor+'）':'');
     var labelW=Math.max(20,label.length*6.2+8);
     var dayW=Math.max(GCW-1,4);
-    return {x:x,dayW:dayW,labelW:labelW,totalW:dayW+2+labelW,label:label,date:b.date,vendor:b.vendor,name:b.name};
+    return {id:b.id,x:x,dayW:dayW,labelW:labelW,totalW:dayW+2+labelW,label:label,date:b.date,vendor:b.vendor,name:b.name};
   }).filter(Boolean).sort(function(a,b){return a.x-b.x;});
   var rows=[];
   placed.forEach(function(b){
@@ -5765,7 +5765,12 @@ function geRenderBars(){
   window._geGDateIdx={}; gDates.forEach(function(d,i){if(d)window._geGDateIdx[d]=i;});
   window._geGDates=gDates; window._geGCW=GCW;
   var gDateIdx=window._geGDateIdx;
-  var totalW=(gDates.length-1)*GCW, numRows=segs.length+1; // ★最終行の下に空白行を1行追加（文字と表のズレ対策）
+  // ★納品バッジを編集画面にも表示し、ドラッグで納品書の日付を変えられるようにする（2026/10/26・双方向）
+  var geDelRows=[];
+  if(ganttEditMode&&currentProp&&typeof _getDeliveryGanttBadges==='function'&&typeof _deliveryAssignRows==='function'){
+    try{geDelRows=_deliveryAssignRows(_getDeliveryGanttBadges(currentProp),gDateIdx,GCW,6)||[];}catch(e){geDelRows=[];}
+  }
+  var totalW=(gDates.length-1)*GCW, numRows=segs.length+geDelRows.length+1; // ★最終行の下に空白行を1行追加（文字と表のズレ対策）
   var mn={'01':'1月','02':'2月','03':'3月','04':'4月','05':'5月','06':'6月','07':'7月','08':'8月','09':'9月','10':'10月','11':'11月','12':'12月'};
   var months={}; gDates.forEach(function(d,i){if(!d)return;var m=d.substring(0,7);if(!months[m])months[m]={start:i-1,count:0};months[m].count++;});
   var hdrBands=''; Object.keys(months).forEach(function(m){var v=months[m],mm=m.split('-')[1];hdrBands+='<div style="position:absolute;left:'+(v.start*GCW)+'px;top:0;width:'+(v.count*GCW)+'px;height:14px;background:var(--primary);color:white;font-size:7px;font-weight:800;display:flex;align-items:center;justify-content:center;border-right:2px solid rgba(255,255,255,.4);overflow:hidden;z-index:5;">'+m.split('-')[0]+'年'+(mn[mm]||mm)+'</div>';});
@@ -5793,6 +5798,10 @@ function geRenderBars(){
   segs.forEach(function(s,ri){
     var nm=s.label||s.name||'';if(nm.length>10)nm=nm.slice(0,9)+'…';
     geLabelRows+='<div style="height:'+ROW_H+'px;display:flex;align-items:center;padding:0 5px;font-size:9px;font-weight:700;color:#1e293b;overflow:hidden;white-space:nowrap;background:'+(ri%2===0?'#f8fafc':'#f1f5f9')+';border-bottom:1.5px solid #cbd5e1;">'+nm+'</div>';
+  });
+  geDelRows.forEach(function(r0,di){
+    var ri9=segs.length+di;
+    geLabelRows+='<div style="height:'+ROW_H+'px;display:flex;align-items:center;padding:0 5px;font-size:9px;font-weight:700;color:#0f766e;overflow:hidden;white-space:nowrap;background:'+(ri9%2===0?'#f8fafc':'#f1f5f9')+';border-bottom:1.5px solid #cbd5e1;" title="納品書の搬入日。ドラッグで日付を変更できます">'+(di===0?'納品':'')+'</div>';
   });
   // ★最終行（引渡し等）の下に空白行を1行追加（文字と表がズレるための対策）
   geLabelRows+='<div style="height:'+ROW_H+'px;background:'+(segs.length%2===0?'#f8fafc':'#f1f5f9')+';border-bottom:1.5px solid #cbd5e1;"></div>';
@@ -5855,6 +5864,16 @@ function geRenderBars(){
       }
     }
   });
+  var geDelHtml='';
+  geDelRows.forEach(function(row,ri){
+    var by=(segs.length+ri)*ROW_H+2,bh=ROW_H-4;
+    row.items.forEach(function(b){
+      var color=_deliveryVendorColor(b.vendor);
+      geDelHtml+='<div class="ge-dn" data-id="'+b.id+'" data-date="'+b.date+'" data-x="'+b.x+'" title="'+b.label+' '+b.date+'（ドラッグで日付を変更）" style="position:absolute;left:'+b.x+'px;top:'+by+'px;height:'+bh+'px;display:flex;align-items:center;gap:2px;z-index:16;cursor:grab;touch-action:none;">'
+        +'<div style="width:'+b.dayW+'px;height:100%;background:'+color+';border-radius:2px;box-shadow:0 1px 2px rgba(0,0,0,.3);outline:1px solid rgba(15,23,42,.35);"></div>'
+        +'<div style="height:100%;display:flex;align-items:center;font-size:7px;font-weight:800;color:#1e293b;white-space:nowrap;background:white;border:1px solid '+color+';border-radius:2px;padding:0 3px;">'+b.label+'</div></div>';
+    });
+  });
   var totalH=bodyH; // ← 本体（行エリア）の高さ。ヘッダーは外側に分離したので28pxを含めない
   // 引渡し日の赤バーを追加
   var delivBar='';
@@ -5882,7 +5901,7 @@ function geRenderBars(){
   multiEl.innerHTML='<div style="border:1.5px solid #e2e8f0;border-radius:6px;overflow:hidden;display:flex;flex-direction:column;">'
     +geHeaderRow
     +'<div id="geScrollWrap" onscroll="var h=document.getElementById(\'geHeaderInner\');if(h)h.style.transform=\'translateX(-\'+this.scrollLeft+\'px)\';" style="max-height:372px;overflow:auto;-webkit-overflow-scrolling:touch;">'
-      +'<div style="display:flex;width:max-content;">'+geLabels+'<div id="geCanvas" style="flex-shrink:0;position:relative;width:'+totalW+'px;height:'+totalH+'px;background:white;">'+rowBgs+fills+todayLine+bars+delivBar+kensaBars+moveinBar+'</div></div>'
+      +'<div style="display:flex;width:max-content;">'+geLabels+'<div id="geCanvas" style="flex-shrink:0;position:relative;width:'+totalW+'px;height:'+totalH+'px;background:white;">'+rowBgs+fills+todayLine+bars+geDelHtml+delivBar+kensaBars+moveinBar+'</div></div>'
     +'</div>'
   +'</div>';
   // スクロール位置を復元（初回はTODAY付近へ）
@@ -5915,6 +5934,9 @@ function geRenderBars(){
         geStartDrag(e,idx,bar);
       });
     });
+    cv2.querySelectorAll('.ge-dn').forEach(function(el){
+      el.addEventListener('pointerdown',function(e){geDnStartDrag(e,el);});
+    });
     // ★短期間バー（3日以内）は✕がバー外（文字の後ろ）にあるため個別にハンドラを登録
     cv2.querySelectorAll('.ge-del').forEach(function(delBtn){
       var didx=parseInt(delBtn.getAttribute('data-idx'));
@@ -5927,6 +5949,43 @@ function geRenderBars(){
   }
 }
 
+// ★納品バッジのドラッグ → 納品書の日付に書き戻す（工程表⇔納品書の双方向・2026/10/26）
+function geDnStartDrag(e,el){
+  e.preventDefault();e.stopPropagation();
+  var x0=e.clientX,left0=parseFloat(el.getAttribute('data-x'))||0,GCW=window._geGCW||14,moved=0;
+  try{el.setPointerCapture(e.pointerId);}catch(x){}
+  el.style.opacity='.85';el.style.cursor='grabbing';
+  function mv(ev){moved=Math.round((ev.clientX-x0)/GCW);el.style.left=(left0+moved*GCW)+'px';}
+  function up(){
+    el.removeEventListener('pointermove',mv);el.removeEventListener('pointerup',up);el.removeEventListener('pointercancel',up);
+    el.style.opacity='';el.style.cursor='grab';
+    if(!moved)return;
+    var oldDate=el.getAttribute('data-date'),oi=(window._geGDateIdx||{})[oldDate],nd=oi!=null?(window._geGDates||[])[oi+moved]:'';
+    if(!nd){geRenderBars();return;}
+    geDeliveryMove(parseInt(el.getAttribute('data-id')),oldDate,nd);
+  }
+  el.addEventListener('pointermove',mv);el.addEventListener('pointerup',up);el.addEventListener('pointercancel',up);
+}
+function geDeliveryMove(id,oldDate,newDate){
+  var p=currentProp;if(!p){return;}
+  var m=DELIVERY_MASTER.find(function(x){return x.id===id;});
+  var dn=_getOrInitDeliveryNote(p);
+  function mdOf(k){var a=String(k).split('-');return (+a[1])+'/'+(+a[2]);}
+  var warn=[];
+  if(dn.approved_at||dn.tentative_at)warn.push('納品書の承認（仮確定）が外れます。');
+  try{if(typeof _isWorkday==='function'&&!_isWorkday(new Date(newDate+'T00:00:00')))warn.push('※'+mdOf(newDate)+' は休工日（日曜・祝日など）です。');}catch(x){}
+  if(warn.length){
+    if(!confirm('納品「'+(m?m.name:'')+'」を '+mdOf(oldDate)+' → '+mdOf(newDate)+' に変更します。\n'+warn.join('\n')+'\nよろしいですか？')){geRenderBars();return;}
+  }
+  var it=dn.items.find(function(i){return i.id===id;});
+  if(!it){it={id:id};dn.items.push(it);}
+  it.manual=true;it.date=newDate;
+  _touchDeliveryUnapproved(dn);
+  _saveDeliveryNote(p);
+  geRenderBars();
+  try{if(typeof renderDeliveryNoteSection==='function')renderDeliveryNoteSection(p,null,true);}catch(x){}
+  showToast('納品「'+(m?m.name:'')+'」を '+mdOf(newDate)+' に変更しました（納品書にも反映）','success');
+}
 function geGetScrollWrap(){
   return document.getElementById('geScrollWrap');
 }
