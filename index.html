@@ -1422,7 +1422,7 @@ var POST_END_PAD = 120; // ★スクロール終端の余白：完了検査列�
 // ===== 納品書機能：休工日カレンダー・稼働日計算 =====
 // ★日本の祝日（政府発表・国立天文台暦要項ベース、2025〜2028年分）
 // ★アプリバージョン（不具合問い合わせ対応用。リリースごとに更新すること。2026/8/23追加）
-var APP_VERSION = '2026.10.25.19';
+var APP_VERSION = '2026.10.26.1';
 window.APP_VERSION=APP_VERSION;
 // ★物件詳細URL（?fix=FIX番号）：起動時に値を控え、ログイン・物件読込後に該当物件の詳細を開く（2026/10/22）
 var _JACK_DEEP_FIX=(function(){try{var v=new URLSearchParams(window.location.search).get('fix');return v?String(v).trim():'';}catch(e){return '';}})();
@@ -18747,6 +18747,105 @@ document.addEventListener('DOMContentLoaded',function(){
   function tick(){try{if(typeof currentUser!=='undefined'&&currentUser)loadRecent();}catch(e){}}
   setTimeout(tick,5000);setInterval(tick,300000);
   var lastVis=0;document.addEventListener('visibilitychange',function(){if(!document.hidden&&Date.now()-lastVis>60000){lastVis=Date.now();tick();}});
+})();
+</script>
+<script>
+// ★案5：スマホの「物件カード一覧」（2026/10/26）。ヘッダーの「カード／表」ボタンで、今までの表と切り替える。
+//   表（既定）はそのまま。カードは「引渡しまでの日数・次の工程・次の検査・進み具合」を物件ごとにまとめて見せる。
+(function(){
+  var KEY='jack_view_cards';
+  function esc(s){return String(s==null?'':s).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];});}
+  function dk(s){s=String(s||'');var m=s.match(/(\d{4})\D(\d{1,2})\D(\d{1,2})/);return m?m[1]+'-'+('0'+m[2]).slice(-2)+'-'+('0'+m[3]).slice(-2):'';}
+  function md(k){if(!k)return '';var p=k.split('-');return (+p[1])+'/'+(+p[2]);}
+  function num(k){if(!k)return null;var p=k.split('-');return Date.UTC(+p[0],+p[1]-1,+p[2])/86400000;}
+  var KENSA=[['配筋検査','haikin_date','haikin_status'],['躯体検査','kutai_date','kutai_status'],['中間検査','chukan_date','chukan_status'],['断熱検査','dannetsu_date','dannetsu_status'],['完了検査','inspection_date','inspection_status'],['完成検査','kansei_date','kansei_status']];
+  var LIST=[];
+  function on(){try{return localStorage.getItem(KEY)==='1';}catch(e){return false;}}
+  function setOn(v){try{localStorage.setItem(KEY,v?'1':'0');}catch(e){}}
+
+  function nextStep(p){
+    var segs=[];try{segs=_filterHomeGanttSegs(p,getActiveSegs(p))||[];}catch(e){}
+    var t=num(dk(TODAY)),cur=null,nxt=null;
+    segs.forEach(function(g){
+      var nm=String(g.label||g.name||'').trim();if(!nm)return;
+      var s=dk(g.start_date||g.date),e=dk(g.end_date)||s;if(!s)return;
+      var sn=num(s),en=num(e);
+      if(sn<=t&&t<=en){if(!cur||en<cur.en)cur={nm:nm,s:s,e:e,en:en};}
+      else if(sn>t){if(!nxt||sn<nxt.sn)nxt={nm:nm,s:s,e:e,sn:sn};}});
+    if(cur)return {lead:'実施中',nm:cur.nm,s:cur.s,e:cur.e};
+    if(nxt)return {lead:'次',nm:nxt.nm,s:nxt.s,e:nxt.e};
+    return null;}
+  function nextKensa(p){
+    var t=num(dk(TODAY)),best=null;
+    KENSA.forEach(function(k){var d=dk(p[k[1]]);if(!d)return;var n=num(d);if(n<t)return;
+      if(!best||n<best.n)best={nm:k[0],d:d,n:n,res:p[k[2]]==='reserved'};});
+    return best;}
+  function progress(p){
+    var d=dk(p.delivery_date),s=dk(p.confirm_done)||dk(p.land_payment);
+    if(!d||!s)return null;var a=num(s),b=num(d),t=num(dk(TODAY));if(b<=a)return null;
+    return Math.max(0,Math.min(100,Math.round((t-a)/(b-a)*100)));}
+
+  function cardHtml(p,i){
+    var days=daysUntil(p.delivery_date);
+    var col=days==null?'#94a3b8':days<0?'#94a3b8':days<=30?'#b91c1c':days<=60?'#b45309':'#1a56db';
+    var big=days==null?'—':days<0?'済':String(days);
+    var cap=days==null?'引渡し未設定':days<0?'引渡し済み':'引渡しまで（日）';
+    var tn=(typeof tantouOf==='function')?tantouOf(p):'';
+    var ns=nextStep(p),nk=nextKensa(p),pg=progress(p);
+    var fav=(typeof isFav==='function'&&isFav(p));
+    var chips='';
+    if(ns){chips+='<span style="padding:4px 10px;border-radius:999px;background:'+(ns.lead==='実施中'?'#dbeafe':'#eef2ff')+';color:#1e3a8a;font-size:12px;font-weight:700;white-space:nowrap">'+ns.lead+'：'+esc(ns.nm)+' '+md(ns.s)+(ns.e&&ns.e!==ns.s?'〜'+md(ns.e):'')+'</span>';}
+    if(nk){chips+='<span style="padding:4px 10px;border-radius:999px;background:'+(nk.res?'#fee2e2':'#ffedd5')+';color:'+(nk.res?'#991b1b':'#9a3412')+';font-size:12px;font-weight:700;white-space:nowrap">'+esc(nk.nm)+' '+md(nk.d)+'　'+(nk.res?'予約済み':'予約前')+'</span>';}
+    var chg=(typeof _gchgBadge==='function')?_gchgBadge(p):'';
+    if(chg)chips+=chg.replace('font-size:9px','font-size:11px;padding:3px 9px');
+    return '<div class="jk-card" data-i="'+i+'" style="position:relative;background:#fff;border-radius:16px;box-shadow:0 1px 2px rgba(15,27,61,.06),0 4px 12px rgba(15,27,61,.05);padding:14px 14px 14px 18px;margin-bottom:12px;overflow:hidden;cursor:pointer">'
+      +'<div style="position:absolute;left:0;top:0;bottom:0;width:5px;background:'+col+'"></div>'
+      +'<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px">'
+        +'<div style="min-width:0"><div style="font-size:16px;font-weight:800;line-height:1.35;color:#1e293b">'+(fav?'<span style="color:#d97706">★</span> ':'')+esc(p.name)+'</div>'
+        +'<div style="font-size:12px;color:#566377;margin-top:2px">FiX No.'+esc(p.fix_no)+(tn?' ／ '+esc(tn):'')+'</div></div>'
+        +'<div style="flex-shrink:0;text-align:right"><div style="font-size:26px;font-weight:800;line-height:1;color:'+col+'">'+big+'</div><div style="font-size:10px;color:#566377;margin-top:3px">'+cap+'</div></div>'
+      +'</div>'
+      +(chips?'<div style="display:flex;align-items:center;gap:6px;margin-top:12px;flex-wrap:wrap">'+chips+'</div>':'')
+      +(pg==null?'':'<div style="margin-top:12px;height:6px;border-radius:999px;background:#e2e8f0;overflow:hidden" title="確認申請完了から引渡しまでの進み具合"><div style="height:100%;width:'+pg+'%;background:'+col+';border-radius:999px"></div></div>')
+      +'</div>';}
+
+  window.jkCardsRender=function(){
+    var host=document.getElementById('jkCardList');if(!host)return;
+    var active=document.body.classList.contains('sp-mode')&&on();
+    document.body.classList.toggle('jk-cards',active);
+    if(!active){host.innerHTML='';return;}
+    var props=[];try{props=getProps()||[];}catch(e){}
+    LIST=props;
+    if(!props.length){host.innerHTML='<div style="padding:32px 16px;text-align:center;color:#94a3b8;font-size:13px">該当物件なし</div>';return;}
+    host.innerHTML='<div style="padding:4px 2px 12px;font-size:12px;color:#566377;font-weight:700">'+props.length+'件</div>'+props.map(cardHtml).join('');};
+
+  function btnLabel(){var b=document.getElementById('jkViewToggleSp');if(b)b.textContent=on()?'表':'カード';}
+  function init(){
+    if(!document.getElementById('jkCardList')){
+      var host=document.createElement('div');host.id='jkCardList';
+      var tw=document.querySelector('.table-wrap');if(!tw||!tw.parentNode)return;
+      tw.parentNode.insertBefore(host,tw.nextSibling);
+      host.addEventListener('click',function(e){var c=e.target.closest&&e.target.closest('.jk-card');if(!c)return;var p=LIST[+c.getAttribute('data-i')];if(p&&typeof openDetail==='function')openDetail(p);});
+    }
+    if(!document.getElementById('jkViewToggleSp')){
+      var anchor=document.getElementById('propSearchBtn');
+      if(anchor&&anchor.parentNode){
+        var b=document.createElement('button');b.id='jkViewToggleSp';b.className='vendor-toggle-btn';b.type='button';b.title='一覧の表示切替（表／カード）';
+        b.onclick=function(){setOn(!on());btnLabel();jkCardsRender();};
+        anchor.parentNode.insertBefore(b,anchor);}
+    }
+    btnLabel();jkCardsRender();}
+  var st=document.createElement('style');
+  st.textContent='#jkCardList{display:none}body.sp-mode.jk-cards .table-wrap{display:none!important}body.sp-mode.jk-cards #jkCardList{display:block;flex:1;min-height:0;overflow-y:auto;-webkit-overflow-scrolling:touch;background:var(--g50);padding:10px 12px 24px}body:not(.sp-mode) #jkViewToggleSp{display:none}.jk-card:active{background:#f5f8ff!important}';
+  document.head.appendChild(st);
+  // 一覧を描き直すたびにカードも更新する
+  if(typeof renderBody==='function'){
+    var _rb=renderBody;
+    window.renderBody=renderBody=function(){var r=_rb.apply(this,arguments);try{jkCardsRender();}catch(e){}return r;};
+  }
+  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',init);else init();
+  // ホーム画面のモード切替（スマホ⇔PC）にも追従
+  var lastSp=null;setInterval(function(){var sp=document.body.classList.contains('sp-mode');if(sp!==lastSp){lastSp=sp;try{jkCardsRender();}catch(e){}}},1500);
 })();
 </script>
 </body></html>
