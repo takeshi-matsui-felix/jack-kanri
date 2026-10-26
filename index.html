@@ -1422,7 +1422,7 @@ var POST_END_PAD = 120; // ★スクロール終端の余白：完了検査列�
 // ===== 納品書機能：休工日カレンダー・稼働日計算 =====
 // ★日本の祝日（政府発表・国立天文台暦要項ベース、2025〜2028年分）
 // ★アプリバージョン（不具合問い合わせ対応用。リリースごとに更新すること。2026/8/23追加）
-var APP_VERSION = '2026.10.26.2';
+var APP_VERSION = '2026.10.26.3';
 window.APP_VERSION=APP_VERSION;
 // ★物件詳細URL（?fix=FIX番号）：起動時に値を控え、ログイン・物件読込後に該当物件の詳細を開く（2026/10/22）
 var _JACK_DEEP_FIX=(function(){try{var v=new URLSearchParams(window.location.search).get('fix');return v?String(v).trim():'';}catch(e){return '';}})();
@@ -1606,8 +1606,10 @@ var DELIVERY_MASTER = [
   {id:28,name:'室内物干',        offsetWd:76, ganttExclude:false, vendorOptions:['ジューテック']},
   {id:29,name:'SK',            offsetWd:62, ganttExclude:false, mirrorFrom:23, defaultNote:'９時搬入'},
   {id:30,name:'洗面・便器',      offsetWd:76, ganttExclude:false, vendorOptions:['フルサト工業'], defaultNote:'101号室搬入'},
+  {id:32,name:'選択パン',        offsetWd:76, ganttExclude:false, vendorOptions:['ナカザワ建販','フルサト工業']},
   {id:31,name:'照明器具',        offsetWd:68, ganttExclude:false, mirrorFrom:10}
 ];
+function _deliveryDispNo(m){for(var i=0;i<DELIVERY_MASTER.length;i++){if(DELIVERY_MASTER[i].id===m.id)return i+1;}return m.id;}
 // ★項目15（サッシ搬入）の選択によって16・25・26の初期候補が変わる特殊連動ルール
 var DELIVERY_SASHI_RULE = {
   'LIXILトータル販売': {16:'ジューテック', 25:'ジューテック', 26:'ジューテック'},
@@ -5842,16 +5844,21 @@ function geRenderBars(){
         bars+='<div'+_geTentAttr+' style="position:absolute;left:'+sx+'px;top:'+by+'px;width:0;height:'+bh+'px;display:flex;align-items:center;font-size:10px;font-weight:800;color:#1e293b;white-space:nowrap;overflow:visible;z-index:20;opacity:'+(_geIsTent?'0.6':'1')+';">'+soseiTxt2+'</div>';
       }
     } else {
-      var isKensaLocked=ganttEditMode&&_geIsLockedRow(seg);
+      var isKensaLocked=ganttEditMode&&_geIsKensaRow(seg);
+      var isDelLinked=ganttEditMode&&!isKensaLocked&&(typeof _isDeliveryLinkedRow==='function')&&_isDeliveryLinkedRow(seg);
       // ★3日以内はバー右横に工程名表示。編集モードでは✕もバーの上ではなく文字の後ろに配置（掴みにくさ対策）
       var geLblOut=geCalDur<=3?('<div style="position:absolute;left:'+(sx+bw+2)+'px;top:'+by+'px;height:'+bh+'px;display:flex;align-items:center;gap:3px;font-size:8px;font-weight:700;color:#334155;white-space:nowrap;z-index:20;">'
         +'<span>'+lbl+'</span>'
-        +(ganttEditMode&&!isKensaLocked?'<span class="ge-del" data-idx="'+idx+'" style="width:11px;height:11px;flex-shrink:0;background:rgba(239,68,68,.9);color:white;border-radius:50%;font-size:8px;display:flex;align-items:center;justify-content:center;cursor:pointer;line-height:1;">x</span>':'')
+        +(ganttEditMode&&!isKensaLocked&&!isDelLinked?'<span class="ge-del" data-idx="'+idx+'" style="width:11px;height:11px;flex-shrink:0;background:rgba(239,68,68,.9);color:white;border-radius:50%;font-size:8px;display:flex;align-items:center;justify-content:center;cursor:pointer;line-height:1;">x</span>':'')
         +'</div>'):'';
       if(ganttEditMode&&isKensaLocked){
         // ★予約日は物件編集画面でのみ設定可能：ドラッグ・リサイズ・削除ハンドル無し、鍵アイコンのみ表示
         bars+=geLblOut+'<div id="gebar'+idx+'" data-idx="'+idx+'" title="'+(_geIsTent?'仮工程（未確定）／':'')+'予約日は物件編集画面から設定してください" style="position:absolute;left:'+sx+'px;top:'+by+'px;width:'+bw+'px;height:'+bh+'px;background:'+_geBg+';color:'+tcolor+';font-size:6px;font-weight:800;border-radius:2px;display:flex;align-items:center;padding:0 2px;overflow:hidden;white-space:nowrap;box-shadow:0 1px 2px rgba(0,0,0,.2);z-index:'+(layer===1?12:10)+';opacity:'+(_geIsTent?'0.6':(isPast?'.6':'1'))+';cursor:not-allowed;user-select:none;'+_geTentStyle+(isAct?'outline:2px solid rgba(255,255,0,.5);':'')+';">'
           +(bw>14&&geCalDur>3?'🔒'+lbl:'🔒')
+          +'</div>';
+      } else if(isDelLinked){
+        bars+=geLblOut+'<div id="gebar'+idx+'" data-idx="'+idx+'" title="'+(_geIsTent?'仮工程（未確定）／':'')+'納品書と連動：ドラッグすると納品日も変わります" style="position:absolute;left:'+sx+'px;top:'+by+'px;width:'+bw+'px;height:'+bh+'px;background:'+_geBg+';color:'+tcolor+';font-size:6px;font-weight:800;border-radius:2px;display:flex;align-items:center;padding:0 2px;overflow:hidden;white-space:nowrap;box-shadow:0 1px 2px rgba(0,0,0,.2);z-index:'+(layer===1?12:10)+';opacity:'+(_geIsTent?'0.6':(isPast?'.6':'1'))+';cursor:grab;user-select:none;'+_geTentStyle+(isAct?'outline:2px solid rgba(255,255,0,.5);':'')+';">'
+          +(bw>14&&geCalDur>3?lbl:'')
           +'</div>';
       } else if(ganttEditMode){
         bars+=geLblOut+'<div id="gebar'+idx+'" data-idx="'+idx+'"'+_geTentAttr+' style="position:absolute;left:'+sx+'px;top:'+by+'px;width:'+bw+'px;height:'+bh+'px;background:'+_geBg+';color:'+tcolor+';font-size:6px;font-weight:800;border-radius:2px;display:flex;align-items:center;padding:0 2px;overflow:hidden;white-space:nowrap;box-shadow:0 1px 2px rgba(0,0,0,.2);z-index:'+(layer===1?12:10)+';opacity:'+(_geIsTent?'0.6':(isPast?'.6':'1'))+';cursor:grab;user-select:none;'+_geTentStyle+(isAct?'outline:2px solid rgba(255,255,0,.5);':'')+';">'
@@ -5928,7 +5935,8 @@ function geRenderBars(){
       var idx=parseInt(bar.getAttribute('data-idx'));
       bar.addEventListener('pointerdown',function(e){
         var t=e.target;
-        if(_geIsLockedRow(geSegs[idx])){showToast('この行は納品書または物件編集画面で管理されています','info');return;}
+        if(_geIsKensaRow(geSegs[idx])){showToast('この行は納品書または物件編集画面で管理されています','info');return;}
+        if(_geIsLockedRow(geSegs[idx])&&(t.classList.contains('ge-rsz')||t.classList.contains('ge-del'))){showToast('この行は移動のみ可能です（期間変更・削除は不可）','info');return;}
         if(t.classList.contains('ge-del')){e.stopPropagation();geShowDelConfirm(idx,geSegs[idx]?geSegs[idx].label:'');return;}
         if(t.classList.contains('ge-rsz')){e.stopPropagation();geStartResize(e,idx);return;}
         geStartDrag(e,idx,bar);
@@ -5974,12 +5982,20 @@ function geDeliveryMove(id,oldDate,newDate){
   var warn=[];
   if(dn.approved_at||dn.tentative_at)warn.push('納品書の承認（仮確定）が外れます。');
   try{if(typeof _isWorkday==='function'&&!_isWorkday(new Date(newDate+'T00:00:00')))warn.push('※'+mdOf(newDate)+' は休工日（日曜・祝日など）です。');}catch(x){}
+  if(id===1)warn.push('土台を動かすと、手動で日付を決めていない納品日がすべて連動してずれます。');
   if(warn.length){
     if(!confirm('納品「'+(m?m.name:'')+'」を '+mdOf(oldDate)+' → '+mdOf(newDate)+' に変更します。\n'+warn.join('\n')+'\nよろしいですか？')){geRenderBars();return;}
   }
-  var it=dn.items.find(function(i){return i.id===id;});
-  if(!it){it={id:id};dn.items.push(it);}
-  it.manual=true;it.date=newDate;
+  if(id===1){
+    // ★土台：納品書の基準日を動かす（手動日付を入れた項目はそのまま）
+    dn.base_date=newDate;
+    var it1=dn.items.find(function(i){return i.id===1;});
+    if(it1){it1.manual=false;delete it1.date;}
+  }else{
+    var it=dn.items.find(function(i){return i.id===id;});
+    if(!it){it={id:id};dn.items.push(it);}
+    it.manual=true;it.date=newDate;
+  }
   _touchDeliveryUnapproved(dn);
   _saveDeliveryNote(p);
   geRenderBars();
@@ -5990,7 +6006,7 @@ function geGetScrollWrap(){
   return document.getElementById('geScrollWrap');
 }
 function geStartDrag(e,idx,bar){
-  if(_geIsLockedRow(geSegs[idx]))return; // ★保険：検査行・納品連動行は物件編集画面でのみ日付変更
+  if(_geIsKensaRow(geSegs[idx]))return; // ★保険：検査行は物件編集画面でのみ日付変更（納品連動行はドラッグ可・2026/10/26）
   e.preventDefault();
   bar.setPointerCapture(e.pointerId);
   var sd=geSegs[idx].start_date||geSegs[idx].date||'';
@@ -6006,7 +6022,8 @@ function geStartDrag(e,idx,bar){
     startBarLeft:parseInt(bar.style.left)||0,
     startClientX:e.clientX,
     wrap:wrap,
-    origDate:(sd||'').replace(/\//g,'-')
+    origDate:(sd||'').replace(/\//g,'-'),
+    origEnd:String(geSegs[idx].end_date||'').replace(/\//g,'-')
   };
   geDragStartMs=sd?new Date(sd.replace(/\//g,'-')).getTime():Date.now();
   bar.style.cursor='grabbing';
@@ -6189,6 +6206,7 @@ function geApplyNaisouAnchor(movedIdx){
 function geStopDrag(){
   if(geDragBar){
     var dragIdx=geDragBar.idx;
+    var _dOrig=geDragBar.origDate,_dOrigEnd=geDragBar.origEnd;
     geDragBar.bar.style.cursor='grab';
     geDragBar.bar.style.zIndex='';
     geDragBar.bar.style.opacity='';
@@ -6196,6 +6214,19 @@ function geStopDrag(){
     geDragBar=null;
     var dragSeg=geSegs[dragIdx];
     var dragName=String((dragSeg&&(dragSeg.name||dragSeg.label))||'').trim();
+    if(dragSeg&&_isDeliveryLinkedRow(dragSeg)){
+      // ★納品連動行（土台・①〜④レッカー）：バーを動かした結果を納品書に書き戻す（2026/10/26）
+      var _nd=dragSeg.start_date;
+      dragSeg.start_date=_dOrig;dragSeg.date=_dOrig;dragSeg.end_date=_dOrigEnd;
+      document.removeEventListener('pointermove',geOnDrag);
+      document.removeEventListener('pointerup',geStopDrag);
+      if(_nd&&_nd!==_dOrig){
+        var _lk=DELIVERY_GANTT_LINK.find(function(l){return l.rowName===dragName;});
+        if(_lk){geDeliveryMove(_lk.deliveryId,_dOrig,_nd);return;}
+      }
+      geRenderBars();
+      return;
+    }
 
     if(dragName==='基礎'){
       // 基礎を動かした → A群（基礎〜防水未満）のみ追随。B群・C群には一切影響しない
@@ -7719,7 +7750,7 @@ function _renderDeliveryNoteBody(p,el){
       var noteChg=_deliveryFieldChanged(diffs,m.id,'note');
       var hi='background:#fef3c7;border-color:#f59e0b!important;';
       return '<tr style="border-bottom:1px solid #f1f5f9">'
-        +'<td style="padding:5px 8px;font-size:10px;color:#94a3b8;text-align:center">'+m.id+'</td>'
+        +'<td style="padding:5px 8px;font-size:10px;color:#94a3b8;text-align:center">'+_deliveryDispNo(m)+'</td>'
         +'<td style="padding:5px 8px;font-size:11px;font-weight:700">'+_escHtml(m.name)+' '+excl+'</td>'
         +'<td style="padding:5px 8px'+(dateChg?';'+hi:'')+'"><input type="date" value="'+date+'" onchange="deliverySetItemDate('+m.id+',this.value)" style="font-size:11px;padding:3px 5px;border:1.5px solid '+(dateChg?'#f59e0b':'#e2e8f0')+';border-radius:5px;width:130px'+(dateChg?';background:#fef3c7':'')+'">'
           +(it.manual?'<button onclick="deliveryResetItemDate('+m.id+')" title="自動計算に戻す" style="margin-left:4px;background:none;border:none;color:#94a3b8;cursor:pointer;font-size:10px">↺</button>':'')+'</td>'
@@ -8024,7 +8055,7 @@ function admRenderDeliveryMasterSettings(right){
     var tokaiV=DELIVERY_AREA_OVERRIDES.TOKAI[m.id];
     var kantoV=DELIVERY_AREA_OVERRIDES.KANTO[m.id];
     return '<tr style="border-bottom:1px solid #f1f5f9">'
-      +'<td style="padding:6px 8px;font-size:10px;color:#94a3b8;text-align:center">'+m.id+'</td>'
+      +'<td style="padding:6px 8px;font-size:10px;color:#94a3b8;text-align:center">'+_deliveryDispNo(m)+'</td>'
       +'<td style="padding:6px 8px;font-size:12px;font-weight:700">'+_escHtml(m.name)+'</td>'
       +'<td style="padding:6px 8px;font-size:11px;color:#94a3b8;text-align:center">'+m.offsetWd+'日</td>'
       +'<td style="padding:6px 8px;text-align:center">'
@@ -8125,7 +8156,7 @@ function printDeliveryNote(){
     var dispDate=date?date.replace(/-/g,'/'):'';
     var dow=date?['日','月','火','水','木','金','土'][new Date(date+'T00:00:00').getDay()]:'';
     var vendorDisp=_deliveryVendorValue(dn,m);
-    return '<tr><td>'+m.id+'</td><td>'+_escHtml(m.name)+'</td><td>'+_escHtml(vendorDisp)+'</td><td>'+dispDate+(dow?'　'+dow:'')+'</td><td>'+_escHtml(it.note||'')+'</td></tr>';
+    return '<tr><td>'+_deliveryDispNo(m)+'</td><td>'+_escHtml(m.name)+'</td><td>'+_escHtml(vendorDisp)+'</td><td>'+dispDate+(dow?'　'+dow:'')+'</td><td>'+_escHtml(it.note||'')+'</td></tr>';
   }).join('');
   var reapproveCount=(dn.approval_history||[]).length;
   var pendingDiffs=dn.approved_at?[]:_deliveryDiff(dn);
