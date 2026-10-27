@@ -1422,7 +1422,7 @@ var POST_END_PAD = 120; // ★スクロール終端の余白：完了検査列�
 // ===== 納品書機能：休工日カレンダー・稼働日計算 =====
 // ★日本の祝日（政府発表・国立天文台暦要項ベース、2025〜2028年分）
 // ★アプリバージョン（不具合問い合わせ対応用。リリースごとに更新すること。2026/8/23追加）
-var APP_VERSION = '2026.10.26.4';
+var APP_VERSION = '2026.10.26.5';
 window.APP_VERSION=APP_VERSION;
 // ★物件詳細URL（?fix=FIX番号）：起動時に値を控え、ログイン・物件読込後に該当物件の詳細を開く（2026/10/22）
 var _JACK_DEEP_FIX=(function(){try{var v=new URLSearchParams(window.location.search).get('fix');return v?String(v).trim():'';}catch(e){return '';}})();
@@ -7584,6 +7584,9 @@ function _getOrInitDeliveryNote(p){
     if(!dn.items.find(function(it){return it.id===m.id;}))dn.items.push({id:m.id,manual:false,date:'',vendor:'',note:m.defaultNote||''});
   });
   if(!dn.approval_history)dn.approval_history=[];
+  // ★土台(id:1)の手動日付は無効化（基準日と常に連動させる）
+  var _it1=dn.items.find(function(i){return i.id===1;});
+  if(_it1&&(_it1.manual||_it1.date)){_it1.manual=false;_it1.date='';}
   // ★エリア情報を常に最新化しておく（東海/関東で納品書のデフォルト搬入日を出し分けるため）
   dn.area=(typeof normalizeArea==='function')?normalizeArea(p):(p.area||'');
   return dn;
@@ -7606,6 +7609,8 @@ function _deliveryVendorValue(dn,masterItem){
 }
 function _deliveryItemDate(dn,masterItem,areaOverride){
   var it=dn.items.find(function(i){return i.id===masterItem.id;});
+  // ★土台(id:1)は常に基準日そのもの（手動日付を持たせない。基準日と土台日は同一）
+  if(masterItem.id===1)return dn.base_date||'';
   if(it&&it.manual&&it.date)return it.date;
   if(!dn.base_date)return '';
   var bd=new Date(dn.base_date+'T00:00:00');
@@ -7806,12 +7811,24 @@ function _touchDeliveryUnapproved(dn){
 function deliverySetBaseDate(v){
   var p=currentProp;if(!p)return;
   var dn=_getOrInitDeliveryNote(p);
-  dn.base_date=v;_touchDeliveryUnapproved(dn);
+  if(!v){renderDeliveryNoteSection(p,null,true);return;}
+  var _manual=dn.items.filter(function(i){return i.id!==1&&i.manual&&i.date;});
+  var _reset=false;
+  if(dn.base_date&&dn.base_date!==v&&_manual.length){
+    _reset=confirm('基準日（土台日）を '+v+' に変更します。\n手動で日付を入れた項目が'+_manual.length+'件あります。\n\nOK＝手動日付も自動計算に戻して、すべて基準日に連動させる\nキャンセル＝手動日付はそのまま（基準日だけ変更）');
+  }
+  dn.base_date=v;
+  var _i1=dn.items.find(function(i){return i.id===1;});
+  if(_i1){_i1.manual=false;_i1.date='';}
+  if(_reset)_manual.forEach(function(i){i.manual=false;i.date='';});
+  _touchDeliveryUnapproved(dn);
   _saveDeliveryNote(p);renderDeliveryNoteSection(p,null,true);
+  try{if(typeof _refreshDetailGanttBadges==='function')_refreshDetailGanttBadges(p);}catch(x){}
 }
 window.deliverySetBaseDate=deliverySetBaseDate;
 function deliverySetItemDate(id,v){
   var p=currentProp;if(!p)return;
+  if(id===1){deliverySetBaseDate(v);return;} // ★土台の日付変更＝基準日の変更
   var dn=_getOrInitDeliveryNote(p);
   var it=dn.items.find(function(i){return i.id===id;});
   if(it){it.manual=true;it.date=v;}
@@ -7821,6 +7838,7 @@ function deliverySetItemDate(id,v){
 window.deliverySetItemDate=deliverySetItemDate;
 function deliveryResetItemDate(id){
   var p=currentProp;if(!p)return;
+  if(id===1)return;
   var dn=_getOrInitDeliveryNote(p);
   var it=dn.items.find(function(i){return i.id===id;});
   if(it){it.manual=false;it.date='';}
