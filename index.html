@@ -1422,7 +1422,7 @@ var POST_END_PAD = 120; // ★スクロール終端の余白：完了検査列�
 // ===== 納品書機能：休工日カレンダー・稼働日計算 =====
 // ★日本の祝日（政府発表・国立天文台暦要項ベース、2025〜2028年分）
 // ★アプリバージョン（不具合問い合わせ対応用。リリースごとに更新すること。2026/8/23追加）
-var APP_VERSION = '2026.10.26.9';
+var APP_VERSION = '2026.10.26.10';
 window.APP_VERSION=APP_VERSION;
 // ★物件詳細URL（?fix=FIX番号）：起動時に値を控え、ログイン・物件読込後に該当物件の詳細を開く（2026/10/22）
 var _JACK_DEEP_FIX=(function(){try{var v=new URLSearchParams(window.location.search).get('fix');return v?String(v).trim():'';}catch(e){return '';}})();
@@ -13353,17 +13353,36 @@ async function doLogin(){
   if(!sb){if(errEl){errEl.textContent='接続エラー';errEl.style.display='';}if(btn){btn.textContent='ログイン';btn.disabled=false;}return;}
   var rawInput=email.trim();
   var r=null, _cands=_jackLoginCandidates(rawInput);
-  for(var ci=0;ci<_cands.length;ci++){
-    r=await sb.auth.signInWithPassword({email:_cands[ci],password:pw});
-    if(!r.error)break;
-    if(r.error.message!=='Invalid login credentials')break; // 通信エラー等は次の候補を試さない
+  // ★応答が20秒以上無い場合は「ログイン中...」のまま固まらず、原因を画面に出す（通信・サーバー側の不調の切り分け用）
+  function _loginFail(msg){
+    if(errEl){errEl.textContent=msg;errEl.style.display='';}
+    if(btn){btn.textContent='ログイン';btn.disabled=false;}
+  }
+  try{
+    for(var ci=0;ci<_cands.length;ci++){
+      r=await Promise.race([
+        sb.auth.signInWithPassword({email:_cands[ci],password:pw}),
+        new Promise(function(_,rej){setTimeout(function(){rej(new Error('TIMEOUT'));},20000);})
+      ]);
+      if(!r.error)break;
+      if(r.error.message!=='Invalid login credentials')break; // 通信エラー等は次の候補を試さない
+    }
+  }catch(e){
+    _loginFail(e&&e.message==='TIMEOUT'?'サーバーから応答がありません（20秒）。通信状況を確認するか、しばらくしてからもう一度お試しください':'ログイン通信でエラー：'+(e&&e.message||e));
+    return;
   }
   if(r.error){
     if(errEl){errEl.textContent=r.error.message==='Invalid login credentials'?(/[^\x00-\x7F]/.test(_jackIdNormalize(rawInput))?'ログインIDは半角英数字です（氏名や会社名ではありません）。ユーザー管理に表示されているIDを入力してください':'ログインIDまたはパスワードが違います'):r.error.message;errEl.style.display='';}
     if(btn){btn.textContent='ログイン';btn.disabled=false;}return;
   }
   currentUser=r.data.user;
-  await onAuthSuccess();
+  try{
+    await onAuthSuccess();
+  }catch(e){
+    console.error('[JACK] ログイン後の処理でエラー',e);
+    _loginFail('ログイン後の読み込みでエラー：'+(e&&e.message||e));
+    return;
+  }
   if(btn){btn.textContent='ログイン';btn.disabled=false;}
 }
 window.doLogin=doLogin;
