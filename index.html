@@ -862,7 +862,7 @@ body.sp-mode #areaTabsBtns{ display:none !important; }
   </div>
   <div id="weatherBar" style="display:none;flex-shrink:0;background:white;border-top:2px solid #e2e8f0;overflow-x:auto;-webkit-overflow-scrolling:touch;"><div id="weatherBarContent"></div></div>
 </div>
-<div class="slide-panel" id="detailPanel" style="display:flex;flex-direction:row;overflow:hidden"><div style="flex:1;display:flex;flex-direction:column;overflow:hidden"><div class="panel-header"><button class="panel-back" onclick="closePanel('detailPanel')">← 戻る</button><div style="flex:1"><div class="panel-title">物件詳細</div></div><div id="dpFavBtnWrap"></div></div><div id="dpHeroSticky" style="flex-shrink:0;padding:6px 12px;background:var(--primary-d,#1e40af);color:white;display:none"></div><div class="panel-scroll" id="dpContent" style="padding-bottom:16px"></div></div><div id="ganttEditSidebar" style="display:none;width:200px;min-width:200px;background:#1e293b;border-left:2px solid #334155;flex-direction:column;overflow-y:auto;flex-shrink:0"><div style="padding:8px;border-bottom:1px solid #334155;display:flex;flex-direction:column;gap:4px"><div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:2px"><div style="font-size:10px;font-weight:800;color:rgba(255,255,255,.5)">✏️ 工程表編集</div><button onclick="closeGanttEditSidebar()" style="background:rgba(255,255,255,.1);border:none;color:rgba(255,255,255,.6);border-radius:4px;padding:2px 7px;font-size:11px;cursor:pointer;font-weight:700">✕</button></div><div id="geAnchorDiag" style="font-size:9px;color:#fbbf24;line-height:1.5;background:#0f172a;border-radius:6px;padding:5px 7px;display:none"></div><button onclick="saveGanttEdit()" style="width:100%;padding:7px;background:#1a56db;color:white;border:none;border-radius:7px;font-size:11px;font-weight:800;cursor:pointer">💾 保存</button><div style="display:flex;gap:4px"><button onclick="shiftGanttEdit()" style="flex:1;padding:5px;background:#475569;color:white;border:none;border-radius:6px;font-size:10px;font-weight:700;cursor:pointer">📅 シフト</button><button onclick="resetGanttEdit()" style="flex:1;padding:5px;background:#475569;color:white;border:none;border-radius:6px;font-size:10px;font-weight:700;cursor:pointer">🔄 リセット</button></div><button onclick="fixHolidayMisalignedSegs()" style="width:100%;padding:5px;background:#b45309;color:white;border:none;border-radius:6px;font-size:10px;font-weight:700;cursor:pointer;margin-top:4px">☀️ 休日開始の工程を補正</button><button onclick="fixLandPaymentMisalignedSegs()" style="width:100%;padding:5px;background:#0e7490;color:white;border:none;border-radius:6px;font-size:10px;font-weight:700;cursor:pointer;margin-top:4px">🏠 土地決済前の着工を補正</button><button onclick="openSlideRangeDialog()" style="width:100%;padding:5px;background:#6d28d9;color:white;border:none;border-radius:6px;font-size:10px;font-weight:700;cursor:pointer;margin-top:4px">📆 期間指定スライド</button></div><div style="padding:8px;border-bottom:1px solid #334155"><div style="font-size:10px;font-weight:800;color:rgba(255,255,255,.7);margin-bottom:6px">＋ 工種追加</div><div style="display:flex;flex-direction:column;gap:5px"><input type="text" id="geNewName" placeholder="工種名" style="padding:5px 7px;border:1.5px solid #475569;border-radius:6px;font-size:11px;background:#0f172a;color:white;width:100%;box-sizing:border-box"><div style="display:flex;align-items:center;gap:4px"><span style="font-size:9px;color:rgba(255,255,255,.5);white-space:nowrap">日数</span><input type="number" id="geNewDays" placeholder="日数" min="1" max="180" style="padding:4px 6px;border:1.5px solid #475569;border-radius:6px;font-size:11px;background:#0f172a;color:white;width:100%;box-sizing:border-box"></div><div style="display:flex;align-items:center;gap:4px"><span style="font-size:9px;color:rgba(255,255,255,.5);white-space:nowrap">開始日</span><input type="date" id="geNewDate" style="padding:4px 4px;border:1.5px solid #475569;border-radius:6px;font-size:10px;background:#0f172a;color:white;width:100%;box-sizing:border-box"></div><div id="geColorPicker" style="display:flex;flex-wrap:wrap;gap:4px;margin:2px 0"></div><button onclick="addGanttBar()" style="width:100%;padding:7px;background:#059669;color:white;border:none;border-radius:7px;font-size:11px;font-weight:800;cursor:pointer">バーを追加</button></div></div><div style="padding:8px;border-bottom:1px solid #334155"><div style="font-size:10px;font-weight:800;color:rgba(255,255,255,.7);margin-bottom:6px">🚧 仮工程／確定工程</div><div style="font-size:9px;color:rgba(255,255,255,.5);line-height:1.5;margin-bottom:6px">選んだ工程より後ろを「仮工程」としてハッチング表示にします</div><select id="geConfirmedUntilSel" style="width:100%;padding:5px 6px;border:1.5px solid #475569;border-radius:6px;font-size:11px;background:#0f172a;color:white;margin-bottom:5px;box-sizing:border-box"></select><button onclick="applyConfirmedUntil()" style="width:100%;padding:6px;background:#ea580c;color:white;border:none;border-radius:6px;font-size:10px;font-weight:800;cursor:pointer">この工程までを確定にする</button></div><div style="padding:6px 8px;flex:1"><div style="font-size:9px;font-weight:800;color:rgba(255,255,255,.4);margin-bottom:4px">工種一覧</div><div id="geSegList" style="display:flex;flex-direction:column;gap:4px;min-width:0;overflow:hidden"></div></div></div></div>
+<div class="slide-panel" id="detailPanel" style="display:flex;flex-direction:row;overflow:hidden"><div style="flex:1;display:flex;flex-direction:column;overflow:hidden"><div class="panel-header"><button class="panel-back" onclick="closePanel('detailPanel')">← 戻る</button><div style="flex:1"><div class="panel-title">物件詳細</div></div><div id="dpFavBtnWrap"></div></div><div id="dpHeroSticky" style="flex-shrink:0;padding:6px 12px;background:var(--primary-d,#1e40af);color:white;display:none"></div><div class="panel-scroll" id="dpContent" style="padding-bottom:16px"></div></div><div id="ganttEditSidebar" style="display:none;width:200px;min-width:200px;background:#1e293b;border-left:2px solid #334155;flex-direction:column;overflow-y:auto;flex-shrink:0"><div style="padding:8px;border-bottom:1px solid #334155;display:flex;flex-direction:column;gap:4px"><div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:2px"><div style="font-size:10px;font-weight:800;color:rgba(255,255,255,.5)">✏️ 工程表編集</div><button onclick="closeGanttEditSidebar()" style="background:rgba(255,255,255,.1);border:none;color:rgba(255,255,255,.6);border-radius:4px;padding:2px 7px;font-size:11px;cursor:pointer;font-weight:700">✕</button></div><div id="geAnchorDiag" style="font-size:9px;color:#fbbf24;line-height:1.5;background:#0f172a;border-radius:6px;padding:5px 7px;display:none"></div><button onclick="saveGanttEdit()" style="width:100%;padding:7px;background:#1a56db;color:white;border:none;border-radius:7px;font-size:11px;font-weight:800;cursor:pointer">💾 保存</button><div style="display:flex;gap:4px"><button onclick="shiftGanttEdit()" style="flex:1;padding:5px;background:#475569;color:white;border:none;border-radius:6px;font-size:10px;font-weight:700;cursor:pointer">📅 シフト</button><button onclick="resetGanttEdit()" style="flex:1;padding:5px;background:#475569;color:white;border:none;border-radius:6px;font-size:10px;font-weight:700;cursor:pointer">🔄 リセット</button></div><button onclick="fixHolidayMisalignedSegs()" style="width:100%;padding:5px;background:#b45309;color:white;border:none;border-radius:6px;font-size:10px;font-weight:700;cursor:pointer;margin-top:4px">☀️ 休日開始の工程を補正</button><button onclick="openSlideRangeDialog()" style="width:100%;padding:5px;background:#6d28d9;color:white;border:none;border-radius:6px;font-size:10px;font-weight:700;cursor:pointer;margin-top:4px">📆 期間指定スライド</button><div style="margin-top:6px;padding-top:6px;border-top:1px solid #334155"><div id="geTentState" style="font-size:9px;color:#fbbf24;line-height:1.5;margin-bottom:4px"></div><button onclick="applyConfirmedUntil('__ALL__')" style="width:100%;padding:6px;background:#ea580c;color:white;border:none;border-radius:6px;font-size:10px;font-weight:800;cursor:pointer">🔖 仮確定（全工程を仮工程に）</button><div style="font-size:9px;color:rgba(255,255,255,.5);line-height:1.5;margin:6px 0 3px">選んだ工程より後ろだけを仮工程にします（それまでは確定）</div><select id="geConfirmedUntilSel" style="width:100%;padding:5px 6px;border:1.5px solid #475569;border-radius:6px;font-size:11px;background:#0f172a;color:white;margin-bottom:4px;box-sizing:border-box"></select><button onclick="applyConfirmedUntil()" style="width:100%;padding:6px;background:#c2410c;color:white;border:none;border-radius:6px;font-size:10px;font-weight:800;cursor:pointer">この工程以降を仮工程にする</button><button onclick="applyConfirmedUntil('')" style="width:100%;padding:6px;background:#059669;color:white;border:none;border-radius:6px;font-size:10px;font-weight:800;cursor:pointer;margin-top:4px">✅ 全て確定に戻す</button></div></div><div style="padding:8px;border-bottom:1px solid #334155"><div style="font-size:10px;font-weight:800;color:rgba(255,255,255,.7);margin-bottom:6px">＋ 工種追加</div><div style="display:flex;flex-direction:column;gap:5px"><input type="text" id="geNewName" placeholder="工種名" style="padding:5px 7px;border:1.5px solid #475569;border-radius:6px;font-size:11px;background:#0f172a;color:white;width:100%;box-sizing:border-box"><div style="display:flex;align-items:center;gap:4px"><span style="font-size:9px;color:rgba(255,255,255,.5);white-space:nowrap">日数</span><input type="number" id="geNewDays" placeholder="日数" min="1" max="180" style="padding:4px 6px;border:1.5px solid #475569;border-radius:6px;font-size:11px;background:#0f172a;color:white;width:100%;box-sizing:border-box"></div><div style="display:flex;align-items:center;gap:4px"><span style="font-size:9px;color:rgba(255,255,255,.5);white-space:nowrap">開始日</span><input type="date" id="geNewDate" style="padding:4px 4px;border:1.5px solid #475569;border-radius:6px;font-size:10px;background:#0f172a;color:white;width:100%;box-sizing:border-box"></div><div id="geColorPicker" style="display:flex;flex-wrap:wrap;gap:4px;margin:2px 0"></div><button onclick="addGanttBar()" style="width:100%;padding:7px;background:#059669;color:white;border:none;border-radius:7px;font-size:11px;font-weight:800;cursor:pointer">バーを追加</button></div></div><div style="padding:6px 8px;flex:1"><div style="font-size:9px;font-weight:800;color:rgba(255,255,255,.4);margin-bottom:4px">工種一覧</div><div id="geSegList" style="display:flex;flex-direction:column;gap:4px;min-width:0;overflow:hidden"></div></div></div></div>
 <div class="slide-panel" id="myPagePanel"><div class="panel-header"><button class="panel-back" onclick="closePanel('myPagePanel')">← 戻る</button><div style="flex:1"><div class="panel-title"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="vertical-align:-3px;margin-right:6px"><path d="M12 3l2.8 5.7 6.2.9-4.5 4.4 1.1 6.2L12 17.2 6.4 20.2l1.1-6.2L3 9.6l6.2-.9z"/></svg>マイ物件</div></div><button onclick="openSelectProp()" style="background:rgba(255,255,255,.2);color:white;border-radius:6px;padding:4px 9px;font-size:11px;font-weight:700">＋</button><button class="print-btn" onclick="printPage()">🖨️</button></div><div class="mypage-wrap" id="myPageContent"></div><div style="padding:6px 12px;text-align:center;font-size:10px;color:#94a3b8" id="myPageVersionFooter"></div></div>
 <div class="slide-panel" id="selectPropPanel"><div class="panel-header"><button class="panel-back" onclick="closePanel('selectPropPanel')">← 戻る</button><div style="flex:1"><div class="panel-title">担当物件を選択</div></div><button onclick="closePanel('selectPropPanel')" style="background:rgba(255,255,255,.2);color:white;border-radius:6px;padding:4px 9px;font-size:11px;font-weight:700">完了</button></div><div class="panel-scroll" id="selectPropContent"></div></div>
 
@@ -1422,7 +1422,7 @@ var POST_END_PAD = 120; // ★スクロール終端の余白：完了検査列�
 // ===== 納品書機能：休工日カレンダー・稼働日計算 =====
 // ★日本の祝日（政府発表・国立天文台暦要項ベース、2025〜2028年分）
 // ★アプリバージョン（不具合問い合わせ対応用。リリースごとに更新すること。2026/8/23追加）
-var APP_VERSION = '2026.10.26.5';
+var APP_VERSION = '2026.10.26.7';
 window.APP_VERSION=APP_VERSION;
 // ★物件詳細URL（?fix=FIX番号）：起動時に値を控え、ログイン・物件読込後に該当物件の詳細を開く（2026/10/22）
 var _JACK_DEEP_FIX=(function(){try{var v=new URLSearchParams(window.location.search).get('fix');return v?String(v).trim():'';}catch(e){return '';}})();
@@ -2085,6 +2085,10 @@ function _tentativeStepSet(p, segs){
   var ck=custKey(p);
   var markLabel=(p&&p.confirmed_until)||confirmedUntilMap[ck]||'';
   if(!markLabel||!segs||!segs.length)return res;
+  if(markLabel==='__ALL__'){ // ★仮確定：全工程を仮工程にする
+    segs.forEach(function(s){var nm=String(s.label||s.name||'').trim();if(nm)res.add(nm);});
+    return res;
+  }
   var idx=segs.findIndex(function(s){return String(s.label||s.name||'').trim()===markLabel;});
   if(idx<0)return res;
   for(var i=idx+1;i<segs.length;i++){
@@ -6410,7 +6414,9 @@ function geRenderSegList(){
   if(selEl&&currentProp){
     var ck=custKey(currentProp);
     var curMark=(currentProp.confirmed_until)||confirmedUntilMap[ck]||'';
-    selEl.innerHTML='<option value="">（未設定＝全て確定）</option>'
+    var _st=document.getElementById('geTentState');
+    if(_st)_st.textContent=curMark==='__ALL__'?'現在：全工程が仮確定':curMark?('現在：「'+curMark+'」まで確定・以降は仮工程'):'現在：全て確定';
+    selEl.innerHTML='<option value="">（工程を選択）</option>'
       +geSegs.map(function(s){var lbl=s.label||'';return '<option value="'+_escHtml(lbl)+'"'+(lbl===curMark?' selected':'')+'>'+_escHtml(lbl)+'</option>';}).join('');
   }
   el.innerHTML=geSegs.map(function(s,i){
@@ -6781,12 +6787,13 @@ window.applySlideRange=applySlideRange;
 //   保存はcustomGanttとは別のローカル設定（jack_confirmed_until）に持たせ、大工程画面(renderBars)の
 //   バー描画でハッチング表示に反映する。マスター/手動編集どちらのsegsに対しても、工程名(label)で照合するため
 //   工程を編集・入替してもズレにくい（ただし同名工程が無くなった場合はマークが無効化＝全て確定表示に戻る）。
-function applyConfirmedUntil(){
+function applyConfirmedUntil(forceV){
   if(!currentProp){return;}
   var selEl=document.getElementById('geConfirmedUntilSel');
   if(!selEl)return;
   var ck=custKey(currentProp);
-  var v=selEl.value;
+  var v=(typeof forceV==='string')?forceV:selEl.value;
+  if(typeof forceV!=='string'&&!v){showToast('仮工程にし始める工程を選んでください','info');return;}
   if(v){confirmedUntilMap[ck]=v;} else {delete confirmedUntilMap[ck];}
   saveLS('jack_confirmed_until',confirmedUntilMap);
   // ★2026/9/10追加【重大バグ修正】：以前はローカル保存のみで、Supabaseに一切書き込んでいなかったため
@@ -6829,7 +6836,8 @@ function applyConfirmedUntil(){
     showToast('保存はできましたが、表示の更新でエラーが発生しました：'+e.message,'error');
     return;
   }
-  showToast(v?('「'+v+'」まで確定・それ以降は仮工程表示にしました（全ユーザーに反映されます）'):'確定区切りを解除しました（全て確定表示）','success');
+  showToast(v==='__ALL__'?'全工程を仮確定にしました（全ユーザーに反映されます）':v?('「'+v+'」まで確定・それ以降は仮工程表示にしました（全ユーザーに反映されます）'):'全て確定に戻しました（全ユーザーに反映されます）','success');
+  try{if(typeof geRenderSegList==='function'&&typeof ganttEditMode!=='undefined'&&ganttEditMode)geRenderSegList();}catch(e){}
 }
 window.applyConfirmedUntil=applyConfirmedUntil;
 
@@ -8704,6 +8712,9 @@ function openSelectProp(){
   tantouOpts.sort(function(a,b){return a.localeCompare(b,'ja');});
 
   var searchQuery='';
+  // ★開くたびに世代番号を進める。前回開いた時の画面(DOM)が残っていると、タブ操作が前回分の変数を
+  //   書き換えてしまい、「全て登録」「件数」が全物件を対象にしてしまっていた（再発バグ修正）
+  var _spGen=(window._spGenCounter=(window._spGenCounter||0)+1);
   function renderSelectContent(){
     var list=active.filter(function(p){
       // FIXED_AREA絞り込み（業者モード）
@@ -8774,7 +8785,8 @@ function openSelectProp(){
     var el=document.getElementById('selectPropContent');
     if(!el)return;
     var listEl=document.getElementById('_spList');
-    if(!listEl){
+    if(!listEl||el.getAttribute('data-spgen')!==String(_spGen)){
+      el.setAttribute('data-spgen',String(_spGen));
       // 初回: タブ・検索バー・リストを全部描画
       el.innerHTML=tabHtml;
       listEl=document.getElementById('_spList');
@@ -18657,9 +18669,9 @@ document.addEventListener('DOMContentLoaded',function(){
   if(typeof applyConfirmedUntil==='function'){
     var _origCU=applyConfirmedUntil;
     window.applyConfirmedUntil=applyConfirmedUntil=function(){
-      var sel=document.getElementById('geConfirmedUntilSel'),v=sel?sel.value:'',p=currentProp;
+      var sel=document.getElementById('geConfirmedUntilSel'),v=(typeof arguments[0]==='string')?arguments[0]:(sel?sel.value:''),p=currentProp;
       var r=_origCU.apply(this,arguments);
-      try{if(v&&p){
+      try{if(v&&v!=='__ALL__'&&p){
         var segs=getActiveSegs(p)||[];
         var idx=segs.findIndex(function(s){return String(s.label||s.name||'').trim()===v;});
         if(idx>=0){
@@ -18715,8 +18727,10 @@ document.addEventListener('DOMContentLoaded',function(){
     loadHist(fix).then(function(ev){
       if(!st.parentNode||String((typeof currentProp!=='undefined'&&currentProp&&currentProp.fix_no)||'')!==fix)return;
       var last=ev.find(function(e){return e.kind==='edit'&&hasMove(e);}),conf=ev.find(function(e){return e.kind==='confirm';});
-      if(!last&&!conf){st.style.display='none';return;}
+      var _allT=(p.confirmed_until==='__ALL__');if(_allT)conf=null;
+      if(!last&&!conf&&!_allT){st.style.display='none';return;}
       var h='';
+      if(_allT)h+=chip('仮確定（全工程が仮）','#fff7ed','#c2410c','#fed7aa');
       if(conf){
         var n=confDiff(conf,p).length;
         h+=chip('工期確定 '+md(conf.changed_at.slice(0,10)),'#eff6ff','#1e40af','#bfdbfe');
@@ -18738,7 +18752,7 @@ document.addEventListener('DOMContentLoaded',function(){
       .concat(t?['担当：'+t]:[]).concat([whenTxt,'']);}
   // 確定済み工程の変更（確定時との差）
   function textChanged(p,ev){
-    var conf=ev.find(function(e){return e.kind==='confirm';});if(!conf)return '';
+    var conf=ev.find(function(e){return e.kind==='confirm';});if(!conf||p.confirmed_until==='__ALL__')return '';
     var items=confDiff(conf,p);if(!items.length)return '';
     items.sort(function(a,b){return Math.abs(shiftOf(b)||0)-Math.abs(shiftOf(a)||0);});
     var last=ev.find(function(e){return e.kind==='edit'&&hasMove(e);});
@@ -18757,7 +18771,7 @@ document.addEventListener('DOMContentLoaded',function(){
     L.push(propUrl(p));return L.join('\n');}
   // 工期確定のお知らせ
   function textConfirm(p,ev){
-    var conf=ev.find(function(e){return e.kind==='confirm';});if(!conf)return '';
+    var conf=ev.find(function(e){return e.kind==='confirm';});if(!conf||p.confirmed_until==='__ALL__')return '';
     var snap=norm(conf.snapshot),upto=((conf.items||[])[0]||{}).upto||'';
     var L=['【工期確定のお知らせ】'].concat(headLines(p,md(conf.changed_at.slice(0,10))+' 確定'));
     L.push('次の工程までを確定としました。');if(upto)L.push('〜'+upto);L.push('');
@@ -18810,6 +18824,7 @@ document.addEventListener('DOMContentLoaded',function(){
     var p=currentProp;if(!p)return;var fix=String(p.fix_no||'');
     loadHist(fix).then(function(ev){
       var conf=ev.find(function(e){return e.kind==='confirm';});
+      if(p.confirmed_until==='__ALL__')conf=null;
       var h='';
       window._gchgCtx={p:p,ev:ev};
       var isAdm=false;try{isAdm=!!(currentProfile&&(currentProfile.role==='admin'||currentProfile.is_admin===true));}catch(e){}
