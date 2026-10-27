@@ -1422,7 +1422,7 @@ var POST_END_PAD = 120; // ★スクロール終端の余白：完了検査列�
 // ===== 納品書機能：休工日カレンダー・稼働日計算 =====
 // ★日本の祝日（政府発表・国立天文台暦要項ベース、2025〜2028年分）
 // ★アプリバージョン（不具合問い合わせ対応用。リリースごとに更新すること。2026/8/23追加）
-var APP_VERSION = '2026.10.26.7';
+var APP_VERSION = '2026.10.26.8';
 window.APP_VERSION=APP_VERSION;
 // ★物件詳細URL（?fix=FIX番号）：起動時に値を控え、ログイン・物件読込後に該当物件の詳細を開く（2026/10/22）
 var _JACK_DEEP_FIX=(function(){try{var v=new URLSearchParams(window.location.search).get('fix');return v?String(v).trim():'';}catch(e){return '';}})();
@@ -6442,6 +6442,7 @@ function geRenderSegList(){
         +'<div style="flex:1;font-size:10px;font-weight:700;color:rgba(255,255,255,.9);overflow:hidden;white-space:nowrap;">🔒 '+lbl+'</div>'
         +'</div>'
         +'<div style="font-size:8px;color:#fbbf24;line-height:1.4;">予約日は物件編集画面から設定してください</div>'
+        +'<button type="button" onclick="geInsertAfter('+i+')" style="align-self:flex-end;font-size:9px;color:white;font-weight:700;padding:2px 8px;border-radius:4px;background:#475569;cursor:pointer;border:none">↓挿入</button>'
         +'</div>';
     }
     return '<div style="display:flex;flex-direction:column;gap:4px;padding:6px 6px;background:#0f172a;border-radius:6px;border-left:3px solid '+(_isSuspicious?'#dc2626':(s.color||'#64748b'))+';">'
@@ -6458,6 +6459,7 @@ function geRenderSegList(){
       +'<label style="font-size:8px;color:rgba(255,255,255,.35);">完了日</label>'
       +'<input type="date" data-idx="'+i+'" data-field="end" value="'+edVal+'" style="'+inputStyle+'" onchange="geUpdateSegDate(this)">'
       +'</div>'
+      +'<button type="button" onclick="geInsertAfter('+i+')" style="align-self:flex-end;font-size:9px;color:white;font-weight:700;padding:2px 8px;border-radius:4px;background:#475569;cursor:pointer;border:none">↓挿入</button>'
       +'</div>';
   }).join('');
 }
@@ -6530,6 +6532,20 @@ function geUpdateSegDate(input){
 }
 window.geUpdateSegDate=geUpdateSegDate;
 
+// ★工程の挿入（マスター工程編集の「↓挿入」と同じ操作）：選んだ行の直後に新しい工程バーを入れる。
+//   開始日＝直前の工程の完了日の翌稼働日。後ろの工程は動かさない（日付は後から変更できる）
+function geInsertAfter(idx){
+  var prev=geSegs[idx];if(!prev)return;
+  var nm=prompt('挿入する工種名を入力してください','新工種');if(!nm||!nm.trim())return;nm=nm.trim();
+  var dur=parseInt(prompt('工期（稼働日数）','7'));if(isNaN(dur)||dur<1)dur=7;
+  var pe=String(prev.end_date||prev.start_date||prev.date||'').replace(/\//g,'-');
+  var sd=pe?addWorkdays(pe,1):TODAY;
+  var ed=endOfWorkdays(sd,dur);
+  geSegs.splice(idx+1,0,{label:nm,start_date:sd,date:sd,end_date:ed,calendar_dur:calendarDur(sd,ed),duration:calendarDur(sd,ed),dur:dur,color:geSelColor||'#64748b',layer:0,textColor:'auto',offsetFrom:'',offsetDays:0});
+  geRenderBars();
+  showToast('「'+nm+'」を「'+(prev.label||prev.name||'')+'」の後ろに挿入しました','success');
+}
+window.geInsertAfter=geInsertAfter;
 function addGanttBar(){
   var nm=(document.getElementById('geNewName').value||'').trim();
   var daysVal=document.getElementById('geNewDays').value;
