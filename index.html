@@ -1422,7 +1422,7 @@ var POST_END_PAD = 120; // ★スクロール終端の余白：完了検査列�
 // ===== 納品書機能：休工日カレンダー・稼働日計算 =====
 // ★日本の祝日（政府発表・国立天文台暦要項ベース、2025〜2028年分）
 // ★アプリバージョン（不具合問い合わせ対応用。リリースごとに更新すること。2026/8/23追加）
-var APP_VERSION = '2026.10.26.8';
+var APP_VERSION = '2026.10.26.9';
 window.APP_VERSION=APP_VERSION;
 // ★物件詳細URL（?fix=FIX番号）：起動時に値を控え、ログイン・物件読込後に該当物件の詳細を開く（2026/10/22）
 var _JACK_DEEP_FIX=(function(){try{var v=new URLSearchParams(window.location.search).get('fix');return v?String(v).trim():'';}catch(e){return '';}})();
@@ -7720,9 +7720,19 @@ function renderDeliveryNoteSection(p,containerId,skipFetch){
     return;
   }
   el.innerHTML='<div style="color:#94a3b8;font-size:11px;padding:12px;text-align:center">読み込み中...</div>';
-  _loadDeliveryNoteIfNeeded(p).then(function(){
-    _renderDeliveryNoteBody(p,el);
-  });
+  // ★読み込み失敗・描画エラーでも「読み込み中...」のまま固まらないよう、必ず結果（またはエラー内容）を表示する
+  var _dnDone=false;
+  function _dnShow(){
+    if(_dnDone)return;_dnDone=true;
+    try{_renderDeliveryNoteBody(p,el);}
+    catch(err){
+      console.error('[JACK] 納品書の描画エラー',err);
+      el.innerHTML='<div style="padding:14px;font-size:12px;color:#b91c1c;line-height:1.7">納品書を表示できませんでした。<br><span style="color:#64748b">'+_escHtml(String(err&&err.message||err))+'</span><br><button type="button" onclick="renderDeliveryNoteSection(currentProp,null,true)" style="margin-top:6px;padding:5px 12px;border-radius:6px;background:#1a56db;color:#fff;border:none;font-weight:700;cursor:pointer">再読み込み</button></div>';
+    }
+  }
+  // 通信が10秒以上返らない場合は、手元にある納品書データで先に表示する
+  var _dnTimer=setTimeout(_dnShow,10000);
+  _loadDeliveryNoteIfNeeded(p).then(function(){clearTimeout(_dnTimer);_dnShow();},function(){clearTimeout(_dnTimer);_dnShow();});
 }
 window.renderDeliveryNoteSection=renderDeliveryNoteSection;
 function _renderDeliveryNoteBody(p,el){
