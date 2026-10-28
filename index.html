@@ -1422,7 +1422,7 @@ var POST_END_PAD = 120; // ★スクロール終端の余白：完了検査列�
 // ===== 納品書機能：休工日カレンダー・稼働日計算 =====
 // ★日本の祝日（政府発表・国立天文台暦要項ベース、2025〜2028年分）
 // ★アプリバージョン（不具合問い合わせ対応用。リリースごとに更新すること。2026/8/23追加）
-var APP_VERSION = '2026.10.26.11';
+var APP_VERSION = '2026.10.26.12';
 window.APP_VERSION=APP_VERSION;
 // ★物件詳細URL（?fix=FIX番号）：起動時に値を控え、ログイン・物件読込後に該当物件の詳細を開く（2026/10/22）
 var _JACK_DEEP_FIX=(function(){try{var v=new URLSearchParams(window.location.search).get('fix');return v?String(v).trim():'';}catch(e){return '';}})();
@@ -13394,6 +13394,9 @@ function _jackLoginCandidates(input){
 }
 function _jackIdToEmail(v){return _jackIdNormalize(v)+'@'+JACK_ID_DOMAIN;}
 function _jackIdDisplay(email){return String(email||'').replace('@'+JACK_ID_DOMAIN,'');}
+// ★管理者の2段階化：本部管理者＝admin かつ admin_level が 'site' 以外（列が未追加の間は全管理者を本部扱いにして従来どおり動かす）
+function _jackIsHq(){return !!(currentProfile&&currentProfile.role==='admin'&&currentProfile.admin_level!=='site');}
+window._jackIsHq=_jackIsHq;
 function _jackIsSuperAdmin(){var e=(currentProfile&&currentProfile.email)||'';return /^takeshi_matsui(@|_at_)felix-japan\.co\.jp/i.test(e);}
 async function doLogin(){
   var email=(document.getElementById('jackLoginEmail')||{}).value||'',
@@ -14870,7 +14873,7 @@ function renderAdminCPShell(){
       +admMenuItem('announce','📢','お知らせ管理')
       +admMenuItem('dbsetup','🔧','DB設定')
       +'<div style="height:1px;background:rgba(255,255,255,.08);margin:6px 10px"></div>'
-      +'<div id="admMaintBtn" onclick="admToggleMaintenance()" style="padding:10px 16px;font-size:12px;font-weight:700;cursor:pointer;color:#94a3b8;border-radius:8px;margin:2px 8px">🔧 メンテナンスモード: 確認中...</div>'
+ +(_jackIsHq()?'<div id="admMaintBtn" onclick="admToggleMaintenance()" style="padding:10px 16px;font-size:12px;font-weight:700;cursor:pointer;color:#94a3b8;border-radius:8px;margin:2px 8px">🔧 メンテナンスモード: 確認中...</div>':'')
       +'<div style="padding:8px 16px 4px;font-size:10px;color:#64748b;font-family:var(--mono)">v'+APP_VERSION+'</div>'
     +'</div>'
     +'<div id="admRight" style="flex:1;overflow-y:auto;background:#f8fafc"></div>'
@@ -15309,7 +15312,8 @@ function copyRlsSql(){copyText('rlsSqlPre');}
 window.copyRlsSql=copyRlsSql;
 
 function admUserCard(u,approved){
-  var isSuperAdmin=_jackIsSuperAdmin();
+  var isSuperAdmin=_jackIsHq();
+  var _viewerHq=_jackIsHq();
   var deleteBtn=isSuperAdmin
     ?'<button class="adm-delete-user" data-uid="'+u.id+'" data-email="'+_escHtml(u.email||'')+'" style="font-size:10px;background:#7f1d1d;color:#fca5a5;padding:4px 10px;border-radius:6px;cursor:pointer;margin-left:4px">🗑 削除</button>'
     :'';
@@ -15339,17 +15343,22 @@ function admUserCard(u,approved){
       // ★一覧（カード）上で直接編集できるように、会社名・電話番号・ロールをinput/select化（2026/10追加・モーダルを開かなくても直せる）
       +'<div style="display:flex;gap:4px;align-items:center;margin-top:2px;flex-wrap:wrap">'
         +'<input type="text" value="'+_escHtml(u.company||'')+'" placeholder="会社名未登録" data-pid="'+u.id+'" onchange="admSaveProfileField(this,\'company\')" style="font-size:10px;padding:2px 6px;border:1.5px solid '+(u.company?'#e2e8f0':'#fca5a5')+';border-radius:5px;width:120px">'
-        +'<select data-pid="'+u.id+'" onchange="admSaveUserRole(this)" style="font-size:10px;padding:2px 6px;border:1.5px solid #e2e8f0;border-radius:5px">'
+        +'<select data-pid="'+u.id+'" onchange="admSaveUserRole(this)"'+(_viewerHq?'':' disabled title="役割の変更は本部管理者のみ"')+' style="font-size:10px;padding:2px 6px;border:1.5px solid #e2e8f0;border-radius:5px">'
           +'<option value="worker"'+(u.role!=='admin'&&u.role!=='inspector'?' selected':'')+'>協力業者</option>'
           +'<option value="inspector"'+(u.role==='inspector'?' selected':'')+'>検査機関</option>'
           +'<option value="admin"'+(u.role==='admin'?' selected':'')+'>管理者</option>'
         +'</select>'
+        +((u.role==='admin'&&_viewerHq&&('admin_level' in u))
+          ?('<select data-pid="'+u.id+'" onchange="admSaveAdminLevel(this)" title="管理者区分" style="font-size:10px;padding:2px 6px;border:1.5px solid #f59e0b;border-radius:5px">'
+            +'<option value="hq"'+(u.admin_level!=='site'?' selected':'')+'>本部</option>'
+            +'<option value="site"'+(u.admin_level==='site'?' selected':'')+'>現場管理</option></select>')
+          :(u.role==='admin'&&('admin_level' in u)?'<span style="font-size:10px;color:#92400e;background:#fef3c7;border-radius:5px;padding:2px 6px">'+(u.admin_level==='site'?'現場管理':'本部')+'</span>':''))
         +shinsaSelectHtml
       +'</div>'
       +koushuHtml
     +'</div>'
     +'<div style="display:flex;gap:4px;align-items:center;flex-wrap:wrap">'
-    +'<button onclick="admResetPassword(\''+u.id+'\')" style="font-size:10px;background:#fef3c7;color:#92400e;padding:4px 10px;border-radius:6px;cursor:pointer">🔑 PW再設定</button>'
+    +((_viewerHq||u.role!=='admin')?'<button onclick="admResetPassword(\''+u.id+'\')" style="font-size:10px;background:#fef3c7;color:#92400e;padding:4px 10px;border-radius:6px;cursor:pointer">🔑 PW再設定</button>':'')
     +'<button class="adm-master-edit" data-uid="'+u.id+'" style="font-size:10px;background:#eef2ff;color:#4338ca;padding:4px 10px;border-radius:6px;cursor:pointer">✏️ マスター編集</button>'
     +(approved
       ?'<button class="adm-revoke" data-uid="'+u.id+'" style="font-size:10px;background:#fee2e2;color:#dc2626;padding:4px 10px;border-radius:6px;cursor:pointer">取消</button>'
@@ -15412,6 +15421,19 @@ async function admSaveUserRole(sel){
   loadAdmSec('users');
 }
 window.admSaveUserRole=admSaveUserRole;
+// ★管理者区分（本部／現場管理）の変更：本部管理者のみ（サーバー側のトリガーでも制限）
+async function admSaveAdminLevel(sel){
+  var pid=sel.getAttribute('data-pid'), val=sel.value, sb=getSB();
+  if(!sb||!_jackIsHq())return;
+  if(currentUser&&String(currentUser.id)===String(pid)&&val==='site'){
+    if(!confirm('自分自身を「現場管理」にすると、本部の操作ができなくなります。よろしいですか？')){loadAdmSec('users');return;}
+  }
+  var r=await sb.from('profiles').update({admin_level:val}).eq('id',pid);
+  if(r.error){showToast('⚠️ 保存に失敗しました：'+r.error.message,'error');loadAdmSec('users');return;}
+  showToast('✅ 管理者区分を「'+(val==='site'?'現場管理':'本部')+'」にしました','success');
+  loadAdmSec('users');
+}
+window.admSaveAdminLevel=admSaveAdminLevel;
 
 // ★業者マスター編集（会社名の修正・担当工種の選択）（2026/10追加）
 //   「どの業者がどの工種か」を把握し、将来の工事カレンダー連動のために使う。
@@ -15663,7 +15685,7 @@ document.addEventListener('click',async function(e){
   }
   else if(t.classList.contains('adm-delete-user')){
     // 削除権限: takeshi_matsui@felix-japan.co.jp のみ
-    if(!_jackIsSuperAdmin()){showToast('削除権限がありません','error');return;}
+    if(!_jackIsHq()){showToast('ユーザーの削除は本部管理者のみ可能です','error');return;}
     var delEmail=t.getAttribute('data-email')||'';
     if(!confirm('【'+_jackIdDisplay(delEmail)+'】を完全削除します。\nログイン情報も消え、元に戻せません。\n本当に削除しますか？'))return;
     var delUid=t.getAttribute('data-uid');
