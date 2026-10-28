@@ -1422,7 +1422,7 @@ var POST_END_PAD = 120; // ★スクロール終端の余白：完了検査列�
 // ===== 納品書機能：休工日カレンダー・稼働日計算 =====
 // ★日本の祝日（政府発表・国立天文台暦要項ベース、2025〜2028年分）
 // ★アプリバージョン（不具合問い合わせ対応用。リリースごとに更新すること。2026/8/23追加）
-var APP_VERSION = '2026.10.26.10';
+var APP_VERSION = '2026.10.26.11';
 window.APP_VERSION=APP_VERSION;
 // ★物件詳細URL（?fix=FIX番号）：起動時に値を控え、ログイン・物件読込後に該当物件の詳細を開く（2026/10/22）
 var _JACK_DEEP_FIX=(function(){try{var v=new URLSearchParams(window.location.search).get('fix');return v?String(v).trim():'';}catch(e){return '';}})();
@@ -2761,6 +2761,7 @@ function computeSiteProgressSummary(){
     asOf:today,
     thisTerm:mkTerm(), nextTerm:mkTerm(),
     inspections:[],
+    handovers:[], // ★今月の引渡し物件（2026/10/28追加）：{name,fixNo,area,date,tantou}
     // ★診断情報：関東が0件など明らかにおかしい集計になった場合に原因を切り分けるための内訳（2026/8/25追加、8/25再拡張）
     diagnostics:{
       totalProps:0, segError:0, segErrorSamples:[], unknownArea:0, unknownAreaSamples:[],
@@ -2792,6 +2793,13 @@ function computeSiteProgressSummary(){
       result.diagnostics.areaTotal[areaKey]++;
     }
     var termKey=isRaikin(p)?'nextTerm':'thisTerm';
+    // ★今月の引渡し物件（工程データの有無に関わらず、引渡し日が今月のものを全て拾う）
+    try{
+      var _hk=(normDate(p.delivery_date||'')||'').replace(/\//g,'-');
+      if(_hk&&_hk.slice(0,7)===today.slice(0,7)){
+        result.handovers.push({name:p.name||p.fix_no||'',fixNo:p.fix_no||'',area:areaKey,date:_hk,tantou:(typeof tantouOf==='function'?tantouOf(p):'')||''});
+      }
+    }catch(e){}
     var segs;
     try{segs=getActiveSegs(p);}catch(e){
       segs=null;
@@ -2842,9 +2850,18 @@ function computeSiteProgressSummary(){
       if(areaKey)term[areaKey].byType[baseNm]=(term[areaKey].byType[baseNm]||0)+1;
     });
   });
+  result.handovers.sort(function(a,b){return a.date<b.date?-1:a.date>b.date?1:(String(a.name)<String(b.name)?-1:1);});
   return result;
 }
 window.computeSiteProgressSummary=computeSiteProgressSummary;
+// ★引渡し物件の表示用ヘルパー（本日／今月×エリア別）
+function _siteHandoverGroups(s){
+  var t=s.asOf;
+  var today=s.handovers.filter(function(h){return h.date===t;});
+  var by=function(k){return s.handovers.filter(function(h){return h.area===k;});};
+  return {today:today,tokai:by('tokai'),kanto:by('kanto'),other:s.handovers.filter(function(h){return !h.area;})};
+}
+function _siteHandoverMD(d){var a=String(d).split('-');return (+a[1])+'/'+(+a[2]);}
 
 // 工種の表示順（よく使われる工程を並べ、その他は出現順で末尾に）
 var SITE_PROGRESS_TYPE_ORDER=['造成','地盤','基礎','建て方','足場','造作','UB','SK','内装','外構','解体','器具付け','土間打設','社内検査期間'];
@@ -2859,6 +2876,30 @@ function _siteProgressSortedTypes(byTypeAll){
   return names;
 }
 
+function _siteHandoverHtml(s){
+  var g=_siteHandoverGroups(s);
+  var row=function(h,showDate){
+    var done=h.date<s.asOf;
+    return '<div style="padding:6px 10px;font-size:12px;color:#334155;border-bottom:1px solid #f1f5f9;display:flex;gap:8px;align-items:center">'
+      +'<span style="color:#64748b;min-width:38px">'+_siteHandoverMD(h.date)+'</span>'
+      +'<span style="flex:1;font-weight:700">'+_escHtml(h.name)+'</span>'
+      +(h.tantou?'<span style="color:#94a3b8;font-size:11px">'+_escHtml(h.tantou)+'</span>':'')
+      +(done?'<span style="font-size:10px;background:#f1f5f9;color:#64748b;border-radius:4px;padding:1px 6px">引渡し済</span>':(h.date===s.asOf?'<span style="font-size:10px;background:#fef3c7;color:#b45309;border-radius:4px;padding:1px 6px;font-weight:700">本日</span>':''))
+      +'</div>';
+  };
+  var box=function(title,list,color){
+    return '<div style="font-size:12px;font-weight:800;color:'+color+';margin:10px 0 4px">'+title+'（'+list.length+'件）</div>'
+      +'<div style="background:white;border:1px solid #e2e8f0;border-radius:10px;overflow:hidden">'
+      +(list.length?list.map(function(h){return row(h);}).join(''):'<div style="padding:10px;font-size:12px;color:#94a3b8">該当する物件はありません</div>')
+      +'</div>';
+  };
+  return '<div style="font-size:13px;font-weight:800;color:#1e293b;margin:6px 0 2px">■ 引渡し物件</div>'
+    +box('本日（'+_siteHandoverMD(s.asOf)+'）の引渡し',g.today,'#b45309')
+    +box('今月の引渡し：東海',g.tokai,'#0369a1')
+    +box('今月の引渡し：関東',g.kanto,'#7c3aed')
+    +(g.other.length?box('今月の引渡し：エリア不明',g.other,'#94a3b8'):'')
+    +'<div style="height:14px"></div>';
+}
 function admRenderSiteProgress(container){
   var s=computeSiteProgressSummary();
   var d=s.diagnostics;
@@ -2936,6 +2977,7 @@ function admRenderSiteProgress(container){
       +card('着工中（東海）',combinedTokai)
       +card('着工中（関東）',combinedKanto)
     +'</div>'
+    +_siteHandoverHtml(s)
     +diagBanner
     +renderTermSection('■ 今期',s.thisTerm)
     +'<div style="font-size:13px;font-weight:800;color:#1e293b;margin-top:10px;margin-bottom:8px">今期：本日実施中の検査</div>'
@@ -2974,6 +3016,18 @@ function _siteProgressToText(){
       lines.push('　該当データがありません');
     }
   };
+  // ★引渡し物件（本日・今月×エリア別）
+  var hg=_siteHandoverGroups(s);
+  var hLine=function(h){return '　'+_siteHandoverMD(h.date)+'　'+h.name+(h.tantou?'（'+h.tantou+'）':'')+(h.date<s.asOf?'　※引渡し済':'');};
+  lines.push('');
+  lines.push('■本日（'+_siteHandoverMD(s.asOf)+'）の引渡し：'+hg.today.length+'件');
+  if(hg.today.length)hg.today.forEach(function(h){lines.push(hLine(h));});else lines.push('　なし');
+  [['東海',hg.tokai],['関東',hg.kanto],['エリア不明',hg.other]].forEach(function(x){
+    if(x[0]==='エリア不明'&&!x[1].length)return;
+    lines.push('');
+    lines.push('■今月の引渡し（'+x[0]+'）：'+x[1].length+'件');
+    if(x[1].length)x[1].forEach(function(h){lines.push(hLine(h));});else lines.push('　なし');
+  });
   addTerm('今期',s.thisTerm);
   addTerm('来期',s.nextTerm);
   lines.push('');
