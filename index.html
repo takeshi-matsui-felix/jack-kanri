@@ -1422,7 +1422,7 @@ var POST_END_PAD = 120; // ★スクロール終端の余白：完了検査列�
 // ===== 納品書機能：休工日カレンダー・稼働日計算 =====
 // ★日本の祝日（政府発表・国立天文台暦要項ベース、2025〜2028年分）
 // ★アプリバージョン（不具合問い合わせ対応用。リリースごとに更新すること。2026/8/23追加）
-var APP_VERSION = '2026.10.26.12';
+var APP_VERSION = '2026.10.26.13';
 window.APP_VERSION=APP_VERSION;
 // ★物件詳細URL（?fix=FIX番号）：起動時に値を控え、ログイン・物件読込後に該当物件の詳細を開く（2026/10/22）
 var _JACK_DEEP_FIX=(function(){try{var v=new URLSearchParams(window.location.search).get('fix');return v?String(v).trim():'';}catch(e){return '';}})();
@@ -14872,6 +14872,7 @@ function renderAdminCPShell(){
       +admMenuItem('ganttsheet','📋','工程表取込')
       +admMenuItem('announce','📢','お知らせ管理')
       +admMenuItem('dbsetup','🔧','DB設定')
+      +(_jackIsHq()?(admMenuItem('backup','💾','バックアップ')+admMenuItem('audit','📜','操作記録')):'')
       +'<div style="height:1px;background:rgba(255,255,255,.08);margin:6px 10px"></div>'
  +(_jackIsHq()?'<div id="admMaintBtn" onclick="admToggleMaintenance()" style="padding:10px 16px;font-size:12px;font-weight:700;cursor:pointer;color:#94a3b8;border-radius:8px;margin:2px 8px">🔧 メンテナンスモード: 確認中...</div>':'')
       +'<div style="padding:8px 16px 4px;font-size:10px;color:#64748b;font-family:var(--mono)">v'+APP_VERSION+'</div>'
@@ -14897,6 +14898,79 @@ var _ADM_ICONS={
  '📢':'<path d="M4 10v4h3l7 4V6L7 10z"/><path d="M17 9a4 4 0 0 1 0 6"/>',
  '🔧':'<path d="M14.500 6.500a4 4 0 0 0 5 5L11 20a2.100 2.100 0 0 1-3-3z"/><path d="M14.500 6.500l3-3"/>'
 };
+// ★本部管理者専用：バックアップ書き出し（主要テーブルをJSONファイルに保存）／操作記録の閲覧（2026/10/29）
+var JACK_BACKUP_TABLES=['masters','master_templates','vendors','announcements','app_settings','gantt_sheets','profiles','properties'];
+async function _admFetchAllRows(sb,tbl){
+  var all=[],from=0,size=1000;
+  for(;;){
+    var r=await sb.from(tbl).select('*').range(from,from+size-1);
+    if(r.error)throw new Error(tbl+'：'+r.error.message);
+    all=all.concat(r.data||[]);
+    if(!r.data||r.data.length<size)break;
+    from+=size;
+  }
+  return all;
+}
+function admRenderBackup(right){
+  if(!_jackIsHq()){right.innerHTML='<div style="padding:16px;font-size:13px;color:#b91c1c">本部管理者のみ利用できます</div>';return;}
+  right.innerHTML='<div style="padding:16px">'
+    +'<div style="font-size:16px;font-weight:800;color:#1e293b;margin-bottom:4px">💾 バックアップ</div>'
+    +'<div style="font-size:11px;color:#64748b;line-height:1.7;margin-bottom:12px">主要なデータ（マスター・業者・お知らせ・設定・工程表取込・ユーザー・物件）を、1つのファイルに保存します。<br>操作ミスやいたずらがあったときの復旧用です。月に1回など、定期的に保存してください。<br>ファイルにはユーザー情報が含まれます。保管場所に注意してください。</div>'
+    +'<button id="admBackupBtn" onclick="admRunBackup()" style="background:#1a56db;color:white;border:none;border-radius:8px;padding:10px 18px;font-size:13px;font-weight:800;cursor:pointer">💾 バックアップを書き出す</button>'
+    +'<div id="admBackupMsg" style="margin-top:12px;font-size:12px;color:#475569"></div>'
+  +'</div>';
+}
+async function admRunBackup(){
+  var sb=getSB(),btn=document.getElementById('admBackupBtn'),msg=document.getElementById('admBackupMsg');
+  if(!sb||!_jackIsHq())return;
+  btn.disabled=true;var out={exported_at:new Date().toISOString(),app_version:APP_VERSION,tables:{}},sum=[];
+  try{
+    for(var i=0;i<JACK_BACKUP_TABLES.length;i++){
+      var t=JACK_BACKUP_TABLES[i];
+      if(msg)msg.textContent=t+' を読み込み中...（'+(i+1)+'/'+JACK_BACKUP_TABLES.length+'）';
+      try{out.tables[t]=await _admFetchAllRows(sb,t);sum.push(t+'：'+out.tables[t].length+'件');}
+      catch(e){sum.push(t+'：取得できませんでした（'+(e.message||e)+'）');}
+    }
+    var d=new Date(),pad=function(n){return ('0'+n).slice(-2);};
+    var fn='JACK_backup_'+d.getFullYear()+pad(d.getMonth()+1)+pad(d.getDate())+'_'+pad(d.getHours())+pad(d.getMinutes())+'.json';
+    var blob=new Blob([JSON.stringify(out)],{type:'application/json'});
+    var a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=fn;document.body.appendChild(a);a.click();
+    setTimeout(function(){URL.revokeObjectURL(a.href);a.remove();},2000);
+    if(msg)msg.innerHTML='✅ 保存しました：'+_escHtml(fn)+'<br>'+sum.map(_escHtml).join('<br>');
+  }catch(e){
+    if(msg)msg.innerHTML='<span style="color:#b91c1c">書き出しに失敗しました：'+_escHtml(e.message||String(e))+'</span>';
+  }
+  btn.disabled=false;
+}
+window.admRunBackup=admRunBackup;
+async function admRenderAudit(right){
+  if(!_jackIsHq()){right.innerHTML='<div style="padding:16px;font-size:13px;color:#b91c1c">本部管理者のみ利用できます</div>';return;}
+  right.innerHTML='<div style="padding:16px;font-size:12px;color:#64748b">読み込み中...</div>';
+  var sb=getSB();
+  var r=await sb.from('audit_log').select('id,at,actor_name,tbl,op,row_id,old_data,new_data').order('at',{ascending:false}).limit(200);
+  if(r.error){
+    right.innerHTML='<div style="padding:16px;font-size:12px;color:#b45309">操作記録を読み込めませんでした：'+_escHtml(r.error.message)+'<br>「操作記録_SQL.sql」を実行すると使えるようになります。</div>';
+    return;
+  }
+  var TN={profiles:'ユーザー',masters:'マスター',vendors:'業者',announcements:'お知らせ',gantt_sheets:'工程表取込',properties:'物件',app_settings:'設定',master_templates:'マスターテンプレ'};
+  var ON={DELETE:'削除',UPDATE:'変更',INSERT:'追加'};
+  var rows=(r.data||[]).map(function(x){
+    var o=x.old_data||x.new_data||{};
+    var label=o.name||o.title||o.key||o.email||x.row_id||'';
+    var det=JSON.stringify({変更前:x.old_data,変更後:x.new_data},null,1);
+    if(det.length>4000)det=det.slice(0,4000)+'\n...（省略）';
+    var t=new Date(x.at),pad=function(n){return ('0'+n).slice(-2);};
+    return '<details style="border-bottom:1px solid #f1f5f9;padding:6px 10px"><summary style="cursor:pointer;font-size:12px;color:#334155;list-style:none">'
+      +'<span style="color:#64748b;display:inline-block;width:104px">'+(t.getMonth()+1)+'/'+t.getDate()+' '+pad(t.getHours())+':'+pad(t.getMinutes())+'</span>'
+      +'<strong>'+_escHtml(x.actor_name||'(不明)')+'</strong>　'
+      +'<span style="color:'+(x.op==='DELETE'?'#b91c1c':'#b45309')+';font-weight:700">'+(TN[x.tbl]||x.tbl)+'を'+(ON[x.op]||x.op)+'</span>　'+_escHtml(String(label).slice(0,40))
+      +'</summary><pre style="font-size:10px;white-space:pre-wrap;word-break:break-all;background:#f8fafc;padding:8px;border-radius:6px;margin:6px 0 0;max-height:240px;overflow:auto">'+_escHtml(det)+'</pre></details>';
+  }).join('')||'<div style="padding:14px;font-size:12px;color:#94a3b8">まだ記録がありません</div>';
+  right.innerHTML='<div style="padding:16px"><div style="font-size:16px;font-weight:800;color:#1e293b;margin-bottom:4px">📜 操作記録</div>'
+    +'<div style="font-size:11px;color:#64748b;margin-bottom:10px">ユーザー・マスター・業者・お知らせ等の削除／変更を、新しい順に最大200件表示します。行を押すと変更前後の内容が見えます。</div>'
+    +'<div style="background:white;border:1px solid #e2e8f0;border-radius:10px;overflow:hidden">'+rows+'</div></div>';
+}
+window.admRenderAudit=admRenderAudit;
 function admMenuItem(id,icon,label){
   var _d=_ADM_ICONS[icon];
   if(_d)icon='<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="display:block">'+_d+'</svg>';
@@ -15185,6 +15259,12 @@ async function loadAdmSec(sec){
 
   } else if(sec==='siteprogress'){
     admRenderSiteProgress(right);
+
+  } else if(sec==='backup'){
+    admRenderBackup(right);
+
+  } else if(sec==='audit'){
+    admRenderAudit(right);
 
   } else if(sec==='staffmaster'){
     admRenderStaffMaster(right);
