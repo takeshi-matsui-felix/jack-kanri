@@ -1422,7 +1422,7 @@ var POST_END_PAD = 120; // ★スクロール終端の余白：完了検査列�
 // ===== 納品書機能：休工日カレンダー・稼働日計算 =====
 // ★日本の祝日（政府発表・国立天文台暦要項ベース、2025〜2028年分）
 // ★アプリバージョン（不具合問い合わせ対応用。リリースごとに更新すること。2026/8/23追加）
-var APP_VERSION = '2026.10.26.14';
+var APP_VERSION = '2026.10.26.15';
 window.APP_VERSION=APP_VERSION;
 // ★物件詳細URL（?fix=FIX番号）：起動時に値を控え、ログイン・物件読込後に該当物件の詳細を開く（2026/10/22）
 var _JACK_DEEP_FIX=(function(){try{var v=new URLSearchParams(window.location.search).get('fix');return v?String(v).trim():'';}catch(e){return '';}})();
@@ -18732,7 +18732,7 @@ document.addEventListener('DOMContentLoaded',function(){
     '📐':['ruler'],'🔖':['bm'],'🧾':['rcpt'],'📖':['book'],'🔀':['shuf'],'⚙':['gear'],'🚨':['siren','#b91c1c'],'👑':['crown','#d97706'],'⏳':['hour'],'🔔':['bell'],
     '💬':['chat'],'🕒':['clock'],'🕓':['clock'],'⏰':['clock'],'📡':['ant'],'🗺':['map'],'🙈':['eyeoff'],'👁':['eye'],'📁':['folder'],'📄':['file'],'🚫':['ban','#b91c1c'],
     '❓':['help'],'💧':['drop'],'⏸':['pause'],'🏪':['shop'],'☰':['menu']};
-  var RE=/(⚠|🚧|✅|❌|📋|🔍|🔎|📅|📆|🔧|⭐|☆|📦|✏|📝|🖨|💾|🔑|⚡|🔒|📢|🔄|🔁|🏠|📥|🗑|👷|👤|👥|📍|📊|🔗|📱|🖥|💡|🚗|🚘|🏢|🏙|🏗|📐|🔖|🧾|📖|🔀|⚙|🚨|👑|⏳|🔔|💬|🕒|🕓|⏰|📡|🗺|🙈|👁|📁|📄|🚫|❓|💧|⏸|🏪|☰)️?/g;
+  var RE=/(⚠|🚧|✅|❌|📋|🔍|🔎|📅|📆|🔧|⭐|☆|📦|✏|📝|🖨|💾|📜|🔑|⚡|🔒|📢|🔄|🔁|🏠|📥|🗑|👷|👤|👥|📍|📊|🔗|📱|🖥|💡|🚗|🚘|🏢|🏙|🏗|📐|🔖|🧾|📖|🔀|⚙|🚨|👑|⏳|🔔|💬|🕒|🕓|⏰|📡|🗺|🙈|👁|📁|📄|🚫|❓|💧|⏸|🏪|☰)️?/g;
   var QUICK=/[←-⯿\u{1F300}-\u{1FAFF}]/u;
   var SKIP={SCRIPT:1,STYLE:1,TEXTAREA:1,OPTION:1,SELECT:1,INPUT:1,svg:1,SVG:1,TITLE:1};
   var SCOPE='body'; // 全画面が対象（2026/10/25）
