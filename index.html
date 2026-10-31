@@ -1422,7 +1422,7 @@ var POST_END_PAD = 120; // ★スクロール終端の余白：完了検査列�
 // ===== 納品書機能：休工日カレンダー・稼働日計算 =====
 // ★日本の祝日（政府発表・国立天文台暦要項ベース、2025〜2028年分）
 // ★アプリバージョン（不具合問い合わせ対応用。リリースごとに更新すること。2026/8/23追加）
-var APP_VERSION = '2026.10.26.16';
+var APP_VERSION = '2026.10.31.2';
 window.APP_VERSION=APP_VERSION;
 // ★物件詳細URL（?fix=FIX番号）：起動時に値を控え、ログイン・物件読込後に該当物件の詳細を開く（2026/10/22）
 var _JACK_DEEP_FIX=(function(){try{var v=new URLSearchParams(window.location.search).get('fix');return v?String(v).trim():'';}catch(e){return '';}})();
@@ -5376,10 +5376,9 @@ function buildGanttTab(p){
     var deliveryRowAssign=[];
     if(deliveryBadgeList&&deliveryBadgeList.length){
       deliveryRowAssign=_deliveryAssignRows(deliveryBadgeList,rDateIdx,GCW2,7);
-      var dLabels=['納品','納品2','納品3','納品4','納品5','納品6','納品7'];
-      deliveryRowAssign.forEach(function(_,i){segs.push({name:dLabels[i],label:dLabels[i],__deliveryRow:true});});
+      // ★納品行は工程の行には含めず、日付ヘッダー直下の固定ストリップに表示する（2026/10/31）
     }
-    var deliveryStartRowIdx=segs.length-deliveryRowAssign.length;
+    var deliveryStartRowIdx=0;
     var numRows=segs.length+1; // ★最終行の下に空白行を1行追加（文字と表のズレ対策）
 
     var months={};
@@ -5459,7 +5458,22 @@ function buildGanttTab(p){
       +'</div>';
     var kensaBars=buildKensaBars(p,segs,gDateIdx,GCW2,bodyH);
     var moveinBar=buildMoveinBar(p,gDateIdx,GCW2,bodyH);
-    var deliveryBars=deliveryRowAssign.length?_deliveryRenderRows(deliveryRowAssign,deliveryStartRowIdx,ROW_H):'';
+    var deliveryBars='';
+    var dgPin='';
+    if(deliveryRowAssign.length){
+      var _pinH=deliveryRowAssign.length*ROW_H,_pinFills='';
+      rDates.forEach(function(d,i){
+        if(!d)return;var dow=getDow(d),isHol=_isLongHolidayStr(d);
+        var c=dow===0?'rgba(255,182,193,.25)':dow===6?'rgba(173,216,230,.25)':isHol?'rgba(252,211,77,.22)':'';
+        if(c)_pinFills+='<div style="position:absolute;left:'+((i-1)*GCW2)+'px;top:0;width:'+GCW2+'px;height:'+_pinH+'px;background:'+c+';pointer-events:none"></div>';
+      });
+      var _pinToday=todayCol>0?'<div style="position:absolute;left:'+((todayCol-1)*GCW2)+'px;top:0;width:2px;height:'+_pinH+'px;background:#ef4444;pointer-events:none;z-index:1"></div>':'';
+      dgPin='<div style="display:flex;border-bottom:2px solid #0f766e;background:#ecfdf5;">'
+        +'<div style="width:90px;flex-shrink:0;height:'+_pinH+'px;display:flex;align-items:center;padding:0 5px;font-size:9px;font-weight:800;color:#0f766e;background:#ccfbf1;border-right:2px solid #94a3b8;box-sizing:border-box" title="納品書の搬入日（常に上部に固定表示）">納品（固定）</div>'
+        +'<div style="flex:1;min-width:0;overflow:hidden;height:'+_pinH+'px;position:relative;">'
+          +'<div id="dgPinInner" style="position:absolute;top:0;left:0;width:'+totalW+'px;height:'+_pinH+'px;">'+_pinFills+_pinToday+_deliveryRenderRows(deliveryRowAssign,0,ROW_H)+'</div>'
+        +'</div></div>';
+    }
     var ganttArea='<div style="flex-shrink:0;position:relative;width:'+totalW+'px;height:'+bodyH+'px;">'+rowBgs+fills+todayLine+bars+kensaBars+moveinBar+deliveryBars+'</div>';
     // ★日付ヘッダーは縦スクロール領域の外側に独立配置し、横スクロールだけJSで追随させる
     //   （二重position:stickyだと端末・ブラウザによってスクロール終端付近で消える不具合があったための抜本対策）
@@ -5471,7 +5485,8 @@ function buildGanttTab(p){
     +'</div>';
     return '<div style="border:1.5px solid #e2e8f0;border-radius:6px;overflow:hidden;display:flex;flex-direction:column;">'
       +headerRow
-      +'<div id="dgScrollWrap" onscroll="var h=document.getElementById(\'dgHeaderInner\');if(h)h.style.transform=\'translateX(-\'+this.scrollLeft+\'px)\';" style="max-height:372px;overflow:auto;-webkit-overflow-scrolling:touch;">'
+      +dgPin
+      +'<div id="dgScrollWrap" onscroll="var x=\'translateX(-\'+this.scrollLeft+\'px)\';var h=document.getElementById(\'dgHeaderInner\');if(h)h.style.transform=x;var q=document.getElementById(\'dgPinInner\');if(q)q.style.transform=x;" style="max-height:372px;overflow:auto;-webkit-overflow-scrolling:touch;">'
         +'<div style="display:flex;width:max-content;">'+labelCol+ganttArea+'</div>'
       +'</div>'
     +'</div>';
