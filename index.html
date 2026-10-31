@@ -1422,7 +1422,7 @@ var POST_END_PAD = 120; // ★スクロール終端の余白：完了検査列�
 // ===== 納品書機能：休工日カレンダー・稼働日計算 =====
 // ★日本の祝日（政府発表・国立天文台暦要項ベース、2025〜2028年分）
 // ★アプリバージョン（不具合問い合わせ対応用。リリースごとに更新すること。2026/8/23追加）
-var APP_VERSION = '2026.10.26.15';
+var APP_VERSION = '2026.10.26.16';
 window.APP_VERSION=APP_VERSION;
 // ★物件詳細URL（?fix=FIX番号）：起動時に値を控え、ログイン・物件読込後に該当物件の詳細を開く（2026/10/22）
 var _JACK_DEEP_FIX=(function(){try{var v=new URLSearchParams(window.location.search).get('fix');return v?String(v).trim():'';}catch(e){return '';}})();
@@ -5830,7 +5830,7 @@ function geRenderBars(){
   if(ganttEditMode&&currentProp&&typeof _getDeliveryGanttBadges==='function'&&typeof _deliveryAssignRows==='function'){
     try{geDelRows=_deliveryAssignRows(_getDeliveryGanttBadges(currentProp),gDateIdx,GCW,6)||[];}catch(e){geDelRows=[];}
   }
-  var totalW=(gDates.length-1)*GCW, numRows=segs.length+geDelRows.length+1; // ★最終行の下に空白行を1行追加（文字と表のズレ対策）
+  var totalW=(gDates.length-1)*GCW, numRows=segs.length+1; // ★納品行は上部固定ストリップに移したためキャンバスには含めない／最終行の下に空白行を1行追加（文字と表のズレ対策）
   var mn={'01':'1月','02':'2月','03':'3月','04':'4月','05':'5月','06':'6月','07':'7月','08':'8月','09':'9月','10':'10月','11':'11月','12':'12月'};
   var months={}; gDates.forEach(function(d,i){if(!d)return;var m=d.substring(0,7);if(!months[m])months[m]={start:i-1,count:0};months[m].count++;});
   var hdrBands=''; Object.keys(months).forEach(function(m){var v=months[m],mm=m.split('-')[1];hdrBands+='<div style="position:absolute;left:'+(v.start*GCW)+'px;top:0;width:'+(v.count*GCW)+'px;height:14px;background:var(--primary);color:white;font-size:7px;font-weight:800;display:flex;align-items:center;justify-content:center;border-right:2px solid rgba(255,255,255,.4);overflow:hidden;z-index:5;">'+m.split('-')[0]+'年'+(mn[mm]||mm)+'</div>';});
@@ -5858,10 +5858,6 @@ function geRenderBars(){
   segs.forEach(function(s,ri){
     var nm=s.label||s.name||'';if(nm.length>10)nm=nm.slice(0,9)+'…';
     geLabelRows+='<div style="height:'+ROW_H+'px;display:flex;align-items:center;padding:0 5px;font-size:9px;font-weight:700;color:#1e293b;overflow:hidden;white-space:nowrap;background:'+(ri%2===0?'#f8fafc':'#f1f5f9')+';border-bottom:1.5px solid #cbd5e1;">'+nm+'</div>';
-  });
-  geDelRows.forEach(function(r0,di){
-    var ri9=segs.length+di;
-    geLabelRows+='<div style="height:'+ROW_H+'px;display:flex;align-items:center;padding:0 5px;font-size:9px;font-weight:700;color:#0f766e;overflow:hidden;white-space:nowrap;background:'+(ri9%2===0?'#f8fafc':'#f1f5f9')+';border-bottom:1.5px solid #cbd5e1;" title="納品書の搬入日。ドラッグで日付を変更できます">'+(di===0?'納品':'')+'</div>';
   });
   // ★最終行（引渡し等）の下に空白行を1行追加（文字と表がズレるための対策）
   geLabelRows+='<div style="height:'+ROW_H+'px;background:'+(segs.length%2===0?'#f8fafc':'#f1f5f9')+';border-bottom:1.5px solid #cbd5e1;"></div>';
@@ -5931,7 +5927,7 @@ function geRenderBars(){
   });
   var geDelHtml='';
   geDelRows.forEach(function(row,ri){
-    var by=(segs.length+ri)*ROW_H+2,bh=ROW_H-4;
+    var by=ri*ROW_H+2,bh=ROW_H-4;
     row.items.forEach(function(b){
       var color=_deliveryVendorColor(b.vendor);
       geDelHtml+='<div class="ge-dn" data-id="'+b.id+'" data-date="'+b.date+'" data-x="'+b.x+'" title="'+b.label+' '+b.date+'（ドラッグで日付を変更）" style="position:absolute;left:'+b.x+'px;top:'+by+'px;height:'+bh+'px;display:flex;align-items:center;gap:2px;z-index:16;cursor:grab;touch-action:none;">'
@@ -5963,10 +5959,28 @@ function geRenderBars(){
       +'<div id="geHeaderInner" style="position:absolute;top:0;left:0;width:'+totalW+'px;height:28px;">'+hdrBands+dayNums+'</div>'
     +'</div>'
   +'</div>';
+  // ★納品バッジの固定ストリップ：日付ヘッダーの直下に置き、縦にスクロールしても常に見える（横スクロールだけ追随）
+  var gePin='';
+  if(geDelRows.length){
+    var pinH=geDelRows.length*ROW_H, pinFills='';
+    gDates.forEach(function(d,i){
+      if(!d)return;var dow=getDow(d),isHol=_isLongHolidayStr(d);
+      if(dow===0)pinFills+='<div style="position:absolute;left:'+((i-1)*GCW)+'px;top:0;width:'+GCW+'px;height:'+pinH+'px;background:rgba(255,182,193,.25);pointer-events:none"></div>';
+      else if(dow===6)pinFills+='<div style="position:absolute;left:'+((i-1)*GCW)+'px;top:0;width:'+GCW+'px;height:'+pinH+'px;background:rgba(173,216,230,.25);pointer-events:none"></div>';
+      else if(isHol)pinFills+='<div style="position:absolute;left:'+((i-1)*GCW)+'px;top:0;width:'+GCW+'px;height:'+pinH+'px;background:rgba(252,211,77,.22);pointer-events:none"></div>';
+    });
+    var pinTodayLn=todayCol>0?'<div style="position:absolute;left:'+((todayCol-1)*GCW)+'px;top:0;width:2px;height:'+pinH+'px;background:#ef4444;pointer-events:none;z-index:1"></div>':'';
+    gePin='<div id="gePinRow" style="display:flex;border-bottom:2px solid #0f766e;background:#ecfdf5;">'
+      +'<div style="width:90px;flex-shrink:0;height:'+pinH+'px;display:flex;align-items:center;padding:0 5px;font-size:9px;font-weight:800;color:#0f766e;background:#ccfbf1;border-right:2px solid #94a3b8;box-sizing:border-box" title="納品書の搬入日。ドラッグで日付を変更できます（常に上部に固定表示）">納品（固定）</div>'
+      +'<div id="gePinClip" style="flex:1;min-width:0;overflow:hidden;height:'+pinH+'px;position:relative;">'
+        +'<div id="gePinInner" style="position:absolute;top:0;left:0;width:'+totalW+'px;height:'+pinH+'px;">'+pinFills+pinTodayLn+geDelHtml+'</div>'
+      +'</div></div>';
+  }
   multiEl.innerHTML='<div style="border:1.5px solid #e2e8f0;border-radius:6px;overflow:hidden;display:flex;flex-direction:column;">'
     +geHeaderRow
-    +'<div id="geScrollWrap" onscroll="var h=document.getElementById(\'geHeaderInner\');if(h)h.style.transform=\'translateX(-\'+this.scrollLeft+\'px)\';" style="max-height:372px;overflow:auto;-webkit-overflow-scrolling:touch;">'
-      +'<div style="display:flex;width:max-content;">'+geLabels+'<div id="geCanvas" style="flex-shrink:0;position:relative;width:'+totalW+'px;height:'+totalH+'px;background:white;">'+rowBgs+fills+todayLine+bars+geDelHtml+delivBar+kensaBars+moveinBar+'</div></div>'
+    +gePin
+    +'<div id="geScrollWrap" onscroll="var x=\'translateX(-\'+this.scrollLeft+\'px)\';var h=document.getElementById(\'geHeaderInner\');if(h)h.style.transform=x;var q=document.getElementById(\'gePinInner\');if(q)q.style.transform=x;" style="max-height:372px;overflow:auto;-webkit-overflow-scrolling:touch;">'
+      +'<div style="display:flex;width:max-content;">'+geLabels+'<div id="geCanvas" style="flex-shrink:0;position:relative;width:'+totalW+'px;height:'+totalH+'px;background:white;">'+rowBgs+fills+todayLine+bars+delivBar+kensaBars+moveinBar+'</div></div>'
     +'</div>'
   +'</div>';
   // スクロール位置を復元（初回はTODAY付近へ）
@@ -5981,6 +5995,8 @@ function geRenderBars(){
     newWrap.scrollTop=savedScrollTop; // ★縦スクロール位置を復元（バーを動かすたびに一番上へ戻されていた不具合の修正）
     var hInner=document.getElementById('geHeaderInner');
     if(hInner)hInner.style.transform='translateX(-'+newWrap.scrollLeft+'px)'; // ★プログラムによるscrollLeft変更でも確実にヘッダーを追随させる
+    var pInner=document.getElementById('gePinInner');
+    if(pInner)pInner.style.transform='translateX(-'+newWrap.scrollLeft+'px)';
   }
   // ★ panel-scrollの縦スクロール位置も復元（ガント移動後に画面が戻る問題対策）
   if(window._gePanelScrollTop!==undefined){
@@ -6000,7 +6016,7 @@ function geRenderBars(){
         geStartDrag(e,idx,bar);
       });
     });
-    cv2.querySelectorAll('.ge-dn').forEach(function(el){
+    multiEl.querySelectorAll('.ge-dn').forEach(function(el){
       el.addEventListener('pointerdown',function(e){geDnStartDrag(e,el);});
     });
     // ★短期間バー（3日以内）は✕がバー外（文字の後ろ）にあるため個別にハンドラを登録
