@@ -1422,7 +1422,7 @@ var POST_END_PAD = 120; // ★スクロール終端の余白：完了検査列�
 // ===== 納品書機能：休工日カレンダー・稼働日計算 =====
 // ★日本の祝日（政府発表・国立天文台暦要項ベース、2025〜2028年分）
 // ★アプリバージョン（不具合問い合わせ対応用。リリースごとに更新すること。2026/8/23追加）
-var APP_VERSION = '2026.10.31.3';
+var APP_VERSION = '2026.10.31.4';
 window.APP_VERSION=APP_VERSION;
 // ★物件詳細URL（?fix=FIX番号）：起動時に値を控え、ログイン・物件読込後に該当物件の詳細を開く（2026/10/22）
 var _JACK_DEEP_FIX=(function(){try{var v=new URLSearchParams(window.location.search).get('fix');return v?String(v).trim():'';}catch(e){return '';}})();
@@ -5470,8 +5470,8 @@ function buildGanttTab(p){
       var _pinToday=todayCol>0?'<div style="position:absolute;left:'+((todayCol-1)*GCW2)+'px;top:0;width:2px;height:'+_pinH+'px;background:#ef4444;pointer-events:none;z-index:1"></div>':'';
       var _pinView=deliveryRowAssign.length>3?Math.round(ROW_H*3.5):_pinH; // ★4行以上は3.5行分の高さ＋縦スクロール
       dgPin='<div style="display:flex;border-bottom:2px solid var(--primary);background:#fff;">'
-        +'<div style="width:90px;flex-shrink:0;height:'+_pinView+'px;display:flex;align-items:center;padding:0 5px;font-size:9px;font-weight:800;color:#fff;background:var(--primary);border-right:2px solid #94a3b8;box-sizing:border-box" title="納品書の搬入日（常に上部に固定表示。行が多い場合は縦にスクロール）">納品（固定）'+(deliveryRowAssign.length>3?'<span style="font-size:7px;font-weight:600;margin-left:3px;opacity:.85">↕</span>':'')+'</div>'
-        +'<div style="flex:1;min-width:0;overflow-x:hidden;overflow-y:'+(deliveryRowAssign.length>3?'scroll':'hidden')+';height:'+_pinView+'px;position:relative;">'
+        +'<div style="width:90px;flex-shrink:0;height:'+(_pinView+10)+'px;display:flex;align-items:center;padding:0 5px;font-size:9px;font-weight:800;color:#fff;background:var(--primary);border-right:2px solid #94a3b8;box-sizing:border-box" title="納品書の搬入日（常に上部に固定表示。行が多い場合は縦にスクロール）">納品（固定）'+(deliveryRowAssign.length>3?'<span style="font-size:7px;font-weight:600;margin-left:3px;opacity:.85">↕</span>':'')+'</div>'
+        +'<div id="dgPinClip" onscroll="var w=document.getElementById(\'dgScrollWrap\');if(w&&w.scrollLeft!==this.scrollLeft)w.scrollLeft=this.scrollLeft;" style="flex:1;min-width:0;overflow-x:auto;overflow-y:'+(deliveryRowAssign.length>3?'scroll':'hidden')+';scrollbar-width:thin;height:'+(_pinView+10)+'px;position:relative;">'
           +'<div id="dgPinInner" style="position:absolute;top:0;left:0;width:'+totalW+'px;height:'+_pinH+'px;">'+_pinFills+_pinToday+_deliveryRenderRows(deliveryRowAssign,0,ROW_H)+'</div>'
         +'</div></div>';
     }
@@ -5487,7 +5487,7 @@ function buildGanttTab(p){
     return '<div style="border:1.5px solid #e2e8f0;border-radius:6px;overflow:hidden;display:flex;flex-direction:column;">'
       +headerRow
       +dgPin
-      +'<div id="dgScrollWrap" onscroll="var x=\'translateX(-\'+this.scrollLeft+\'px)\';var h=document.getElementById(\'dgHeaderInner\');if(h)h.style.transform=x;var q=document.getElementById(\'dgPinInner\');if(q)q.style.transform=x;" style="max-height:372px;overflow:auto;-webkit-overflow-scrolling:touch;">'
+      +'<div id="dgScrollWrap" onscroll="var x=\'translateX(-\'+this.scrollLeft+\'px)\';var h=document.getElementById(\'dgHeaderInner\');if(h)h.style.transform=x;var q=document.getElementById(\'dgPinClip\');if(q&&q.scrollLeft!==this.scrollLeft)q.scrollLeft=this.scrollLeft;" style="max-height:372px;overflow:auto;-webkit-overflow-scrolling:touch;">'
         +'<div style="display:flex;width:max-content;">'+labelCol+ganttArea+'</div>'
       +'</div>'
     +'</div>';
@@ -5988,15 +5988,15 @@ function geRenderBars(){
     var pinTodayLn=todayCol>0?'<div style="position:absolute;left:'+((todayCol-1)*GCW)+'px;top:0;width:2px;height:'+pinH+'px;background:#ef4444;pointer-events:none;z-index:1"></div>':'';
     var pinView=geDelRows.length>3?Math.round(ROW_H*3.5):pinH; // ★4行以上は3.5行分の高さにして、下に続きがあることが分かるようにする
     gePin='<div id="gePinRow" style="display:flex;border-bottom:2px solid var(--primary);background:#fff;">'
-      +'<div style="width:90px;flex-shrink:0;height:'+pinView+'px;display:flex;align-items:center;padding:0 5px;font-size:9px;font-weight:800;color:#fff;background:var(--primary);border-right:2px solid #94a3b8;box-sizing:border-box" title="納品書の搬入日。ドラッグで日付を変更できます（常に上部に固定表示。行が多い場合は縦にスクロール）">納品（固定）'+(geDelRows.length>3?'<span style="font-size:7px;font-weight:600;margin-left:3px;opacity:.85">↕</span>':'')+'</div>'
-      +'<div id="gePinClip" style="flex:1;min-width:0;overflow-x:hidden;overflow-y:'+(geDelRows.length>3?'scroll':'hidden')+';height:'+pinView+'px;position:relative;">'
+      +'<div style="width:90px;flex-shrink:0;height:'+(pinView+10)+'px;display:flex;align-items:center;padding:0 5px;font-size:9px;font-weight:800;color:#fff;background:var(--primary);border-right:2px solid #94a3b8;box-sizing:border-box" title="納品書の搬入日。ドラッグで日付を変更できます（常に上部に固定表示。行が多い場合は縦にスクロール）">納品（固定）'+(geDelRows.length>3?'<span style="font-size:7px;font-weight:600;margin-left:3px;opacity:.85">↕</span>':'')+'</div>'
+      +'<div id="gePinClip" onscroll="var w=document.getElementById(\'geScrollWrap\');if(w&&w.scrollLeft!==this.scrollLeft)w.scrollLeft=this.scrollLeft;" style="flex:1;min-width:0;overflow-x:auto;overflow-y:'+(geDelRows.length>3?'scroll':'hidden')+';scrollbar-width:thin;height:'+(pinView+10)+'px;position:relative;">'
         +'<div id="gePinInner" style="position:absolute;top:0;left:0;width:'+totalW+'px;height:'+pinH+'px;">'+pinFills+pinTodayLn+geDelHtml+'</div>'
       +'</div></div>';
   }
   multiEl.innerHTML='<div style="border:1.5px solid #e2e8f0;border-radius:6px;overflow:hidden;display:flex;flex-direction:column;">'
     +geHeaderRow
     +gePin
-    +'<div id="geScrollWrap" onscroll="var x=\'translateX(-\'+this.scrollLeft+\'px)\';var h=document.getElementById(\'geHeaderInner\');if(h)h.style.transform=x;var q=document.getElementById(\'gePinInner\');if(q)q.style.transform=x;" style="max-height:372px;overflow:auto;-webkit-overflow-scrolling:touch;">'
+    +'<div id="geScrollWrap" onscroll="var x=\'translateX(-\'+this.scrollLeft+\'px)\';var h=document.getElementById(\'geHeaderInner\');if(h)h.style.transform=x;var q=document.getElementById(\'gePinClip\');if(q&&q.scrollLeft!==this.scrollLeft)q.scrollLeft=this.scrollLeft;" style="max-height:372px;overflow:auto;-webkit-overflow-scrolling:touch;">'
       +'<div style="display:flex;width:max-content;">'+geLabels+'<div id="geCanvas" style="flex-shrink:0;position:relative;width:'+totalW+'px;height:'+totalH+'px;background:white;">'+rowBgs+fills+todayLine+bars+delivBar+kensaBars+moveinBar+'</div></div>'
     +'</div>'
   +'</div>';
@@ -6012,8 +6012,8 @@ function geRenderBars(){
     newWrap.scrollTop=savedScrollTop; // ★縦スクロール位置を復元（バーを動かすたびに一番上へ戻されていた不具合の修正）
     var hInner=document.getElementById('geHeaderInner');
     if(hInner)hInner.style.transform='translateX(-'+newWrap.scrollLeft+'px)'; // ★プログラムによるscrollLeft変更でも確実にヘッダーを追随させる
-    var pInner=document.getElementById('gePinInner');
-    if(pInner)pInner.style.transform='translateX(-'+newWrap.scrollLeft+'px)';
+    var pClip=document.getElementById('gePinClip');
+    if(pClip)pClip.scrollLeft=newWrap.scrollLeft;
   }
   // ★ panel-scrollの縦スクロール位置も復元（ガント移動後に画面が戻る問題対策）
   if(window._gePanelScrollTop!==undefined){
