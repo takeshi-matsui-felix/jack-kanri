@@ -1088,7 +1088,7 @@ function fmtDateShort(raw){
 
 var FREEZE_COLS = [
   { key:'fix_no', label:'FiX No', w:72 },
-  { key:'name',   label:'物件名', w:150 }
+  { key:'name',   label:'物件名', w:210 }
 ];
 var SP_FREEZE_COLS = [
   { key:'name', label:'物件名', w:150 }
@@ -1426,7 +1426,7 @@ var POST_END_PAD = 120; // ★スクロール終端の余白：完了検査列�
 // ===== 納品書機能：休工日カレンダー・稼働日計算 =====
 // ★日本の祝日（政府発表・国立天文台暦要項ベース、2025〜2028年分）
 // ★アプリバージョン（不具合問い合わせ対応用。リリースごとに更新すること。2026/8/23追加）
-var APP_VERSION = '2026.11.03.4';
+var APP_VERSION = '2026.11.04.1';
 window.APP_VERSION=APP_VERSION;
 // ★物件詳細URL（?fix=FIX番号）：起動時に値を控え、ログイン・物件読込後に該当物件の詳細を開く（2026/10/22）
 var _JACK_DEEP_FIX=(function(){try{var v=new URLSearchParams(window.location.search).get('fix');return v?String(v).trim():'';}catch(e){return '';}})();
@@ -4737,7 +4737,7 @@ function renderBody(){
         var pks=p.parkings||[];
         var todayStr2=TODAY;
         var activePks2=pks.filter(function(pk){return !pk.contract_end||pk.contract_end>=todayStr2;});
-        var parkBadge2=activePks2.length?'<span style="font-size:8px;background:#6366f1;color:white;padding:0 3px;border-radius:3px;margin-left:2px">🅿️</span>':'';
+        var parkBadge2=activePks2.length?'<span onclick="openMapForParking(\''+String(p.fix_no||'').replace(/[^0-9A-Za-z_-]/g,'')+'\',event)" title="タップで駐車場の地図を開く" style="font-size:9px;background:#6366f1;color:white;padding:1px 5px;border-radius:3px;margin-left:2px;cursor:pointer">🅿️</span>':'';
         var md=document.createElement('div');md.style.cssText='display:flex;align-items:center;gap:3px;margin-top:1px';
         // 担当者バッジ（販売ステータスの代わりに担当者名を表示）
         var tantouName=tantouOf(p);
@@ -4755,7 +4755,16 @@ function renderBody(){
           updBadge2='<span onclick="event.stopPropagation();showToast(\'🕒 最終更新: '+updLabel+'\',\'\')" style="font-size:9px;background:#16a34a;color:white;padding:1px 5px;border-radius:3px;font-weight:700;cursor:pointer" title="タップで更新日時を表示">🆕更新</span>';
         }
         var inspChip=(p.fix_no&&!activeFreezeC.some(function(c){return c.key==='fix_no';}))?'<button type="button" onclick="openInspectionAppByFix(\''+String(p.fix_no).replace(/[^0-9A-Za-z_-]/g,'')+'\',event)" style="background:#E8A33D;color:#16324F;border:none;border-radius:4px;padding:1px 6px;font-size:9px;font-weight:800;cursor:pointer">検査</button>':'';
-        md.innerHTML=tantouBadge+shinsaBadge2+updBadge2+(isUrgent?'<span class="urg-pill">⚡'+days+'日</span>':'')+(fav?'<span style="font-size:9px">⭐</span>':'')+parkBadge2+(typeof _gchgBadge==='function'?_gchgBadge(p):'')+inspChip;
+        var _spRow=!activeFreezeC.some(function(c){return c.key==='fix_no';});
+        if(_spRow){
+          // ★2026/11/04 スマホ表：担当者・駐車場・検査・更新・変更（小）の順。審査機関・⚡・⭐は出さない
+          var chgSm='';
+          if(typeof _gchgBadge==='function'){var cg=_gchgBadge(p);if(cg){chgSm=cg.replace(/>変更 [^<]*</,'>変<').replace('padding:0 5px','padding:0 6px').replace('font-size:9px','font-size:10px').replace('cursor:pointer','').replace('<span ','<span onclick="event.stopPropagation();showToast(this.title,\'\')" ');}}
+          md.innerHTML=tantouBadge+parkBadge2+inspChip+updBadge2+chgSm;
+        }else{
+          // PC表：⭐は廃止（マイ物件は行の黄色で分かる）
+          md.innerHTML=tantouBadge+shinsaBadge2+updBadge2+(isUrgent?'<span class="urg-pill">⚡'+days+'日</span>':'')+parkBadge2+(typeof _gchgBadge==='function'?_gchgBadge(p):'');
+        }
         cell.appendChild(nd);cell.appendChild(md);
       } else if(c.key==='_vendorGrid'){
         cell.style.cssText+='flex-direction:column;align-items:flex-start;justify-content:center;padding:2px 3px;overflow:hidden;';
@@ -14049,7 +14058,7 @@ var _mapAddr='',_mapName='';
 var _mapProp=null; // 選択中の物件オブジェクト
 var _mapParkIdx=-1; // 選択中の駐車場インデックス（-1=現場本体）
 
-function openJackMap(area){
+function openJackMap(area,opts){
   var areaGroups={'東海':['愛知','三重','岐阜','静岡'],'関東':['埼玉','東京','神奈川','千葉','茨城','栃木','群馬']};
   var modal=document.getElementById('jackMapModal');
   var listEl=document.getElementById('jackMapList');
@@ -14217,8 +14226,27 @@ function openJackMap(area){
   }
   renderList(area);
   if(modal)modal.style.display='flex';
+  // ★2026/11/04 一覧のPバッジから来たとき：その物件を選び、駐車場の地図を表示する
+  if(opts&&opts.fix){
+    var tgt=null;listEl.querySelectorAll('.map-prop-item').forEach(function(el){if(!tgt&&el.getAttribute('data-fixno')===String(opts.fix))tgt=el;});
+    if(tgt){
+      tgt.click();
+      try{tgt.scrollIntoView({block:'center'});}catch(e){}
+      if(opts.tab==='park'&&_mapProp&&_mapProp.parkings&&_mapProp.parkings.length)showMapTab('park');
+    }
+  }
 }
 window.openJackMap=openJackMap;
+// 一覧のPバッジ → 全現場マップ（その物件の駐車場）
+function openMapForParking(fix,ev){
+  if(ev){ev.stopPropagation();if(ev.preventDefault)ev.preventDefault();}
+  var p=null;try{(getAllProps()||[]).some(function(x){if(String(x.fix_no)===String(fix)){p=x;return true;}return false;});}catch(e){}
+  if(!p)return;
+  var tokai=['愛知','三重','岐阜','静岡'];
+  var area=tokai.indexOf(normalizeArea(p))>=0?'東海':'関東';
+  openJackMap(area,{fix:p.fix_no,tab:'park'});
+}
+window.openMapForParking=openMapForParking;
 
 function openNavigation(addr,label){
   if(!addr)return;
