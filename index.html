@@ -1422,7 +1422,7 @@ var POST_END_PAD = 120; // ★スクロール終端の余白：完了検査列�
 // ===== 納品書機能：休工日カレンダー・稼働日計算 =====
 // ★日本の祝日（政府発表・国立天文台暦要項ベース、2025〜2028年分）
 // ★アプリバージョン（不具合問い合わせ対応用。リリースごとに更新すること。2026/8/23追加）
-var APP_VERSION = '2026.11.03.1';
+var APP_VERSION = '2026.11.03.2';
 window.APP_VERSION=APP_VERSION;
 // ★物件詳細URL（?fix=FIX番号）：起動時に値を控え、ログイン・物件読込後に該当物件の詳細を開く（2026/10/22）
 var _JACK_DEEP_FIX=(function(){try{var v=new URLSearchParams(window.location.search).get('fix');return v?String(v).trim():'';}catch(e){return '';}})();
@@ -1432,6 +1432,14 @@ function _jackSetUrlFix(fixNo){
     if(fixNo)u.searchParams.set('fix',String(fixNo)); else u.searchParams.delete('fix');
     history.replaceState(null,'',u.pathname+u.search+u.hash);
   }catch(e){}
+}
+var INSPECT_APP_URL='https://takeshi-matsui-felix.github.io/felix-inspection/';
+function openInspectionApp(){
+  if(!currentProp||!currentProp.fix_no)return;
+  var role=(currentProfile&&currentProfile.role)||'';
+  var u=INSPECT_APP_URL+'partner.html#fix='+encodeURIComponent(String(currentProp.fix_no));
+  if(role==='worker'){var na=normalizeArea(currentProp)||'';var ar=/関東/.test(na)?'関東エリア':/東海/.test(na)?'東海エリア':'';if(ar)u+='&a='+encodeURIComponent(ar);}
+  window.open(u,'_blank','noopener');
 }
 function copyDetailUrl(){
   if(!currentProp||!currentProp.fix_no)return;
@@ -7528,7 +7536,7 @@ function openDetail(p){
   // ★マイ物件登録の切替ボタンのみ、上部バー（パネルヘッダー）に残す（印刷・QRは廃止／2026/8/9）
   var favWrap=document.getElementById('dpFavBtnWrap');
   if(favWrap){
-    favWrap.innerHTML='<button onclick="copyDetailUrl()" style="background:rgba(255,255,255,.2);color:white;border:none;border-radius:16px;padding:5px 10px;font-size:11px;font-weight:700;white-space:nowrap;margin-right:4px">🔗 URL</button>'+(isFav(p)
+    favWrap.innerHTML=(p&&p.fix_no?'<button onclick="openInspectionApp()" style="background:#E8A33D;color:#16324F;border:none;border-radius:16px;padding:5px 10px;font-size:11px;font-weight:800;white-space:nowrap;margin-right:4px">検査App</button>':'')+'<button onclick="copyDetailUrl()" style="background:rgba(255,255,255,.2);color:white;border:none;border-radius:16px;padding:5px 10px;font-size:11px;font-weight:700;white-space:nowrap;margin-right:4px">🔗 URL</button>'+(isFav(p)
       ?'<button onclick="removeFavAction()" style="background:rgba(239,68,68,.85);color:white;border:none;border-radius:16px;padding:5px 12px;font-size:11px;font-weight:700;white-space:nowrap">⭐ マイ物件から削除</button>'
       :'<button onclick="addFavAction()" style="background:rgba(255,255,255,.2);color:white;border:none;border-radius:16px;padding:5px 12px;font-size:11px;font-weight:700;white-space:nowrap">⭐ マイ物件に追加</button>');
   }
