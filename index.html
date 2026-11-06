@@ -815,6 +815,7 @@ body.sp-mode #areaTabsBtns{ display:none !important; }
     <div class="sb-section">業者選定</div>
     <div class="sb-item" onclick="openVendorList()"><span class="sb-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="8" r="3.500"/><path d="M5 20c0-3.900 3.100-6 7-6s7 2.100 7 6"/></svg></span><span class="sb-label">全業者選定一覧</span></div>
     <div id="vendorSbTs" style="padding:2px 16px 6px;font-size:9px;color:#64748b;line-height:1.4"></div>
+    <div class="sb-item" id="sbRotItem" style="display:none" onclick="openVendorRotation()"><span class="sb-icon">🔄</span>業者ローテーション</div>
     <div class="sb-divider"></div>
     <div class="sb-section">その他</div>
     <div class="sb-item" onclick="doSyncFull()"><span class="sb-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 12a8 8 0 0 0-14-5.300L4 9M4 4v5h5M4 12a8 8 0 0 0 14 5.300L20 15M20 20v-5h-5"/></svg></span><span class="sb-label">今すぐ同期</span></div>
@@ -942,6 +943,21 @@ body.sp-mode #areaTabsBtns{ display:none !important; }
     <div id="vendorTableWrap" style="flex:1;overflow:hidden;display:flex;flex-direction:column;min-height:0"></div>
   </div>
 </div>
+<div class="slide-panel" id="rotPanel">
+  <div class="panel-header">
+    <button class="panel-back" onclick="closePanel('rotPanel')">← 戻る</button>
+    <div style="flex:1"><div class="panel-title">🔄 業者ローテーション</div></div>
+    <button onclick="rotToggleAlias()" style="padding:5px 10px;background:rgba(255,255,255,.15);color:white;border:none;border-radius:7px;font-size:11px;font-weight:700;cursor:pointer">別名</button>
+  </div>
+  <div style="flex:1;display:flex;flex-direction:column;overflow:hidden">
+    <div id="rotAliasBox" style="display:none;padding:8px 10px;background:#fffbeb;border-bottom:1px solid #fde68a;flex-shrink:0">
+      <div style="font-size:11px;color:#92400e;line-height:1.6;margin-bottom:4px">業者名の表記ゆれをそろえる登録です。1行に「正式名 = 別名1, 別名2」の形で書きます（例：神岡建築 = 神岡）。保存すると全員に反映されます。</div>
+      <textarea id="rotAliasText" rows="7" style="width:100%;box-sizing:border-box;font-size:12px;padding:6px;border:1.5px solid #fde68a;border-radius:6px"></textarea>
+      <div style="display:flex;gap:6px;margin-top:4px"><button onclick="rotSaveAlias()" style="padding:7px 14px;background:#1e40af;color:white;border:none;border-radius:7px;font-size:12px;font-weight:700;cursor:pointer">保存</button><button onclick="rotResetAlias()" style="padding:7px 12px;background:#f1f5f9;color:#475569;border:none;border-radius:7px;font-size:12px;font-weight:700;cursor:pointer">初期に戻す</button></div>
+    </div>
+    <div id="rotBody" style="flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;background:#f8fafc"></div>
+  </div>
+</div>
 <div class="menu-overlay" id="menuOverlay" onclick="closeMenu()"></div>
 <div class="side-menu" id="sideMenu"><div class="menu-head"><div class="menu-user">🏗️ 協力業者</div><div class="menu-role">JACK 現場管理アプリ</div></div><div class="menu-body"><div class="menu-section">マイ物件</div><div class="menu-item" onclick="openMyPage()"><span class="mi-icon">⭐</span>マイ物件を見る</div><div class="menu-item" onclick="openSelectProp()"><span class="mi-icon">✅</span>担当物件を選択</div><div class="menu-divider"></div><div class="menu-section">表示</div><div class="menu-item" onclick="closeMenu();setMode(false)"><span class="mi-icon">📱</span>スマホ表示</div><div class="menu-item" onclick="closeMenu();setMode(true)"><span class="mi-icon">🖥️</span>PC横長表示</div><div class="menu-divider"></div><div class="menu-section">その他</div><div class="menu-item" onclick="closeMenu();doSyncFull()"><span class="mi-icon">🔄</span>今すぐ同期</div><div class="menu-item" onclick="openSettings()"><span class="mi-icon">⚙️</span>設定</div><div class="menu-item" onclick="closeMenu();printPage()"><span class="mi-icon">🖨️</span>印刷</div></div></div>
 <div class="popup-overlay" id="updatePopup" style="display:none"><div class="popup-box"><div class="popup-head">🔔 データ更新情報</div><div class="popup-body" id="updateContent"></div><div class="popup-footer"><button class="popup-close" onclick="closeUpdatePopup()">閉じる</button></div></div></div>
@@ -970,6 +986,9 @@ body.sp-mode #areaTabsBtns{ display:none !important; }
   </div>
   <div onclick="spMoreItem(function(){openVendorList();})" style="padding:14px 20px;cursor:pointer;font-size:14px;color:#1e293b;font-weight:600;letter-spacing:.3px;border-bottom:1px solid #f1f5f9">
     全業者選定一覧
+  </div>
+  <div id="spRotItem" onclick="spMoreItem(function(){openVendorRotation();})" style="display:none;padding:14px 20px;cursor:pointer;font-size:14px;color:#1e293b;font-weight:600;letter-spacing:.3px;border-bottom:1px solid #f1f5f9">
+    業者ローテーション
   </div>
   <div id="spMoreKensa" onclick="spMoreItem(function(){openKensaViewer();})" style="display:none;padding:14px 20px;cursor:pointer;font-size:14px;color:#1e293b;font-weight:600;letter-spacing:.3px;border-bottom:1px solid #f1f5f9">
     検査取りまとめ
@@ -1426,7 +1445,7 @@ var POST_END_PAD = 120; // ★スクロール終端の余白：完了検査列�
 // ===== 納品書機能：休工日カレンダー・稼働日計算 =====
 // ★日本の祝日（政府発表・国立天文台暦要項ベース、2025〜2028年分）
 // ★アプリバージョン（不具合問い合わせ対応用。リリースごとに更新すること。2026/8/23追加）
-var APP_VERSION = '2026.11.04.1';
+var APP_VERSION = '2026.11.06.1';
 window.APP_VERSION=APP_VERSION;
 // ★物件詳細URL（?fix=FIX番号）：起動時に値を控え、ログイン・物件読込後に該当物件の詳細を開く（2026/10/22）
 var _JACK_DEEP_FIX=(function(){try{var v=new URLSearchParams(window.location.search).get('fix');return v?String(v).trim():'';}catch(e){return '';}})();
@@ -3712,6 +3731,365 @@ function deleteComment(key,idx){
   };
 }
 window.deleteComment=deleteComment;
+
+// ===== 業者ローテーション（2026/11/06追加）=====
+//   全業者選定一覧の「基礎・フレーミング・造作・内装」の業者と、物件ガントを突き合わせ、
+//   「選んだ業者が入っている現場」と「その工種がまだ未選定の現場」を並べて見られるようにする（本部管理者・現場管理のみ）。
+//   ※ここの関数は画面に依存しない（引数だけで動く）部分と、画面部分（rotRender〜）に分けている。
+var ROT_TRADES=[
+  {key:'基礎',label:'基礎',cands:['基礎工事'],color:'#0ea5e9'},
+  {key:'フレーミング',label:'フレーミング',cands:['フレーミング'],color:'#f59e0b'},
+  {key:'造作',label:'造作',cands:['造作工事'],color:'#10b981'},
+  {key:'内装',label:'内装',cands:['内装仕上げ','内装工事'],color:'#8b5cf6'}
+];
+// 「フレーミング」には工程表上の専用バーが無いため、土台の開始〜小屋・屋根（東海は最後のレッカー）の終了で代用する
+var ROT_FRAMING_LABELS=['土台','①レッカー','②レッカー','③レッカー','④レッカー','1F壁','2F床','階段組','2F壁','3F壁','天井・妻','小屋・屋根','共用下地','共用床下地'];
+// 初期の別名辞書（確実なものだけ）。「正式名 = 別名1, 別名2」の形式。画面から編集できる
+var ROT_ALIAS_SEED='神岡建築 = 神岡\n白石土建 = 白石\n抜井土建 = 抜井\n三和商会 = 三和\n島野家 = 島野\n山岸創建 = 山岸\nあさひ内装 = あさひ';
+
+function rotNorm(s){
+  return String(s==null?'':s).normalize('NFKC').replace(/[\s　]+/g,'');
+}
+function rotAliasKey(s){
+  return rotNorm(s).replace(/\([^)]*\)/g,'').toLowerCase();
+}
+// 別名辞書テキスト → {正規化した別名: 正式名}
+function rotParseAlias(text){
+  var map={};
+  String(text||'').split(/\r?\n/).forEach(function(line){
+    var m=line.split('='); if(m.length<2)return;
+    var canon=m[0].trim(); if(!canon)return;
+    map[rotAliasKey(canon)]=canon;
+    m.slice(1).join('=').split(/[,、，]/).forEach(function(a){
+      a=a.trim(); if(a)map[rotAliasKey(a)]=canon;
+    });
+  });
+  return map;
+}
+function rotCanon(name,aliasMap){
+  var k=rotAliasKey(name);
+  return (aliasMap&&aliasMap[k])||String(name).trim();
+}
+// セル1つを解析する。kind: none(空欄=未選定) / na(ー=該当なし) / hold(？や複雑な記述=保留) / v(業者名あり)
+function rotParseCell(raw,aliasMap){
+  var orig=String(raw==null?'':raw);
+  var s=rotNorm(orig);
+  if(!s)return {kind:'none',names:[],raw:orig.trim()};
+  if(/^[ーｰ\-−–—―]+$/.test(s))return {kind:'na',names:[],raw:orig.trim()};
+  if(/[?？]|設計確認|未定|調整中/.test(s))return {kind:'hold',names:[],raw:orig.trim()};
+  if(/[\r\n]/.test(String(orig).trim()))return {kind:'hold',names:[],raw:orig.replace(/\s+/g,' ').trim()};
+  s=s.replace(/\([^)]*\)/g,'');
+  if(/決定|のみ|で決|先行|が[IVX0-9]+$/.test(s))return {kind:'hold',names:[],raw:orig.replace(/\s+/g,' ').trim()};
+  // 「A→B」はBを採用、「A～」「A⇔」「A→」はAを採用。「8/1～A」のように日付が前にある時は後ろを採用
+  var ar=s.split(/→|⇔/);
+  if(ar.length>1){var last=ar[ar.length-1]; s=last?last:ar[0];}
+  var tl=s.split(/[～~〜]/);
+  if(tl.length>1){s=(/^[\d\/月日]*$/.test(tl[0])&&tl[1])?tl[1]:tl[0];}
+  s=s.replace(/\d+$/,'');
+  var toks=[];
+  s.split(/[\/,、+]/).forEach(function(t){
+    var parts=t.split('・').filter(function(x){return x;}),acc='';
+    parts.forEach(function(pt){
+      if(!acc){acc=pt;return;}
+      if(acc.length<2||pt.length<2){acc=acc+'・'+pt;}else{toks.push(acc);acc=pt;}
+    });
+    if(acc)toks.push(acc);
+  });
+  var names=[];
+  toks.forEach(function(t){
+    t=t.trim(); if(!t)return;
+    var c=rotCanon(t,aliasMap);
+    if(names.indexOf(c)<0)names.push(c);
+  });
+  if(!names.length)return {kind:'hold',names:[],raw:orig.replace(/\s+/g,' ').trim()};
+  return {kind:'v',names:names,raw:orig.replace(/\s+/g,' ').trim()};
+}
+function _rotDk(v){
+  v=String(v||'').replace(/\//g,'-').slice(0,10);
+  return /^\d{4}-\d{2}-\d{2}$/.test(v)?v:'';
+}
+function _rotDayNum(k){return Math.round(Date.UTC(+k.slice(0,4),+k.slice(5,7)-1,+k.slice(8,10))/86400000);}
+// 物件の工程から、工種ごとの期間 {s,e}（YYYY-MM-DD）を返す。無ければnull
+function rotTradeRange(segs,key){
+  var s='',e='';
+  (segs||[]).forEach(function(g){
+    var lb=String(g.label||g.name||'').trim();
+    var hit=(key==='フレーミング')?ROT_FRAMING_LABELS.indexOf(lb)>=0:lb===key;
+    if(!hit)return;
+    var sd=_rotDk(g.start_date||g.date),ed=_rotDk(g.end_date)||sd;
+    if(!sd)return;
+    if(!s||sd<s)s=sd;
+    if(!e||ed>e)e=ed;
+  });
+  if(key==='フレーミング'){
+    var dai=(segs||[]).filter(function(g){return String(g.label||g.name||'').trim()==='土台';})[0];
+    var ds=dai?_rotDk(dai.start_date||dai.date):'';
+    if(ds)s=ds;
+  }
+  return (s&&e)?{s:s,e:e}:null;
+}
+// 候補の期間が、その業者の他現場の期間とぶつかるか／何日空いているか
+function rotFit(range,vendorRanges){
+  if(!range)return {status:'unknown',gap:null};
+  if(!vendorRanges||!vendorRanges.length)return {status:'free',gap:null};
+  var a=_rotDayNum(range.s),b=_rotDayNum(range.e),best=null;
+  for(var i=0;i<vendorRanges.length;i++){
+    var c=_rotDayNum(vendorRanges[i].s),d=_rotDayNum(vendorRanges[i].e);
+    if(a<=d&&c<=b)return {status:'overlap',gap:0};
+    var g=(c>b)?(c-b-1):(a-d-1);
+    if(best===null||g<best)best=g;
+  }
+  return {status:'free',gap:best};
+}
+// 選んだエリアの業者選定表（vld[area]）から、物件の列を探す（FIX番号優先→物件名）
+function rotFindCol(p,areaRows){
+  if(!areaRows||!areaRows.length)return null;
+  var dataCols=_vendorDataCols(areaRows),propCols=dataCols.slice(1),fx=String(p.fix_no||'').trim();
+  if(fx){
+    for(var i=0;i<propCols.length;i++){
+      var fk='_fixno_'+propCols[i];
+      if(areaRows.some(function(r){return String(r[fk]||'').trim()===fx;}))return {col:propCols[i],catCol:dataCols[0]};
+    }
+  }
+  var nn=normalizeForMatch(p.name);
+  for(var j=0;j<propCols.length;j++){
+    if(normalizeForMatch(propCols[j])===nn)return {col:propCols[j],catCol:dataCols[0]};
+  }
+  return null;
+}
+function _rotCatRow(areaRows,catCol,trade){
+  for(var i=0;i<areaRows.length;i++){
+    if(_vendorTradeMatch(String(areaRows[i][catCol]||'').trim(),trade.cands))return areaRows[i];
+  }
+  return null;
+}
+// ★業者の一覧（選択肢）：全業者選定一覧のその工種の行から、業者ごとの件数を出す
+//   cur=現在進行中（納品前）の物件数、all=一覧にある全列の数
+function rotVendorNames(areaRows,tradeKey,aliasMap,curCountMap){
+  var trade=ROT_TRADES.filter(function(t){return t.key===tradeKey;})[0];
+  var out={};
+  if(!trade||!areaRows||!areaRows.length)return [];
+  var dataCols=_vendorDataCols(areaRows),catCol=dataCols[0];
+  var row=_rotCatRow(areaRows,catCol,trade); if(!row)return [];
+  dataCols.slice(1).forEach(function(c){
+    var pc=rotParseCell(row[c],aliasMap);
+    pc.names.forEach(function(n){out[n]=out[n]||{name:n,all:0,cur:0};out[n].all++;});
+  });
+  Object.keys(curCountMap||{}).forEach(function(n){if(out[n])out[n].cur=curCountMap[n];});
+  return Object.keys(out).map(function(k){return out[k];}).sort(function(a,b){return (b.cur-a.cur)||(b.all-a.all)||(a.name<b.name?-1:1);});
+}
+// ★メイン：条件に合う物件を「業者あり／未選定」に振り分ける
+//   opt={area, tradeKey, vendor, props, areaRows, aliasMap, getSegs}
+function rotBuild(opt){
+  var trade=ROT_TRADES.filter(function(t){return t.key===opt.tradeKey;})[0];
+  var res={withVendor:[],unassigned:[],unlinked:[],curCount:{},vendorRanges:[],dmin:'',dmax:''};
+  if(!trade)return res;
+  var areaRows=opt.areaRows||[];
+  var catCol=areaRows.length?_vendorDataCols(areaRows)[0]:'';
+  var catRow=areaRows.length?_rotCatRow(areaRows,catCol,trade):null;
+  (opt.props||[]).forEach(function(p){
+    var loc=rotFindCol(p,areaRows);
+    if(!loc||!catRow){res.unlinked.push(p);return;}
+    var pc=rotParseCell(catRow[loc.col],opt.aliasMap);
+    var segs=opt.getSegs?opt.getSegs(p):[];
+    var ranges={};
+    ROT_TRADES.forEach(function(t){ranges[t.key]=rotTradeRange(segs,t.key);});
+    var row={p:p,cell:pc,ranges:ranges,range:ranges[trade.key]};
+    if(pc.kind==='v')pc.names.forEach(function(n){res.curCount[n]=(res.curCount[n]||0)+1;});
+    if(!opt.vendor)return;
+    if(pc.kind==='v'&&pc.names.indexOf(opt.vendor)>=0)res.withVendor.push(row);
+    else if(pc.kind==='none'||pc.kind==='hold')res.unassigned.push(row);
+  });
+  function byStart(a,b){var x=a.range?a.range.s:'9999',y=b.range?b.range.s:'9999';return x<y?-1:x>y?1:0;}
+  res.withVendor.sort(byStart); res.unassigned.sort(byStart);
+  res.vendorRanges=res.withVendor.map(function(r){return r.range;}).filter(function(r){return !!r;});
+  res.unassigned.forEach(function(r){r.fit=rotFit(r.range,res.vendorRanges);});
+  return res;
+}
+
+// ---- 画面部分 ----
+var ROT_SEL=loadLS('jack_rot_sel',{area:'東海',trade:'造作',vendor:''});
+var _rotAliasText=loadLS('jack_vendor_alias',null);
+if(typeof _rotAliasText!=='string')_rotAliasText=ROT_ALIAS_SEED;
+var _rotAliasLoaded=false;
+window._rotRows={A:[],B:[]};
+function _rotAliasMap(){return rotParseAlias(_rotAliasText);}
+function _rotSaveSel(){saveLS('jack_rot_sel',ROT_SEL);}
+function _rotIsAdmin(){return !!(typeof currentProfile!=='undefined'&&currentProfile&&currentProfile.role==='admin');}
+// 別名辞書の保存（masters テーブルの隠し行 __vendor_alias__。担当者マスターと同じ方式）
+function _rotSaveAliasToDB(cb){
+  saveLS('jack_vendor_alias',_rotAliasText);
+  var sb=getSB(); if(!sb){if(cb)cb(false);return;}
+  var payload={name:'__vendor_alias__',steps:JSON.stringify({text:_rotAliasText}),updated_at:new Date().toISOString()};
+  sb.from('masters').select('id').eq('name','__vendor_alias__').order('id')
+    .then(function(r){
+      var rows=r.data||[];
+      if(rows.length===0)return sb.from('masters').insert(payload);
+      var keepId=rows[0].id,extra=rows.slice(1).map(function(x){return x.id;});
+      var q=sb.from('masters').update(payload).eq('id',keepId);
+      if(extra.length)q=q.then(function(ur){return sb.from('masters').delete().in('id',extra).then(function(){return ur;});});
+      return q;
+    })
+    .then(function(r){if(cb)cb(!(r&&r.error));})
+    .catch(function(){if(cb)cb(false);});
+}
+async function _rotLoadAliasFromDB(){
+  if(_rotAliasLoaded)return; _rotAliasLoaded=true;
+  var sb=getSB(); if(!sb)return;
+  try{
+    var r=await sb.from('masters').select('steps').eq('name','__vendor_alias__').limit(1);
+    var row=r.data&&r.data[0];
+    if(!r.error&&row&&row.steps){
+      var v=typeof row.steps==='string'?JSON.parse(row.steps):row.steps;
+      if(v&&typeof v.text==='string'&&v.text!==_rotAliasText){_rotAliasText=v.text;saveLS('jack_vendor_alias',_rotAliasText);_rotRender();}
+    }
+  }catch(e){}
+}
+function openVendorRotation(){
+  if(!_rotIsAdmin()){showToast('本部管理者・現場管理のみ使えます','warn');return;}
+  openPanel('rotPanel');
+  var ta=document.getElementById('rotAliasText'); if(ta)ta.value=_rotAliasText;
+  var wrap=document.getElementById('rotBody');
+  if(Object.keys(window._VENDOR_LIST_DATA||{}).length){_rotRender();}
+  else{
+    if(wrap)wrap.innerHTML='<div style="padding:24px;text-align:center;color:#94a3b8;font-size:12px">読み込み中…</div>';
+    _loadVendorsFromCacheOrDB(false).then(function(){_rotRender();});
+  }
+  _rotLoadAliasFromDB();
+}
+window.openVendorRotation=openVendorRotation;
+function _rotProps(area){
+  return getAllProps().filter(function(p){
+    if(isKankou(p))return false;
+    return area==='関東'?isKantoProp(p):isTokaiProp(p);
+  });
+}
+function rotSet(k,v){
+  ROT_SEL[k]=v;
+  if(k==='area'||k==='trade')ROT_SEL.vendor='';
+  _rotSaveSel(); _rotRender();
+}
+function rotToggleAlias(){
+  var b=document.getElementById('rotAliasBox'); if(!b)return;
+  b.style.display=b.style.display==='none'?'block':'none';
+}
+function rotSaveAlias(){
+  var ta=document.getElementById('rotAliasText'); if(!ta)return;
+  _rotAliasText=ta.value;
+  _rotSaveAliasToDB(function(ok){showToast(ok?'別名を保存しました':'この端末にだけ保存しました（共有はできませんでした）',ok?'success':'warn');});
+  _rotRender();
+}
+function rotResetAlias(){
+  if(!confirm('別名の登録を、初期の内容に戻しますか？'))return;
+  var ta=document.getElementById('rotAliasText'); if(ta)ta.value=ROT_ALIAS_SEED;
+}
+function rotOpenProp(g,i){
+  var r=(window._rotRows[g]||[])[i]; if(!r)return;
+  if(typeof window.openDetail==='function')window.openDetail(r.p);
+}
+function _rotMd(k){return k.slice(5,7)*1+'/'+(k.slice(8,10)*1);}
+function _rotRender(){
+  var body=document.getElementById('rotBody'); if(!body)return;
+  var area=ROT_SEL.area,tk=ROT_SEL.trade;
+  if(!ROT_TRADES.some(function(t){return t.key===tk;})){tk=ROT_SEL.trade='造作';}
+  var trade=ROT_TRADES.filter(function(t){return t.key===tk;})[0];
+  var vld=window._VENDOR_LIST_DATA||{},areaRows=vld[area]||[];
+  var am=_rotAliasMap();
+  // 操作パネル
+  var h='<div style="padding:8px 10px;background:white;border-bottom:1px solid #e2e8f0">';
+  h+='<div style="display:flex;gap:6px;margin-bottom:6px">';
+  ['東海','関東'].forEach(function(a){var on=a===area;h+='<button onclick="rotSet(\'area\',\''+a+'\')" style="flex:1;padding:8px;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;border:1.5px solid '+(on?'#1e40af':'#e2e8f0')+';background:'+(on?'#1e40af':'white')+';color:'+(on?'white':'#475569')+'">'+a+'</button>';});
+  h+='</div><div style="display:flex;gap:6px;margin-bottom:6px">';
+  ROT_TRADES.forEach(function(t){var on=t.key===tk;h+='<button onclick="rotSet(\'trade\',\''+t.key+'\')" style="flex:1;padding:7px 2px;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;border:1.5px solid '+(on?t.color:'#e2e8f0')+';background:'+(on?t.color:'white')+';color:'+(on?'white':'#475569')+'">'+t.label+'</button>';});
+  h+='</div>';
+  if(!areaRows.length){
+    body.innerHTML=h+'</div><div style="padding:24px;text-align:center;color:#94a3b8;font-size:12px">'+area+'の業者選定データがありません。「全業者選定一覧」を同期してください。</div>';
+    return;
+  }
+  var props=_rotProps(area);
+  var segCache={};
+  function getSegs(p){var k=p.fix_no||p.name;if(!segCache[k]){try{segCache[k]=getActiveSegs(p)||[];}catch(e){segCache[k]=[];}}return segCache[k];}
+  // 一度、業者を指定せずに回して「現在の件数」を数える
+  var pre=rotBuild({area:area,tradeKey:tk,vendor:'',props:props,areaRows:areaRows,aliasMap:am,getSegs:getSegs});
+  var names=rotVendorNames(areaRows,tk,am,pre.curCount);
+  if(ROT_SEL.vendor&&!names.some(function(n){return n.name===ROT_SEL.vendor;}))ROT_SEL.vendor='';
+  h+='<select onchange="rotSet(\'vendor\',this.value)" style="width:100%;padding:9px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:14px;font-weight:600;box-sizing:border-box;background:white"><option value="">業者を選んでください（'+names.length+'社）</option>';
+  names.forEach(function(n){h+='<option value="'+_escHtml(n.name)+'"'+(n.name===ROT_SEL.vendor?' selected':'')+'>'+_escHtml(n.name)+'　進行中'+n.cur+'件／一覧全体'+n.all+'件</option>';});
+  h+='</select></div>';
+  if(!ROT_SEL.vendor){
+    body.innerHTML=h+'<div style="padding:28px 16px;text-align:center;color:#94a3b8;font-size:13px;line-height:1.8">エリア・工種・業者を選ぶと、<br>その業者が入っている現場と、<br>工種が未選定の現場が並びます。</div>'+_rotUnlinkedHtml(pre.unlinked);
+    return;
+  }
+  var res=rotBuild({area:area,tradeKey:tk,vendor:ROT_SEL.vendor,props:props,areaRows:areaRows,aliasMap:am,getSegs:getSegs});
+  window._rotRows={A:res.withVendor,B:res.unassigned};
+  // 日付軸
+  var today=(typeof TODAY==='string'&&/^\d{4}-\d{2}-\d{2}/.test(TODAY))?TODAY.slice(0,10):_dkey(new Date());
+  var lo=today,hi=today;
+  res.withVendor.concat(res.unassigned).forEach(function(r){ROT_TRADES.forEach(function(t){var g=r.ranges[t.key];if(g){if(g.s<lo)lo=g.s;if(g.e>hi)hi=g.e;}});});
+  var d0=_rotDayNum(lo)-5,d1=_rotDayNum(hi)+5,span=Math.max(1,d1-d0);
+  function pct(k){return ((_rotDayNum(k)-d0)/span*100).toFixed(2);}
+  function bar(g,color,thick){
+    if(!g)return '';
+    var l=pct(g.s),w=Math.max(0.6,(_rotDayNum(g.e)-_rotDayNum(g.s)+1)/span*100);
+    return '<div style="position:absolute;left:'+l+'%;width:'+w.toFixed(2)+'%;top:'+(thick?'3px':'9px')+';height:'+(thick?'16px':'4px')+';background:'+color+';border-radius:3px;opacity:'+(thick?1:.45)+'"></div>';
+  }
+  function axis(){
+    var a='<div style="position:relative;height:16px;border-bottom:1px solid #cbd5e1;margin:0 10px">';
+    var dt=new Date(Date.UTC(1970,0,1)+d0*86400000);
+    var y=dt.getUTCFullYear(),m=dt.getUTCMonth()+1;
+    for(var i=0;i<40;i++){
+      m++; if(m>12){m=1;y++;}
+      var k=y+'-'+String(m).padStart(2,'0')+'-01';
+      if(_rotDayNum(k)>d1)break;
+      a+='<div style="position:absolute;left:'+pct(k)+'%;top:0;height:16px;border-left:1px solid #cbd5e1;font-size:9px;color:#64748b;padding-left:2px">'+m+'月</div>';
+    }
+    return a+'</div>';
+  }
+  function rowHtml(r,g,i){
+    var p=r.p,fit=r.fit,c=r.cell;
+    var tag='';
+    if(g==='B'){
+      if(c.kind==='hold')tag+='<span style="background:#fef3c7;color:#92400e;border-radius:4px;padding:1px 5px;font-size:10px;margin-right:4px">保留：'+_escHtml(c.raw)+'</span>';
+      else tag+='<span style="background:#f1f5f9;color:#64748b;border-radius:4px;padding:1px 5px;font-size:10px;margin-right:4px">未選定</span>';
+      if(fit){
+        if(fit.status==='overlap')tag+='<span style="background:#fee2e2;color:#b91c1c;border-radius:4px;padding:1px 5px;font-size:10px;font-weight:700">⚠ この業者の別現場と重なる</span>';
+        else if(fit.status==='free'&&fit.gap!==null)tag+='<span style="background:#dcfce7;color:#166534;border-radius:4px;padding:1px 5px;font-size:10px;font-weight:700">✓ 重ならない（最短'+fit.gap+'日空き）</span>';
+        else if(fit.status==='free')tag+='<span style="background:#dcfce7;color:#166534;border-radius:4px;padding:1px 5px;font-size:10px;font-weight:700">✓ この業者の現場なし</span>';
+        else tag+='<span style="background:#f1f5f9;color:#64748b;border-radius:4px;padding:1px 5px;font-size:10px">工期未入力</span>';
+      }
+    }else if(c.names.length>1){
+      tag+='<span style="background:#e0f2fe;color:#075985;border-radius:4px;padding:1px 5px;font-size:10px">併記：'+_escHtml(c.names.join('・'))+'</span>';
+    }
+    var rg=r.range,rt=rg?(_rotMd(rg.s)+'〜'+_rotMd(rg.e)):'工期未入力';
+    var t='<div onclick="rotOpenProp(\''+g+'\','+i+')" style="padding:7px 10px;border-bottom:1px solid #f1f5f9;background:white;cursor:pointer">';
+    t+='<div style="display:flex;justify-content:space-between;gap:6px;font-size:12px"><b style="color:#1e293b">'+_escHtml(p.name||'')+'</b><span style="color:#64748b;white-space:nowrap">'+trade.label+' '+rt+'</span></div>';
+    t+='<div style="margin:2px 0">'+tag+'</div>';
+    t+='<div style="position:relative;height:22px;margin:0">';
+    t+='<div style="position:absolute;left:'+pct(today)+'%;top:0;bottom:0;border-left:1.5px dashed #ef4444"></div>';
+    ROT_TRADES.forEach(function(x){if(x.key!==tk)t+=bar(r.ranges[x.key],x.color,false);});
+    t+=bar(r.ranges[tk],trade.color,true);
+    t+='</div></div>';
+    return t;
+  }
+  var hv=_escHtml(ROT_SEL.vendor);
+  h+='<div style="padding:6px 10px;font-size:11px;color:#64748b;background:#f8fafc">赤い点線＝今日。太い帯＝'+trade.label+'、薄い細帯＝他の工種（'+ROT_TRADES.filter(function(x){return x.key!==tk;}).map(function(x){return x.label;}).join('・')+'）。タップで物件の詳細。納品済の物件は含みません。'+(tk==='フレーミング'?'<br>※フレーミングの期間は「土台の開始〜小屋・屋根（東海は最後のレッカー）の終了」です。':'')+'</div>';
+  h+=axis();
+  h+='<div style="padding:8px 10px;background:#eff6ff;font-weight:800;font-size:13px;color:#1e3a8a;border-top:1px solid #dbeafe">① '+hv+' が入っている現場（'+res.withVendor.length+'件）</div>';
+  if(res.withVendor.length)res.withVendor.forEach(function(r,i){h+=rowHtml(r,'A',i);});
+  else h+='<div style="padding:14px;font-size:12px;color:#94a3b8;background:white">進行中の現場はありません（＝空いています）</div>';
+  h+='<div style="padding:8px 10px;background:#fff7ed;font-weight:800;font-size:13px;color:#9a3412;border-top:1px solid #fed7aa">② '+trade.label+'が未選定の現場（'+res.unassigned.length+'件）</div>';
+  if(res.unassigned.length)res.unassigned.forEach(function(r,i){h+=rowHtml(r,'B',i);});
+  else h+='<div style="padding:14px;font-size:12px;color:#94a3b8;background:white">未選定の現場はありません</div>';
+  h+=_rotUnlinkedHtml(res.unlinked);
+  body.innerHTML=h;
+}
+function _rotUnlinkedHtml(list){
+  if(!list||!list.length)return '';
+  var t='<details style="margin:10px;background:white;border:1px solid #e2e8f0;border-radius:8px"><summary style="padding:9px 10px;font-size:12px;font-weight:700;color:#64748b;cursor:pointer">全業者選定一覧に見つからない進行中の現場（'+list.length+'件）</summary><div style="padding:4px 10px 10px;font-size:11px;color:#64748b;line-height:1.7">FIX番号か物件名が一覧と合っていないため、上の判定に入っていません。<br>';
+  t+=list.map(function(p){return _escHtml((p.fix_no?p.fix_no+' ':'')+(p.name||''));}).join('<br>');
+  return t+'</div></details>';
+}
+window.rotSet=rotSet;window.rotToggleAlias=rotToggleAlias;window.rotSaveAlias=rotSaveAlias;window.rotResetAlias=rotResetAlias;window.rotOpenProp=rotOpenProp;
 
 // ===== VENDOR LOOKUP =====
 function normalizeForMatch(s){
@@ -13687,6 +14065,7 @@ async function onAuthSuccess(isNewLogin){
   updateSidebarUser();
   var adminBtn=document.getElementById('sbAdminBtn');
   if(adminBtn&&currentProfile.role==='admin'&&isPcMode)adminBtn.style.display='';
+  ['sbRotItem','spRotItem'].forEach(function(id){var e=document.getElementById(id);if(e)e.style.display=(currentProfile.role==='admin')?'':'none';});
   // ★検査機関ロール（2026/10追加）：管理者CPは使わせず、トップ画面の「検査取りまとめ」ボタンのみ表示する
   //   管理者はこのボタンを使わず、管理者CP内のフル機能版「🔍検査取りまとめ」を使う（2026/10/5修正）
   var kensaBtn=document.getElementById('sbKensaBtn');
