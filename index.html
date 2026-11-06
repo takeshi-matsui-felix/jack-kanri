@@ -3745,7 +3745,7 @@ var ROT_TRADES=[
 // 「フレーミング」には工程表上の専用バーが無いため、土台の開始〜小屋・屋根（東海は最後のレッカー）の終了で代用する
 var ROT_FRAMING_LABELS=['土台','①レッカー','②レッカー','③レッカー','④レッカー','1F壁','2F床','階段組','2F壁','3F壁','天井・妻','小屋・屋根','共用下地','共用床下地'];
 // 初期の別名辞書（確実なものだけ）。「正式名 = 別名1, 別名2」の形式。画面から編集できる
-var ROT_ALIAS_SEED='神岡建築 = 神岡\n白石土建 = 白石\n抜井土建 = 抜井\n三和商会 = 三和\n島野家 = 島野\n山岸創建 = 山岸\nあさひ内装 = あさひ';
+var ROT_ALIAS_SEED='神岡建築 = 神岡\n白石土建 = 白石\n抜井土建 = 抜井\n三和商会 = 三和\n島野家 = 島野\n山岸創建 = 山岸\nあさひ内装 = あさひ\n早晴建築 = 早晴, 正木\n津田産業 = 津田\n甲陽建設 = 甲陽\n斎藤建築 = 斉藤建築\nK-STYLE = K-STYLE杉本\n東海住基 = 東海\nコージースクエア = コージー\n大塚インテリア = 大塚\nフィリックス = 自社';
 
 function rotNorm(s){
   return String(s==null?'':s).normalize('NFKC').replace(/[\s　]+/g,'');
@@ -3779,6 +3779,7 @@ function rotParseCell(raw,aliasMap){
   if(/[?？]|設計確認|未定|調整中/.test(s))return {kind:'hold',names:[],raw:orig.trim()};
   if(/[\r\n]/.test(String(orig).trim()))return {kind:'hold',names:[],raw:orig.replace(/\s+/g,' ').trim()};
   s=s.replace(/\([^)]*\)/g,'');
+  if(!s)return {kind:'none',names:[],raw:orig.trim()}; // 「（手組）」だけ等＝業者名なし＝未選定扱い
   if(/決定|のみ|で決|先行|が[IVX0-9]+$/.test(s))return {kind:'hold',names:[],raw:orig.replace(/\s+/g,' ').trim()};
   // 「A→B」はBを採用、「A～」「A⇔」「A→」はAを採用。「8/1～A」のように日付が前にある時は後ろを採用
   var ar=s.split(/→|⇔/);
