@@ -1445,7 +1445,7 @@ var POST_END_PAD = 120; // ★スクロール終端の余白：完了検査列�
 // ===== 納品書機能：休工日カレンダー・稼働日計算 =====
 // ★日本の祝日（政府発表・国立天文台暦要項ベース、2025〜2028年分）
 // ★アプリバージョン（不具合問い合わせ対応用。リリースごとに更新すること。2026/8/23追加）
-var APP_VERSION = '2026.11.07.1';
+var APP_VERSION = '2026.11.07.2';
 window.APP_VERSION=APP_VERSION;
 // ★物件詳細URL（?fix=FIX番号）：起動時に値を控え、ログイン・物件読込後に該当物件の詳細を開く（2026/10/22）
 var _JACK_DEEP_FIX=(function(){try{var v=new URLSearchParams(window.location.search).get('fix');return v?String(v).trim():'';}catch(e){return '';}})();
@@ -3974,6 +3974,7 @@ function _rotProps(area){
 function rotSet(k,v){
   ROT_SEL[k]=v;
   if(k==='area'||k==='trade')ROT_SEL.vendor='';
+  if(k==='span'){_rotSaveSel();_rotRender();return;}
   _rotSaveSel(); _rotRender();
 }
 function rotToggleAlias(){
@@ -4003,14 +4004,16 @@ function _rotRender(){
   var vld=window._VENDOR_LIST_DATA||{},areaRows=_rotAreaRows(area);
   var am=_rotAliasMap();
   // 操作パネル
-  var h='<div style="padding:8px 10px;background:white;border-bottom:1px solid #e2e8f0">';
+  var h='<div id="rotHead" style="position:sticky;top:0;z-index:6;background:white;box-shadow:0 1px 3px rgba(0,0,0,.1)"><div style="padding:8px 10px;background:white;border-bottom:1px solid #e2e8f0">';
   h+='<div style="display:flex;gap:6px;margin-bottom:6px">';
   ['東海','関東'].forEach(function(a){var on=a===area;h+='<button onclick="rotSet(\'area\',\''+a+'\')" style="flex:1;padding:8px;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;border:1.5px solid '+(on?'#1e40af':'#e2e8f0')+';background:'+(on?'#1e40af':'white')+';color:'+(on?'white':'#475569')+'">'+a+'</button>';});
   h+='</div><div style="display:flex;gap:6px;margin-bottom:6px">';
   ROT_TRADES.forEach(function(t){var on=t.key===tk;h+='<button onclick="rotSet(\'trade\',\''+t.key+'\')" style="flex:1;padding:7px 2px;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;border:1.5px solid '+(on?t.color:'#e2e8f0')+';background:'+(on?t.color:'white')+';color:'+(on?'white':'#475569')+'">'+t.label+'</button>';});
+  h+='</div><div style="display:flex;gap:6px;margin-bottom:6px;align-items:center"><span style="font-size:11px;color:#64748b;white-space:nowrap">表示期間</span>';
+  [['all','全期間'],['180','半年'],['90','3か月']].forEach(function(x){var on=(ROT_SEL.span||'all')===x[0];h+='<button onclick="rotSet(\'span\',\''+x[0]+'\')" style="flex:1;padding:5px 2px;border-radius:7px;font-size:11px;font-weight:700;cursor:pointer;border:1.5px solid '+(on?'#1e40af':'#e2e8f0')+';background:'+(on?'#dbeafe':'white')+';color:'+(on?'#1e40af':'#64748b')+'">'+x[1]+'</button>';});
   h+='</div>';
   if(!areaRows.length){
-    body.innerHTML=h+'</div><div style="padding:24px;text-align:center;color:#94a3b8;font-size:12px">'+area+'の業者選定データがありません。「全業者選定一覧」を同期してください。</div>';
+    body.innerHTML=h+'</div></div><div style="padding:24px;text-align:center;color:#94a3b8;font-size:12px">'+area+'の業者選定データがありません。「全業者選定一覧」を同期してください。</div>';
     return;
   }
   var props=_rotProps(area);
@@ -4023,8 +4026,9 @@ function _rotRender(){
   h+='<select onchange="rotSet(\'vendor\',this.value)" style="width:100%;padding:9px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:14px;font-weight:600;box-sizing:border-box;background:white"><option value="">業者を選んでください（'+names.length+'社）</option>';
   names.forEach(function(n){h+='<option value="'+_escHtml(n.name)+'"'+(n.name===ROT_SEL.vendor?' selected':'')+'>'+_escHtml(n.name)+'　進行中'+n.cur+'件／一覧全体'+n.all+'件</option>';});
   h+='</select></div>';
+  var _headOpen=true;
   if(!ROT_SEL.vendor){
-    body.innerHTML=h+'<div style="padding:28px 16px;text-align:center;color:#94a3b8;font-size:13px;line-height:1.8">エリア・工種・業者を選ぶと、<br>その業者が入っている現場と、<br>工種が未選定の現場が並びます。</div>'+_rotUnlinkedHtml(pre.unlinked);
+    body.innerHTML=h+'</div><div style="padding:28px 16px;text-align:center;color:#94a3b8;font-size:13px;line-height:1.8">エリア・工種・業者を選ぶと、<br>その業者が入っている現場と、<br>工種が未選定の現場が並びます。</div>'+_rotUnlinkedHtml(pre.unlinked);
     return;
   }
   var res=rotBuild({area:area,tradeKey:tk,vendor:ROT_SEL.vendor,props:props,areaRows:areaRows,aliasMap:am,getSegs:getSegs});
@@ -4033,11 +4037,16 @@ function _rotRender(){
   var today=(typeof TODAY==='string'&&/^\d{4}-\d{2}-\d{2}/.test(TODAY))?TODAY.slice(0,10):_dkey(new Date());
   var lo=today,hi=today;
   res.withVendor.concat(res.unassigned).forEach(function(r){ROT_TRADES.forEach(function(t){var g=r.ranges[t.key];if(g){if(g.s<lo)lo=g.s;if(g.e>hi)hi=g.e;}});});
-  var d0=_rotDayNum(lo)-5,d1=_rotDayNum(hi)+5,span=Math.max(1,d1-d0);
+  var d0=_rotDayNum(lo)-5,d1=_rotDayNum(hi)+5;
+  if(ROT_SEL.span==='180'||ROT_SEL.span==='90'){d0=_rotDayNum(today)-14;d1=d0+14+parseInt(ROT_SEL.span,10);}
+  var span=Math.max(1,d1-d0);
   function pct(k){return ((_rotDayNum(k)-d0)/span*100).toFixed(2);}
   function bar(g,color,thick){
     if(!g)return '';
-    var l=pct(g.s),w=Math.max(0.6,(_rotDayNum(g.e)-_rotDayNum(g.s)+1)/span*100);
+    var gs=_rotDayNum(g.s),ge=_rotDayNum(g.e)+1;
+    if(ge<=d0||gs>=d1)return '';
+    var cs=Math.max(gs,d0),ce=Math.min(ge,d1);
+    var l=((cs-d0)/span*100).toFixed(2),w=Math.max(0.6,(ce-cs)/span*100);
     return '<div style="position:absolute;left:'+l+'%;width:'+w.toFixed(2)+'%;top:'+(thick?'3px':'9px')+';height:'+(thick?'16px':'4px')+';background:'+color+';border-radius:3px;opacity:'+(thick?1:.45)+'"></div>';
   }
   function axis(){
@@ -4080,15 +4089,17 @@ function _rotRender(){
   }
   var hv=_escHtml(ROT_SEL.vendor);
   h+='<div style="padding:6px 10px;font-size:11px;color:#64748b;background:#f8fafc">赤い点線＝今日。太い帯＝'+trade.label+'、薄い細帯＝他の工種（'+ROT_TRADES.filter(function(x){return x.key!==tk;}).map(function(x){return x.label;}).join('・')+'）。タップで物件の詳細。納品済の物件は含みません。'+(tk==='フレーミング'?'<br>※フレーミングの期間は「土台の開始〜小屋・屋根（東海は最後のレッカー）の終了」です。':'')+'</div>';
-  h+=axis();
-  h+='<div style="padding:8px 10px;background:#eff6ff;font-weight:800;font-size:13px;color:#1e3a8a;border-top:1px solid #dbeafe">① '+hv+' が入っている現場（'+res.withVendor.length+'件）</div>';
+  h+=axis()+'</div>';
+  h+='<div style="padding:8px 10px;background:#eff6ff;font-weight:800;font-size:13px;color:#1e3a8a;border-top:1px solid #dbeafe;position:sticky;z-index:5" class="rot-sec">① '+hv+' が入っている現場（'+res.withVendor.length+'件）</div>';
   if(res.withVendor.length)res.withVendor.forEach(function(r,i){h+=rowHtml(r,'A',i);});
   else h+='<div style="padding:14px;font-size:12px;color:#94a3b8;background:white">進行中の現場はありません（＝空いています）</div>';
-  h+='<div style="padding:8px 10px;background:#fff7ed;font-weight:800;font-size:13px;color:#9a3412;border-top:1px solid #fed7aa">② '+trade.label+'が未選定の現場（'+res.unassigned.length+'件）</div>';
+  h+='<div style="padding:8px 10px;background:#fff7ed;font-weight:800;font-size:13px;color:#9a3412;border-top:1px solid #fed7aa;position:sticky;z-index:5" class="rot-sec">② '+trade.label+'が未選定の現場（'+res.unassigned.length+'件）</div>';
   if(res.unassigned.length)res.unassigned.forEach(function(r,i){h+=rowHtml(r,'B',i);});
   else h+='<div style="padding:14px;font-size:12px;color:#94a3b8;background:white">未選定の現場はありません</div>';
   h+=_rotUnlinkedHtml(res.unlinked);
   body.innerHTML=h;
+  var hd=document.getElementById('rotHead');
+  if(hd){var hh=hd.offsetHeight+'px';var secs=body.querySelectorAll('.rot-sec');for(var si=0;si<secs.length;si++)secs[si].style.top=hh;}
 }
 function _rotUnlinkedHtml(list){
   if(!list||!list.length)return '';
