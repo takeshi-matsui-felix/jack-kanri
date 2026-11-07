@@ -1450,7 +1450,7 @@ var POST_END_PAD = 120; // ★スクロール終端の余白：完了検査列�
 // ===== 納品書機能：休工日カレンダー・稼働日計算 =====
 // ★日本の祝日（政府発表・国立天文台暦要項ベース、2025〜2028年分）
 // ★アプリバージョン（不具合問い合わせ対応用。リリースごとに更新すること。2026/8/23追加）
-var APP_VERSION = '2026.11.07.7';
+var APP_VERSION = '2026.11.07.8';
 window.APP_VERSION=APP_VERSION;
 // ★物件詳細URL（?fix=FIX番号）：起動時に値を控え、ログイン・物件読込後に該当物件の詳細を開く（2026/10/22）
 var _JACK_DEEP_FIX=(function(){try{var v=new URLSearchParams(window.location.search).get('fix');return v?String(v).trim():'';}catch(e){return '';}})();
@@ -4132,6 +4132,7 @@ function _rotUnlinkedHtml(list){
   return t+'</div></details>';
 }
 
+
 // ---- 業者への閲覧権限（2026/11/07追加）----
 //   管理者が、協力業者のアカウントごとに「見せる業者名」と「見せる工種」を決める。
 //   保存先：masters の隠し行 name='__rot_access__<ユーザーID>'（1人1行。本人は自分の行だけ読む）
@@ -4159,7 +4160,7 @@ async function _rotLoadMyAccess(){
   }catch(e){}
 }
 // --- 管理者用：権限の設定画面 ---
-var _rotAccMap={},_rotAccWorkers=null;
+var _rotAccMap={},_rotAccWorkers=null,_rotAccShow=50;
 function rotToggleAccess(){
   var b=document.getElementById('rotAccessBox'); if(!b)return;
   var open=b.style.display==='none';
@@ -4172,7 +4173,7 @@ async function _rotAccessLoadAdmin(){
   box.innerHTML='<div style="padding:10px;font-size:12px;color:#94a3b8">読み込み中…</div>';
   var sb=getSB(); if(!sb){box.innerHTML='通信できません';return;}
   try{
-    var pr=await sb.from('profiles').select('id,name,company,role').eq('role','worker').order('company');
+    var pr=await sb.from('profiles').select('id,name,company,role,approved').eq('role','worker').order('company');
     var ar=await sb.from('masters').select('name,steps').like('name','__rot_access__%');
     _rotAccWorkers=pr.data||[];
     _rotAccMap={};
@@ -4205,37 +4206,50 @@ function _rotAccessRender(){
     return true;
   });
   list.sort(function(a,b){return (_rotAccMap[b.id]?1:0)-(_rotAccMap[a.id]?1:0);});
-  var shown=q?list:list.filter(function(u,i){return _rotAccMap[u.id]||i<30;});
-  var h='<div style="font-size:11px;color:#64748b;margin:4px 0">設定済み '+Object.keys(_rotAccMap).length+'人／協力業者 '+_rotAccWorkers.length+'人。検索すると、全員から探せます。</div>';
+  var shown=list.slice(0,_rotAccShow);
+  var h='<div style="font-size:11px;color:#64748b;margin:4px 0">設定済み '+Object.keys(_rotAccMap).length+'人／協力業者 '+_rotAccWorkers.length+'人（管理者・検査機関は含みません）'+(q?'。該当 '+list.length+'人':'')+'</div>';
   shown.forEach(function(u){
     var a=_rotAccMap[u.id]||{vendor:'',trades:[]};
     h+='<div data-uid="'+_escHtml(u.id)+'" style="background:white;border:1px solid '+(a.vendor?'#86efac':'#e2e8f0')+';border-radius:8px;padding:6px 8px;margin-bottom:5px">';
-    h+='<div style="font-size:12px;font-weight:700">'+_escHtml(u.name||'')+' <span style="font-weight:400;color:#64748b">'+_escHtml(u.company||'')+'</span></div>';
+    h+='<div style="font-size:12px;font-weight:700">'+_escHtml(u.name||'')+' <span style="font-weight:400;color:#64748b">'+_escHtml(u.company||'')+'</span>'+(u.approved===false?' <span style="color:#b91c1c;font-size:10px">（未承認）</span>':'')+'</div>';
     h+='<select onchange="rotAccessChange(\''+_escHtml(u.id)+'\',true)" style="width:100%;margin:3px 0;padding:6px;font-size:12px;border:1.5px solid #e2e8f0;border-radius:6px"><option value="">（権限なし）</option>';
     vendors.forEach(function(v){h+='<option value="'+_escHtml(v)+'"'+(v===a.vendor?' selected':'')+'>'+_escHtml(v)+'</option>';});
     h+='</select><div style="display:flex;gap:8px;flex-wrap:wrap;font-size:12px">';
     ROT_TRADES.forEach(function(t){h+='<label style="white-space:nowrap"><input type="checkbox" value="'+t.key+'"'+(a.trades.indexOf(t.key)>=0?' checked':'')+' onchange="rotAccessChange(\''+_escHtml(u.id)+'\',false)"> '+t.label+'</label>';});
     h+='</div></div>';
   });
+  if(list.length>shown.length)h+='<button onclick="_rotAccShowMore()" style="width:100%;padding:9px;border:1.5px solid #bbf7d0;background:white;border-radius:8px;font-size:12px;font-weight:700;color:#166534;cursor:pointer">さらに50人表示（残り '+(list.length-shown.length)+'人）</button>';
   box.innerHTML=h;
 }
 function rotAccessChange(uid,vendorChanged){
   var el=document.querySelector('#rotAccessList [data-uid="'+uid+'"]'); if(!el)return;
   var vendor=el.querySelector('select').value;
   var boxes=el.querySelectorAll('input[type=checkbox]');
-  if(vendorChanged&&vendor){
+  var prev=_rotAccMap[uid]||null;
+  function checked(){var t=[];for(var j=0;j<boxes.length;j++)if(boxes[j].checked)t.push(boxes[j].value);return t;}
+  var sb=getSB();
+  var nm='__rot_access__'+uid;
+  var done=function(ok,msg){showToast(ok?msg:'保存に失敗しました',ok?'success':'error');};
+  if(!vendor){
+    if(!vendorChanged){ // 業者名を選ぶ前に工種だけチェックした場合は、何も保存しない
+      for(var k=0;k<boxes.length;k++)boxes[k].checked=false;
+      showToast('先に業者名を選んでください','warn');return;
+    }
+    for(var k2=0;k2<boxes.length;k2++)boxes[k2].checked=false;
+    if(!prev)return;
+    delete _rotAccMap[uid]; el.style.borderColor='#e2e8f0';
+    if(sb)sb.from('masters').delete().eq('name',nm).then(function(r){done(!r.error,'権限を外しました');}).catch(function(){done(false);});
+    return;
+  }
+  if(vendorChanged&&!checked().length){ // まだ工種を選んでいなければ、その業者のいる工種を自動で選ぶ
     var sug=_rotVendorTrades(vendor);
     for(var i=0;i<boxes.length;i++)boxes[i].checked=sug.indexOf(boxes[i].value)>=0;
   }
-  var trades=[];for(var j=0;j<boxes.length;j++)if(boxes[j].checked)trades.push(boxes[j].value);
-  var entry=vendor?{vendor:vendor,trades:trades}:null;
-  if(entry&&!trades.length){showToast('工種を1つ以上選んでください（選ぶまで反映されません）','warn');return;}
-  _rotAccMap[uid]=entry; if(!entry)delete _rotAccMap[uid];
-  el.style.borderColor=entry?'#86efac':'#e2e8f0';
-  var sb=getSB(); if(!sb)return;
-  var nm='__rot_access__'+uid;
-  var done=function(ok){showToast(ok?(entry?'権限を保存しました':'権限を外しました'):'保存に失敗しました',ok?'success':'error');};
-  if(!entry){sb.from('masters').delete().eq('name',nm).then(function(r){done(!r.error);}).catch(function(){done(false);});return;}
+  var trades=checked();
+  if(!trades.length){showToast('工種を1つ以上選んでください（選ぶまで反映されません）','warn');return;}
+  _rotAccMap[uid]={vendor:vendor,trades:trades};
+  el.style.borderColor='#86efac';
+  if(!sb)return;
   var payload={name:nm,steps:JSON.stringify({vendor:vendor,trades:trades}),updated_at:new Date().toISOString()};
   sb.from('masters').select('id').eq('name',nm).order('id').then(function(r){
     var rows=r.data||[];
@@ -4244,9 +4258,9 @@ function rotAccessChange(uid,vendorChanged){
     var extra=rows.slice(1).map(function(x){return x.id;});
     if(extra.length)q=q.then(function(ur){return sb.from('masters').delete().in('id',extra).then(function(){return ur;});});
     return q;
-  }).then(function(r){done(!(r&&r.error));}).catch(function(){done(false);});
+  }).then(function(r){done(!(r&&r.error),'権限を保存しました');}).catch(function(){done(false);});
 }
-window.rotToggleAccess=rotToggleAccess;window.rotAccessChange=rotAccessChange;window._rotAccessRender=_rotAccessRender;
+window._rotAccShowMore=function(){_rotAccShow+=50;_rotAccessRender();};window.rotToggleAccess=rotToggleAccess;window.rotAccessChange=rotAccessChange;window._rotAccessRender=_rotAccessRender;
 
 window.rotSet=rotSet;window.rotToggleAlias=rotToggleAlias;window.rotSaveAlias=rotSaveAlias;window.rotResetAlias=rotResetAlias;window.rotOpenProp=rotOpenProp;
 
