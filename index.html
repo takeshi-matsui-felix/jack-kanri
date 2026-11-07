@@ -1445,7 +1445,7 @@ var POST_END_PAD = 120; // ★スクロール終端の余白：完了検査列�
 // ===== 納品書機能：休工日カレンダー・稼働日計算 =====
 // ★日本の祝日（政府発表・国立天文台暦要項ベース、2025〜2028年分）
 // ★アプリバージョン（不具合問い合わせ対応用。リリースごとに更新すること。2026/8/23追加）
-var APP_VERSION = '2026.11.07.5';
+var APP_VERSION = '2026.11.07.6';
 window.APP_VERSION=APP_VERSION;
 // ★物件詳細URL（?fix=FIX番号）：起動時に値を控え、ログイン・物件読込後に該当物件の詳細を開く（2026/10/22）
 var _JACK_DEEP_FIX=(function(){try{var v=new URLSearchParams(window.location.search).get('fix');return v?String(v).trim():'';}catch(e){return '';}})();
@@ -3740,8 +3740,11 @@ var ROT_TRADES=[
   {key:'基礎',label:'基礎',cands:['基礎工事'],color:'#0ea5e9'},
   {key:'フレーミング',label:'フレーミング',cands:['フレーミング'],color:'#f59e0b'},
   {key:'造作',label:'造作',cands:['造作工事'],color:'#10b981'},
-  {key:'内装',label:'内装',cands:['内装仕上げ','内装工事'],color:'#8b5cf6'}
+  {key:'内装',label:'内装',cands:['内装仕上げ','内装工事'],color:'#8b5cf6'},
+  {key:'外壁',label:'外壁',cands:['外壁サイディング工事'],color:'#607d8b'}
 ];
+// 関東の「外壁」は、工程表の複数の帯（紙張・捨張り・外壁・コーキング・共用外壁）をまとめて1本として扱う（東海は「外壁」の帯のみ）
+var ROT_WALL_KANTO_LABELS=['紙張','紙張り','紙貼','紙貼り','捨張り','捨て張り','捨貼り','外壁','コーキング','共用外壁'];
 // 「フレーミング」には工程表上の専用バーが無いため、土台の開始〜小屋・屋根（東海は最後のレッカー）の終了で代用する
 var ROT_FRAMING_LABELS=['土台','①レッカー','②レッカー','③レッカー','④レッカー','1F壁','2F床','階段組','2F壁','3F壁','天井・妻','小屋・屋根','共用下地','共用床下地'];
 // 初期の別名辞書（確実なものだけ）。「正式名 = 別名1, 別名2」の形式。画面から編集できる
@@ -3811,11 +3814,15 @@ function _rotDk(v){
 }
 function _rotDayNum(k){return Math.round(Date.UTC(+k.slice(0,4),+k.slice(5,7)-1,+k.slice(8,10))/86400000);}
 // 物件の工程から、工種ごとの期間 {s,e}（YYYY-MM-DD）を返す。無ければnull
-function rotTradeRange(segs,key){
+function _rotIn(list,lb){for(var i=0;i<list.length;i++){if(list[i].normalize('NFKC').replace(/[\s\u3000]+/g,'')===lb)return true;}return false;}
+function rotTradeRange(segs,key,areaName){
   var s='',e='';
   (segs||[]).forEach(function(g){
-    var lb=String(g.label||g.name||'').trim();
-    var hit=(key==='フレーミング')?ROT_FRAMING_LABELS.indexOf(lb)>=0:lb===key;
+    var lb=String(g.label||g.name||'').normalize('NFKC').replace(/[\s\u3000]+/g,'');
+    var hit;
+    if(key==='フレーミング')hit=_rotIn(ROT_FRAMING_LABELS,lb);
+    else if(key==='外壁'&&areaName==='関東')hit=_rotIn(ROT_WALL_KANTO_LABELS,lb);
+    else hit=lb===key.normalize('NFKC');
     if(!hit)return;
     var sd=_rotDk(g.start_date||g.date),ed=_rotDk(g.end_date)||sd;
     if(!sd)return;
@@ -3894,7 +3901,7 @@ function rotBuild(opt){
     var pc=rotParseCell(catRow[loc.col],opt.aliasMap);
     var segs=opt.getSegs?opt.getSegs(p):[];
     var ranges={};
-    ROT_TRADES.forEach(function(t){ranges[t.key]=rotTradeRange(segs,t.key);});
+    ROT_TRADES.forEach(function(t){ranges[t.key]=rotTradeRange(segs,t.key,opt.area);});
     var row={p:p,cell:pc,ranges:ranges,range:ranges[trade.key]};
     if(pc.kind==='v')pc.names.forEach(function(n){res.curCount[n]=(res.curCount[n]||0)+1;});
     if(!opt.vendor)return;
