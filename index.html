@@ -947,13 +947,18 @@ body.sp-mode #areaTabsBtns{ display:none !important; }
   <div class="panel-header">
     <button class="panel-back" onclick="closePanel('rotPanel')">← 戻る</button>
     <div style="flex:1"><div class="panel-title">🔄 業者ローテーション</div></div>
-    <button onclick="rotToggleAlias()" style="padding:5px 10px;background:rgba(255,255,255,.15);color:white;border:none;border-radius:7px;font-size:11px;font-weight:700;cursor:pointer">別名</button>
+    <button id="rotBtnAccess" onclick="rotToggleAccess()" style="padding:5px 10px;background:rgba(255,255,255,.15);color:white;border:none;border-radius:7px;font-size:11px;font-weight:700;cursor:pointer;margin-right:6px">権限</button><button id="rotBtnAlias" onclick="rotToggleAlias()" style="padding:5px 10px;background:rgba(255,255,255,.15);color:white;border:none;border-radius:7px;font-size:11px;font-weight:700;cursor:pointer">別名</button>
   </div>
   <div style="flex:1;display:flex;flex-direction:column;overflow:hidden">
     <div id="rotAliasBox" style="display:none;padding:8px 10px;background:#fffbeb;border-bottom:1px solid #fde68a;flex-shrink:0">
       <div style="font-size:11px;color:#92400e;line-height:1.6;margin-bottom:4px">業者名の表記ゆれをそろえる登録です。1行に「正式名 = 別名1, 別名2」の形で書きます（例：神岡建築 = 神岡）。保存すると全員に反映されます。</div>
       <textarea id="rotAliasText" rows="7" style="width:100%;box-sizing:border-box;font-size:12px;padding:6px;border:1.5px solid #fde68a;border-radius:6px"></textarea>
       <div style="display:flex;gap:6px;margin-top:4px"><button onclick="rotSaveAlias()" style="padding:7px 14px;background:#1e40af;color:white;border:none;border-radius:7px;font-size:12px;font-weight:700;cursor:pointer">保存</button><button onclick="rotResetAlias()" style="padding:7px 12px;background:#f1f5f9;color:#475569;border:none;border-radius:7px;font-size:12px;font-weight:700;cursor:pointer">初期に戻す</button></div>
+    </div>
+    <div id="rotAccessBox" style="display:none;padding:8px 10px;background:#f0fdf4;border-bottom:1px solid #bbf7d0;flex-shrink:0;max-height:55vh;overflow-y:auto">
+      <div style="font-size:11px;color:#166534;line-height:1.6;margin-bottom:4px">協力業者のアカウントごとに、見せる業者名と工種を選びます。選ぶとすぐ保存されます。業者名を空にすると権限が外れます。業者には、その業者が入っている現場と、その工種が未選定の現場だけが見えます（他社の名前は出ません）。</div>
+      <input id="rotAccessQ" type="text" placeholder="名前・会社名で探す" oninput="_rotAccessRender()" style="width:100%;box-sizing:border-box;padding:7px;font-size:12px;border:1.5px solid #bbf7d0;border-radius:6px;margin-bottom:4px">
+      <div id="rotAccessList"></div>
     </div>
     <div id="rotBody" style="flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;background:#f8fafc"></div>
   </div>
@@ -1445,7 +1450,7 @@ var POST_END_PAD = 120; // ★スクロール終端の余白：完了検査列�
 // ===== 納品書機能：休工日カレンダー・稼働日計算 =====
 // ★日本の祝日（政府発表・国立天文台暦要項ベース、2025〜2028年分）
 // ★アプリバージョン（不具合問い合わせ対応用。リリースごとに更新すること。2026/8/23追加）
-var APP_VERSION = '2026.11.07.6';
+var APP_VERSION = '2026.11.07.7';
 window.APP_VERSION=APP_VERSION;
 // ★物件詳細URL（?fix=FIX番号）：起動時に値を控え、ログイン・物件読込後に該当物件の詳細を開く（2026/10/22）
 var _JACK_DEEP_FIX=(function(){try{var v=new URLSearchParams(window.location.search).get('fix');return v?String(v).trim():'';}catch(e){return '';}})();
@@ -3960,8 +3965,11 @@ async function _rotLoadAliasFromDB(){
   }catch(e){}
 }
 function openVendorRotation(){
-  if(!_rotIsAdmin()){showToast('本部管理者・現場管理のみ使えます','warn');return;}
+  if(!_rotCanOpen()){showToast('この画面を見る権限がありません','warn');return;}
   openPanel('rotPanel');
+  var _vm=_rotIsVendorMode();
+  ['rotBtnAlias','rotBtnAccess'].forEach(function(id){var e=document.getElementById(id);if(e)e.style.display=_vm?'none':'';});
+  if(_vm){var ab=document.getElementById('rotAliasBox'),cb=document.getElementById('rotAccessBox');if(ab)ab.style.display='none';if(cb)cb.style.display='none';}
   var ta=document.getElementById('rotAliasText'); if(ta)ta.value=_rotAliasText;
   var wrap=document.getElementById('rotBody');
   if(Object.keys(window._VENDOR_LIST_DATA||{}).length){_rotRender();}
@@ -3979,6 +3987,7 @@ function _rotProps(area){
   });
 }
 function rotSet(k,v){
+  if(_rotIsVendorMode()&&k==='vendor')return;
   ROT_SEL[k]=v;
   if(k==='area'||k==='trade')ROT_SEL.vendor='';
   if(k==='span'){_rotSaveSel();_rotRender();return;}
@@ -3999,14 +4008,18 @@ function rotResetAlias(){
   var ta=document.getElementById('rotAliasText'); if(ta)ta.value=ROT_ALIAS_SEED;
 }
 function rotOpenProp(g,i){
+  if(_rotIsVendorMode()&&g!=='A')return;
   var r=(window._rotRows[g]||[])[i]; if(!r)return;
   if(typeof window.openDetail==='function')window.openDetail(r.p);
 }
 function _rotMd(k){return k.slice(5,7)*1+'/'+(k.slice(8,10)*1);}
 function _rotRender(){
   var body=document.getElementById('rotBody'); if(!body)return;
+  var VM=_rotIsVendorMode(),acc=VM?_rotMyAccess():null;
+  var tradeList=VM?ROT_TRADES.filter(function(t){return acc.trades.indexOf(t.key)>=0;}):ROT_TRADES;
+  if(VM)ROT_SEL.vendor=acc.vendor;
   var area=ROT_SEL.area,tk=ROT_SEL.trade;
-  if(!ROT_TRADES.some(function(t){return t.key===tk;})){tk=ROT_SEL.trade='造作';}
+  if(!tradeList.some(function(t){return t.key===tk;})){tk=ROT_SEL.trade=tradeList[0].key;}
   var trade=ROT_TRADES.filter(function(t){return t.key===tk;})[0];
   var vld=window._VENDOR_LIST_DATA||{},areaRows=_rotAreaRows(area);
   var am=_rotAliasMap();
@@ -4015,7 +4028,7 @@ function _rotRender(){
   h+='<div style="display:flex;gap:6px;margin-bottom:6px">';
   ['東海','関東'].forEach(function(a){var on=a===area;h+='<button onclick="rotSet(\'area\',\''+a+'\')" style="flex:1;padding:8px;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;border:1.5px solid '+(on?'#1e40af':'#e2e8f0')+';background:'+(on?'#1e40af':'white')+';color:'+(on?'white':'#475569')+'">'+a+'</button>';});
   h+='</div><div style="display:flex;gap:6px;margin-bottom:6px">';
-  ROT_TRADES.forEach(function(t){var on=t.key===tk;h+='<button onclick="rotSet(\'trade\',\''+t.key+'\')" style="flex:1;padding:7px 2px;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;border:1.5px solid '+(on?t.color:'#e2e8f0')+';background:'+(on?t.color:'white')+';color:'+(on?'white':'#475569')+'">'+t.label+'</button>';});
+  tradeList.forEach(function(t){var on=t.key===tk;h+='<button onclick="rotSet(\'trade\',\''+t.key+'\')" style="flex:1;padding:7px 2px;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;border:1.5px solid '+(on?t.color:'#e2e8f0')+';background:'+(on?t.color:'white')+';color:'+(on?'white':'#475569')+'">'+t.label+'</button>';});
   h+='</div>';
   if(!areaRows.length){
     body.innerHTML=h+'</div></div><div style="padding:24px;text-align:center;color:#94a3b8;font-size:12px">'+area+'の業者選定データがありません。「全業者選定一覧」を同期してください。</div>';
@@ -4027,13 +4040,18 @@ function _rotRender(){
   // 一度、業者を指定せずに回して「現在の件数」を数える
   var pre=rotBuild({area:area,tradeKey:tk,vendor:'',props:props,areaRows:areaRows,aliasMap:am,getSegs:getSegs});
   var names=rotVendorNames(areaRows,tk,am,pre.curCount);
-  if(ROT_SEL.vendor&&!names.some(function(n){return n.name===ROT_SEL.vendor;}))ROT_SEL.vendor='';
+  if(!VM&&ROT_SEL.vendor&&!names.some(function(n){return n.name===ROT_SEL.vendor;}))ROT_SEL.vendor='';
+  if(VM){
+    var mine=names.filter(function(n){return n.name===acc.vendor;})[0];
+    h+='<div style="padding:9px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:14px;font-weight:700;background:#f8fafc">'+_escHtml(acc.vendor)+'　<span style="font-weight:400;font-size:12px;color:#64748b">進行中'+(mine?mine.cur:0)+'件</span></div></div>';
+  }else{
   h+='<select onchange="rotSet(\'vendor\',this.value)" style="width:100%;padding:9px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:14px;font-weight:600;box-sizing:border-box;background:white"><option value="">業者を選んでください（'+names.length+'社）</option>';
   names.forEach(function(n){h+='<option value="'+_escHtml(n.name)+'"'+(n.name===ROT_SEL.vendor?' selected':'')+'>'+_escHtml(n.name)+'　進行中'+n.cur+'件／一覧全体'+n.all+'件</option>';});
   h+='</select></div>';
+  }
   var _headOpen=true;
   if(!ROT_SEL.vendor){
-    body.innerHTML=h+'</div><div style="padding:28px 16px;text-align:center;color:#94a3b8;font-size:13px;line-height:1.8">エリア・工種・業者を選ぶと、<br>その業者が入っている現場と、<br>工種が未選定の現場が並びます。</div>'+_rotUnlinkedHtml(pre.unlinked);
+    body.innerHTML=h+'</div><div style="padding:28px 16px;text-align:center;color:#94a3b8;font-size:13px;line-height:1.8">エリア・工種・業者を選ぶと、<br>その業者が入っている現場と、<br>工種が未選定の現場が並びます。</div>'+(VM?'':_rotUnlinkedHtml(pre.unlinked));
     return;
   }
   var res=rotBuild({area:area,tradeKey:tk,vendor:ROT_SEL.vendor,props:props,areaRows:areaRows,aliasMap:am,getSegs:getSegs});
@@ -4070,7 +4088,7 @@ function _rotRender(){
     var p=r.p,fit=r.fit,c=r.cell;
     var tag='';
     if(g==='B'){
-      if(c.kind==='hold')tag+='<span style="background:#fef3c7;color:#92400e;border-radius:4px;padding:1px 5px;font-size:10px;margin-right:4px">保留：'+_escHtml(c.raw)+'</span>';
+      if(c.kind==='hold')tag+='<span style="background:#fef3c7;color:#92400e;border-radius:4px;padding:1px 5px;font-size:10px;margin-right:4px">'+(VM?'調整中':'保留：'+_escHtml(c.raw))+'</span>';
       else tag+='<span style="background:#f1f5f9;color:#64748b;border-radius:4px;padding:1px 5px;font-size:10px;margin-right:4px">未選定</span>';
       if(fit){
         if(fit.status==='overlap')tag+='<span style="background:#fee2e2;color:#b91c1c;border-radius:4px;padding:1px 5px;font-size:10px;font-weight:700">⚠ この業者の別現場と重なる</span>';
@@ -4078,11 +4096,12 @@ function _rotRender(){
         else if(fit.status==='free')tag+='<span style="background:#dcfce7;color:#166534;border-radius:4px;padding:1px 5px;font-size:10px;font-weight:700">✓ この業者の現場なし</span>';
         else tag+='<span style="background:#f1f5f9;color:#64748b;border-radius:4px;padding:1px 5px;font-size:10px">工期未入力</span>';
       }
-    }else if(c.names.length>1){
+    }else if(!VM&&c.names.length>1){
       tag+='<span style="background:#e0f2fe;color:#075985;border-radius:4px;padding:1px 5px;font-size:10px">併記：'+_escHtml(c.names.join('・'))+'</span>';
     }
     var rg=r.range,rt=rg?(_rotMd(rg.s)+'〜'+_rotMd(rg.e)):'工期未入力';
-    var t='<div onclick="rotOpenProp(\''+g+'\','+i+')" style="padding:7px 10px;border-bottom:1px solid #f1f5f9;background:white;cursor:pointer">';
+    var _clk=!(VM&&g==='B');
+    var t='<div '+(_clk?'onclick="rotOpenProp(\''+g+'\','+i+')" ':'')+'style="padding:7px 10px;border-bottom:1px solid #f1f5f9;background:white;'+(_clk?'cursor:pointer':'')+'">';
     t+='<div style="display:flex;justify-content:space-between;gap:6px;font-size:12px"><b style="color:#1e293b">'+_escHtml(p.name||'')+'</b><span style="color:#64748b;white-space:nowrap">'+trade.label+' '+rt+'</span></div>';
     t+='<div style="margin:2px 0">'+tag+'</div>';
     t+='<div style="position:relative;height:22px;margin:0">';
@@ -4101,7 +4120,7 @@ function _rotRender(){
   h+='<div style="padding:8px 10px;background:#fff7ed;font-weight:800;font-size:13px;color:#9a3412;border-top:1px solid #fed7aa;position:sticky;z-index:5" class="rot-sec">② '+trade.label+'が未選定の現場（'+res.unassigned.length+'件）</div>';
   if(res.unassigned.length)res.unassigned.forEach(function(r,i){h+=rowHtml(r,'B',i);});
   else h+='<div style="padding:14px;font-size:12px;color:#94a3b8;background:white">未選定の現場はありません</div>';
-  h+=_rotUnlinkedHtml(res.unlinked);
+  if(!VM)h+=_rotUnlinkedHtml(res.unlinked);
   body.innerHTML=h;
   var hd=document.getElementById('rotHead');
   if(hd){var hh=hd.offsetHeight+'px';var secs=body.querySelectorAll('.rot-sec');for(var si=0;si<secs.length;si++)secs[si].style.top=hh;}
@@ -4112,6 +4131,123 @@ function _rotUnlinkedHtml(list){
   t+=list.map(function(p){return _escHtml((p.fix_no?p.fix_no+' ':'')+(p.name||''));}).join('<br>');
   return t+'</div></details>';
 }
+
+// ---- 業者への閲覧権限（2026/11/07追加）----
+//   管理者が、協力業者のアカウントごとに「見せる業者名」と「見せる工種」を決める。
+//   保存先：masters の隠し行 name='__rot_access__<ユーザーID>'（1人1行。本人は自分の行だけ読む）
+var _rotMyAcc=loadLS('jack_rot_myacc',null);
+function _rotMyAccess(){
+  var a=_rotMyAcc;
+  if(!a||!currentUser||a.uid!==currentUser.id)return null;
+  return (a.vendor&&a.trades&&a.trades.length)?a:null;
+}
+function _rotIsVendorMode(){return !_rotIsAdmin()&&!!_rotMyAccess();}
+function _rotCanOpen(){return _rotIsAdmin()||!!_rotMyAccess();}
+function _rotUpdateMenu(){
+  ['sbRotItem','spRotItem'].forEach(function(id){var e=document.getElementById(id);if(e)e.style.display=_rotCanOpen()?'':'none';});
+}
+async function _rotLoadMyAccess(){
+  var sb=getSB(); if(!sb||!currentUser)return;
+  try{
+    var r=await sb.from('masters').select('steps').eq('name','__rot_access__'+currentUser.id).limit(1);
+    if(r.error)return;
+    var row=r.data&&r.data[0],v=null;
+    if(row&&row.steps){v=typeof row.steps==='string'?JSON.parse(row.steps):row.steps;}
+    _rotMyAcc=(v&&v.vendor)?{uid:currentUser.id,vendor:v.vendor,trades:v.trades||[]}:null;
+    saveLS('jack_rot_myacc',_rotMyAcc);
+    _rotUpdateMenu();
+  }catch(e){}
+}
+// --- 管理者用：権限の設定画面 ---
+var _rotAccMap={},_rotAccWorkers=null;
+function rotToggleAccess(){
+  var b=document.getElementById('rotAccessBox'); if(!b)return;
+  var open=b.style.display==='none';
+  b.style.display=open?'block':'none';
+  if(open)_rotAccessLoadAdmin();
+}
+async function _rotAccessLoadAdmin(){
+  var box=document.getElementById('rotAccessList'); if(!box)return;
+  if(_rotAccWorkers){_rotAccessRender();return;}
+  box.innerHTML='<div style="padding:10px;font-size:12px;color:#94a3b8">読み込み中…</div>';
+  var sb=getSB(); if(!sb){box.innerHTML='通信できません';return;}
+  try{
+    var pr=await sb.from('profiles').select('id,name,company,role').eq('role','worker').order('company');
+    var ar=await sb.from('masters').select('name,steps').like('name','__rot_access__%');
+    _rotAccWorkers=pr.data||[];
+    _rotAccMap={};
+    (ar.data||[]).forEach(function(row){
+      try{var v=typeof row.steps==='string'?JSON.parse(row.steps):row.steps;
+        if(v&&v.vendor)_rotAccMap[String(row.name).replace('__rot_access__','')]={vendor:v.vendor,trades:v.trades||[]};}catch(e){}
+    });
+    _rotAccessRender();
+  }catch(e){box.innerHTML='読み込みに失敗しました';}
+}
+function _rotAllVendorNames(){
+  var am=_rotAliasMap(),set={};
+  ['東海','関東'].forEach(function(a){var rows=_rotAreaRows(a);ROT_TRADES.forEach(function(t){rotVendorNames(rows,t.key,am,{}).forEach(function(n){set[n.name]=1;});});});
+  return Object.keys(set).sort();
+}
+function _rotVendorTrades(name){
+  var am=_rotAliasMap(),out=[];
+  ROT_TRADES.forEach(function(t){
+    var hit=['東海','関東'].some(function(a){return rotVendorNames(_rotAreaRows(a),t.key,am,{}).some(function(n){return n.name===name;});});
+    if(hit)out.push(t.key);
+  });
+  return out;
+}
+function _rotAccessRender(){
+  var box=document.getElementById('rotAccessList'); if(!box||!_rotAccWorkers)return;
+  var q=((document.getElementById('rotAccessQ')||{}).value||'').trim().toLowerCase();
+  var vendors=_rotAllVendorNames();
+  var list=_rotAccWorkers.filter(function(u){
+    if(q)return (String(u.name||'')+String(u.company||'')).toLowerCase().indexOf(q)>=0;
+    return true;
+  });
+  list.sort(function(a,b){return (_rotAccMap[b.id]?1:0)-(_rotAccMap[a.id]?1:0);});
+  var shown=q?list:list.filter(function(u,i){return _rotAccMap[u.id]||i<30;});
+  var h='<div style="font-size:11px;color:#64748b;margin:4px 0">設定済み '+Object.keys(_rotAccMap).length+'人／協力業者 '+_rotAccWorkers.length+'人。検索すると、全員から探せます。</div>';
+  shown.forEach(function(u){
+    var a=_rotAccMap[u.id]||{vendor:'',trades:[]};
+    h+='<div data-uid="'+_escHtml(u.id)+'" style="background:white;border:1px solid '+(a.vendor?'#86efac':'#e2e8f0')+';border-radius:8px;padding:6px 8px;margin-bottom:5px">';
+    h+='<div style="font-size:12px;font-weight:700">'+_escHtml(u.name||'')+' <span style="font-weight:400;color:#64748b">'+_escHtml(u.company||'')+'</span></div>';
+    h+='<select onchange="rotAccessChange(\''+_escHtml(u.id)+'\',true)" style="width:100%;margin:3px 0;padding:6px;font-size:12px;border:1.5px solid #e2e8f0;border-radius:6px"><option value="">（権限なし）</option>';
+    vendors.forEach(function(v){h+='<option value="'+_escHtml(v)+'"'+(v===a.vendor?' selected':'')+'>'+_escHtml(v)+'</option>';});
+    h+='</select><div style="display:flex;gap:8px;flex-wrap:wrap;font-size:12px">';
+    ROT_TRADES.forEach(function(t){h+='<label style="white-space:nowrap"><input type="checkbox" value="'+t.key+'"'+(a.trades.indexOf(t.key)>=0?' checked':'')+' onchange="rotAccessChange(\''+_escHtml(u.id)+'\',false)"> '+t.label+'</label>';});
+    h+='</div></div>';
+  });
+  box.innerHTML=h;
+}
+function rotAccessChange(uid,vendorChanged){
+  var el=document.querySelector('#rotAccessList [data-uid="'+uid+'"]'); if(!el)return;
+  var vendor=el.querySelector('select').value;
+  var boxes=el.querySelectorAll('input[type=checkbox]');
+  if(vendorChanged&&vendor){
+    var sug=_rotVendorTrades(vendor);
+    for(var i=0;i<boxes.length;i++)boxes[i].checked=sug.indexOf(boxes[i].value)>=0;
+  }
+  var trades=[];for(var j=0;j<boxes.length;j++)if(boxes[j].checked)trades.push(boxes[j].value);
+  var entry=vendor?{vendor:vendor,trades:trades}:null;
+  if(entry&&!trades.length){showToast('工種を1つ以上選んでください（選ぶまで反映されません）','warn');return;}
+  _rotAccMap[uid]=entry; if(!entry)delete _rotAccMap[uid];
+  el.style.borderColor=entry?'#86efac':'#e2e8f0';
+  var sb=getSB(); if(!sb)return;
+  var nm='__rot_access__'+uid;
+  var done=function(ok){showToast(ok?(entry?'権限を保存しました':'権限を外しました'):'保存に失敗しました',ok?'success':'error');};
+  if(!entry){sb.from('masters').delete().eq('name',nm).then(function(r){done(!r.error);}).catch(function(){done(false);});return;}
+  var payload={name:nm,steps:JSON.stringify({vendor:vendor,trades:trades}),updated_at:new Date().toISOString()};
+  sb.from('masters').select('id').eq('name',nm).order('id').then(function(r){
+    var rows=r.data||[];
+    if(!rows.length)return sb.from('masters').insert(payload);
+    var q=sb.from('masters').update(payload).eq('id',rows[0].id);
+    var extra=rows.slice(1).map(function(x){return x.id;});
+    if(extra.length)q=q.then(function(ur){return sb.from('masters').delete().in('id',extra).then(function(){return ur;});});
+    return q;
+  }).then(function(r){done(!(r&&r.error));}).catch(function(){done(false);});
+}
+window.rotToggleAccess=rotToggleAccess;window.rotAccessChange=rotAccessChange;window._rotAccessRender=_rotAccessRender;
+
 window.rotSet=rotSet;window.rotToggleAlias=rotToggleAlias;window.rotSaveAlias=rotSaveAlias;window.rotResetAlias=rotResetAlias;window.rotOpenProp=rotOpenProp;
 
 // ===== VENDOR LOOKUP =====
@@ -14227,7 +14363,7 @@ async function onAuthSuccess(isNewLogin){
   updateSidebarUser();
   var adminBtn=document.getElementById('sbAdminBtn');
   if(adminBtn&&currentProfile.role==='admin'&&isPcMode)adminBtn.style.display='';
-  ['sbRotItem','spRotItem'].forEach(function(id){var e=document.getElementById(id);if(e)e.style.display=(currentProfile.role==='admin')?'':'none';});
+  _rotUpdateMenu();if(currentProfile.role==='worker')_rotLoadMyAccess();
   // ★検査機関ロール（2026/10追加）：管理者CPは使わせず、トップ画面の「検査取りまとめ」ボタンのみ表示する
   //   管理者はこのボタンを使わず、管理者CP内のフル機能版「🔍検査取りまとめ」を使う（2026/10/5修正）
   var kensaBtn=document.getElementById('sbKensaBtn');
