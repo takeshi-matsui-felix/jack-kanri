@@ -833,7 +833,7 @@ body.sp-mode #areaTabsBtns{ display:none !important; }
 <div id="jackMainWrap">
 <div id="loading"><div class="ld-logo">JACK</div><div class="ld-sub">現場管理システム</div><div class="ld-dots"><span></span><span></span><span></span></div></div>
 <div id="app" class="mobile-mode">
-  <div class="top-header"><div class="th-left"><div><div class="th-logo">JACK<span id="areaBadge"></span></div><div class="th-sub">新築AP 現場管理</div></div></div><div class="th-right"><button class="vendor-toggle-btn" onclick="togglePropSearch()" title="物件検索" id="propSearchBtn">検索</button><button class="vendor-toggle-btn" id="vendorColToggleBtnSp" onclick="_setVendorColOn(!_vendorColOn())" title="業者選定の表示切替">業者選択</button><button class="vendor-toggle-btn" id="weatherToggleBtnSp" onclick="_setWeatherBarOn(!_weatherBarOn())" title="天気予報の表示切替">天気</button><button class="vendor-toggle-btn" id="calMonthsBtnSp" onclick="openCalMonthsPicker()" title="カレンダー表示月数の選択">📅</button><button class="vendor-toggle-btn" id="sortModeBtnSp" onclick="openSortModePicker()" title="並び替え">⇅</button><button class="vendor-toggle-btn" id="homeKousyuBtnSp" onclick="openHomeKousyuPicker()" title="工程で絞り込み">🔧</button><button class="vendor-toggle-btn" id="tempSelectBtnSp" onclick="toggleTempSelectMode()" title="一時選択表示">☐選択</button><button class="vendor-toggle-btn" onclick="scrollGanttToEnd()" title="検査日程列まで一気に移動">検査へ</button><div class="th-today" id="todayBadge"></div><button class="print-btn" onclick="printPage()">🖨️</button><button class="th-icon-btn" onclick="openMenu()">☰</button></div></div>
+  <div class="top-header"><div class="th-left"><div><div class="th-logo">JACK<span id="areaBadge"></span></div><div class="th-sub">新築AP 現場管理</div></div></div><div class="th-right"><button class="vendor-toggle-btn" onclick="togglePropSearch()" title="物件検索" id="propSearchBtn">検索</button><button class="vendor-toggle-btn" id="vendorColToggleBtnSp" onclick="_setVendorColOn(!_vendorColOn())" title="業者選定の表示切替">業者選択</button><button class="vendor-toggle-btn" id="weatherToggleBtnSp" onclick="_setWeatherBarOn(!_weatherBarOn())" title="天気予報の表示切替">天気</button><button class="vendor-toggle-btn" id="calMonthsBtnSp" onclick="openCalMonthsPicker()" title="カレンダー表示月数の選択">📅</button><button class="vendor-toggle-btn" id="sortModeBtnSp" onclick="openSortModePicker()" title="並び替え">⇅</button><button class="vendor-toggle-btn" id="tantouFilterBtnSp" onclick="openTantouFilterPicker()" title="担当者で絞り込み">👤</button><button class="vendor-toggle-btn" id="homeKousyuBtnSp" onclick="openHomeKousyuPicker()" title="工程で絞り込み">🔧</button><button class="vendor-toggle-btn" id="tempSelectBtnSp" onclick="toggleTempSelectMode()" title="一時選択表示">☐選択</button><button class="vendor-toggle-btn" onclick="scrollGanttToEnd()" title="検査日程列まで一気に移動">検査へ</button><div class="th-today" id="todayBadge"></div><button class="print-btn" onclick="printPage()">🖨️</button><button class="th-icon-btn" onclick="openMenu()">☰</button></div></div>
   <div class="sync-banner" id="syncBanner"><div style="display:flex;align-items:center;gap:6px"><div class="sync-dot"></div><span class="sync-msg">起動中...</span></div><button onclick="doSyncFull()" style="color:rgba(255,255,255,.6);font-size:10px;font-weight:600;background:rgba(255,255,255,.1);padding:2px 7px;border-radius:4px">同期</button></div>
   <div style="display:flex;align-items:center;background:#1e293b;border-bottom:1px solid rgba(255,255,255,.1);flex-shrink:0">
     <div class="area-tabs" id="areaTabs" style="flex:1;min-width:0;border-bottom:none"></div>
@@ -844,6 +844,7 @@ body.sp-mode #areaTabsBtns{ display:none !important; }
       <button class="vendor-toggle-btn" id="weatherToggleBtn" onclick="_setWeatherBarOn(!_weatherBarOn())" title="天気予報の表示切替">天気</button>
       <button class="vendor-toggle-btn" id="calMonthsBtn" onclick="openCalMonthsPicker()" title="カレンダー表示月数の選択">📅表示月数</button>
       <button class="vendor-toggle-btn" id="sortModeBtn" onclick="openSortModePicker()" title="並び替え">⇅ 並び替え</button>
+      <button class="vendor-toggle-btn" id="tantouFilterBtn" onclick="openTantouFilterPicker()" title="担当者で絞り込み">👤 担当</button>
       <button class="vendor-toggle-btn" id="homeKousyuBtn" onclick="openHomeKousyuPicker()" title="工程で絞り込み">🔧 工程表示</button>
       <button class="vendor-toggle-btn" id="tempSelectBtn" onclick="toggleTempSelectMode()" title="一時選択表示">☐ 一時選択</button>
       <button class="vendor-toggle-btn" onclick="scrollGanttToEnd()" title="検査日程列まで一気に移動">検査へ</button>
@@ -1450,7 +1451,7 @@ var POST_END_PAD = 120; // ★スクロール終端の余白：完了検査列�
 // ===== 納品書機能：休工日カレンダー・稼働日計算 =====
 // ★日本の祝日（政府発表・国立天文台暦要項ベース、2025〜2028年分）
 // ★アプリバージョン（不具合問い合わせ対応用。リリースごとに更新すること。2026/8/23追加）
-var APP_VERSION = '2026.11.07.10';
+var APP_VERSION = '2026.11.07.11';
 window.APP_VERSION=APP_VERSION;
 // ★物件詳細URL（?fix=FIX番号）：起動時に値を控え、ログイン・物件読込後に該当物件の詳細を開く（2026/10/22）
 var _JACK_DEEP_FIX=(function(){try{var v=new URLSearchParams(window.location.search).get('fix');return v?String(v).trim():'';}catch(e){return '';}})();
@@ -1968,6 +1969,58 @@ var SORT_MODE = (function(){
   var allowed=['default','foundation','dodai','zousaku','naiso'];
   return (v&&allowed.indexOf(v)>=0)?v:'default';
 })();
+
+// ★ホーム画面の担当者絞り込み（2026/11/07追加）。マイ物件の担当者フィルターと同じ考え方。表示だけの変更でデータは書き換わらない。
+var TANTOU_FILTER=(function(){try{return localStorage.getItem('jack_tantou_filter')||'';}catch(e){return '';}})();
+function _tantouBtnLabel(){return TANTOU_FILTER?('👤 '+TANTOU_FILTER):'👤 担当';}
+function _updateTantouBtns(){
+  ['tantouFilterBtn','tantouFilterBtnSp'].forEach(function(id){
+    var btn=document.getElementById(id);if(!btn)return;
+    btn.textContent=(id==='tantouFilterBtnSp')?'👤':_tantouBtnLabel();
+    btn.style.background=TANTOU_FILTER?'#fef3c7':'';
+    btn.style.color=TANTOU_FILTER?'#92400e':'';
+  });
+}
+function _tantouCandidates(){
+  var cnt={},none=0;
+  getAllProps().forEach(function(p){
+    if(isKankou(p))return;
+    var t=tantouOf(p);
+    if(t)cnt[t]=(cnt[t]||0)+1;else none++;
+  });
+  return {names:Object.keys(cnt).sort(function(a,b){return a.localeCompare(b,'ja');}),cnt:cnt,none:none};
+}
+function openTantouFilterPicker(){
+  var existing=document.getElementById('_tantouModal');
+  if(existing){existing.remove();return;}
+  var c=_tantouCandidates();
+  var modal=document.createElement('div');
+  modal.id='_tantouModal';
+  modal.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:9999;display:flex;align-items:center;justify-content:center;';
+  modal.addEventListener('click',function(e){if(e.target===modal)modal.remove();});
+  function btn(v,label,active){
+    return '<button data-tv="'+_escHtml(v)+'" onclick="setTantouFilter(this.getAttribute(\'data-tv\'))" style="width:100%;padding:11px 12px;background:'+(active?'#1a56db':'#f1f5f9')+';color:'+(active?'white':'#334155')+';border:2px solid '+(active?'#1a56db':'#e2e8f0')+';border-radius:10px;font-size:13px;font-weight:800;cursor:pointer;text-align:left">'+label+(active?' ✓':'')+'</button>';
+  }
+  var list=btn('','担当者：全員',!TANTOU_FILTER)
+    +c.names.map(function(n){return btn(n,_escHtml(n)+' <span style="font-weight:600;opacity:.7">（'+c.cnt[n]+'件）</span>',n===TANTOU_FILTER);}).join('');
+  if(TANTOU_FILTER&&c.names.indexOf(TANTOU_FILTER)<0)list+=btn(TANTOU_FILTER,_escHtml(TANTOU_FILTER)+' <span style="font-weight:600;opacity:.7">（該当なし）</span>',true);
+  modal.innerHTML='<div style="background:white;border-radius:16px;width:88%;max-width:340px;max-height:80vh;display:flex;flex-direction:column;box-shadow:0 20px 60px rgba(0,0,0,.35);overflow:hidden">'
+    +'<div style="padding:14px 16px;background:linear-gradient(135deg,#1a56db,#1044b5);display:flex;align-items:center;flex-shrink:0"><div style="flex:1;font-size:14px;font-weight:800;color:white">👤 担当者で絞り込み</div>'
+    +'<button onclick="document.getElementById(\'_tantouModal\').remove()" style="background:rgba(255,255,255,.2);color:white;border:none;border-radius:8px;padding:5px 10px;font-size:11px;cursor:pointer;font-weight:700">✕</button></div>'
+    +'<div style="padding:10px 16px;font-size:11px;color:#64748b;line-height:1.7;flex-shrink:0">選んだ担当者の物件だけをホーム画面に表示します（現在のタブの中で絞り込み）。表示だけの変更で、データは書き換わりません。'+(c.none?'<br>担当者が未設定の物件：'+c.none+'件（全員表示のときのみ表示）':'')+'</div>'
+    +'<div style="overflow-y:auto;padding:0 16px 16px;display:flex;flex-direction:column;gap:8px">'+list+'</div></div>';
+  document.body.appendChild(modal);
+}
+function setTantouFilter(v){
+  TANTOU_FILTER=v||'';
+  try{localStorage.setItem('jack_tantou_filter',TANTOU_FILTER);}catch(e){}
+  var m=document.getElementById('_tantouModal');if(m)m.remove();
+  _updateTantouBtns();
+  renderBody();
+  showToast(TANTOU_FILTER?('担当者：'+TANTOU_FILTER+' で絞り込みました'):'担当者の絞り込みを解除しました','success');
+}
+window.openTantouFilterPicker=openTantouFilterPicker;
+window.setTantouFilter=setTantouFilter;
 var SORT_MODE_KEYWORD={foundation:'基礎', dodai:'土台', zousaku:'造作', naiso:'内装'};
 var SORT_MODE_LABEL={default:'デフォルト（引渡日順）', foundation:'基礎開始日順', dodai:'土台開始日順', zousaku:'造作開始日順', naiso:'内装開始日順'};
 
@@ -3494,6 +3547,8 @@ function getProps() {
   } else if (currentStatus!=='all') {
     list=list.filter(function(p){return p.status===currentStatus;});
   }
+  // ★担当者絞り込み（2026/11/07追加）
+  if(TANTOU_FILTER){list=list.filter(function(p){return tantouOf(p)===TANTOU_FILTER;});}
   // ①引渡し日順 ②同じ引渡し月内は基礎着工日順（★以前は確認申請完了日(confirm_done)を誤って使っていたバグを修正／2026/8/21）
   //   SORT_MODEが'default'以外の場合は、指定した工程（基礎/土台/造作/内装）の開始日順に一時的に並べ替える
   list.sort(function(a,b){
@@ -4619,6 +4674,7 @@ function setMode(pc){
   _updateVendorBtns();
   _updateCalMonthsBtns();
   _updateSortBtns();
+  _updateTantouBtns();
   _updateTempSelectBtns();
   if(typeof _updateHomeKousyuBtn==='function')_updateHomeKousyuBtn();
 
