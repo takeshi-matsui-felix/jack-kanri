@@ -1450,7 +1450,7 @@ var POST_END_PAD = 120; // ★スクロール終端の余白：完了検査列�
 // ===== 納品書機能：休工日カレンダー・稼働日計算 =====
 // ★日本の祝日（政府発表・国立天文台暦要項ベース、2025〜2028年分）
 // ★アプリバージョン（不具合問い合わせ対応用。リリースごとに更新すること。2026/8/23追加）
-var APP_VERSION = '2026.11.07.8';
+var APP_VERSION = '2026.11.07.9';
 window.APP_VERSION=APP_VERSION;
 // ★物件詳細URL（?fix=FIX番号）：起動時に値を控え、ログイン・物件読込後に該当物件の詳細を開く（2026/10/22）
 var _JACK_DEEP_FIX=(function(){try{var v=new URLSearchParams(window.location.search).get('fix');return v?String(v).trim():'';}catch(e){return '';}})();
@@ -3978,6 +3978,12 @@ function openVendorRotation(){
     _loadVendorsFromCacheOrDB(false).then(function(){_rotRender();});
   }
   _rotLoadAliasFromDB();
+  // 工程マスター（フレーミング等の日程を計算するための元データ）が端末に無い時は、一度だけ取得して描き直す
+  //   （新しい端末・シークレットウィンドウ・初めてのログインでは空のため、「同期」を押すまで工期が出なかった）
+  if(!(myMasters&&myMasters.length)&&!window._rotMastersTried&&typeof _loadMastersFromDB==='function'){
+    window._rotMastersTried=true;
+    _loadMastersFromDB(true).then(function(){_rotRender();}).catch(function(){});
+  }
 }
 window.openVendorRotation=openVendorRotation;
 function _rotProps(area){
