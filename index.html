@@ -1445,7 +1445,7 @@ var POST_END_PAD = 120; // ★スクロール終端の余白：完了検査列�
 // ===== 納品書機能：休工日カレンダー・稼働日計算 =====
 // ★日本の祝日（政府発表・国立天文台暦要項ベース、2025〜2028年分）
 // ★アプリバージョン（不具合問い合わせ対応用。リリースごとに更新すること。2026/8/23追加）
-var APP_VERSION = '2026.11.07.3';
+var APP_VERSION = '2026.11.07.4';
 window.APP_VERSION=APP_VERSION;
 // ★物件詳細URL（?fix=FIX番号）：起動時に値を控え、ログイン・物件読込後に該当物件の詳細を開く（2026/10/22）
 var _JACK_DEEP_FIX=(function(){try{var v=new URLSearchParams(window.location.search).get('fix');return v?String(v).trim():'';}catch(e){return '';}})();
@@ -1641,7 +1641,7 @@ var DELIVERY_MASTER = [
   {id:25,name:'建材２',          offsetWd:53, ganttExclude:false, vendorOptions:['ジューテック','柏木工'], defaultNote:'１階納品'},
   {id:26,name:'建材３',          offsetWd:58, ganttExclude:false, vendorOptions:['ジューテック','柏木工'], defaultNote:'１階納品'},
   {id:27,name:'手摺・金物',      offsetWd:76, ganttExclude:false, vendorOptions:['神谷商店']},
-  {id:28,name:'室内物干',        offsetWd:76, ganttExclude:false, vendorOptions:['ジューテック','ナイス']},
+  {id:28,name:'室内物干',        offsetWd:76, ganttExclude:false, vendorOptions:['ジューテック','加藤ベニヤ','冲正']},
   {id:29,name:'SK',            offsetWd:62, ganttExclude:false, mirrorFrom:23, defaultNote:'９時搬入'},
   {id:30,name:'洗面・便器',      offsetWd:76, ganttExclude:false, vendorOptions:['フルサト工業'], defaultNote:'101号室搬入'},
   {id:32,name:'洗濯パン',        offsetWd:76, ganttExclude:false, vendorOptions:['ナカザワ建販','フルサト工業']},
@@ -8146,7 +8146,7 @@ var DELIVERY_AUTO_RULES={
   9:{row:{T:'ユニット配線'}},
   10:{fixed:{T:'ミツワ電機',K:'ミツワ電機'}},
   18:{fixed:{T:'深田電機',K:'ミツワ電機'}},
-  12:{row:{T:'床パネル'}},
+  12:{row:{T:'床パネル'},fixed:{K:'阪和興業'}},
   14:{row:{T:'ENTドア',K:'ENTドア'}},
   15:{row:{T:'サッシ',K:'サッシ'},alias:{'LIXIL':'LIXILトータル販売'}},
   16:{row:{T:'建材１便',K:'建材 １期2期3期'},part:1,parenInner:true,alias:{'LIXIL':'ジューテック'}},
@@ -8158,7 +8158,7 @@ var DELIVERY_AUTO_RULES={
   23:{row:{T:'ユニットバス',K:'ユニットバス 材工'}},
   29:{row:{T:'システムキッチン',K:'システムキッチン'}},
   27:{row:{T:'金物工事',K:'金物工事'}},
-  28:{fixed:{all:'ナイス'}},
+  28:{fixed:{T:'ジューテック'},follow:{K:5}},
   30:{fixed:{all:'フルサト工業'}},
   32:{fixed:{all:'フルサト工業'}}
 };
@@ -8192,16 +8192,28 @@ function _deliveryPropOf(dn){
   for(var i=0;i<all.length;i++){if(String(all[i].fix_no||'')===k)return all[i];}
   return null;
 }
-// 選定一覧から出した業者名（無ければ''）。ミラー項目は元の項目の値をたどる
+// 選定一覧から出した業者名（無ければ''）。連動項目は元の項目をたどる（元の項目が手入力ならその値）
+function _deliveryItemOf(dn,id){return dn.items.find(function(i){return i.id===id;})||{};}
 function _deliveryAutoVendor(dn,m){
+  // サッシ(15)を手入力で変えた時は、建材1・2・3にサッシ連動ルールを適用する
+  if(m.id===16||m.id===25||m.id===26){
+    var i15=_deliveryItemOf(dn,15);
+    if(i15.vendor_manual&&i15.vendor&&DELIVERY_SASHI_RULE[i15.vendor]&&DELIVERY_SASHI_RULE[i15.vendor][m.id])return DELIVERY_SASHI_RULE[i15.vendor][m.id];
+  }
   var src=m,guard=0;
-  while(src&&!DELIVERY_AUTO_RULES[src.id]&&src.mirrorFrom&&guard++<5){
+  while(src){
+    if(src!==m){var sit=_deliveryItemOf(dn,src.id);if(sit.vendor_manual&&sit.vendor)return sit.vendor;}
+    if(DELIVERY_AUTO_RULES[src.id]||!src.mirrorFrom||guard++>5)break;
     src=DELIVERY_MASTER.find(function(x){return x.id===src.mirrorFrom;});
   }
   var rule=src&&DELIVERY_AUTO_RULES[src.id]; if(!rule)return '';
   var p=_deliveryPropOf(dn); if(!p)return '';
   var ak=isKantoProp(p)?'K':(isTokaiProp(p)?'T':''); if(!ak)return '';
-  if(rule.fixed)return rule.fixed[ak]||rule.fixed.all||'';
+  if(rule.fixed&&(rule.fixed[ak]||rule.fixed.all))return rule.fixed[ak]||rule.fixed.all;
+  if(rule.follow&&rule.follow[ak]){
+    var fm=DELIVERY_MASTER.find(function(x){return x.id===rule.follow[ak];});
+    return fm?_deliveryVendorValue(dn,fm):'';
+  }
   var rowName=rule.row&&rule.row[ak]; if(!rowName)return '';
   var rows=_rotAreaRows(ak==='K'?'関東':'東海');
   if(!rows.length){
@@ -8216,22 +8228,27 @@ function _deliveryAutoVendor(dn,m){
   return _deliveryAutoParse(row[loc.col],rule);
 }
 function _deliveryVendorFrozen(dn){return !!((dn.tentative_at||dn.approved_at)&&!_dlvLive);}
-// 画面表示用：この項目の業者が「自動」で決まっているか（承認前のみ）
+// 手入力された業者か（手入力は選定一覧より優先して残る）
+function _deliveryIsManual(dn,m){var it=_deliveryItemOf(dn,m.id);return !!(it.vendor_manual&&it.vendor);}
+// 画面表示用：この項目の業者が「自動」で決まっているか
 function _deliveryIsAuto(dn,m){
-  if(_deliveryVendorFrozen(dn))return false;
+  if(_deliveryIsManual(dn,m))return false;
+  if(_deliveryVendorFrozen(dn))return !!(dn.vendor_snapshot&&dn.vendor_snapshot[m.id]);
   return !!_deliveryAutoVendor(dn,m);
 }
+// 承認・仮確定時点の「自動で決まった」業者名だけを凍結する（手入力・従来の値は凍結しない＝承認後も変更できる）
 function _deliveryVendorSnapshot(dn){
   var s={};_dlvLive=true;
-  try{DELIVERY_MASTER.forEach(function(m){s[m.id]=_deliveryVendorValue(dn,m);});}finally{_dlvLive=false;}
+  try{DELIVERY_MASTER.forEach(function(m){if(_deliveryIsManual(dn,m))return;var v=_deliveryAutoVendor(dn,m);if(v)s[m.id]=v;});}finally{_dlvLive=false;}
   return s;
 }
 
-// 表示用の業者名：選定一覧(自動) ＞ サッシ連動／手入力 ＞ 1社しか候補が無い項目はデフォルト表示（承認・仮確定後は凍結した値）
+// 表示用の業者名：手入力(変更した時だけ) ＞ 選定一覧(自動。承認・仮確定後は凍結した値) ＞ サッシ連動 ＞ 1社しか候補が無い項目はデフォルト表示
 function _deliveryVendorValue(dn,masterItem){
   var it=dn.items.find(function(i){return i.id===masterItem.id;})||{};
+  if(it.vendor_manual&&it.vendor)return it.vendor;
   if(_deliveryVendorFrozen(dn)){
-    if(dn.vendor_snapshot&&dn.vendor_snapshot[masterItem.id]!==undefined)return dn.vendor_snapshot[masterItem.id];
+    if(dn.vendor_snapshot&&dn.vendor_snapshot[masterItem.id])return dn.vendor_snapshot[masterItem.id];
   }else{
     var _av=_deliveryAutoVendor(dn,masterItem);
     if(_av)return _av;
@@ -8389,7 +8406,8 @@ function _renderDeliveryNoteBody(p,el){
       var date=_deliveryItemDate(dn,m);
       var excl=m.ganttExclude?'<span title="ガント納品行には表示されません（既存工程バーに含まれるため）" style="color:#cbd5e1;font-size:9px">🚫ガント対象外</span>':'';
       var vendorVal=_deliveryVendorValue(dn,m);
-      var _isAuto=_deliveryIsAuto(dn,m);
+      var _isAuto=_deliveryIsAuto(dn,m),_isMan=_deliveryIsManual(dn,m);
+      var _vBadge=_isAuto?'<span style="font-size:9px;color:#059669;font-weight:700;margin-left:4px" title="全業者選定一覧から自動で入っています。変更したい時は、そのまま書き換えてください">自動</span>':(_isMan?'<span style="font-size:9px;color:#b45309;font-weight:700;margin-left:4px">手入力</span><button onclick="deliveryResetVendor('+m.id+')" title="自動（選定一覧）に戻す" style="margin-left:2px;background:none;border:none;color:#94a3b8;cursor:pointer;font-size:10px">↺</button>':'');
       var opts=_deliveryVendorOptions(m);
       var dlId='dl-deliv-'+m.id;
       var dlHtml=opts.length?('<datalist id="'+dlId+'">'+opts.map(function(o){return '<option value="'+_escHtml(o)+'">';}).join('')+'</datalist>'):'';
@@ -8407,7 +8425,7 @@ function _renderDeliveryNoteBody(p,el){
         +'<td style="padding:5px 8px;font-size:11px;font-weight:700">'+_escHtml(m.name)+' '+excl+'</td>'
         +'<td style="padding:5px 8px'+(dateChg?';'+hi:'')+'"><input type="date" value="'+date+'" onchange="deliverySetItemDate('+m.id+',this.value)" style="font-size:11px;padding:3px 5px;border:1.5px solid '+(dateChg?'#f59e0b':'#e2e8f0')+';border-radius:5px;width:130px'+(dateChg?';background:#fef3c7':'')+'">'
           +(it.manual?'<button onclick="deliveryResetItemDate('+m.id+')" title="自動計算に戻す" style="margin-left:4px;background:none;border:none;color:#94a3b8;cursor:pointer;font-size:10px">↺</button>':'')+'</td>'
-        +'<td style="padding:5px 8px'+(vendorChg?';'+hi:'')+'">'+dlHtml+(_isAuto?('<input type="text" id="dlv-vendor-'+m.id+'" value="'+_escHtml(vendorVal)+'" readonly title="全業者選定一覧から自動で入っています（変更は全業者選定一覧で）" style="font-size:11px;padding:3px 6px;border:1.5px solid '+(vendorChg?'#f59e0b':'#a7f3d0')+';border-radius:5px;width:150px;background:#ecfdf5;color:#065f46"><span style="font-size:9px;color:#059669;font-weight:700;margin-left:4px">自動</span>'):('<input type="text" id="dlv-vendor-'+m.id+'" list="'+dlId+'" placeholder="業者名（一覧から選択 or 自由入力）" value="'+_escHtml(vendorVal)+'" onmousedown="this.dataset.pv=this.value;this.value=\'\';" onfocus="this.dataset.pv=this.value;this.value=\'\';" onblur="if(!this.value)this.value=this.dataset.pv||\'\';" onchange="deliverySetItemField('+m.id+',\'vendor\',this.value)" style="font-size:11px;padding:3px 6px;border:1.5px solid '+(vendorChg?'#f59e0b':'#e2e8f0')+';border-radius:5px;width:150px'+(vendorChg?';background:#fef3c7':'')+'">'))+mirrorHint+'</td>'
+        +'<td style="padding:5px 8px'+(vendorChg?';'+hi:'')+'">'+dlHtml+'<input type="text" id="dlv-vendor-'+m.id+'" list="'+dlId+'" placeholder="業者名（一覧から選択 or 自由入力）" value="'+_escHtml(vendorVal)+'" onmousedown="this.dataset.pv=this.value;this.value=\'\';" onfocus="this.dataset.pv=this.value;this.value=\'\';" onblur="if(!this.value)this.value=this.dataset.pv||\'\';" onchange="deliverySetItemField('+m.id+',\'vendor\',this.value)" style="font-size:11px;padding:3px 6px;border:1.5px solid '+(vendorChg?'#f59e0b':'#e2e8f0')+';border-radius:5px;width:150px'+(vendorChg?';background:#fef3c7':(_isAuto?';background:#ecfdf5;border-color:#a7f3d0':(_isMan?';border-color:#fcd34d':'')))+'">'+_vBadge+mirrorHint+'</td>'
         +'<td style="padding:5px 8px'+(noteChg?';'+hi:'')+'"><input type="text" placeholder="備考" value="'+_escHtml(it.note||'')+'" onchange="deliverySetItemField('+m.id+',\'note\',this.value)" style="font-size:11px;padding:3px 6px;border:1.5px solid '+(noteChg?'#f59e0b':'#e2e8f0')+';border-radius:5px;width:150px'+(noteChg?';background:#fef3c7':'')+'"></td>'
         +'</tr>';
     }).join('');
@@ -8496,6 +8514,7 @@ function deliverySetItemField(id,field,v){
   var dn=_getOrInitDeliveryNote(p);
   var it=dn.items.find(function(i){return i.id===id;});
   if(it)it[field]=v;
+  if(field==='vendor'&&it){var _mm=DELIVERY_MASTER.find(function(x){return x.id===id;});it.vendor_manual=!!v&&!!_mm&&v!==_deliveryAutoVendor(dn,_mm);}
   if(field==='vendor'){
     _deliveryCascadeVendor(dn,id,v);
     // ★2026/10修正【重大・業者選択不可バグ】：以前はここで毎回テーブル全体を再描画（innerHTML入れ替え）
@@ -8509,6 +8528,15 @@ function deliverySetItemField(id,field,v){
   _saveDeliveryNote(p); // 業者名・備考の変更は承認状態を崩さない
 }
 window.deliverySetItemField=deliverySetItemField;
+// 手入力を消して、選定一覧（自動）の業者に戻す
+function deliveryResetVendor(id){
+  var p=currentProp;if(!p)return;
+  var dn=_getOrInitDeliveryNote(p);
+  var it=dn.items.find(function(i){return i.id===id;});
+  if(it){it.vendor='';it.vendor_manual=false;}
+  _saveDeliveryNote(p);renderDeliveryNoteSection(p,null,true);
+}
+window.deliveryResetVendor=deliveryResetVendor;
 // ★業者入力欄のvalueだけをDOM上で直接同期（テーブル再構築なし）。編集中（フォーカス中）の欄は上書きしない。
 function _syncDeliveryVendorInputsDOM(dn){
   DELIVERY_MASTER.forEach(function(m){
@@ -8526,7 +8554,7 @@ function _deliveryCascadeVendor(dn,srcId,val){
   var targets=DELIVERY_MIRROR_TARGETS[srcId]||[];
   targets.forEach(function(tid){
     var it=dn.items.find(function(i){return i.id===tid;});
-    if(it)it.vendor=val;
+    if(it){it.vendor=val;it.vendor_manual=false;}
   });
   if(srcId===15){
     var rule=DELIVERY_SASHI_RULE[val];
@@ -8534,7 +8562,7 @@ function _deliveryCascadeVendor(dn,srcId,val){
       Object.keys(rule).forEach(function(tidStr){
         var tid=parseInt(tidStr,10);
         var it=dn.items.find(function(i){return i.id===tid;});
-        if(it)it.vendor=rule[tid];
+        if(it){it.vendor=rule[tid];it.vendor_manual=false;}
       });
     }
   }
@@ -8556,7 +8584,7 @@ function approveDeliveryNote(){
   var nowIso=new Date().toISOString();
   var by=(typeof currentProfile!=='undefined'&&currentProfile)?(currentProfile.name||''):'';
   dn.offset_snapshot=_deliveryOffsetSnapshot(dn); // ★確定時点のオフセットを凍結（2026/8/23追加）
-  dn.vendor_snapshot=_deliveryVendorSnapshot(dn); // ★確定時点の業者名を凍結（2026/11/07追加）
+  dn.vendor_snapshot=_deliveryVendorSnapshot(dn); // ★確定時点の自動業者名を凍結（2026/11/07追加）
   var snap=_deliverySnapshot(dn);
   if(!dn.approval_history)dn.approval_history=[];
   dn.approval_history.push({approved_at:nowIso,approved_by:by,snapshot:snap,diff:diffs});
@@ -8578,7 +8606,7 @@ function tentativeConfirmDeliveryNote(){
   var nowIso=new Date().toISOString();
   var by=(typeof currentProfile!=='undefined'&&currentProfile)?(currentProfile.name||''):'';
   dn.offset_snapshot=_deliveryOffsetSnapshot(dn); // ★仮確定時点のオフセットを凍結（2026/8/23追加）
-  dn.vendor_snapshot=_deliveryVendorSnapshot(dn); // ★仮確定時点の業者名を凍結（2026/11/07追加）
+  dn.vendor_snapshot=_deliveryVendorSnapshot(dn); // ★仮確定時点の自動業者名を凍結（2026/11/07追加）
   dn.tentative_at=nowIso;
   dn.tentative_by=by;
   _saveDeliveryNote(p);renderDeliveryNoteSection(p,null,true);
