@@ -1445,7 +1445,7 @@ var POST_END_PAD = 120; // ★スクロール終端の余白：完了検査列�
 // ===== 納品書機能：休工日カレンダー・稼働日計算 =====
 // ★日本の祝日（政府発表・国立天文台暦要項ベース、2025〜2028年分）
 // ★アプリバージョン（不具合問い合わせ対応用。リリースごとに更新すること。2026/8/23追加）
-var APP_VERSION = '2026.11.07.4';
+var APP_VERSION = '2026.11.07.5';
 window.APP_VERSION=APP_VERSION;
 // ★物件詳細URL（?fix=FIX番号）：起動時に値を控え、ログイン・物件読込後に該当物件の詳細を開く（2026/10/22）
 var _JACK_DEEP_FIX=(function(){try{var v=new URLSearchParams(window.location.search).get('fix');return v?String(v).trim():'';}catch(e){return '';}})();
@@ -8243,6 +8243,13 @@ function _deliveryVendorSnapshot(dn){
   return s;
 }
 
+// 業者欄の横の目印（自動／手入力＋↺）。入力欄そのものは作り直さず、この部分だけ差し替える
+function _deliveryBadgeHtml(dn,m){
+  if(_deliveryIsAuto(dn,m))return '<span style="font-size:9px;color:#059669;font-weight:700;margin-left:4px" title="全業者選定一覧から自動で入っています。変更したい時は、そのまま書き換えてください">自動</span>';
+  if(_deliveryIsManual(dn,m))return '<span style="font-size:9px;color:#b45309;font-weight:700;margin-left:4px">手入力</span><button onclick="deliveryResetVendor('+m.id+')" title="自動（選定一覧）に戻す" style="margin-left:2px;background:none;border:none;color:#64748b;cursor:pointer;font-size:13px;line-height:1">↺</button>';
+  return '';
+}
+
 // 表示用の業者名：手入力(変更した時だけ) ＞ 選定一覧(自動。承認・仮確定後は凍結した値) ＞ サッシ連動 ＞ 1社しか候補が無い項目はデフォルト表示
 function _deliveryVendorValue(dn,masterItem){
   var it=dn.items.find(function(i){return i.id===masterItem.id;})||{};
@@ -8407,7 +8414,7 @@ function _renderDeliveryNoteBody(p,el){
       var excl=m.ganttExclude?'<span title="ガント納品行には表示されません（既存工程バーに含まれるため）" style="color:#cbd5e1;font-size:9px">🚫ガント対象外</span>':'';
       var vendorVal=_deliveryVendorValue(dn,m);
       var _isAuto=_deliveryIsAuto(dn,m),_isMan=_deliveryIsManual(dn,m);
-      var _vBadge=_isAuto?'<span style="font-size:9px;color:#059669;font-weight:700;margin-left:4px" title="全業者選定一覧から自動で入っています。変更したい時は、そのまま書き換えてください">自動</span>':(_isMan?'<span style="font-size:9px;color:#b45309;font-weight:700;margin-left:4px">手入力</span><button onclick="deliveryResetVendor('+m.id+')" title="自動（選定一覧）に戻す" style="margin-left:2px;background:none;border:none;color:#94a3b8;cursor:pointer;font-size:10px">↺</button>':'');
+      var _vBadge='<span id="dlv-badge-'+m.id+'">'+_deliveryBadgeHtml(dn,m)+'</span>';
       var opts=_deliveryVendorOptions(m);
       var dlId='dl-deliv-'+m.id;
       var dlHtml=opts.length?('<datalist id="'+dlId+'">'+opts.map(function(o){return '<option value="'+_escHtml(o)+'">';}).join('')+'</datalist>'):'';
@@ -8542,8 +8549,9 @@ function _syncDeliveryVendorInputsDOM(dn){
   DELIVERY_MASTER.forEach(function(m){
     var inp=document.getElementById('dlv-vendor-'+m.id);
     if(!inp)return;
+    var bd=document.getElementById('dlv-badge-'+m.id);
+    if(bd)bd.innerHTML=_deliveryBadgeHtml(dn,m);
     if(document.activeElement===inp)return;
-    var it=dn.items.find(function(i){return i.id===m.id;})||{};
     var val=_deliveryVendorValue(dn,m);
     if(inp.value!==val)inp.value=val;
   });
