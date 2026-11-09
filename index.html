@@ -1451,7 +1451,7 @@ var POST_END_PAD = 120; // ★スクロール終端の余白：完了検査列�
 // ===== 納品書機能：休工日カレンダー・稼働日計算 =====
 // ★日本の祝日（政府発表・国立天文台暦要項ベース、2025〜2028年分）
 // ★アプリバージョン（不具合問い合わせ対応用。リリースごとに更新すること。2026/8/23追加）
-var APP_VERSION = '2026.11.07.11';
+var APP_VERSION = '2026.11.09.1';
 window.APP_VERSION=APP_VERSION;
 // ★物件詳細URL（?fix=FIX番号）：起動時に値を控え、ログイン・物件読込後に該当物件の詳細を開く（2026/10/22）
 var _JACK_DEEP_FIX=(function(){try{var v=new URLSearchParams(window.location.search).get('fix');return v?String(v).trim():'';}catch(e){return '';}})();
@@ -6150,7 +6150,9 @@ function buildGanttTab(p){
 
   return '<div class="dp-sec" id="detail-gantt-sec">'
     +'<div class="dp-sec-head">🏗️ 工程表（6ヶ月カレンダー）'
-    +'<span style="font-size:9px;color:var(--g400);font-weight:400;margin-left:4px">確認申請完了日起点・日曜休工</span></div>'
+    +'<span style="font-size:9px;color:var(--g400);font-weight:400;margin-left:4px">確認申請完了日起点・日曜休工</span>'
+    +'<span id="ganttFresh" style="font-size:9px;font-weight:400;margin-left:8px"></span>'
+    +'<button onclick="refreshDetailLatest()" title="この物件の工程・納品書を最新に取り直す" style="margin-left:8px;font-size:10px;padding:2px 8px;border:1px solid #cbd5e1;background:#f8fafc;color:#334155;border-radius:6px;cursor:pointer;font-weight:700">🔄 最新に</button></div>'
     +'<div style="display:flex;align-items:center;border-bottom:2px solid #e2e8f0;background:white;flex-wrap:wrap">'
       +'<button id="gantt-tab-custom" onclick="switchGanttTab(\'custom\')" style="padding:6px 14px;font-size:11px;font-weight:700;border:none;background:none;cursor:pointer;border-bottom:2px solid #1a56db;color:#1a56db;margin-bottom:-2px">📅 カスタム工程</button>'
       +'<button id="gantt-tab-excel" onclick="switchGanttTab(\'excel\')" style="padding:6px 14px;font-size:11px;font-weight:700;border:none;background:none;cursor:pointer;border-bottom:2px solid transparent;color:#94a3b8;margin-bottom:-2px">📋 Excel工程表</button>'
@@ -8197,6 +8199,7 @@ function openDetail(p){
       }
     });
   }
+  if(typeof _ganttFreshUI==='function')_ganttFreshUI(p.fix_no);
   }catch(e){console.error('openDetail error:',e);showToast('物件詳細エラー: '+e.message,'error');}
 }
 
@@ -12227,23 +12230,25 @@ window.loadPropertiesFromCacheOrDB=loadPropertiesFromCacheOrDB;
 
 // custom_ganttを物件単位で遅延取得（物件詳細を開いたときのみ実行）
 var _ganttFetchedProps={};
-async function _loadCustomGanttIfNeeded(p){
+async function _loadCustomGanttCore(p,force){
   var ck=String(p.fix_no||'')+'__'+(p.name||'');
   var fixNo=String(p.fix_no||'');
   var sb=getSB();
+  if(force){try{localStorage.removeItem('jack_gantt_ts_'+fixNo);}catch(e){} delete _ganttFetchedProps[ck];} // ★強制：時刻記録と取得済みを消して必ず取り直す
   // タイムスタンプ確認: updated_atを1件取得して管理者の更新を即時検知
   var tsKey='jack_gantt_ts_'+fixNo;
   var localTs=localStorage.getItem(tsKey)||'';
-  var needFetch=false;
+  var needFetch=!!force;
   if(sb&&fixNo){
     try{
       var tsRes=await _tsQuery(function(n){return sb.from('properties').select(n?'updated_at,gantt_updated_at':'updated_at').eq('fix_no',fixNo).limit(1);});
       var tsRow=tsRes.data&&tsRes.data[0];
+      if(tsRes.error)_ganttErr[fixNo]='更新確認エラー：'+String(tsRes.error.message||'').slice(0,80);
       if(!tsRes.error&&tsRow){
         var remoteTs=_ganttTsOf(tsRow);
         if(remoteTs&&remoteTs!==localTs)needFetch=true; // 更新あり → 再取得
       }
-    }catch(e){_jackLog('工程表の更新確認に失敗',e);}
+    }catch(e){_jackLog('工程表の更新確認に失敗',e);_ganttErr[fixNo]='通信に失敗しました';}
   }
   // TS一致かつキャッシュあり → そのまま（追加通信なし）
   if(!needFetch){
@@ -12262,6 +12267,7 @@ async function _loadCustomGanttIfNeeded(p){
     //   物件詳細を開くたびに他ユーザーが設定した確定区切りが自動的に反映されるようになる。
     var r0=await _tsQuery(function(n){return sb.from('properties').select(n?'fix_no,custom_gantt,confirmed_until,updated_at,gantt_updated_at':'fix_no,custom_gantt,confirmed_until,updated_at').eq('fix_no',fixNo).limit(1);});
     var r={error:r0.error,data:r0.data&&r0.data[0]};
+    if(r.error)_ganttErr[fixNo]='工程の取得エラー：'+String(r.error.message||'').slice(0,80);
     if(!r.error&&r.data){
       if(_ganttTsOf(r.data))localStorage.setItem(tsKey,_ganttTsOf(r.data));
       if(Object.prototype.hasOwnProperty.call(r.data,'confirmed_until')){
@@ -12313,9 +12319,72 @@ async function _loadCustomGanttIfNeeded(p){
       }
     }
     _ganttFetchedProps[ck]=true;
-  }catch(e){}
+  }catch(e){_jackLog('工程の取得に失敗',e);_ganttErr[fixNo]='工程の取得に失敗しました';}
+}
+
+// ★2026/11/09 物件詳細の「最新確認」表示と強制更新。URLで開いた物件が古いまま、を防ぎ、古い可能性があるときは画面で分かるようにする。
+var _ganttErr={}; var _ganttFresh={}; var _detailRedrawBusy=false;
+function _fmtMD(iso){try{var d=new Date(iso);if(isNaN(d))return '';return (d.getMonth()+1)+'/'+d.getDate()+' '+('0'+d.getHours()).slice(-2)+':'+('0'+d.getMinutes()).slice(-2);}catch(e){return '';}}
+function _ganttFreshUI(fixNo){
+  var el=document.getElementById('ganttFresh'); if(!el)return;
+  if(!currentProp||String(currentProp.fix_no||'')!==String(fixNo))return;
+  var st=_ganttFresh[fixNo]; if(!st){el.innerHTML='';return;}
+  if(st.state==='checking'){el.innerHTML='<span style="color:#94a3b8">最新を確認中…</span>';return;}
+  if(st.state==='fail'){el.innerHTML='<span style="color:#dc2626;font-weight:700">⚠ 最新を取得できませんでした（古い可能性）</span> <span style="color:#94a3b8">'+_escHtml(st.msg||'')+'</span>';return;}
+  el.innerHTML='<span style="color:#16a34a">✓ 最新確認 '+_fmtMD(new Date(st.at).toISOString())+'</span>'+(st.remote?' <span style="color:#94a3b8">（工程の更新 '+_fmtMD(st.remote)+'）</span>':'');
+}
+async function _loadCustomGanttIfNeeded(p,force){
+  var fixNo=String(p.fix_no||'');
+  _ganttErr[fixNo]=''; _ganttFresh[fixNo]={state:'checking'}; _ganttFreshUI(fixNo);
+  var before=''; try{before=localStorage.getItem('jack_gantt_ts_'+fixNo)||'';}catch(e){}
+  if(!getSB()){_ganttFresh[fixNo]={state:'fail',msg:'サーバーに接続できません'};_ganttFreshUI(fixNo);return;}
+  try{await _loadCustomGanttCore(p,force);}catch(e){_ganttErr[fixNo]='工程の取得に失敗しました';_jackLog('工程の取得(外側)',e);}
+  var after=''; try{after=localStorage.getItem('jack_gantt_ts_'+fixNo)||'';}catch(e){}
+  if(_ganttErr[fixNo])_ganttFresh[fixNo]={state:'fail',msg:_ganttErr[fixNo]};
+  else _ganttFresh[fixNo]={state:'ok',at:Date.now(),remote:after};
+  _ganttFreshUI(fixNo);
+  // 古い版を持っていた端末で、新しい工程を取り込んだときは、詳細全体も描き直す（日付・検査など他の項目も最新に）
+  if(!_ganttErr[fixNo]&&before&&after&&before!==after&&!force)_redrawDetailFor(fixNo);
 }
 window._loadCustomGanttIfNeeded=_loadCustomGanttIfNeeded;
+function _detailIsOpen(){var el=document.getElementById('detailPanel');return !!(el&&el.classList.contains('open')&&currentProp);}
+async function _mergeLightRow(fixNo){
+  try{
+    var sb=getSB(); if(!sb)return;
+    var rr=await sb.from('properties').select(PROPS_LIGHT_COLS).eq('fix_no',fixNo).limit(1);
+    var row=rr&&rr.data&&rr.data[0]; if(rr.error||!row||!DB_PROPS)return;
+    var i=DB_PROPS.findIndex(function(d){return String(d.fix_no)===String(fixNo);});
+    if(i>=0){Object.keys(row).forEach(function(k){DB_PROPS[i][k]=row[k];});try{_savePropsCache(DB_PROPS);}catch(e){}}
+  }catch(e){_jackLog('物件1件の更新',e);}
+}
+async function _redrawDetailFor(fixNo){
+  try{
+    if(_detailRedrawBusy||ganttEditMode||!_detailIsOpen()||String(currentProp.fix_no||'')!==String(fixNo))return;
+    _detailRedrawBusy=true;
+    await _mergeLightRow(fixNo);
+    var np=getAllProps().find(function(x){return String(x.fix_no)===String(fixNo);});
+    if(!np||!_detailIsOpen()||ganttEditMode)return;
+    var sc=document.getElementById('dpContent'),top=sc?sc.scrollTop:0;
+    openDetail(np);
+    setTimeout(function(){var s2=document.getElementById('dpContent');if(s2)s2.scrollTop=top;},60);
+  }catch(e){_jackLog('詳細の再描画',e);}
+  finally{setTimeout(function(){_detailRedrawBusy=false;},800);}
+}
+// 🔄この物件を最新に：この物件の工程・納品書の記録だけを消して取り直し、詳細を描き直す（全リセット不要）
+async function refreshDetailLatest(fromSync){
+  var p=currentProp; if(!p)return;
+  if(ganttEditMode){showToast('工程表の編集中は更新できません','error');return;}
+  var fixNo=String(p.fix_no||'');
+  try{localStorage.removeItem('jack_dn_ts_'+fixNo);}catch(e){}
+  if(typeof _deliveryFetched!=='undefined')delete _deliveryFetched[fixNo];
+  await _loadCustomGanttIfNeeded(p,true);
+  try{await _loadDeliveryNoteIfNeeded(p);}catch(e){}
+  if(_ganttErr[fixNo]){showToast('⚠ 最新を取得できませんでした（古い可能性があります）','error');return;}
+  _detailRedrawBusy=false;
+  await _redrawDetailFor(fixNo);
+  showToast('✅ この物件を最新にしました','success');
+}
+window.refreshDetailLatest=refreshDetailLatest;
 
 // ★2026/9/15追加【重大な通信量対策】：ホーム画面（大工程表）を開くたびに、表示中の全物件について
 //   _loadCustomGanttIfNeeded()が1件ずつ個別にSupabaseへ問い合わせていたため、
@@ -12490,6 +12559,7 @@ function doSyncFull(){
         .forEach(function(k){localStorage.removeItem(k);});
     }catch(e){}
     showToast('✅ データを同期しました（工程・マスター・納品書）','success');
+    try{if(typeof _detailIsOpen==='function'&&_detailIsOpen())refreshDetailLatest(true);}catch(e){} // ★開いている物件詳細も最新に取り直す（2026/11/09）
   });
 }
 window.doSyncFull=doSyncFull;
