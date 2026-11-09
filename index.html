@@ -1451,7 +1451,7 @@ var POST_END_PAD = 120; // ★スクロール終端の余白：完了検査列�
 // ===== 納品書機能：休工日カレンダー・稼働日計算 =====
 // ★日本の祝日（政府発表・国立天文台暦要項ベース、2025〜2028年分）
 // ★アプリバージョン（不具合問い合わせ対応用。リリースごとに更新すること。2026/8/23追加）
-var APP_VERSION = '2026.11.09.1';
+var APP_VERSION = '2026.11.09.2';
 window.APP_VERSION=APP_VERSION;
 // ★物件詳細URL（?fix=FIX番号）：起動時に値を控え、ログイン・物件読込後に該当物件の詳細を開く（2026/10/22）
 var _JACK_DEEP_FIX=(function(){try{var v=new URLSearchParams(window.location.search).get('fix');return v?String(v).trim():'';}catch(e){return '';}})();
@@ -7185,7 +7185,9 @@ function geRenderSegList(){
     }
     return '<div style="display:flex;flex-direction:column;gap:4px;padding:6px 6px;background:#0f172a;border-radius:6px;border-left:3px solid '+(_isSuspicious?'#dc2626':(s.color||'#64748b'))+';">'
       +'<div style="display:flex;align-items:center;gap:4px;">'
-      +'<div style="flex:1;font-size:10px;font-weight:700;color:rgba(255,255,255,.9);overflow:hidden;white-space:nowrap;">'+lbl+'</div>'
+      +'<div style="flex:1;font-size:10px;font-weight:700;color:rgba(255,255,255,.9);overflow:hidden;white-space:nowrap;">'+_escHtml(lbl)+'</div>'
+      +(_geNameProtected(lbl)?'<span title="他の機能と連動しているため名前は変更できません" style="font-size:8px;color:rgba(255,255,255,.35);white-space:nowrap;flex-shrink:0;">名前固定</span>'
+        :'<button type="button" onclick="geRenameSeg('+i+')" title="工事名を変更（この物件のみ）" style="font-size:9px;color:white;font-weight:700;padding:1px 6px;border-radius:4px;background:#0369a1;cursor:pointer;border:none;flex-shrink:0">✎名前</button>')
       +'<div style="font-size:9px;color:rgba(255,255,255,.4);white-space:nowrap;flex-shrink:0;">'+dur+'日</div>'
       +'</div>'
       +(warnBadge?'<div>'+warnBadge+'</div>':'')
@@ -7201,6 +7203,41 @@ function geRenderSegList(){
       +'</div>';
   }).join('');
 }
+// ★2026/11/09 工事名の変更（この物件のみ）。他の機能が名前で探す行（納品書・検査・基準工程・業者ローテーション等）は変更不可。
+function _geNm(x){try{return String(x||'').normalize('NFKC').replace(/\s+/g,'');}catch(e){return String(x||'');}}
+function _geProtectedNames(){
+  var L=['基礎','防水','内装','防蟻','土台','引渡し','引渡','造成','地盤','仮設','建て方','造作','外壁','フレーミング'];
+  try{L=L.concat(_KENSA_ROW_NAMES||[]);}catch(e){}
+  try{L=L.concat(DELIVERY_LINKED_ROW_NAMES||[]);}catch(e){}
+  try{(DELIVERY_MASTER||[]).forEach(function(m){if(m&&m.name)L.push(m.name);});}catch(e){}
+  try{(ROT_TRADES||[]).forEach(function(t){L.push(t.key,t.label);(t.cands||[]).forEach(function(c){L.push(c);});});}catch(e){}
+  try{L=L.concat(ROT_FRAMING_LABELS||[]);}catch(e){}
+  try{L=L.concat(ROT_WALL_KANTO_LABELS||[]);}catch(e){}
+  return L.map(_geNm);
+}
+function _geNameProtected(nm){
+  var n=_geNm(nm); if(!n)return true;
+  n=n.replace(/[\(（][^)）]*[\)）]$/,'');
+  return _geProtectedNames().indexOf(n)>=0;
+}
+function geRenameSeg(i){
+  var s=geSegs[i]; if(!s)return;
+  var old=String(s.label||s.name||'').trim();
+  if(_geIsLockedRow(s)||_geNameProtected(old)){showToast('この行は他の機能と連動しているため、名前は変更できません','info');return;}
+  var cu=(currentProp&&(currentProp.confirmed_until||confirmedUntilMap[custKey(currentProp)]))||'';
+  if(cu&&cu===old){showToast('この工程は仮工程の区切りに使われています。先に区切りを変更してから名前を変えてください','info');return;}
+  var nn=prompt('工事名を変更します（この物件の工程表のみ。マスターは変わりません）',old);
+  if(nn===null)return; nn=nn.trim();
+  if(!nn||nn===old)return;
+  if(nn.length>30){showToast('工事名は30文字までです','error');return;}
+  if(_geNameProtected(nn)){showToast('「'+nn+'」は他の機能と連動する名前のため使えません','error');return;}
+  if(geSegs.some(function(x,j){return j!==i&&_geNm(x.label||x.name)===_geNm(nn);})){showToast('同じ名前の工程が既にあります','error');return;}
+  if('label' in s||!('name' in s))s.label=nn;
+  if('name' in s)s.name=nn;
+  geRenderBars();
+  showToast('「'+old+'」→「'+nn+'」に変更しました（画面左の「💾 保存」を押すまでは確定しません）','success');
+}
+window.geRenameSeg=geRenameSeg;
 function geUpdateSegDate(input){
   var idx=parseInt(input.getAttribute('data-idx'));
   var field=input.getAttribute('data-field');
@@ -11482,10 +11519,10 @@ async function _loadMastersFromDB(forceRefresh){
     // キャッシュなしでも自動取得しない（同期ボタン時のみ）
     return;
   }
-  var sb=getSB(); if(!sb)return;
+  var sb=getSB(); if(!sb)return false;
   try{
     var r=await sb.from('masters').select('*').order('id');
-    if(r.error||!r.data||!r.data.length)return;
+    if(r.error||!r.data||!r.data.length){_jackLog('マスター取得に失敗',r.error||'0件');return false;} // ★失敗を呼び出し元へ伝える（2026/11/09）
     // ★2026/8/26修正：__delivery_overrides__ 等の「__」始まりの名前は内部設定用の行であり、
     //   ユーザー向けの工程マスターではないため、マスター工程一覧に取り込まない（除外）。
     var loaded=r.data
@@ -11506,9 +11543,38 @@ async function _loadMastersFromDB(forceRefresh){
       if(li>=0){myMasters[li]=m;} else {myMasters.push(m); localNames.push(m.name);}
     });
     saveLS('jack_my_masters',myMasters);
-  }catch(e){console.warn('masters load err:',e);}
+    // ★ユーザー向けマスターの最新更新時刻を記録（他端末での変更の自動検知用／2026/11/09）
+    try{var _mx='';r.data.forEach(function(row){if(row.name&&row.name.indexOf('__')!==0&&row.updated_at&&row.updated_at>_mx)_mx=row.updated_at;});if(_mx)localStorage.setItem('jack_masters_maxupd',_mx);}catch(e){}
+    return true;
+  }catch(e){console.warn('masters load err:',e);_jackLog('マスター取得で例外',e);return false;}
 }
 window._loadMastersFromDB=_loadMastersFromDB;
+// ★2026/11/09 他端末でのマスター変更を自動で検知：最新更新時刻を1件だけ確認し、新しければ取り直して描き直す（同期ボタン不要）
+var _mastersFreshBusy=false,_mastersFreshLast=0;
+async function _checkMastersFresh(force){
+  if(_mastersFreshBusy)return;
+  var now=Date.now(); if(!force&&now-_mastersFreshLast<60000)return;
+  _mastersFreshLast=now;
+  var sb=getSB(); if(!sb||typeof currentUser==='undefined'||!currentUser)return;
+  _mastersFreshBusy=true;
+  try{
+    var r=await sb.from('masters').select('name,updated_at').order('updated_at',{ascending:false,nullsFirst:false}).limit(40);
+    if(r.error||!r.data){_jackLog('マスター鮮度チェック失敗',r.error);return;}
+    var latest='';
+    r.data.forEach(function(row){if(row.name&&row.name.indexOf('__')!==0&&row.updated_at&&row.updated_at>latest)latest=row.updated_at;});
+    var mine='';try{mine=localStorage.getItem('jack_masters_maxupd')||'';}catch(e){}
+    if(latest&&latest!==mine){
+      var ok=await _loadMastersFromDB(true);
+      if(ok){
+        try{renderBody();}catch(e){}
+        try{if(typeof _detailIsOpen==='function'&&_detailIsOpen()&&!ganttEditMode)_redrawDetailFor(currentProp.fix_no);}catch(e){}
+        showToast('🔄 マスター工程の最新に更新しました','success');
+      }
+    }
+  }catch(e){_jackLog('マスター鮮度チェック',e);}
+  finally{_mastersFreshBusy=false;}
+}
+window._checkMastersFresh=_checkMastersFresh;
 
 async function renameMaster(idx){
   var m=myMasters[idx]; if(!m)return;
@@ -12142,7 +12208,7 @@ async function _checkPropsFresh(force){
   }catch(e){_jackLog('物件鮮度チェック',e);}
   finally{_propsFreshBusy=false;}
 }
-document.addEventListener('visibilitychange',function(){if(!document.hidden)_checkPropsFresh(false);});
+document.addEventListener('visibilitychange',function(){if(!document.hidden){_checkPropsFresh(false);if(typeof _checkMastersFresh==='function')_checkMastersFresh(false);}});
 
 // ★2026/10/8追加：メモリ上のDB_PROPSだけ更新してlocalStorageのキャッシュを更新し忘れると、再起動で古い値に戻る。
 //   物件1件の特定項目だけをキャッシュに反映する（custom_ganttなど重い列はキャッシュに入れない）
@@ -12176,7 +12242,7 @@ async function loadPropertiesFromCacheOrDB(forceRefresh){
           _loadSharedGanttFromDB();
           if(typeof renderAll==='function')renderAll();
           setMode(isPcMode);
-          setTimeout(function(){_checkPropsFresh(true);},1200);
+          setTimeout(function(){_checkPropsFresh(true);if(typeof _checkMastersFresh==='function')_checkMastersFresh(true);},1200);
           var ts=localStorage.getItem(PROPS_CACHE_TS_KEY)||'';
           updateSyncBanner(ts?('最終同期: '+ts):'キャッシュから表示',false);
           return;
@@ -12545,9 +12611,11 @@ window._syncVendorsManual=_syncVendorsManual;
 // 同期ボタン（強制再取得）
 function doSyncFull(){
   updateSyncBanner('同期中...',true);
-  loadPropertiesFromCacheOrDB(true).then(function(){
+  loadPropertiesFromCacheOrDB(true).then(async function(){
     // vendorsは同期ボタンでは取得しない（全業者選定一覧を開いたときのみ取得）
-    if(typeof _loadMastersFromDB==='function')_loadMastersFromDB(true);
+    // ★2026/11/09：マスターの取得完了を待ち、成功なら描き直し・失敗なら警告する（以前は待たず、失敗も黙っていた）
+    var _mOk=true;
+    if(typeof _loadMastersFromDB==='function'){_mOk=await _loadMastersFromDB(true);if(_mOk){try{renderBody();}catch(e){}}}
     // 同期後はTSキャッシュ・_ganttFetchedPropsをリセットして再確認を強制
     if(typeof window._ganttFetchedProps!=='undefined')window._ganttFetchedProps={};
     // ★2026/9/10追加：納品書のTSキャッシュ・取得済みフラグも同様にリセットする
@@ -12558,7 +12626,7 @@ function doSyncFull(){
       Object.keys(localStorage).filter(function(k){return k.indexOf('jack_gantt_ts_')===0||k.indexOf('jack_dn_ts_')===0;})
         .forEach(function(k){localStorage.removeItem(k);});
     }catch(e){}
-    showToast('✅ データを同期しました（工程・マスター・納品書）','success');
+    showToast(_mOk===false?'⚠️ 物件は同期しましたが、マスター工程を取得できませんでした（古い可能性があります。もう一度同期してください）':'✅ データを同期しました（工程・マスター・納品書）',_mOk===false?'error':'success');
     try{if(typeof _detailIsOpen==='function'&&_detailIsOpen())refreshDetailLatest(true);}catch(e){} // ★開いている物件詳細も最新に取り直す（2026/11/09）
   });
 }
