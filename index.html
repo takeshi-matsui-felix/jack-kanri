@@ -822,7 +822,7 @@ body.sp-mode #areaTabsBtns{ display:none !important; }
     <div class="sb-item" onclick="openSettings()"><span class="sb-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M12 3v3M12 18v3M3 12h3M18 12h3M5.600 5.600l2.100 2.100M16.300 16.300l2.100 2.100M18.400 5.600l-2.100 2.100M7.700 16.300l-2.100 2.100"/></svg></span><span class="sb-label">設定</span></div>
     <div class="sb-item" onclick="printPage()"><span class="sb-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 9V4h10v5"/><rect x="4" y="9" width="16" height="8" rx="2"/><path d="M7 14h10v6H7z"/></svg></span><span class="sb-label">印刷</span></div>
     <div class="sb-item sp-hide" id="sbKensaBtn" style="display:none" onclick="openKensaViewer()"><span class="sb-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M20 20l-4-4"/></svg></span><span class="sb-label">検査取りまとめ</span></div>
-    <div class="sb-item sp-hide" id="sbAdminBtn" style="display:none" onclick="openAdminCP()"><span class="sb-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="3.500" width="14" height="17" rx="2"/><path d="M9 8h2M13 8h2M9 12h2M13 12h2M10 20.500v-4h4v4"/></svg></span><span class="sb-label">管理者CP</span></div>
+    <div class="sb-item sp-hide" id="sbAdminBtn" style="display:none;position:relative" onclick="openAdminCP()"><span class="sb-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="3.500" width="14" height="17" rx="2"/><path d="M9 8h2M13 8h2M9 12h2M13 12h2M10 20.500v-4h4v4"/></svg></span><span class="sb-label">管理者CP</span><span class="admPendBadge" style="display:none"></span></div>
   </div>
   <div class="sb-foot">
     <div class="sb-avatar" id="sbAvatar">?</div>
@@ -1451,7 +1451,7 @@ var POST_END_PAD = 120; // ★スクロール終端の余白：完了検査列�
 // ===== 納品書機能：休工日カレンダー・稼働日計算 =====
 // ★日本の祝日（政府発表・国立天文台暦要項ベース、2025〜2028年分）
 // ★アプリバージョン（不具合問い合わせ対応用。リリースごとに更新すること。2026/8/23追加）
-var APP_VERSION = '2026.11.09.2';
+var APP_VERSION = '2026.11.15.1';
 window.APP_VERSION=APP_VERSION;
 // ★物件詳細URL（?fix=FIX番号）：起動時に値を控え、ログイン・物件読込後に該当物件の詳細を開く（2026/10/22）
 var _JACK_DEEP_FIX=(function(){try{var v=new URLSearchParams(window.location.search).get('fix');return v?String(v).trim():'';}catch(e){return '';}})();
@@ -12611,6 +12611,7 @@ window._syncVendorsManual=_syncVendorsManual;
 // 同期ボタン（強制再取得）
 function doSyncFull(){
   updateSyncBanner('同期中...',true);
+  try{_admPendRefresh();}catch(e){}
   loadPropertiesFromCacheOrDB(true).then(async function(){
     // vendorsは同期ボタンでは取得しない（全業者選定一覧を開いたときのみ取得）
     // ★2026/11/09：マスターの取得完了を待ち、成功なら描き直し・失敗なら警告する（以前は待たず、失敗も黙っていた）
@@ -12634,6 +12635,7 @@ window.doSyncFull=doSyncFull;
 
 function doSync(){
   updateSyncBanner('同期中...',true);
+  try{_admPendRefresh();}catch(e){}
   // 古い更新情報キャッシュをクリア
   try{localStorage.removeItem('jack_sync');}catch(e){}
   syncData={lastSync:null,updates:[]};
@@ -14565,6 +14567,7 @@ async function onAuthSuccess(isNewLogin){
     try{localStorage.setItem('jack_profile_cache',JSON.stringify(currentProfile));}catch(e){}
   }
   if(!currentProfile||!currentProfile.approved){showPendingScreen();return;}
+  try{_admPendRefresh();}catch(e){}
   // ★メンテナンスモードチェック（管理者以外はここでブロック）
   // ページ読み込み時の一度きりのチェックだけに頼らず、ログイン成功のたびに必ずSupabaseへ最新状態を確認する
   if(currentProfile.role!=='admin'){
@@ -15827,6 +15830,7 @@ function openAdminCP(){
   setTimeout(function(){if(typeof _loadAdmMaintState==='function')_loadAdmMaintState();},400);
   renderAdminCPShell();
   openPanel('jackAdminCPPanel');
+  try{_admPendRender();_admPendRefresh();}catch(e){}
 }
 window.openAdminCP=openAdminCP;
 
@@ -15979,8 +15983,30 @@ function admMenuItem(id,icon,label){
   if(_d)icon='<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="display:block">'+_d+'</svg>';
   return '<div class="adm-mi" data-sec="'+id+'" onclick="loadAdmSec(\''+id+'\')" '
     +'style="display:flex;align-items:center;gap:8px;padding:9px 12px;cursor:pointer;color:rgba(255,255,255,.7);font-size:12px;font-weight:600;transition:background .1s">'
-    +'<span style="font-size:14px;width:18px;height:18px;display:flex;align-items:center;justify-content:center;flex-shrink:0">'+icon+'</span><span>'+label+'</span></div>';
+    +'<span style="font-size:14px;width:18px;height:18px;display:flex;align-items:center;justify-content:center;flex-shrink:0">'+icon+'</span><span>'+label+'</span>'
+    +(id==='users'?'<span class="admPendBadge" style="display:none;margin-left:auto"></span>':'')+'</div>';
 }
+// ★2026/11/15追加：新規申込（承認待ち）の件数を、管理者CPボタン・ユーザー管理メニューに赤い吹き出しで表示
+window._admPendCount=0;
+function _admPendRender(){
+  var n=window._admPendCount||0;
+  document.querySelectorAll('.admPendBadge').forEach(function(el){
+    if(n>0){
+      el.textContent=n>99?'99+':String(n);
+      el.title='承認待ちのユーザーが'+n+'件あります';
+      var inSb=el.parentNode&&el.parentNode.id==='sbAdminBtn';
+      el.style.cssText='display:inline-flex;align-items:center;justify-content:center;min-width:18px;height:18px;padding:0 5px;box-sizing:border-box;border-radius:9px;background:#ef4444;color:#fff;font-size:11px;font-weight:700;line-height:1;box-shadow:0 0 0 2px rgba(255,255,255,.9)'+(inSb?';position:absolute;right:8px;top:50%;transform:translateY(-50%)':';margin-left:auto');
+    }else{el.style.display='none';}
+  });
+}
+async function _admPendRefresh(){
+  try{
+    if(typeof currentProfile==='undefined'||!currentProfile||currentProfile.role!=='admin'||typeof sb==='undefined'||!sb)return;
+    var r=await sb.from('profiles').select('id',{count:'exact',head:true}).eq('approved',false);
+    if(!r.error&&typeof r.count==='number'){window._admPendCount=r.count;_admPendRender();}
+  }catch(e){}
+}
+window._admPendRefresh=_admPendRefresh;
 
 // ===== お知らせ管理（管理者CP） =====
 function admAnnounceCard(a){
@@ -16125,6 +16151,7 @@ async function loadAdmSec(sec){
     var users=r.data||[];
     window._admUsersList=users; // ★マスター編集モーダルから参照するためキャッシュ（2026/10追加）
     var pending=users.filter(function(u){return !u.approved;});
+    window._admPendCount=pending.length;try{_admPendRender();}catch(e){}
     var approved=users.filter(function(u){return u.approved;});
     right.innerHTML='<div style="padding:14px">'
       +'<div style="font-size:16px;font-weight:800;color:#1e293b;margin-bottom:14px">👥 ユーザー管理</div>'
@@ -16762,8 +16789,8 @@ window.saveUserMasterEdit=saveUserMasterEdit;
 // Event delegation (ユーザー管理ボタン)
 document.addEventListener('click',async function(e){
   var t=e.target;var sb=getSB();if(!sb)return;
-  if(t.classList.contains('adm-approve')){await sb.from('profiles').update({approved:true}).eq('id',t.getAttribute('data-uid'));showToast('✅ 承認しました','success');loadAdmSec('users');}
-  else if(t.classList.contains('adm-revoke')){if(!confirm('取り消しますか？'))return;await sb.from('profiles').update({approved:false}).eq('id',t.getAttribute('data-uid'));showToast('取り消しました','');loadAdmSec('users');}
+  if(t.classList.contains('adm-approve')){await sb.from('profiles').update({approved:true}).eq('id',t.getAttribute('data-uid'));showToast('✅ 承認しました','success');loadAdmSec('users');_admPendRefresh();}
+  else if(t.classList.contains('adm-revoke')){if(!confirm('取り消しますか？'))return;await sb.from('profiles').update({approved:false}).eq('id',t.getAttribute('data-uid'));showToast('取り消しました','');loadAdmSec('users');_admPendRefresh();}
   else if(t.classList.contains('adm-master-edit')){
     var umUid=t.getAttribute('data-uid');
     var umU=(window._admUsersList||[]).find(function(x){return String(x.id)===String(umUid);});
@@ -16780,7 +16807,7 @@ document.addEventListener('click',async function(e){
     //   以前は profiles の行だけ消えて、ログイン情報とログインIDが残り続けていた
     var delRes=await sb.rpc('admin_delete_user',{target_id:delUid});
     if(delRes.error){showToast('削除エラー: '+delRes.error.message,'error');}
-    else{showToast('✅ 【'+_jackIdDisplay(delEmail)+'】を完全に削除しました','success');loadAdmSec('users');}
+    else{showToast('✅ 【'+_jackIdDisplay(delEmail)+'】を完全に削除しました','success');loadAdmSec('users');_admPendRefresh();}
   }
 });
 
