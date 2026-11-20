@@ -1451,7 +1451,7 @@ var POST_END_PAD = 120; // ★スクロール終端の余白：完了検査列�
 // ===== 納品書機能：休工日カレンダー・稼働日計算 =====
 // ★日本の祝日（政府発表・国立天文台暦要項ベース、2025〜2028年分）
 // ★アプリバージョン（不具合問い合わせ対応用。リリースごとに更新すること。2026/8/23追加）
-var APP_VERSION = '2026.11.20.1';
+var APP_VERSION = '2026.11.20.2';
 window.APP_VERSION=APP_VERSION;
 // ★物件詳細URL（?fix=FIX番号）：起動時に値を控え、ログイン・物件読込後に該当物件の詳細を開く（2026/10/22）
 var _JACK_DEEP_FIX=(function(){try{var v=new URLSearchParams(window.location.search).get('fix');return v?String(v).trim():'';}catch(e){return '';}})();
@@ -11553,11 +11553,12 @@ window._loadMastersFromDB=_loadMastersFromDB;
 var _mastersFreshBusy=false,_mastersFreshLast=0;
 async function _checkMastersFresh(force){
   if(_mastersFreshBusy)return;
-  var now=Date.now(); if(!force&&now-_mastersFreshLast<60000)return;
+  var now=Date.now(); if(!force&&now-_mastersFreshLast<300000)return; // ★2026/11/20：60秒→5分（DB負荷対策）
   _mastersFreshLast=now;
   var sb=getSB(); if(!sb||typeof currentUser==='undefined'||!currentUser)return;
   _mastersFreshBusy=true;
   try{
+    var _dvM=await _dvToken('masters',force); if(_dvM===false)return;   // 更新印が前回と同じ＝変更なし
     var r=await sb.from('masters').select('name,updated_at').order('updated_at',{ascending:false,nullsFirst:false}).limit(40);
     if(r.error||!r.data){_jackLog('マスター鮮度チェック失敗',r.error);return;}
     var latest='';
@@ -11569,8 +11570,9 @@ async function _checkMastersFresh(force){
         try{renderBody();}catch(e){}
         try{if(typeof _detailIsOpen==='function'&&_detailIsOpen()&&!ganttEditMode)_redrawDetailFor(currentProp.fix_no);}catch(e){}
         showToast('🔄 マスター工程の最新に更新しました','success');
+        _dvRemember('masters',_dvM);
       }
-    }
+    }else{ _dvRemember('masters',_dvM); }
   }catch(e){_jackLog('マスター鮮度チェック',e);}
   finally{_mastersFreshBusy=false;}
 }
@@ -12189,6 +12191,43 @@ var PROPS_MAXUPD_KEY='jack_props_maxupd';
 function _rememberPropsMaxUpd(arr){
   try{var m='';(arr||[]).forEach(function(d){if(d&&d.updated_at&&d.updated_at>m)m=d.updated_at;});if(m)localStorage.setItem(PROPS_MAXUPD_KEY,m);}catch(e){}
 }
+// ===== ★2026/11/20 案B：データ更新印（data_versions）=====
+//   物件・マスター・工程変更履歴を「変わったか」確認するために、重い表を毎回調べる代わりに、
+//   小さな表 data_versions（各表の最終更新時刻の印）だけを見る。印が前回と同じなら、本体の確認を省く。
+//   data_versions が無い／読めないときは、従来どおり本体を確認する（SQL未実行でも動く）。
+var _dvCache={t:0,map:null,p:null,off:false};
+async function _dvGet(force){
+  if(_dvCache.off)return null;
+  var now=Date.now();
+  if(!force&&_dvCache.map&&now-_dvCache.t<20000)return _dvCache.map;
+  if(_dvCache.p)return _dvCache.p;
+  var sb=getSB(); if(!sb)return null;
+  _dvCache.p=(async function(){
+    try{
+      var r=await sb.from('data_versions').select('name,updated_at');
+      if(r.error){
+        if(/data_versions|does not exist|schema cache|42P01|PGRST205/.test(String(r.error.message||'')+String(r.error.code||'')))_dvCache.off=true;
+        _dvCache.map=null; return null;
+      }
+      var m={}; (r.data||[]).forEach(function(x){if(x&&x.name&&x.updated_at)m[x.name]=x.updated_at;});
+      _dvCache.map=m; _dvCache.t=Date.now(); return m;
+    }catch(e){_dvCache.map=null; return null;}
+    finally{_dvCache.p=null;}
+  })();
+  return _dvCache.p;
+}
+// 戻り値：false＝前回から変化なし（本体の確認を省いてよい）／文字列＝変化あり（確認後に _dvRemember で記録）／null＝印が使えない（従来どおり確認）
+async function _dvToken(name,force){
+  try{
+    var m=await _dvGet(!!force); if(!m||!m[name])return null;
+    var mine=''; try{mine=localStorage.getItem('jack_dv_'+name)||'';}catch(e){}
+    if(!force&&mine===m[name])return false;
+    return m[name];
+  }catch(e){return null;}
+}
+function _dvRemember(name,tok){ if(!tok)return; try{localStorage.setItem('jack_dv_'+name,tok);}catch(e){} }
+window._dvGet=_dvGet; window._dvToken=_dvToken; window._dvRemember=_dvRemember;
+
 var _propsFreshBusy=false,_propsFreshLast=0;
 async function _checkPropsFresh(force){
   if(_propsFreshBusy)return;
@@ -12197,6 +12236,7 @@ async function _checkPropsFresh(force){
   var sb=getSB(); if(!sb||typeof currentUser==='undefined'||!currentUser)return;
   _propsFreshBusy=true;
   try{
+    var _dvT=await _dvToken('properties',force); if(_dvT===false)return;   // 更新印が前回と同じ＝変更なし
     var r=await sb.from('properties').select('updated_at').order('updated_at',{ascending:false}).limit(1);
     if(r.error||!r.data||!r.data.length)return;
     var latest=r.data[0].updated_at||'', mine='';
@@ -12205,6 +12245,7 @@ async function _checkPropsFresh(force){
       await loadPropertiesFromCacheOrDB(true);
       showToast('🔄 最新の物件データに更新しました','success');
     }
+    _dvRemember('properties',_dvT);
   }catch(e){_jackLog('物件鮮度チェック',e);}
   finally{_propsFreshBusy=false;}
 }
@@ -19916,8 +19957,11 @@ document.addEventListener('DOMContentLoaded',function(){
   }
 
   // ---------- 読み込み ----------
-  function loadRecent(){
+  var recentTok=null; // ★2026/11/20：前回取得時の更新印（変化が無ければ取り直さない）
+  async function loadRecent(){
     var sb=SB();if(!sb||!tableOk)return;
+    var _tk=null;
+    try{ if(typeof window._dvGet==='function'){ var _m=await window._dvGet(false); _tk=(_m&&_m.gantt_changes)||null; if(_tk&&_tk===recentTok)return; } }catch(e){}   // この画面で取得済みの印と同じ＝変更なし
     var since=new Date(Date.now()-14*86400000).toISOString();
     sb.from('gantt_changes').select('id,fix_no,changed_at,kind,items').eq('kind','edit').gte('changed_at',since)
       .order('changed_at',{ascending:false}).limit(1500)
@@ -19925,7 +19969,7 @@ document.addEventListener('DOMContentLoaded',function(){
         if(r.error){noTable(r.error);return;}
         var m={};(r.data||[]).forEach(function(e){cleanEv(e);if(hasMove(e)&&!m[e.fix_no])m[e.fix_no]=e;});
         var key=Object.keys(m).map(function(k){return k+':'+m[k].id;}).sort().join(',');
-        RECENT=m;
+        RECENT=m; recentTok=_tk;
         if(key!==lastRecentKey){lastRecentKey=key;try{if(typeof renderBody==='function')renderBody();}catch(x){}}
       }).catch(function(){});}
   function loadHist(fix){
@@ -20107,7 +20151,7 @@ document.addEventListener('DOMContentLoaded',function(){
   }).observe(document.body,{childList:true,subtree:true});
   function tick(){try{if(typeof currentUser!=='undefined'&&currentUser)loadRecent();}catch(e){}}
   setTimeout(tick,5000);setInterval(tick,300000);
-  var lastVis=0;document.addEventListener('visibilitychange',function(){if(!document.hidden&&Date.now()-lastVis>60000){lastVis=Date.now();tick();}});
+  var lastVis=0;document.addEventListener('visibilitychange',function(){if(!document.hidden&&Date.now()-lastVis>300000){lastVis=Date.now();tick();}});
 })();
 </script>
 <script>
